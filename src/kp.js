@@ -85,7 +85,7 @@ export async function balikProZarizeni(q, pacientId) {
     JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.PacientID = @p AND t.Aktivni = 1`, { p: pacientId });
   const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, LOWER(Role) AS role, Salt AS salt, Hash AS hash, Iterace AS iterace
     FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1`, { p: pacientId });
-  const denik = await q.all(`SELECT TOP 100 CONVERT(varchar(36), UUID) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
+  const denik = await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
   return {
     pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, rok: p.RokNarozeni || (p.DatumNarozeni ? Number(p.DatumNarozeni.slice(0, 4)) : null), pohlavi: p.Pohlavi, pobyt: p.Pobyt, stav: p.Stav },
