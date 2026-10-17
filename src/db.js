@@ -63,7 +63,8 @@ export async function vTenantu(tenant, fn) {
   await tx.begin();
   const q = api(tx);
   try {
-    await q.run("EXEC sp_set_session_context @key = N'IDTENANT', @value = @t", { t: tenant });
+    // sql_variant nesnese nvarchar(max) – hodnota musí jít jako nvarchar(16)
+    await new sql.Request(tx).input('t', sql.NVarChar(16), tenant).query("EXEC sp_set_session_context @key = N'IDTENANT', @value = @t");
     const vysledek = await fn(q);
     await q.run("EXEC sp_set_session_context @key = N'IDTENANT', @value = NULL");
     await tx.commit();
