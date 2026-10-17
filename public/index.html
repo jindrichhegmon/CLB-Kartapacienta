@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Karta pacienta</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/shared/kp.css">
+<style>
+  .hub{display:grid;gap:12px}
+  @media (min-width:760px){.hub{grid-template-columns:repeat(3,1fr)}}
+  .hub a{display:grid;gap:8px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:inherit;text-decoration:none}
+  .hub a:hover{border-color:var(--accent)}
+  .hub .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+  .hub .ico svg{width:24px;height:24px}
+  .hub h2{font-size:17px}
+  .hub p{margin:0;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<div class="app wide">
+  <header class="top"><img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Paliativní průkaz · Mobil u lůžka: jedna karta pro všechny, kdo pečují</div></div><span class="verbadge" id="ver">…</span></header>
+  <main class="content">
+    <div class="hub">
+      <a href="/centrala/"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></span><h2>Centrální aplikace</h2><p>Garant zavede pacienta, vede plán péče, spravuje tým kolem pacienta, páruje telefon a předává garanci.</p></a>
+      <a href="/karta/"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></span><h2>Karta na mobil</h2><p>Telefon u lůžka: krizová karta bez přihlášení, deník a zhoršení i bez signálu, synchronizace při každém připojení.</p></a>
+      <a href="/tenanti/"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg></span><h2>Správa tenantů</h2><p>Pro provozovatele platformy: založení organizace (tenanta) jedním formulářem, správci a stav provozu.</p></a>
+    </div>
+    <div class="note">Data jsou v databázi PeceDomaPlus (stejný princip tenantů jako Péče doma Plus, Row-Level Security). Komunikace telefonu se serverem je šifrovaná, telefon ukazuje poslední stav i bez připojení a dotazy na AI jsou vždy anonymní. Původní lokální prototyp: <a href="/demo/">/demo/</a>.</div>
+    <div class="footer" id="stav">kontroluji server…</div>
+  </main>
+</div>
+<script>
+fetch('/api/health').then(r=>r.json()).then(d=>{ document.getElementById('ver').textContent='v'+d.verze; document.getElementById('stav').textContent=`server ${d.verze} · databáze ${d.db}${d.konfigurace&&d.konfigurace.length?' · chybí nastavení: '+d.konfigurace.join(', '):''}`; }).catch(()=>{ document.getElementById('stav').textContent='server nedostupný'; });
+</script>
+</body>
+</html>

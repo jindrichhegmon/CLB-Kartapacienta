@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Centrální aplikace · Karta pacienta</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/shared/kp.css">
+<style>
+  .nav{display:flex;gap:6px;flex-wrap:wrap}
+  .nav button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 13px;font-weight:600;font-size:13.5px;cursor:pointer}
+  .nav button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .who{font-size:12.5px;color:var(--muted);text-align:right;line-height:1.25}
+  .anon{white-space:pre-wrap;font-family:var(--mono);font-size:12px;max-height:260px;overflow:auto;background:var(--surface-2);border-radius:10px;padding:10px}
+  .kontrow{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;align-items:center}
+  .kontrow input,.kontrow select{border:1px solid var(--line);border-radius:9px;padding:8px 9px;min-width:0;background:var(--surface)}
+  @media (max-width:640px){.kontrow{grid-template-columns:1fr 1fr}}
+  @media print{ .top,.nav,.tabs,.actions,.noprint,#modal,#toast{display:none!important} .card{box-shadow:none} }
+</style>
+</head>
+<body>
+<div class="app wide">
+  <header class="top" id="top"></header>
+  <main class="content" id="work"></main>
+</div>
+<div id="modal"></div><div id="toast" class="toast" hidden></div>
+<script src="/shared/kp.js"></script>
+<script src="/shared/qrcode.js"></script>
+<script>
+const { esc, api, toast, modal, closeModal, fmtD, fmtDT, CILE, LIMITY } = KP;
+const $ = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+if (qs.get('t')) { localStorage.setItem('kp_tenant', qs.get('t').toUpperCase()); history.replaceState(null, '', location.pathname); }
+const S = { tenant: localStorage.getItem('kp_tenant') || '', session: sessionStorage.getItem('kp_session') || '', ja: null, view: 'pacienti', pac: null, tab: 'karta', stav: 'AKTIVNI', posk: [], wiz: null };
+const C = (p, o = {}) => api('/api/c' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { odhlas(); } throw e; });
+const jeLekar = () => S.ja && S.ja.role.includes('lekar');
+const jeAdmin = () => S.ja && S.ja.role.includes('admin');
+const ROLE_NAZ = { admin: 'správce', lekar: 'lékař', sestra: 'sestra', ctenar: 'jen čtení' };
+const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'host (čtení)' };
+
+function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_session'); render(); }
+
+/* ================= hlavička ================= */
+function top() {
+  if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>`; return; }
+  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>${esc(S.nazevSite || 'Karta pacienta')}</h1><div class="meta">Centrální aplikace · garant a tým kolem pacienta</div></div>
+    <div class="who noprint">${esc(S.ja.jmeno)}<br>${esc(S.ja.poskytovatel)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</div>
+    <span class="verbadge">v${esc(S.verze || '')}</span><button class="btn sm noprint" id="odhl">Odhlásit</button>`;
+  $('odhl').onclick = odhlas;
+}
+function nav() {
+  const pol = [['pacienti', 'Pacienti'], ...(jeLekar() ? [['novy', '+ Nový pacient']] : []), ...(jeAdmin() ? [['sprava', 'Správa organizace']] : []), ['ucet', 'Můj účet']];
+  return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+}
+function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.view = b.dataset.v; if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
+
+/* ================= přihlášení ================= */
+async function render() {
+  if (!S.session) return renderLogin();
+  if (!S.ja) {
+    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; } catch (e) { return; }
+    try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
+  }
+  top();
+  if (S.ja.musiZmenitHeslo) return renderUcet(true);
+  ({ pacienti: renderPacienti, detail: renderDetail, novy: renderNovy, sprava: renderSprava, ucet: () => renderUcet(false) }[S.view] || renderPacienti)();
+}
+
+function renderLogin() {
+  top();
+  $('work').innerHTML = `<div class="login"><div class="panel">
+    <h2>Přihlášení</h2>
+    ${S.tenant ? `<div class="note">Organizace: <span class="mono">${esc(S.tenant)}</span> · <a href="#" id="jinaOrg">jiná organizace</a></div>` : `<div class="field"><label>Kód organizace</label><input id="l_t" placeholder="16 znaků z odkazu, který jste dostali" autocapitalize="characters"></div>`}
+    <div class="field"><label>Přihlašovací jméno</label><input id="l_l" autocomplete="username" autocapitalize="off"></div>
+    <div class="field"><label>Heslo</label><input id="l_h" type="password" autocomplete="current-password"></div>
+    <button class="btn primary" id="l_ok">Přihlásit</button>
+    <div class="footer">Karta pacienta · data v PeceDomaPlus, přístup podle týmu kolem pacienta</div></div></div>`;
+  if ($('jinaOrg')) $('jinaOrg').onclick = (e) => { e.preventDefault(); S.tenant = ''; localStorage.removeItem('kp_tenant'); renderLogin(); };
+  const go = async () => {
+    const tenant = S.tenant || ($('l_t') && $('l_t').value.trim().toUpperCase());
+    try { const d = await api('/api/c/login', { method: 'POST', body: { tenant, login: $('l_l').value, heslo: $('l_h').value } });
+      S.tenant = tenant; localStorage.setItem('kp_tenant', tenant); S.session = d.session; sessionStorage.setItem('kp_session', d.session); S.view = 'pacienti'; render();
+    } catch (e) { toast(e.message); }
+  };
+  $('l_ok').onclick = go; $('l_h').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  ($('l_t') || $('l_l')).focus();
+}
+
+function renderUcet(povinne) {
+  $('work').innerHTML = `${povinne ? '' : nav()}<div class="login" style="margin-top:2vh"><div class="panel">
+    <h2>${povinne ? 'Nastavte si vlastní heslo' : 'Můj účet'}</h2>
+    ${povinne ? '<div class="banner warn">Přihlásili jste se prvním heslem od správce. Než budete pokračovat, zvolte si vlastní heslo (aspoň 10 znaků).</div>' : `<dl class="kv"><dt>Jméno</dt><dd>${esc(S.ja.jmeno)}</dd><dt>Login</dt><dd>${esc(S.ja.login)}</dd><dt>Pracoviště</dt><dd>${esc(S.ja.poskytovatel)}</dd><dt>Role</dt><dd>${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</dd></dl>`}
+    <div class="field"><label>Současné heslo</label><input type="password" id="h_s" autocomplete="current-password"></div>
+    <div class="field"><label>Nové heslo</label><input type="password" id="h_n" autocomplete="new-password"></div>
+    <div class="field"><label>Nové heslo znovu</label><input type="password" id="h_n2" autocomplete="new-password"></div>
+    <button class="btn primary" id="h_ok">Změnit heslo</button></div></div>`;
+  if (!povinne) bindNav();
+  $('h_ok').onclick = async () => {
+    if ($('h_n').value !== $('h_n2').value) return toast('Nová hesla se neshodují');
+    try { await C('/heslo', { method: 'POST', body: { stare: $('h_s').value, nove: $('h_n').value } }); toast('Heslo změněno'); S.ja.musiZmenitHeslo = false; S.view = 'pacienti'; render(); } catch (e) { toast(e.message); }
+  };
+}
+
+/* ================= přehled pacientů ================= */
+async function renderPacienti() {
+  $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav();
+  let d; try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+  const synch = (p) => !p.telefonu ? '<span class="chip">bez telefonu</span>' : `<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ` <span class="muted" style="font-size:12px">${p.baterie} %</span>` : ''}`;
+  $('work').innerHTML = `${nav()}
+    ${d.upozorneni.length && S.stav === 'AKTIVNI' ? `<div class="panel"><div class="panel-h"><h2>Upozornění</h2><span class="chip ${d.upozorneni.some((u) => u.uroven === 'crit') ? 'crit' : 'warn'}">${d.upozorneni.length}</span></div><div class="alerts" style="padding:10px">${d.upozorneni.slice(0, 30).map((u) => `<div class="alert ${u.uroven}" data-p="${u.pacientId}">${esc(u.text)}</div>`).join('')}</div></div>` : ''}
+    <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>
+      <div class="seg" style="width:240px"><button data-s="AKTIVNI" class="${S.stav === 'AKTIVNI' ? 'on' : ''}">Aktivní</button><button data-s="UZAVRENY" class="${S.stav === 'UZAVRENY' ? 'on' : ''}">Uzavřené</button></div></div>
+      <div class="tblwrap"><table class="tbl hover"><thead><tr><th>Průkaz</th><th>Pacient</th><th>Pobyt</th><th>Garant</th><th>Plán</th><th>Telefon</th><th>Poslední zápis</th></tr></thead><tbody>
+      ${d.pacienti.map((p) => `<tr data-id="${p.id}"><td class="mono">${esc(p.kod)}</td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.rok || '')}${p.posledniKrize === 'Zhoršení stavu' ? ' · <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' · <span class="chip vio">předává se</span>' : ''}</div></td>
+        <td>${esc(p.pobyt || '—')}</td><td>${esc(p.garant || '—')}</td>
+        <td>${p.platnostDo ? (KP.prosly(p.platnostDo) ? '<span class="chip crit">po platnosti</span>' : 'do ' + fmtD(p.platnostDo)) : '<span class="chip warn">chybí</span>'}<div class="lbl">${esc(CILE[p.cil] ? CILE[p.cil].split(' (')[0] : '')}${p.verze ? ' · v' + p.verze : ''}</div></td>
+        <td>${S.stav === 'AKTIVNI' ? synch(p) : esc(fmtDT(p.uzavreno))}</td><td class="mono" style="font-size:12px">${esc(fmtDT(p.posledniZapis))}</td></tr>`).join('') || `<tr><td colspan="7" class="muted">${S.stav === 'AKTIVNI' ? 'Zatím žádný pacient.' + (jeLekar() ? ' Začněte tlačítkem „+ Nový pacient“.' : '') : 'Žádné uzavřené průkazy.'}</td></tr>`}
+      </tbody></table></div></div>`;
+  bindNav();
+  document.querySelectorAll('tr[data-id],.alert[data-p]').forEach((r) => (r.onclick = () => otevri(Number(r.dataset.id || r.dataset.p))));
+  document.querySelectorAll('.seg [data-s]').forEach((b) => (b.onclick = () => { S.stav = b.dataset.s; renderPacienti(); }));
+}
+function otevri(id, tab) { S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
+
+/* ================= detail pacienta ================= */
+async function nactiDetail() { const d = await C('/pacient/' + S.pacId); d.denikAsc = [...d.denik].reverse(); S.pac = d; return d; }
+async function renderDetail() {
+  $('work').innerHTML = `${nav()}<div class="note">Načítám průkaz…</div>`; bindNav();
+  let d; try { d = await nactiDetail(); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+  kresliDetail();
+}
+function balikZDetailu(d) {
+  const g = d.garance.find((x) => x.stav === 'PLATNA');
+  const gp = g && S.posk.find((p) => p.id === g.poskytovatelId);
+  return { pacient: { kod: d.pacient.kod, jmeno: d.pacient.jmeno, prijmeni: d.pacient.prijmeni, rok: d.pacient.rok }, plan: d.plan, garant: g ? { poskytovatel: g.nazev, lekar: g.lekar, telefon24: gp && gp.telefon24 } : null,
+    kontakty: d.kontakty.map((k) => ({ ...k, skupina: k.skupina.toLowerCase() })), denik: d.denikAsc };
+}
+function kresliDetail() {
+  const d = S.pac, p = d.pacient, op = d.op;
+  const g = d.garance.find((x) => x.stav === 'PLATNA');
+  const navrh = d.garance.find((x) => x.stav === 'NAVRZENO');
+  const tabs = [['karta', 'Krizová karta'], ['plan', 'Plán péče'], ['denik', `Deník (${d.denik.length})`], ['kontakty', 'Kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Údaje'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
+  const body = { karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
+  $('work').innerHTML = `${nav()}
+    <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
+      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} · garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}</div></div></div>
+    ${navrh && op.prijmoutGaranci ? `<div class="banner crit">Bylo vám navrženo převzetí garance (navrhl ${esc(navrh.navrhl || '—')}, ${esc(fmtDT(navrh.navrzeno))}).<button class="btn sm primary" id="prevzit">Převzít garanci</button><button class="btn sm" id="odmitnout">Odmítnout</button></div>` : navrh ? `<div class="banner warn">Předání garance na ${esc(navrh.nazev)} čeká na potvrzení (od ${esc(fmtDT(navrh.navrzeno))}). Do potvrzení zůstává garantem ${esc(g ? g.nazev : '—')}.</div>` : ''}
+    ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
+    <div class="tabs noprint">${tabs.map(([k, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div id="tabbody">${body(d)}</div>`;
+  bindNav();
+  $('zpet').onclick = () => { S.view = 'pacienti'; render(); };
+  document.querySelectorAll('.tabs [data-t]').forEach((b) => (b.onclick = () => { S.tab = b.dataset.t; kresliDetail(); }));
+  if ($('prevzit')) $('prevzit').onclick = () => akce('/prevzit', { prijmout: true }, 'Garance převzata');
+  if ($('odmitnout')) $('odmitnout').onclick = () => modal(`<h2>Odmítnout převzetí garance</h2><div class="field"><label>Důvod</label><input id="od_d"></div><div class="quick"><button class="btn crit" id="od_ok">Odmítnout</button><button class="btn" data-close>Zpět</button></div>`, () => { $('od_ok').onclick = () => { closeModal(); akce('/prevzit', { prijmout: false, duvod: $('od_d').value }, 'Odmítnuto'); }; });
+  if ($('revize2')) $('revize2').onclick = revize;
+  bindTab();
+}
+async function akce(cesta, body, hlaska, tab) {
+  try { const r = await C(`/pacient/${S.pacId}${cesta}`, { method: 'POST', body }); if (hlaska) toast(hlaska); await nactiDetail(); if (tab) S.tab = tab; kresliDetail(); return r; } catch (e) { toast(e.message); throw e; }
+}
+
+/* ---- karta ---- */
+function tabKarta(d) {
+  return `<div class="grid2 l"><div>${KP.kartaHTML(balikZDetailu(d))}</div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button></div>
+      <div class="note"><b>Toto vidí posádka ZZS bez přihlášení</b> na telefonu u pacienta. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad a telefon na lékaře.</div>
+      ${d.plan ? `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${d.plan.verze}</span></div><dl class="kv" style="padding:12px 14px"><dt>Stanovil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd><dt>Platnost</dt><dd>${fmtD(d.plan.platnostDo)}</dd><dt>Diagnózy</dt><dd>${esc(d.plan.data.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(d.plan.data.funkce || '—')}</dd></dl></div>` : ''}
+      ${d.zarizeni.filter((z) => z.stav === 'SPAROVANO').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
+    </div></div>`;
+}
+/* ---- plán ---- */
+function planForm(data, platnost, ro, pref = 'f') {
+  data = data || {}; const dk = data.doklad || {};
+  return `<div class="form ${ro ? 'locked' : ''}">
+    <div class="field"><label>Cíl péče</label><select id="${pref}_cil">${Object.entries(CILE).map(([k, v]) => `<option value="${k}" ${data.cil === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="field"><label>Limitace (co se neprovádí)</label><div class="checks">${LIMITY.map((l) => `<label><input type="checkbox" name="${pref}_lim" value="${esc(l)}" ${(data.limity || []).includes(l) ? 'checked' : ''}>${esc(l)}</label>`).join('')}</div></div>
+    <div class="frow"><div class="field"><label>Dříve vyslovené přání</label><select id="${pref}_dvp"><option value="1" ${dk.dvp ? 'selected' : ''}>sepsáno</option><option value="0" ${!dk.dvp ? 'selected' : ''}>nesepsáno</option></select></div><div class="field"><label>Datum DVP</label><input type="date" id="${pref}_dvpd" value="${esc(dk.datum || '')}"></div></div>
+    <div class="frow"><div class="field"><label>Kde je originál DVP</label><input id="${pref}_orig" value="${esc(dk.original || '')}"></div><div class="field"><label>Lékařská zpráva / zápis o rozhovoru</label><input id="${pref}_zpr" value="${esc(dk.zprava || '')}"></div></div>
+    <div class="field"><label>Diagnózy</label><textarea id="${pref}_dg" style="font-family:var(--font);min-height:60px">${esc(data.dg || '')}</textarea></div>
+    <div class="field"><label>Obvyklý funkční stav</label><textarea id="${pref}_fun" style="font-family:var(--font);min-height:60px">${esc(data.funkce || '')}</textarea></div>
+    <div class="frow"><div class="field"><label>Alergie</label><input id="${pref}_al" value="${esc(data.alergie || '')}"></div><div class="field"><label>Platnost plánu do</label><input type="date" id="${pref}_plat" value="${esc(platnost || '')}"></div></div>
+    <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="${pref}_sos" style="font-family:var(--font);min-height:80px">${esc((data.sos || []).join('\n'))}</textarea></div>
+    <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="${pref}_med" style="font-family:var(--font);min-height:90px">${esc((data.medikace || []).join('\n'))}</textarea></div>
+  </div>`;
+}
+function ctiPlan(pref = 'f') {
+  const v = (id) => ($(`${pref}_${id}`) || {}).value || '';
+  return { data: { cil: v('cil'), limity: [...document.querySelectorAll(`input[name=${pref}_lim]:checked`)].map((i) => i.value), doklad: { dvp: v('dvp') === '1', datum: v('dvpd'), original: v('orig'), zprava: v('zpr') },
+    dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: v('sos').split('\n').map((x) => x.trim()).filter(Boolean), medikace: v('med').split('\n').map((x) => x.trim()).filter(Boolean) }, platnostDo: v('plat') };
+}
+function tabPlan(d) {
+  const ro = !d.op.lekar;
+  return `<div class="grid2 l"><div class="panel"><div class="panel-h"><h2>Cíl péče a limitace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : '<span class="chip acc">upravuje lékař</span>'}</div><div style="padding:14px">
+      ${planForm(d.plan && d.plan.data, d.plan && d.plan.platnostDo, ro)}
+      ${ro ? '' : '<div class="field" style="margin-top:12px"><label>Poznámka ke změně</label><input id="f_poz"></div><div class="quick" style="margin-top:12px"><button class="btn primary" id="ulozPlan">Uložit jako novou verzi</button></div>'}
+    </div></div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <div class="note">Každá změna vytvoří <b>novou verzi</b> s podpisem lékaře; starší verze zůstávají. Telefon u pacienta plán jen zobrazuje – nikdy ho nepřepíše. Sestra ani rodina cíl péče a limitace vyplnit nemohou.</div>
+      <div class="panel"><div class="panel-h"><h2>Verze plánu</h2></div><div class="tblwrap"><table class="tbl hover"><tbody>${d.verze.map((v) => `<tr data-v="${v.verze}"><td class="mono">v${v.verze}</td><td>${esc(v.typ === 'ZALOZENI' ? 'založení' : v.typ === 'REVIZE' ? 'revize' : 'změna')}<div class="lbl">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))}${v.poznamka ? ' · ' + esc(v.poznamka) : ''}</div></td><td>do ${fmtD(v.platnostDo)}</td></tr>`).join('')}</tbody></table></div></div>
+    </div></div>`;
+}
+function revize() {
+  const plat = new Date(); plat.setMonth(plat.getMonth() + (S.interval || 3));
+  modal(`<h2>Revize plánu péče</h2><p>Potvrzuji, že jsem plán péče prošel(a) s pacientem / zástupcem a platí beze změny.</p>
+    <div class="field"><label>Platnost do</label><input type="date" id="rv_d" value="${plat.toISOString().slice(0, 10)}"></div><div class="field"><label>Poznámka (volitelně)</label><input id="rv_p"></div>
+    <div class="quick"><button class="btn primary" id="rv_ok">Potvrdit revizi</button><button class="btn" data-close>Zpět</button></div>`, () => {
+    $('rv_ok').onclick = async () => { closeModal(); await akce('/plan', { typ: 'REVIZE', platnostDo: $('rv_d').value, poznamka: $('rv_p').value }, 'Revize potvrzena'); };
+  });
+}
+/* ---- deník ---- */
+function tabDenik(d) {
+  const typy = ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován'];
+  return `<div class="grid2 l"><div>${KP.denikHTML(d.denikAsc)}</div>
+    <div class="panel" style="align-self:start"><div class="panel-h"><h2>Nový zápis</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">
+      <div class="field"><label>Typ</label><select id="d_typ">${typy.map((t) => `<option>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
+      <button class="btn primary" id="d_ok">Zapsat jako ${esc(S.ja.jmeno)}</button>
+      <div class="note">Zápisy nelze mazat ani měnit, jen doplňovat. Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později.</div></div></div></div>`;
+}
+/* ---- kontakty ---- */
+function tabKontakty(d) {
+  const sk = [['ROZHODUJE', 'Rozhoduje (zástupce, opatrovník)', 'crit'], ['INFORMOVAT', 'Informovat', 'acc'], ['PECUJE', 'Pečuje (hospic, lékaři, nemocnice)', 'ok']];
+  return `<div class="grid2">${sk.map(([k, n, c]) => `<div class="panel"><div class="panel-h"><h2>${n}</h2><span class="chip ${c}">${d.kontakty.filter((x) => x.skupina === k).length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${d.kontakty.filter((x) => x.skupina === k).map((x) => `<tr><td><b>${esc(x.jmeno)}</b>${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td class="mono" style="white-space:nowrap">${esc(x.tel)}</td><td style="white-space:nowrap">${d.op.zapis && (k !== 'ROZHODUJE' || d.op.lekar) ? `<button class="btn sm" data-ked="${x.id}">✎</button> <button class="btn sm" data-kdel="${x.id}">×</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">nikdo</td></tr>'}</tbody></table></div></div>`).join('')}
+    <div class="panel"><div class="panel-h"><h2>Přidat kontakt</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">${kontaktForm({})}<button class="btn primary" id="k_ok">Přidat</button><div class="note">Roli „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení).</div></div></div></div>`;
+}
+function kontaktForm(k) {
+  return `<div class="field"><label>Jméno a vztah</label><input id="k_j" value="${esc(k.jmeno || '')}" placeholder="např. Anna Nová, vnučka"></div>
+    <div class="frow"><div class="field"><label>Telefon</label><input id="k_t" value="${esc(k.tel || '')}"></div><div class="field"><label>Skupina</label><select id="k_s">${(S.pac.op.lekar ? ['ROZHODUJE'] : []).concat(['INFORMOVAT', 'PECUJE']).map((s) => `<option value="${s}" ${k.skupina === s ? 'selected' : ''}>${s.toLowerCase()}</option>`).join('')}</select></div></div>
+    <div class="frow"><div class="field"><label>Poznámka</label><input id="k_p" value="${esc(k.pozn || '')}" placeholder="volat jako první, určená osoba…"></div><div class="field"><label>Pořadí</label><input id="k_o" type="number" value="${esc(k.poradi || '')}"></div></div>`;
+}
+/* ---- tým a garance ---- */
+function tabTym(d) {
+  const vTymu = new Set(d.tym.map((t) => t.poskytovatelId));
+  return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">
+      <div class="panel"><div class="panel-h"><h2>Tým kolem pacienta</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.tym.map((t) => `<tr><td><b>${esc(t.nazev)}</b><div class="lbl">${esc(t.typ)} · od ${fmtD(t.od)}${t.telefon24 ? ' · ' + esc(t.telefon24) : ''}</div></td><td><span class="chip ${t.role === 'GARANT' ? 'acc' : ''}">${TYM_NAZ[t.role]}</span></td><td>${d.op.garant && t.role !== 'GARANT' ? `<button class="btn sm" data-todeb="${t.id}">Odebrat</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>
+      ${d.op.garant ? `<div class="panel"><div class="panel-h"><h2>Přidat pracoviště do týmu</h2></div><div class="form" style="padding:14px">
+        <div class="frow"><div class="field"><label>Pracoviště</label><select id="t_p">${S.posk.filter((p) => p.aktivni && !vTymu.has(p.id)).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div>
+        <div class="field"><label>Role</label><select id="t_r"><option value="PECE">péče (deník, kontakty)</option><option value="LEKAR">lékař (smí měnit plán)</option><option value="HOST">host – jen čtení (např. nemocnice při hospitalizaci)</option></select></div></div>
+        <button class="btn" id="t_ok">Přidat do týmu</button></div></div>` : ''}
+      <div class="note">Při přesunu pacienta se mění tým, telefon zůstává stejný. Odebrané pracoviště ztratí přístup a PINy jeho personálu přestanou platit při nejbližší synchronizaci telefonu.</div>
+    </div>
+    <div style="display:grid;gap:12px;align-content:start">
+      ${d.op.garant ? `<div class="panel"><div class="panel-h"><h2>Předat garanci</h2></div><div class="form" style="padding:14px">
+        <div class="field"><label>Nový garant</label><select id="g_p">${S.posk.filter((p) => p.aktivni && p.smiBytGarant && p.id !== (d.garance.find((x) => x.stav === 'PLATNA') || {}).poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Garantem je nemocnice (dočasně, max. 30 dní), hospic, paliativní ambulance nebo praktický lékař – domov ne.</span></div>
+        <div class="field"><label>Poznámka pro přebírajícího</label><input id="g_poz"></div>
+        <button class="btn primary" id="g_ok">Navrhnout předání</button>
+        <div class="note">Přebírající lékař převzetí potvrdí. Do potvrzení zůstává garance u vás; po 72 h bez potvrzení přijde upozornění.</div></div></div>` : ''}
+      <div class="panel"><div class="panel-h"><h2>Historie garance</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.garance.map((g) => `<tr><td><b>${esc(g.nazev)}</b><div class="lbl">${g.stav === 'NAVRZENO' ? 'navrženo ' + esc(fmtDT(g.navrzeno)) + ' · ' + esc(g.navrhl || '') : `${esc(fmtDT(g.od))} – ${esc(g.do ? fmtDT(g.do) : 'dosud')}${g.lekar ? ' · ' + esc(g.lekar) : ''}`}${g.poznamka ? ' · ' + esc(g.poznamka) : ''}</div></td><td><span class="chip ${g.stav === 'PLATNA' ? 'ok' : g.stav === 'NAVRZENO' ? 'vio' : ''}">${esc(g.stav.toLowerCase())}</span></td></tr>`).join('')}</tbody></table></div></div>
+    </div></div>`;
+}
+/* ---- telefon a PINy ---- */
+function tabTelefon(d) {
+  const zar = d.zarizeni.filter((z) => z.stav !== 'VRACENO');
+  return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">
+      <div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2></div><div class="tblwrap"><table class="tbl"><tbody>${zar.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon #' + z.id)}</b><div class="lbl">${z.stav === 'SPAROVANO' ? `spárováno ${esc(fmtDT(z.sparovano))} · spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ' · ' + z.baterie + ' %' : ''}${z.verzeAplikace ? ' · app ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? 'čeká na spárování' + (z.kodPlatnost ? ' do ' + esc(fmtDT(z.kodPlatnost)) : '') : 'zablokováno – data se při připojení smažou'}</div></td>
+        <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${esc(z.stav.toLowerCase())}</span></td>
+        <td>${d.op.garant && z.stav !== 'ZABLOKOVANO' && z.stav !== 'CEKA' ? `<button class="btn sm" data-zblok="${z.id}">Zablokovat</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Vráceno</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný telefon.</td></tr>'}</tbody></table></div>
+        ${d.op.garant || d.op.lekar ? '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="parovat">Spárovat telefon</button>' + (jeLekar() && zar.some((z) => z.stav === 'SPAROVANO') ? '<button class="btn" id="kodLekare">Kód lékaře pro odemčení</button>' : '') + '</div>' : ''}</div>
+      <div class="note"><b>Jak to funguje:</b> telefon se spáruje QR kódem (nebo zadáním kódu v aplikaci Karta). Komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
+    </div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <div class="panel"><div class="panel-h"><h2>PINy pro pečující</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.piny.map((p) => `<tr><td><b>${esc(p.jmeno)}</b><div class="lbl">${esc(p.role.toLowerCase())} · vydán ${fmtD(p.vytvoreno)}</div></td><td>${d.op.garant || d.op.lekar ? `<button class="btn sm" data-pzrus="${p.id}">Zrušit</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný PIN.</td></tr>'}</tbody></table></div>
+        ${d.op.garant || d.op.lekar ? `<div class="form" style="padding:12px 14px"><div class="frow"><div class="field"><label>Jméno držitele</label><input id="pin_j" placeholder="např. Jana Nováková (dcera)"></div><div class="field"><label>Role</label><select id="pin_r"><option value="RODINA">rodina</option><option value="SESTRA">sestra (domov)</option><option value="HOSPIC">hospic</option><option value="PL">praktický lékař</option></select></div></div>
+          <div class="field"><label>Pracoviště (pro sestru / hospic)</label><select id="pin_p"><option value="">—</option>${d.tym.map((t) => `<option value="${t.poskytovatelId}">${esc(t.nazev)}</option>`).join('')}</select><span class="hint">PIN pracoviště přestane platit, když pracoviště odejde z týmu.</span></div>
+          <button class="btn" id="pin_ok">Vydat PIN</button></div>` : ''}</div>
+      <div class="note">PIN (6 číslic) se zobrazí jen jednou – předejte ho držiteli. Telefon ho ověřuje i bez signálu. ZZS žádný PIN nepotřebuje: krizovou kartu vidí bez přihlášení.</div>
+    </div></div>`;
+}
+function tabUdaje(d) {
+  const p = d.pacient, ro = !(d.op.lekar || d.op.garant);
+  return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Identifikace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : ''}</div><div class="form ${ro ? 'locked' : ''}" style="padding:14px">${udajeForm(p, 'u')}${ro ? '' : '<button class="btn primary" id="u_ok">Uložit údaje</button>'}</div></div>
+    <div style="display:grid;gap:12px;align-content:start"><div class="note">Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci. Telefon dostane jméno a rok narození, AI nedostane nic z toho – rozbor zpráv běží přes anonymizační bránu.</div>
+      <dl class="kv panel" style="padding:12px 14px"><dt>Průkaz</dt><dd class="mono">${esc(p.kod)}</dd><dt>Založen</dt><dd>${esc(fmtDT(p.zalozeno))}</dd><dt>Informace pacientovi</dt><dd>${p.souhlas ? esc(p.souhlas) : (d.op.lekar ? '<button class="btn sm" id="souhlas">Potvrdit podpis</button>' : '<span class="chip warn">nepotvrzeno</span>')}</dd>${p.stav === 'UZAVRENY' ? `<dt>Uzavřeno</dt><dd>${esc(fmtDT(p.uzavreno))} · ${esc(p.duvodUzavreni || '')}</dd>` : ''}</dl>
+      ${d.op.garant ? '<div class="panel"><div class="panel-h"><h2>Ukončení</h2></div><div style="padding:12px 14px"><button class="btn crit" id="uzavrit">Uzavřít průkaz</button></div></div>' : ''}</div></div>`;
+}
+function udajeForm(p, pref) {
+  return `<div class="frow"><div class="field"><label>Jméno</label><input id="${pref}_j" value="${esc(p.jmeno || '')}"></div><div class="field"><label>Příjmení</label><input id="${pref}_p" value="${esc(p.prijmeni || '')}"></div></div>
+    <div class="frow"><div class="field"><label>Rodné číslo</label><input id="${pref}_rc" value="${esc(p.rc || '')}" placeholder="123456/7890"></div><div class="field"><label>Datum narození</label><input type="date" id="${pref}_dn" value="${esc(p.datumNarozeni || '')}"></div></div>
+    <div class="frow"><div class="field"><label>Rok narození</label><input type="number" id="${pref}_r" value="${esc(p.rok || '')}"></div><div class="field"><label>Pohlaví</label><select id="${pref}_po"><option ${p.pohlavi === 'muž' ? 'selected' : ''}>muž</option><option ${p.pohlavi === 'žena' ? 'selected' : ''}>žena</option></select></div></div>
+    <div class="frow"><div class="field"><label>Pojišťovna</label><input id="${pref}_poj" maxlength="3" value="${esc(p.pojistovna || '')}" placeholder="111"></div><div class="field"><label>Kde pacient pobývá</label><input id="${pref}_pb" value="${esc(p.pobyt || '')}" placeholder="doma / domov, pokoj…"></div></div>
+    <div class="field"><label>Adresa</label><input id="${pref}_a" value="${esc(p.adresa || '')}"></div>`;
+}
+const ctiUdaje = (pref) => ({ jmeno: $(`${pref}_j`).value, prijmeni: $(`${pref}_p`).value, rc: $(`${pref}_rc`).value, datumNarozeni: $(`${pref}_dn`).value, rok: $(`${pref}_r`).value, pohlavi: $(`${pref}_po`).value, pojistovna: $(`${pref}_poj`).value, pobyt: $(`${pref}_pb`).value, adresa: $(`${pref}_a`).value });
+function tabDok(d) {
+  return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Dokumenty</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.dokumenty.map((x) => `<tr><td><b>${esc(x.nazev)}</b><div class="lbl">${esc(x.typ)} · ${esc(fmtDT(x.vytvoreno))}${x.kdeOriginal ? ' · originál: ' + esc(x.kdeOriginal) : ''}</div></td><td>${x.velikost ? `<button class="btn sm" data-dok="${x.id}">Otevřít</button>` : '<span class="chip">bez souboru</span>'}</td></tr>`).join('') || '<tr><td class="muted">Žádné dokumenty.</td></tr>'}</tbody></table></div></div>
+    ${d.op.lekar || d.op.garant ? `<div class="panel" style="align-self:start"><div class="panel-h"><h2>Vložit dokument</h2></div><div class="form" style="padding:14px">
+      <div class="frow"><div class="field"><label>Typ</label><select id="dk_t"><option value="DVP">dříve vyslovené přání</option><option value="ZPRAVA">lékařská zpráva</option><option value="SOUHLAS">informace pacientovi</option><option value="JINY">jiný</option></select></div><div class="field"><label>Název</label><input id="dk_n"></div></div>
+      <div class="field"><label>Kde je originál</label><input id="dk_k"></div><div class="field"><label>Soubor (PDF / foto, max. 8 MB)</label><input type="file" id="dk_f" accept="application/pdf,image/*"></div>
+      <button class="btn primary" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
+}
+function tabPristupy(d) {
+  return `<div class="panel"><div class="panel-h"><h2>Deník přístupů</h2><span class="chip">posledních ${d.pristupy.length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${d.pristupy.map((a) => `<tr><td class="mono" style="font-size:12px;white-space:nowrap">${esc(fmtDT(a.cas))}</td><td>${esc(a.kdo || '')}</td><td>${esc(a.akce)}${a.detail ? `<div class="lbl">${esc(a.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function bindTab() {
+  const d = S.pac;
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('revize', revize);
+  on('tisk', () => window.print());
+  on('naTelefon', () => { S.tab = 'telefon'; kresliDetail(); });
+  on('vypis', vypis);
+  on('ulozPlan', async () => { const p = ctiPlan('f'); await akce('/plan', { ...p, typ: 'ZMENA', poznamka: $('f_poz').value }, 'Plán uložen jako nová verze'); });
+  document.querySelectorAll('tr[data-v]').forEach((r) => (r.onclick = async () => {
+    try { const v = await C(`/pacient/${S.pacId}/plan/${r.dataset.v}`); modal(`<h2>Plán – verze ${v.verze}</h2><div class="muted">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))} · platnost do ${fmtD(v.platnostDo)}</div>${planForm(v.data, v.platnostDo, true, 'h')}<div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
+  }));
+  on('d_ok', () => akce('/denik', { typ: $('d_typ').value, text: $('d_txt').value }, 'Zapsáno'));
+  on('k_ok', () => akce('/kontakt', { jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value, poradi: $('k_o').value }, 'Kontakt přidán'));
+  document.querySelectorAll('[data-kdel]').forEach((b) => (b.onclick = async () => { const k = d.kontakty.find((x) => x.id === Number(b.dataset.kdel)); if (await KP.confirm('Odebrat kontakt', `${esc(k.jmeno)} · ${esc(k.tel)}`, 'Odebrat', true)) akce('/kontakt', { id: k.id, smazat: true, jmeno: k.jmeno, skupina: k.skupina }, 'Odebráno'); }));
+  document.querySelectorAll('[data-ked]').forEach((b) => (b.onclick = () => {
+    const k = d.kontakty.find((x) => x.id === Number(b.dataset.ked));
+    modal(`<h2>Upravit kontakt</h2><div class="form">${kontaktForm(k)}<div class="quick"><button class="btn primary" id="ke_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
+      $('ke_ok').onclick = () => { closeModal(); akce('/kontakt', { id: k.id, jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value, poradi: $('k_o').value }, 'Uloženo'); };
+    });
+  }));
+  on('t_ok', () => akce('/tym', { poskytovatelId: Number($('t_p').value), role: $('t_r').value }, 'Přidáno do týmu'));
+  document.querySelectorAll('[data-todeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat z týmu', 'Pracoviště ztratí přístup k průkazu a PINy jeho personálu přestanou platit.', 'Odebrat', true)) akce('/tym', { odebratId: Number(b.dataset.todeb) }, 'Odebráno'); }));
+  on('g_ok', async () => { const n = $('g_p').selectedOptions[0]; if (!n) return toast('Vyberte pracoviště'); if (await KP.confirm('Předat garanci', `Navrhnout předání garance pracovišti <b>${esc(n.textContent)}</b>? Garance přejde až po potvrzení přebírajícím lékařem.`, 'Navrhnout')) akce('/predat', { poskytovatelId: Number(n.value), poznamka: $('g_poz').value }, 'Předání navrženo'); });
+  on('parovat', parovat);
+  on('kodLekare', async () => {
+    try { const r = await C(`/pacient/${S.pacId}/kod-lekare`); modal(`<h2>Kód lékaře pro odemčení telefonu</h2><div class="secret">${esc(r.kod.slice(0, 3))} ${esc(r.kod.slice(3))}</div><p class="muted">Platí do ${esc(new Date(r.platiDo).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} (telefon přijme i kód z předchozích 5 minut). Na telefonu zvolte „Jsem lékař“ a kód zadejte – funguje i bez signálu. Vydání kódu je zapsáno v deníku přístupů.</p><div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
+  });
+  document.querySelectorAll('[data-zblok]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Zablokovat telefon', 'Telefon se při příštím připojení vymaže a přestane fungovat. Použijte při ztrátě nebo výměně.', 'Zablokovat', true)) akce('/zarizeni', { zarizeniId: Number(b.dataset.zblok), akce: 'zablokovat' }, 'Telefon zablokován'); }));
+  document.querySelectorAll('[data-zvrat]').forEach((b) => (b.onclick = () => akce('/zarizeni', { zarizeniId: Number(b.dataset.zvrat), akce: 'vratit' }, 'Označeno jako vrácené')));
+  on('pin_ok', async () => {
+    try { const r = await C(`/pacient/${S.pacId}/pin`, { method: 'POST', body: { jmeno: $('pin_j').value, role: $('pin_r').value, poskytovatelId: Number($('pin_p').value) || null } });
+      await nactiDetail(); kresliDetail();
+      modal(`<h2>PIN vydán</h2><div class="secret">${esc(r.pin)}</div><p class="muted">PIN se zobrazuje jen teď. Předejte ho držiteli. Do telefonu se dostane při nejbližší synchronizaci.</p><div class="quick"><button class="btn" data-close>Hotovo</button></div>`);
+    } catch (e) { toast(e.message); }
+  });
+  document.querySelectorAll('[data-pzrus]').forEach((b) => (b.onclick = () => akce('/pin', { zrusitId: Number(b.dataset.pzrus) }, 'PIN zrušen')));
+  on('u_ok', () => akce('/udaje', ctiUdaje('u'), 'Údaje uloženy'));
+  on('souhlas', () => akce('/souhlas', {}, 'Potvrzeno'));
+  on('uzavrit', () => modal(`<h2>Uzavřít průkaz</h2><p>Průkaz se uzavře, telefon se při příštím připojení vymaže, PINy přestanou platit. Před uzavřením si pořiďte výpis do dokumentace.</p>
+    <div class="field"><label>Důvod</label><select id="uz_d"><option>úmrtí</option><option>předání mimo síť</option><option>hospitalizace, průkaz ukončen</option><option>na přání pacienta / zástupce</option><option>jiný</option></select></div>
+    <div class="quick"><button class="btn" id="uz_v">Pořídit výpis</button><button class="btn crit" id="uz_ok">Uzavřít</button><button class="btn" data-close>Zpět</button></div>`, () => {
+    $('uz_v').onclick = vypis; $('uz_ok').onclick = () => { const du = $('uz_d').value; closeModal(); akce('/uzavrit', { duvod: du }, 'Průkaz uzavřen'); };
+  }));
+  document.querySelectorAll('[data-dok]').forEach((b) => (b.onclick = async () => {
+    const r = await fetch(`/api/c/pacient/${S.pacId}/dokument/${b.dataset.dok}`, { headers: { authorization: 'Bearer ' + S.session } });
+    if (!r.ok) return toast('Dokument se nepodařilo otevřít');
+    window.open(URL.createObjectURL(await r.blob()), '_blank');
+  }));
+  on('dk_ok', async () => {
+    const f = $('dk_f').files[0];
+    let data = null; if (f) { if (f.size > 8 * 1024 * 1024) return toast('Soubor je větší než 8 MB'); data = await new Promise((res) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result).split(',')[1]); rd.readAsDataURL(f); }); }
+    akce('/dokument', { typ: $('dk_t').value, nazev: $('dk_n').value || (f && f.name) || 'dokument', kdeOriginal: $('dk_k').value, mime: f && f.type, data }, 'Dokument vložen');
+  });
+}
+
+async function parovat() {
+  try {
+    const r = await C(`/pacient/${S.pacId}/parovat`, { method: 'POST', body: {} });
+    const qr = qrcode(0, 'M'); qr.addData(r.odkaz); qr.make();
+    modal(`<h2>Spárovat telefon u pacienta</h2>
+      <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
+      <p>Na telefonu u pacienta naskenujte QR kód fotoaparátem, nebo otevřete <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
+      <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Párovací kód</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
+      <p class="muted">Kód platí 15 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}) a jen jednou. Po spárování se případný předchozí telefon pacienta zablokuje.</p>
+      <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; });
+  } catch (e) { toast(e.message); }
+}
+
+async function vypis() {
+  const d = S.pac, p = d.pacient, pl = (d.plan && d.plan.data) || {};
+  try { await C(`/pacient/${S.pacId}/vypis`, { method: 'POST', body: {} }); } catch (e) { return toast(e.message); }
+  const txt = `VÝPIS Z KRIZOVÉHO PLÁNU PÉČE – ${p.prijmeni} ${p.jmeno}, ${p.rok || ''} (${p.kod})
+Pořídil: ${S.ja.jmeno}, ${S.ja.poskytovatel}, ${KP.casLokalni()}
+
+Garant: ${(d.garance.find((g) => g.stav === 'PLATNA') || {}).nazev || '—'}
+Plán péče: verze ${d.plan ? d.plan.verze : '—'}, stanovil ${d.plan ? d.plan.podepsal : '—'}, platnost do ${d.plan ? fmtD(d.plan.platnostDo) : '—'}
+Cíl péče: ${CILE[pl.cil] || '—'}
+Limitace: ${(pl.limity || []).join(', ') || 'žádné'}
+Doklad: ${pl.doklad && pl.doklad.dvp ? 'dříve vyslovené přání z ' + fmtD(pl.doklad.datum) + (pl.doklad.original ? ' (originál: ' + pl.doklad.original + ')' : '') : 'rozhodnutí lékaře – ' + ((pl.doklad && pl.doklad.zprava) || '')}
+Diagnózy: ${pl.dg || '—'}
+Alergie: ${pl.alergie || '—'}
+Funkční stav: ${pl.funkce || '—'}
+SOS medikace:
+${(pl.sos || []).map((s) => ' - ' + s).join('\n') || ' - žádná'}
+Pravidelná medikace:
+${(pl.medikace || []).map((s) => ' - ' + s).join('\n') || ' - neuvedena'}
+
+KONTAKTY:
+${d.kontakty.map((k) => ` - ${k.skupina.toLowerCase()}: ${k.jmeno} ${k.tel}${k.pozn ? ' (' + k.pozn + ')' : ''}`).join('\n')}
+
+TÝM KOLEM PACIENTA:
+${d.tym.map((t) => ` - ${t.nazev} (${TYM_NAZ[t.role]})`).join('\n')}
+
+DENÍK:
+${d.denikAsc.map((e) => `${fmtDT(e.cas)} ${e.autor} [${e.typ}]${e.overeno ? '' : ' (neověřeno)'}: ${e.text}`).join('\n')}
+`;
+  modal(`<h2>Výpis do zdravotnické dokumentace</h2><pre class="out" style="max-height:50vh;overflow:auto">${esc(txt)}</pre><div class="quick"><button class="btn primary" id="vy_c">Zkopírovat</button><button class="btn" id="vy_s">Stáhnout .txt</button><button class="btn" data-close>Zavřít</button></div><div class="note">Pořízení výpisu je zapsáno v deníku přístupů.</div>`, () => {
+    $('vy_c').onclick = () => navigator.clipboard.writeText(txt).then(() => toast('Zkopírováno'));
+    $('vy_s').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' })); a.download = `vypis-${p.kod}-${KP.dnes()}.txt`; a.click(); };
+  });
+}
+
+/* ================= nový pacient (průvodce) ================= */
+const UKAZKA = `KRAJSKÁ NEMOCNICE T. BATI, a.s. – Interní oddělení
+PROPOUŠTĚCÍ ZPRÁVA
+Pacient: Karel SVOBODA, nar. 1947, muž
+Hospitalizace: 3. 10. 2026 – 14. 10. 2026
+Propuštěn do: Domov pro seniory Burešov, Zlín
+
+Diagnózy:
+I50.0 Chronické srdeční selhání, NYHA III–IV, EF 25 %
+J44.1 CHOPN s akutní exacerbací, na domácím kyslíku 2 l/min
+N18.4 Chronické onemocnění ledvin, stadium 4
+
+Alergie: sulfonamidy (exantém)
+
+Průběh: Proběhl rozhovor o cílech péče: pacient si nepřeje resuscitaci ani napojení na ventilátor, preferuje péči v domově, další hospitalizaci jen při nezvládnutelných obtížích. Souhlasí s předáním mobilnímu hospici.
+
+Funkční stav: chodí s chodítkem po pokoji, soběstačnost omezená (Barthel 45), orientovaný místem a osobou.
+
+Medikace při propuštění:
+furosemid 40 mg 1-0-0
+bisoprolol 2,5 mg 1-0-0
+morfin ret. 10 mg 1-0-1 (dušnost)
+
+SOS medikace: morfin 5 mg s.c. při dušnosti (max. 6× denně), midazolam 2,5 mg s.c. při neklidu
+
+Doporučení: Předání mobilnímu hospici. Dříve vyslovené přání nebylo sepsáno – doporučeno dořešit s PL.
+Kontakt rodina: syn Martin Svoboda, tel. 604 000 000
+
+MUDr. Jana Veselá, ošetřující lékařka`;
+
+function renderNovy() {
+  if (!S.wiz) S.wiz = { krok: 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', limity: ['KPR'] }, kontakty: [] } };
+  const w = S.wiz;
+  const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
+  if (w.krok === 1) {
+    $('work').innerHTML = `${nav()}<div class="grid2 l"><div class="panel"><div class="panel-h"><h2>1. Propouštěcí zpráva (volitelně)</h2></div><div class="form" style="padding:14px">
+      <div class="field"><label>Text zprávy</label><textarea id="w_t" style="min-height:280px" placeholder="Vložte text propouštěcí zprávy…">${esc(w.text)}</textarea></div>
+      <div class="row"><label class="btn sm">Fotka / sken zprávy<input type="file" id="w_img" accept="image/*" capture="environment" hidden></label><label class="btn sm">Textový soubor<input type="file" id="w_txt" accept=".txt,text/plain" hidden></label><button class="btn sm" id="w_ukaz">Vložit ukázkovou zprávu</button><span class="muted" id="w_ocr" style="font-size:13px"></span></div>
+      <div class="quick"><button class="btn primary" id="w_ai">Anonymní rozbor zprávy</button><button class="btn" id="w_skip">Vyplnit ručně bez zprávy</button></div></div></div>
+      <div style="display:grid;gap:12px;align-content:start"><div class="ai"><h3><span class="spark">AI</span>Rozbor je vždy anonymní</h3><div class="muted" style="font-size:13.5px">Než text odejde k AI, anonymizační brána na serveru odstraní jméno, rodné číslo, data, adresu, telefony, e-maily a jména příbuzných i lékařů a nahradí je značkami ([PACIENT], [OSOBA_1]…). Pokud by v textu cokoli z toho zůstalo, dotaz se neodešle. Fotka se převádí na text přímo v tomto prohlížeči. Výsledek se k pacientovi přiřadí zpět až na serveru. AI nic nerozhoduje – jen předvyplní formulář, potvrzuje lékař.${S.ai ? '' : ' <b>Na serveru není nastaven klíč AI – použije se lokální rozbor.</b>'}</div></div></div></div>`;
+    bindNav();
+    $('w_ukaz').onclick = () => { $('w_t').value = UKAZKA; };
+    $('w_txt').onchange = async (e) => { const f = e.target.files[0]; if (f) $('w_t').value = await f.text(); };
+    $('w_img').onchange = (e) => ocr(e.target.files[0]);
+    $('w_skip').onclick = () => { w.text = $('w_t').value; w.krok = 2; renderNovy(); };
+    $('w_ai').onclick = async () => {
+      w.text = $('w_t').value; if (w.text.trim().length < 40) return toast('Vložte text zprávy');
+      $('w_ai').disabled = true; $('w_ai').textContent = 'Anonymizuji a rozebírám…';
+      try {
+        const r = await C('/ai/rozbor', { method: 'POST', body: { text: w.text } });
+        if (r.blokovano) { toast('Dotaz zablokován'); modal(`<h2>Dotaz na AI nebyl odeslán</h2><p>${esc(r.duvod)}</p><div class="anon">${esc(r.anonymniText)}</div><div class="quick"><button class="btn" data-close>Rozumím</button></div>`); return; }
+        w.ai = r; const v = r.vysledek;
+        const [prijmeni, ...jm] = String(v.jmenoCele || '').split(/\s+/).reverse();
+        w.d.pacient = { ...w.d.pacient, prijmeni: w.d.pacient.prijmeni || (prijmeni || ''), jmeno: w.d.pacient.jmeno || jm.reverse().join(' '), rok: w.d.pacient.rok || v.rok || '', pobyt: v.pobyt || '' };
+        w.d.plan = { cil: v.cil, limity: v.limity || [], doklad: v.doklad || {}, dg: v.dg, funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], medikace: v.medikace || [] };
+        w.d.kontakty = (v.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: '' }));
+        w.krok = 2; renderNovy();
+      } catch (e) { toast(e.message); } finally { if ($('w_ai')) { $('w_ai').disabled = false; $('w_ai').textContent = 'Anonymní rozbor zprávy'; } }
+    };
+    return;
+  }
+  // krok 2: kontrola a doplnění
+  const v = w.ai && w.ai.vysledek;
+  $('work').innerHTML = `${nav()}<div class="grid2 l"><div style="display:grid;gap:12px">
+      <div class="panel"><div class="panel-h"><h2>2. Identifikace pacienta</h2></div><div class="form" style="padding:14px">${udajeForm(w.d.pacient, 'n')}</div></div>
+      <div class="panel"><div class="panel-h"><h2>3. Cíl péče a limitace</h2><span class="chip acc">potvrzuje lékař</span></div><div style="padding:14px">${planForm(w.d.plan, w.d.platnostDo || new Date(Date.now() + (S.interval || 3) * 30 * 864e5).toISOString().slice(0, 10), false, 'f')}</div></div>
+      <div class="panel"><div class="panel-h"><h2>4. Kontakty</h2></div><div style="padding:14px;display:grid;gap:8px" id="n_kont">${w.d.kontakty.map((k, i) => kontRow(k, i)).join('')}</div><div style="padding:0 14px 14px"><button class="btn sm" id="n_kplus">+ Kontakt</button></div></div>
+      <div class="panel"><div class="panel-h"><h2>5. Garant a tým</h2></div><div class="form" style="padding:14px">
+        <div class="field"><label>Garant průkazu</label><select id="n_g">${garanti.map((p) => `<option value="${p.id}" ${p.id === S.ja.poskytovatelId ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Nemocnice je garantem dočasně (max. 30 dní) – pak garanci předá hospici, ambulanci nebo PL.</span></div>
+        <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="n_t" multiple>${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div>
+      </div></div>
+      <div class="quick"><button class="btn" id="n_zpet">Zpět ke zprávě</button><button class="btn primary" id="n_ok">Založit průkaz</button></div>
+    </div>
+    <div style="display:grid;gap:12px;align-content:start">
+      ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
+        ${(v.chybi || []).length ? `<div><b style="font-size:13.5px">Chybí nebo ověřit:</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+        ${v.citace && v.citace.cil ? `<div class="ex"><div class="item"><div class="k">Cíl a limitace podle zprávy</div><div class="q">„${esc(v.citace.cil)}“</div></div></div>` : ''}
+        <details><summary class="muted" style="cursor:pointer;font-size:13px">Co přesně odešlo k AI (anonymizovaný text)</summary><div class="anon" style="margin-top:8px">${esc(w.ai.anonymniText)}</div></details></div>` : '<div class="note">Vyplňte údaje ručně podle rozhovoru o cílech péče.</div>'}
+      <div class="note">Po založení průkaz spárujte s telefonem u pacienta (záložka Telefon a PINy) a vydejte PINy rodině a sestrám.</div>
+    </div></div>`;
+  bindNav();
+  const ulozKont = () => { w.d.kontakty = [...document.querySelectorAll('#n_kont .kontrow')].map((r) => ({ jmeno: r.querySelector('[data-k=j]').value, tel: r.querySelector('[data-k=t]').value, skupina: r.querySelector('[data-k=s]').value, pozn: '' })); };
+  const ulozVse = () => { w.d.pacient = ctiUdaje('n'); const p = ctiPlan('f'); w.d.plan = p.data; w.d.platnostDo = p.platnostDo; ulozKont(); };
+  $('n_kplus').onclick = () => { ulozVse(); w.d.kontakty.push({ jmeno: '', tel: '', skupina: 'INFORMOVAT' }); renderNovy(); };
+  document.querySelectorAll('[data-kx]').forEach((b) => (b.onclick = () => { ulozVse(); w.d.kontakty.splice(Number(b.dataset.kx), 1); renderNovy(); }));
+  $('n_zpet').onclick = () => { ulozVse(); w.krok = 1; renderNovy(); };
+  $('n_ok').onclick = async () => {
+    ulozVse();
+    $('n_ok').disabled = true;
+    try {
+      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, garantPoskytovatelId: Number($('n_g').value), tym: [...$('n_t').selectedOptions].map((o) => Number(o.value)), aiPouzito: !!w.ai } });
+      toast(`Průkaz ${r.kod} založen`); S.wiz = null; otevri(r.id, 'telefon');
+    } catch (e) { toast(e.message); $('n_ok').disabled = false; }
+  };
+}
+const kontRow = (k, i) => `<div class="kontrow"><input data-k="j" value="${esc(k.jmeno)}" placeholder="jméno, vztah"><input data-k="t" value="${esc(k.tel)}" placeholder="telefon"><select data-k="s">${['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].map((s) => `<option value="${s}" ${k.skupina === s ? 'selected' : ''}>${s.toLowerCase()}</option>`).join('')}</select><button class="btn sm" data-kx="${i}" aria-label="Odebrat">×</button></div>`;
+
+async function ocr(f) {
+  if (!f) return;
+  const st = $('w_ocr'); st.textContent = 'Načítám rozpoznávání textu (poprvé ~10 s)…';
+  try {
+    if (!window.Tesseract) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    const r = await Tesseract.recognize(f, 'ces', { logger: (m) => { if (m.status === 'recognizing text') st.textContent = `Rozpoznávám text v prohlížeči… ${Math.round(m.progress * 100)} %`; } });
+    $('w_t').value = r.data.text; st.textContent = 'Text rozpoznán – zkontrolujte ho a spusťte rozbor.';
+  } catch (e) { st.textContent = 'Rozpoznání se nezdařilo – vložte text ručně.'; }
+}
+
+/* ================= správa organizace ================= */
+async function renderSprava() {
+  S.sTab = S.sTab || 'posk';
+  const tabs = [['posk', 'Pracoviště'], ['uziv', 'Uživatelé'], ['zar', 'Telefony'], ['audit', 'Log přístupů a AI'], ['nast', 'Nastavení']];
+  $('work').innerHTML = `${nav()}<div class="tabs">${tabs.map(([k, n]) => `<button data-st="${k}" class="${S.sTab === k ? 'on' : ''}">${n}</button>`).join('')}</div><div id="sbody"><div class="note">Načítám…</div></div>`;
+  bindNav();
+  document.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { S.sTab = b.dataset.st; renderSprava(); }));
+  try { await ({ posk: spravaPosk, uziv: spravaUziv, zar: spravaZar, audit: spravaAudit, nast: spravaNast }[S.sTab])(); } catch (e) { $('sbody').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; }
+}
+async function spravaPosk() {
+  S.posk = (await C('/poskytovatele')).poskytovatele;
+  $('sbody').innerHTML = `<div class="row"><button class="btn primary" id="p_new">+ Pracoviště</button><span class="muted" style="font-size:13px">Pracoviště = nemocnice, hospic, ambulance, praktický lékař, domov… Garantem může být jen nemocnice, hospic, ambulance nebo PL.</span></div>
+    <div class="panel"><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Název</th><th>Typ</th><th>IČO / IČP</th><th>Telefon 24/7</th><th>Garant</th><th></th></tr></thead><tbody>${S.posk.map((p) => `<tr data-id="${p.id}"><td><b>${esc(p.nazev)}</b><div class="lbl">${esc(p.adresa || '')}</div></td><td>${esc(p.typ)}</td><td>${esc(p.ico || '')} ${p.icp ? '/ ' + esc(p.icp) : ''}</td><td class="mono">${esc(p.telefon24 || '')}</td><td>${p.smiBytGarant ? '<span class="chip ok">ano</span>' : '<span class="chip">ne</span>'}</td><td>${p.aktivni ? '' : '<span class="chip">neaktivní</span>'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const form = (p = {}) => modal(`<h2>${p.id ? 'Upravit' : 'Nové'} pracoviště</h2><div class="form">
+    <div class="field"><label>Název</label><input id="pp_n" value="${esc(p.nazev || '')}"></div>
+    <div class="frow"><div class="field"><label>Typ</label><select id="pp_t">${['NEMOCNICE', 'HOSPIC', 'AMBULANCE', 'PL', 'DOMOV', 'ZZS', 'JINY'].map((t) => `<option ${p.typ === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="field"><label>Telefon 24/7</label><input id="pp_tel" value="${esc(p.telefon24 || '')}"></div></div>
+    <div class="frow"><div class="field"><label>IČO</label><input id="pp_ico" value="${esc(p.ico || '')}"></div><div class="field"><label>IČP</label><input id="pp_icp" value="${esc(p.icp || '')}"></div></div>
+    <div class="field"><label>Adresa</label><input id="pp_a" value="${esc(p.adresa || '')}"></div>
+    <label class="row"><input type="checkbox" id="pp_ak" ${p.aktivni === false ? '' : 'checked'}> aktivní</label>
+    <div class="quick"><button class="btn primary" id="pp_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
+    $('pp_ok').onclick = async () => { try { await C('/poskytovatel', { method: 'POST', body: { id: p.id, nazev: $('pp_n').value, typ: $('pp_t').value, telefon24: $('pp_tel').value, ico: $('pp_ico').value, icp: $('pp_icp').value, adresa: $('pp_a').value, aktivni: $('pp_ak').checked } }); closeModal(); toast('Uloženo'); renderSprava(); } catch (e) { toast(e.message); } };
+  });
+  $('p_new').onclick = () => form();
+  document.querySelectorAll('#sbody tr[data-id]').forEach((r) => (r.onclick = () => form(S.posk.find((p) => p.id === Number(r.dataset.id)))));
+}
+async function spravaUziv() {
+  const { uzivatele } = await C('/uzivatele');
+  $('sbody').innerHTML = `<div class="row"><button class="btn primary" id="u_new">+ Uživatel</button><span class="muted" style="font-size:13px">Lékař zakládá pacienty a mění plán péče; sestra zapisuje do deníku a kontaktů; správce spravuje pracoviště a uživatele.</span></div>
+    <div class="panel"><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Jméno</th><th>Login</th><th>Pracoviště</th><th>Role</th><th>Poslední přihlášení</th></tr></thead><tbody>${uzivatele.map((u) => `<tr data-id="${u.id}"><td><b>${esc(u.jmeno)}</b>${u.aktivni ? '' : ' <span class="chip">neaktivní</span>'}${u.prvniHeslo ? `<div class="lbl">první heslo: <span class="mono">${esc(u.prvniHeslo)}</span></div>` : ''}</td><td class="mono">${esc(u.login)}</td><td>${esc(u.poskytovatel)}</td><td>${u.role.map((r) => `<span class="chip">${ROLE_NAZ[r]}</span>`).join(' ')}</td><td class="mono" style="font-size:12px">${esc(fmtDT(u.posledni))}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const form = (u = {}) => modal(`<h2>${u.id ? 'Upravit' : 'Nový'} uživatel</h2><div class="form">
+    <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="uu_j" value="${esc(u.jmeno || '')}"></div><div class="field"><label>Login</label><input id="uu_l" value="${esc(u.login || '')}" autocapitalize="off"></div></div>
+    <div class="frow"><div class="field"><label>E-mail</label><input id="uu_e" value="${esc(u.email || '')}"></div><div class="field"><label>Telefon</label><input id="uu_t" value="${esc(u.telefon || '')}"></div></div>
+    <div class="frow"><div class="field"><label>Pracoviště</label><select id="uu_p">${S.posk.filter((p) => p.aktivni).map((p) => `<option value="${p.id}" ${u.poskytovatelId === p.id ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select></div><div class="field"><label>Číslo ČLK (lékař)</label><input id="uu_c" value="${esc(u.clk || '')}"></div></div>
+    <div class="field"><label>Role</label><div class="checks">${Object.entries(ROLE_NAZ).map(([k, n]) => `<label style="color:inherit"><input type="checkbox" name="uu_r" value="${k}" ${(u.role || ['sestra']).includes(k) ? 'checked' : ''} style="accent-color:var(--accent)">${n}</label>`).join('')}</div></div>
+    <label class="row"><input type="checkbox" id="uu_a" ${u.aktivni === false ? '' : 'checked'}> aktivní</label>
+    ${u.id ? '<label class="row"><input type="checkbox" id="uu_h"> vygenerovat nové heslo</label>' : ''}
+    <div class="quick"><button class="btn primary" id="uu_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
+    $('uu_j').oninput = () => { if (!u.id && !$('uu_l').dataset.r) $('uu_l').value = $('uu_j').value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(mudr|ing|mgr|bc|phdr)\.?\s*/g, '').trim().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, ''); };
+    $('uu_l').oninput = () => ($('uu_l').dataset.r = 1);
+    $('uu_ok').onclick = async () => {
+      try { const r = await C('/uzivatel', { method: 'POST', body: { id: u.id, jmeno: $('uu_j').value, login: $('uu_l').value, email: $('uu_e').value, telefon: $('uu_t').value, poskytovatelId: Number($('uu_p').value), clk: $('uu_c').value, role: [...document.querySelectorAll('input[name=uu_r]:checked')].map((i) => i.value), aktivni: $('uu_a').checked, noveHeslo: $('uu_h') && $('uu_h').checked } });
+        if (r.heslo) modal(`<h2>Přístup pro ${esc($('uu_j') ? $('uu_j').value : '')}</h2><dl class="kv"><dt>Odkaz</dt><dd>${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</dd><dt>Login</dt><dd class="mono">${esc($('uu_l').value)}</dd></dl><div class="secret">${esc(r.heslo)}</div><p class="muted">Heslo předejte uživateli; po prvním přihlášení si ho změní.</p><div class="quick"><button class="btn" data-close>Hotovo</button></div>`);
+        else closeModal();
+        toast('Uloženo'); spravaUziv();
+      } catch (e) { toast(e.message); }
+    };
+  });
+  $('u_new').onclick = () => form();
+  document.querySelectorAll('#sbody tr[data-id]').forEach((r) => (r.onclick = () => form(uzivatele.find((u) => u.id === Number(r.dataset.id)))));
+}
+async function spravaZar() {
+  const { zarizeni } = await C('/zarizeni');
+  $('sbody').innerHTML = `<div class="panel"><div class="panel-h"><h2>Telefony</h2><span class="chip">${zarizeni.filter((z) => z.stav === 'SPAROVANO').length} u pacientů</span></div><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Telefon</th><th>Pacient</th><th>Stav</th><th>Poslední spojení</th><th>Baterie</th><th>Verze plánu</th><th>Fronta</th></tr></thead><tbody>${zarizeni.map((z) => `<tr data-p="${z.pacientId || ''}"><td>${esc(z.stitek || '#' + z.id)}<div class="lbl">${esc(z.verze || '')}</div></td><td class="mono">${esc(z.kod || '—')}</td><td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'ZABLOKOVANO' ? 'crit' : ''}">${esc(z.stav.toLowerCase())}</span></td><td class="mono" style="font-size:12px">${esc(fmtDT(z.sync))}</td><td>${z.baterie != null ? z.baterie + ' %' : '—'}</td><td>${z.verzePlanu ? 'v' + z.verzePlanu : '—'}</td><td>${z.fronta || 0}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Žádné telefony.</td></tr>'}</tbody></table></div></div>`;
+  document.querySelectorAll('#sbody tr[data-p]').forEach((r) => { if (r.dataset.p) r.onclick = () => otevri(Number(r.dataset.p), 'telefon'); });
+}
+async function spravaAudit() {
+  const { audit, ai } = await C('/audit');
+  $('sbody').innerHTML = `<div class="grid2 l"><div class="panel"><div class="panel-h"><h2>Log přístupů</h2></div><div class="tblwrap"><table class="tbl"><tbody>${audit.map((a) => `<tr><td class="mono" style="font-size:12px;white-space:nowrap">${esc(a.cas)}</td><td>${esc(a.kdo || '')}</td><td class="mono">${esc(a.pacient || '')}</td><td>${esc(a.akce)}${a.detail ? `<div class="lbl">${esc(a.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="panel" style="align-self:start"><div class="panel-h"><h2>Dotazy na AI (bez obsahu)</h2></div><div class="tblwrap"><table class="tbl"><tbody>${ai.map((a) => `<tr><td class="mono" style="font-size:12px">${esc(a.cas)}</td><td>${esc(a.ucel)}<div class="lbl">${a.delka} znaků · ${a.nahrad} údajů anonymizováno${a.model ? ' · ' + esc(a.model) : ''}</div></td><td><span class="chip ${a.vysledek === 'BLOK' ? 'crit' : 'ok'}">${esc(a.vysledek || '')}</span></td></tr>`).join('') || '<tr><td class="muted">Zatím žádné.</td></tr>'}</tbody></table></div></div></div>`;
+}
+async function spravaNast() {
+  $('sbody').innerHTML = `<div class="panel" style="max-width:560px"><div class="form" style="padding:14px">
+    <div class="field"><label>Název sítě (hlavička aplikace)</label><input id="ns_n" value="${esc(S.nazevSite || '')}"></div>
+    <div class="field"><label>Výchozí interval revize plánu (měsíce)</label><input id="ns_i" type="number" min="1" max="12" value="${esc(S.interval || 3)}"></div>
+    <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
+    <button class="btn primary" id="ns_ok">Uložit</button></div></div>`;
+  $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); top(); toast('Uloženo'); } catch (e) { toast(e.message); } };
+}
+
+render();
+</script>
+</body>
+</html>

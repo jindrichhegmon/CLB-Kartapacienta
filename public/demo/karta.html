@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Krizová karta – návrh obrazovky</title>
+<style>
+  :root {
+    --ink:#1b1f26; --quiet:#5c6470; --edge:#c7ccd3; --bg:#eef2f7;
+    --blue:#1d6fd6; --red:#d93025; --amber:#e8930c; --violet:#5b3fb5; --green:#1c9a5b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:28px 16px 40px; background:linear-gradient(180deg,#e9eef6 0%,#f6f8fb 100%); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
+  h1 { font-size:17px; font-weight:600; text-align:center; margin:0 0 22px; }
+  .phone { max-width:372px; margin:0 auto; background:#fff; border:1.5px solid var(--edge); border-radius:28px; overflow:hidden; box-shadow:0 18px 40px rgba(20,40,80,.14); }
+  .hdr { background:linear-gradient(135deg,#1d6fd6 0%,#2b8be8 60%,#4aa3f0 100%); color:#fff; padding:18px 20px 16px; }
+  .hdr .row { display:flex; justify-content:space-between; align-items:center; font-size:11.5px; letter-spacing:.04em; font-weight:700; opacity:.95; }
+  .hdr .row .valid { font-weight:500; background:rgba(255,255,255,.18); padding:3px 9px; border-radius:999px; letter-spacing:0; }
+  .hdr .name { font-size:20px; font-weight:700; margin-top:8px; }
+  .body { padding:12px 12px 14px; display:flex; flex-direction:column; gap:10px; }
+  .card { border-radius:14px; padding:12px 14px 13px 16px; border:1.25px solid; position:relative; }
+  .card::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:5px; border-radius:3px; background:var(--c); }
+  .card h2 { margin:0 0 6px; font-size:11.5px; letter-spacing:.05em; font-weight:700; color:var(--c); display:flex; align-items:center; gap:6px; }
+  .card h2 .ico { font-size:14px; }
+  .red    { --c:var(--red);    background:#fdecea; border-color:var(--red); }
+  .amber  { --c:var(--amber);  background:#fff5e0; border-color:var(--amber); }
+  .blue   { --c:var(--blue);   background:#e8f1fd; border-color:var(--blue); }
+  .violet { --c:var(--violet); background:#efeafb; border-color:var(--violet); }
+  .label { font-size:11.5px; color:var(--quiet); margin-top:8px; }
+  .value { font-size:14.5px; margin-top:2px; }
+  .value.strong { font-weight:700; }
+  .note { font-size:11.5px; color:var(--quiet); margin-top:1px; }
+  .pill { display:inline-block; padding:6px 18px; border:2px solid var(--red); background:#f9c9c5; color:#8a1410; border-radius:10px; font-weight:800; font-size:15px; margin:2px 0 4px; letter-spacing:.02em; }
+  .call { display:flex; align-items:center; gap:10px; margin-top:4px; }
+  .call .num { margin-left:auto; font-variant-numeric:tabular-nums; font-weight:600; color:var(--blue); white-space:nowrap; }
+  .call.first { background:#fff; border:1.5px solid var(--blue); border-radius:10px; padding:8px 10px; font-weight:700; }
+  .btns { display:flex; gap:12px; padding:4px 12px 18px; }
+  .btn { flex:1; text-align:center; padding:11px 0; border-radius:12px; font-size:15px; font-weight:700; border:2px solid; }
+  .btn.green { border-color:var(--green); background:#e6f6ed; color:#0f6b3d; }
+  .btn.blue  { border-color:var(--blue);  background:#e3eefc; color:#124a95; }
+  footer { max-width:372px; margin:14px auto 0; font-size:11.5px; color:var(--quiet); text-align:center; }
+</style>
+</head>
+<body>
+<h1>Krizová karta: vše, co posádka ZZS potřebuje v první minutě</h1>
+<div class="phone">
+  <div class="hdr">
+    <div class="row"><span>KRIZOVÝ PLÁN PÉČE</span><span class="valid">platí do 12. 1. 2027</span></div>
+    <div class="name">Jan NOVÁK, 1944</div>
+  </div>
+
+  <div class="body">
+    <section class="card red">
+      <h2><span class="ico">⛔</span>LIMITACE PÉČE</h2>
+      <div class="pill">KPR: NE</div>
+      <div class="label">Cíl péče</div>
+      <div class="value">úleva od obtíží, bez hospitalizace</div>
+      <div class="label">Doklad</div>
+      <div class="value">dříve vyslovené přání z 10. 10. 2026</div>
+      <div class="note">originál: DPS Zlín, karta klienta</div>
+    </section>
+
+    <section class="card amber">
+      <h2><span class="ico">⚠️</span>ALERGIE A SOS LÉKY</h2>
+      <div class="value"><b>Alergie:</b> penicilin</div>
+      <div class="label">SOS léky</div>
+      <div class="value">morfin 5 mg s.c. při dušnosti<br>midazolam 2,5 mg s.c. při neklidu</div>
+    </section>
+
+    <section class="card blue">
+      <h2><span class="ico">📞</span>KOHO VOLAT</h2>
+      <div class="call first"><span>Nejdřív: Mobilní hospic</span><span class="num">777 000 000</span></div>
+      <div class="call"><span><span class="label" style="margin:0">Lékař plánu</span><br>MUDr. Horák</span><span class="num">602 000 000</span></div>
+      <div class="call"><span><span class="label" style="margin:0">Rozhoduje</span><br>dcera Jana Nováková</span><span class="num">737 000 000</span></div>
+    </section>
+
+    <section class="card violet">
+      <h2><span class="ico">📝</span>POSLEDNÍ ZÁPIS · 13. 10. 02:15 · sestra DPS</h2>
+      <div class="value">„Dušnost, podán morfin 5 mg, volán hospic.“</div>
+    </section>
+  </div>
+
+  <div class="btns">
+    <div class="btn green">Jsem pečující</div>
+    <div class="btn blue">Jsem lékař</div>
+  </div>
+</div>
+<footer>Jména, čísla a léky jsou smyšlené ukázky.</footer>
+</body>
+</html>

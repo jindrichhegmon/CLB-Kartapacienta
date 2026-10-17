@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Správa tenantů · Karta pacienta</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/shared/kp.css">
+</head>
+<body>
+<div class="app wide">
+  <header class="top" id="top"></header>
+  <main class="content" id="work"></main>
+</div>
+<div id="modal"></div><div id="toast" class="toast" hidden></div>
+<script src="/shared/kp.js"></script>
+<script>
+const { esc, api, toast, modal, closeModal } = KP;
+const KEY = 'kp_tenanti_session';
+let S = { session: sessionStorage.getItem(KEY) || '', tenanti: [], typy: {} };
+const $ = (id) => document.getElementById(id);
+const A = (p, o = {}) => api('/api/admin' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { S.session = ''; sessionStorage.removeItem(KEY); render(); } throw e; });
+
+function top(meta) {
+  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Správa tenantů</h1><div class="meta">${esc(meta || 'Karta pacienta · provozovatel platformy')}</div></div>
+    ${S.session ? '<button class="btn sm" id="odhlasit">Odhlásit</button>' : ''}`;
+  if ($('odhlasit')) $('odhlasit').onclick = () => { S.session = ''; sessionStorage.removeItem(KEY); render(); };
+}
+
+function render() {
+  if (!S.session) return renderLogin();
+  renderSeznam();
+}
+
+function renderLogin() {
+  top();
+  $('work').innerHTML = `<div class="login"><div class="panel">
+    <h2>Přihlášení provozovatele</h2>
+    <div class="note">Správa tenantů je jen pro provozovatele platformy. Organizace (nemocnice, hospic, domov…) pracují v <a href="/centrala/">centrální aplikaci</a>.</div>
+    <div class="field"><label>Heslo správy</label><input type="password" id="heslo" autocomplete="current-password" autofocus></div>
+    <button class="btn primary" id="prihlasit">Přihlásit</button></div></div>`;
+  const go = async () => { try { const d = await api('/api/admin/login', { method: 'POST', body: { heslo: $('heslo').value } }); S.session = d.session; sessionStorage.setItem(KEY, d.session); render(); } catch (e) { toast(e.message); } };
+  $('prihlasit').onclick = go; $('heslo').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+}
+
+async function renderSeznam() {
+  top('načítám…');
+  $('work').innerHTML = '<div class="note">Načítám tenanty…</div>';
+  let d; try { d = await A('/tenanti'); } catch (e) { $('work').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; return; }
+  S.tenanti = d.tenanti; S.typy = d.typy;
+  const kp = d.tenanti.filter((t) => t.kp);
+  top(`${d.tenanti.length} tenantů v PeceDomaPlus · ${kp.length} s kartou pacienta`);
+  $('work').innerHTML = `
+    <div class="row"><button class="btn primary" id="novy">+ Založit tenanta</button><span class="muted" style="font-size:13px">Tenant = organizace v databázi PeceDomaPlus (sdílená tabulka Tenants s Péčí doma Plus). Stejné IČO se znovu nezakládá, jen se mu zapne karta pacienta.</span></div>
+    <div class="stats">
+      <div class="panel stat"><span class="muted">Tenanti s kartou</span><b>${kp.length}</b></div>
+      <div class="panel stat"><span class="muted">Aktivní pacienti</span><b>${kp.reduce((a, t) => a + t.pacientu, 0)}</b></div>
+      <div class="panel stat"><span class="muted">Telefony u lůžka</span><b>${kp.reduce((a, t) => a + t.telefonu, 0)}</b></div>
+      <div class="panel stat"><span class="muted">Uživatelé</span><b>${kp.reduce((a, t) => a + t.uzivatelu, 0)}</b></div>
+    </div>
+    <div class="panel"><div class="panel-h"><h2>Tenanti</h2></div><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Organizace</th><th>IDTENANT</th><th>Karta pacienta</th><th>Pacienti</th><th>Pracoviště</th><th>Uživatelé</th><th>Telefony</th><th>Poslední sync</th></tr></thead><tbody>
+      ${d.tenanti.map((t) => `<tr data-id="${esc(t.id)}"><td><b>${esc(t.nazev)}</b><div class="lbl">IČO ${esc(t.ico)}${t.nazevSite && t.nazevSite !== t.nazev ? ' · síť ' + esc(t.nazevSite) : ''}</div></td><td class="mono" style="font-size:12.5px">${esc(t.id)}</td>
+        <td>${t.kp ? '<span class="chip ok">zapnuta</span>' : t.uzivatelu ? '<span class="chip warn">vypnuta</span>' : '<span class="chip">ne</span>'}</td><td>${t.pacientu}</td><td>${t.poskytovatelu}</td><td>${t.uzivatelu}</td><td>${t.telefonu}</td><td class="mono" style="font-size:12px">${esc(t.posledniSync || '—')}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+  $('novy').onclick = () => formular();
+  document.querySelectorAll('tr[data-id]').forEach((r) => (r.onclick = () => detail(S.tenanti.find((t) => t.id === r.dataset.id))));
+}
+
+function formular(predvyplnit = {}) {
+  const typy = Object.entries(S.typy).filter(([k]) => k !== 'ZZS');
+  modal(`<h2>Založit tenanta</h2>
+    <div class="form">
+      <div class="frow"><div class="field"><label>IČO organizace</label><input id="f_ico" inputmode="numeric" maxlength="8" value="${esc(predvyplnit.ico || '')}"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" id="f_ares">Načíst z ARES</button></div></div>
+      <div class="field"><label>Název organizace</label><input id="f_nazev" value="${esc(predvyplnit.nazev || '')}"></div>
+      <div class="field"><label>Adresa</label><input id="f_adresa"></div>
+      <div class="frow"><div class="field"><label>Typ prvního pracoviště</label><select id="f_typ">${typy.map(([k, v]) => `<option value="${k}" ${k === 'HOSPIC' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+        <div class="field"><label>Telefon 24/7</label><input id="f_tel" placeholder="777 000 000"></div></div>
+      <div class="field"><label>Název sítě (volitelně)</label><input id="f_sit" placeholder="např. Paliativní síť Zlínského kraje"><span class="hint">Zobrazuje se v hlavičce centrální aplikace.</span></div>
+      <h3 style="font-size:14px;margin-top:6px">Správce organizace</h3>
+      <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="f_sj" placeholder="MUDr. Jana Nová"></div><div class="field"><label>Přihlašovací jméno</label><input id="f_sl" placeholder="jana.nova" autocapitalize="off"></div></div>
+      <div class="frow"><div class="field"><label>E-mail</label><input id="f_se" type="email"></div><div class="field"><label>Telefon</label><input id="f_st"></div></div>
+      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label>
+        <label style="color:inherit"><input type="checkbox" id="f_demo" style="accent-color:var(--accent)"> vložit ukázková data (2 pacienti, 4 pracoviště)</label></div>
+      <div class="quick"><button class="btn primary" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
+      <div class="note">Vznikne: tenant v PeceDomaPlus (IDTENANT = IČO + 8 písmen z názvu), první pracoviště, účet správce s vygenerovaným heslem a odkaz pro přihlášení. Heslo se zobrazí jen jednou – správce si ho po prvním přihlášení změní.</div>
+    </div>`, () => {
+    $('f_sj').oninput = () => { if (!$('f_sl').dataset.ruc) $('f_sl').value = $('f_sj').value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(mudr|ing|mgr|bc|phdr)\.?\s*/g, '').trim().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, ''); };
+    $('f_sl').oninput = () => ($('f_sl').dataset.ruc = '1');
+    $('f_ares').onclick = async () => {
+      try { const a = await A('/ares', { method: 'POST', body: { ico: $('f_ico').value } }); $('f_ico').value = a.ico;
+        if (a.nalezeno) { $('f_nazev').value = a.nazev; $('f_adresa').value = a.adresa; toast('Načteno z ARES'); } else toast(a.chyba || 'V ARES nenalezeno – vyplňte ručně'); } catch (e) { toast(e.message); }
+    };
+    $('f_ok').onclick = async () => {
+      const b = { ico: $('f_ico').value, nazev: $('f_nazev').value, adresa: $('f_adresa').value, typ: $('f_typ').value, telefon24: $('f_tel').value, nazevSite: $('f_sit').value,
+        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked, demo: $('f_demo').checked };
+      $('f_ok').disabled = true;
+      try { const r = await A('/zalozit', { method: 'POST', body: b }); vysledek(r); renderSeznam(); } catch (e) { toast(e.message); $('f_ok').disabled = false; }
+    };
+  });
+}
+
+function vysledek(r) {
+  const zprava = `Dobrý den,\n\npro ${r.nazev} je připravena Karta pacienta (paliativní průkaz).\n\nPřihlášení: ${r.odkaz}\nPřihlašovací jméno: ${r.login}\nPrvní heslo: ${r.heslo}\n\nPo prvním přihlášení si prosím heslo změňte. V části Správa pak založíte pracoviště a uživatele.\n`;
+  modal(`<h2>${r.novyTenant ? 'Tenant založen' : 'Karta pacienta zapnuta pro existujícího tenanta'}</h2>
+    <dl class="kv"><dt>Organizace</dt><dd>${esc(r.nazev)}</dd><dt>IDTENANT</dt><dd class="mono">${esc(r.tenant)}</dd><dt>Odkaz</dt><dd><a href="${esc(r.odkaz)}" target="_blank">${esc(r.odkaz)}</a></dd><dt>Login</dt><dd class="mono">${esc(r.login)}</dd></dl>
+    <div class="field"><label>První heslo (zobrazí se jen teď)</label><div class="secret">${esc(r.heslo)}</div></div>
+    <div class="field"><label>Text pro správce</label><textarea id="r_txt" style="min-height:170px">${esc(zprava)}</textarea></div>
+    <div class="quick"><button class="btn primary" id="r_copy">Zkopírovat text</button><button class="btn" data-close>Hotovo</button></div>`, () => {
+    $('r_copy').onclick = () => navigator.clipboard.writeText(zprava).then(() => toast('Zkopírováno'), () => toast('Kopírování se nezdařilo – označte text ručně'));
+  });
+}
+
+async function detail(t) {
+  let u = { uzivatele: [] };
+  try { u = await A('/spravci', { method: 'POST', body: { tenant: t.id } }); } catch (e) { toast(e.message); }
+  modal(`<h2>${esc(t.nazev)}</h2>
+    <dl class="kv"><dt>IDTENANT</dt><dd class="mono">${esc(t.id)}</dd><dt>IČO</dt><dd>${esc(t.ico)}</dd><dt>Založen</dt><dd>${esc(t.vytvoreno)}</dd><dt>Karta pacienta</dt><dd>${t.kp ? '<span class="chip ok">zapnuta</span>' : '<span class="chip">vypnuta</span>'}</dd>
+      <dt>Odkaz</dt><dd><a href="${esc(t.odkaz)}" target="_blank">${esc(t.odkaz)}</a></dd></dl>
+    ${u.uzivatele.length ? `<div class="panel"><div class="panel-h"><h2>Uživatelé</h2></div><div class="tblwrap"><table class="tbl"><tbody>${u.uzivatele.map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc(x.login)} · ${esc(x.role)} · ${esc(x.poskytovatel)}</div>${x.prvniHeslo ? `<div class="lbl">první heslo: <span class="mono">${esc(x.prvniHeslo)}</span></div>` : ''}</td><td class="muted" style="font-size:12px">${esc(x.posledni || 'nepřihlášen')}</td><td><button class="btn sm" data-reset="${x.id}">Nové heslo</button></td></tr>`).join('')}</tbody></table></div></div>` : '<div class="note">Karta pacienta zatím nemá žádné uživatele.</div>'}
+    <div class="quick">${t.uzivatelu ? `<button class="btn ${t.kp ? 'crit' : 'primary'}" id="d_akt">${t.kp ? 'Vypnout kartu pacienta' : 'Zapnout kartu pacienta'}</button>` : '<button class="btn primary" id="d_zal">Zapnout kartu pacienta (založit správce)</button>'}<button class="btn" data-close>Zavřít</button></div>`, () => {
+    if ($('d_akt')) $('d_akt').onclick = async () => { try { await A('/aktivni', { method: 'POST', body: { tenant: t.id, aktivni: !t.kp } }); closeModal(); toast('Uloženo'); renderSeznam(); } catch (e) { toast(e.message); } };
+    if ($('d_zal')) $('d_zal').onclick = () => formular({ ico: t.ico, nazev: t.nazev });
+    document.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = async () => {
+      try { const r = await A('/reset-hesla', { method: 'POST', body: { tenant: t.id, uzivatelId: Number(b.dataset.reset) } }); b.outerHTML = `<span class="secret" style="font-size:14px;padding:6px 8px">${esc(r.heslo)}</span>`; } catch (e) { toast(e.message); }
+    }));
+  });
+}
+render();
+</script>
+</body>
+</html>
