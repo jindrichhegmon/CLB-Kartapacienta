@@ -23,7 +23,7 @@ let S = { session: sessionStorage.getItem(KEY) || '', tenanti: [], typy: {} };
 const $ = (id) => document.getElementById(id);
 const A = (p, o = {}) => api('/api/admin' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { S.session = ''; sessionStorage.removeItem(KEY); render(); } throw e; });
 
-function top(meta) {
+function hlavicka(meta) {
   $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Správa tenantů</h1><div class="meta">${esc(meta || 'Karta pacienta · provozovatel platformy')}</div></div>
     ${S.session ? '<button class="btn sm" id="odhlasit">Odhlásit</button>' : ''}`;
   if ($('odhlasit')) $('odhlasit').onclick = () => { S.session = ''; sessionStorage.removeItem(KEY); render(); };
@@ -35,7 +35,7 @@ function render() {
 }
 
 function renderLogin() {
-  top();
+  hlavicka();
   $('work').innerHTML = `<div class="login"><div class="panel">
     <h2>Přihlášení provozovatele</h2>
     <div class="note">Správa tenantů je jen pro provozovatele platformy. Organizace (nemocnice, hospic, domov…) pracují v <a href="/centrala/">centrální aplikaci</a>.</div>
@@ -46,12 +46,12 @@ function renderLogin() {
 }
 
 async function renderSeznam() {
-  top('načítám…');
+  hlavicka('načítám…');
   $('work').innerHTML = '<div class="note">Načítám tenanty…</div>';
   let d; try { d = await A('/tenanti'); } catch (e) { $('work').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; return; }
   S.tenanti = d.tenanti; S.typy = d.typy;
   const kp = d.tenanti.filter((t) => t.kp);
-  top(`${d.tenanti.length} tenantů v PeceDomaPlus · ${kp.length} s kartou pacienta`);
+  hlavicka(`${d.tenanti.length} tenantů v PeceDomaPlus · ${kp.length} s kartou pacienta`);
   $('work').innerHTML = `
     <div class="row"><button class="btn primary" id="novy">+ Založit tenanta</button><span class="muted" style="font-size:13px">Tenant = organizace v databázi PeceDomaPlus (sdílená tabulka Tenants s Péčí doma Plus). Stejné IČO se znovu nezakládá, jen se mu zapne karta pacienta.</span></div>
     <div class="stats">

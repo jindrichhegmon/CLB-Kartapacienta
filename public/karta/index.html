@@ -139,7 +139,7 @@ function kresliSyncBar() {
   el.innerHTML = `<span class="dot ${chybaSync ? 'warn' : stare ? 'crit' : 'ok'}"></span><span>${syncBezi ? 'synchronizuji…' : `aktualizováno ${textStari()}${chybaSync ? ' · ' + esc(chybaSync) : ''}`}${D.fronta.length ? ` · ${D.fronta.length} čeká na odeslání` : ''}</span><button class="btn ghost right" id="btnSync" aria-label="Synchronizovat">${KP.ICON.sync}</button>`;
   $('btnSync').onclick = () => sync({ tichy: false });
 }
-function top() {
+function hlavicka() {
   if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Karta pacienta</h1><div class="meta">telefon u lůžka</div></div><span class="verbadge">${APP_VERZE.replace('karta-', 'v')}</span>`; return; }
   const p = D.balik.pacient;
   $('top').innerHTML = `${tab !== 'karta' && U.role ? `<button class="back" id="btnBack" aria-label="Zpět">${KP.ICON.back}</button>` : '<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt="">'}
@@ -149,7 +149,7 @@ function top() {
   if ($('btnZamek')) $('btnZamek').onclick = zamkni;
 }
 function kresli() {
-  top();
+  hlavicka();
   if (!D) return kresliParovani();
   const b = D.balik;
   const denik = [...(b.denik || []), ...D.fronta.filter((e) => !(b.denik || []).some((x) => x.uuid === e.uuid))];

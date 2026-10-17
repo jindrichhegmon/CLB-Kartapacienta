@@ -43,7 +43,7 @@ const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'hos
 function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_session'); render(); }
 
 /* ================= hlavička ================= */
-function top() {
+function hlavicka() {
   if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>`; return; }
   $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>${esc(S.nazevSite || 'Karta pacienta')}</h1><div class="meta">Centrální aplikace · garant a tým kolem pacienta</div></div>
     <div class="who noprint">${esc(S.ja.jmeno)}<br>${esc(S.ja.poskytovatel)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</div>
@@ -63,13 +63,13 @@ async function render() {
     try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; } catch (e) { return; }
     try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
   }
-  top();
+  hlavicka();
   if (S.ja.musiZmenitHeslo) return renderUcet(true);
   ({ pacienti: renderPacienti, detail: renderDetail, novy: renderNovy, sprava: renderSprava, ucet: () => renderUcet(false) }[S.view] || renderPacienti)();
 }
 
 function renderLogin() {
-  top();
+  hlavicka();
   $('work').innerHTML = `<div class="login"><div class="panel">
     <h2>Přihlášení</h2>
     ${S.tenant ? `<div class="note">Organizace: <span class="mono">${esc(S.tenant)}</span> · <a href="#" id="jinaOrg">jiná organizace</a></div>` : `<div class="field"><label>Kód organizace</label><input id="l_t" placeholder="16 znaků z odkazu, který jste dostali" autocapitalize="characters"></div>`}
@@ -571,7 +571,7 @@ async function spravaNast() {
     <div class="field"><label>Výchozí interval revize plánu (měsíce)</label><input id="ns_i" type="number" min="1" max="12" value="${esc(S.interval || 3)}"></div>
     <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
     <button class="btn primary" id="ns_ok">Uložit</button></div></div>`;
-  $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); top(); toast('Uloženo'); } catch (e) { toast(e.message); } };
+  $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };
 }
 
 render();
