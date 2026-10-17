@@ -47,11 +47,15 @@ central.post('/login', h(async (req) => {
     const kp = await q.one(`SELECT Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic = 'KP_AKTIVNI'`);
     if (!kp || kp.Hodnota !== '1') throw chyba('Karta pacienta není pro tuto organizaci zapnutá', 403);
     const u = await q.one(`SELECT UzivatelID, Jmeno, HesloHash, Aktivni, MusiZmenitHeslo FROM dbo.A_KP_Uzivatel WHERE Login = @l`, { l: login });
-    if (!u || !u.Aktivni || !overHeslo(req.body.heslo, u.HesloHash)) throw chyba('Nesprávné přihlašovací jméno nebo heslo', 401);
+    if (!u || !u.Aktivni || !overHeslo(req.body.heslo, u.HesloHash)) {
+      await audit(q, { uzivatelId: u ? u.UzivatelID : null, kdo: login, akce: 'neúspěšné přihlášení', detail: !u ? 'neznámý login' : !u.Aktivni ? 'účet neaktivní' : 'špatné heslo', ip: ip(req) });
+      return { chyba: true };
+    }
     await q.exec(`UPDATE dbo.A_KP_Uzivatel SET PosledniPrihlaseni = SYSDATETIME() WHERE UzivatelID = @u`, { u: u.UzivatelID });
     await audit(q, { uzivatelId: u.UzivatelID, kdo: u.Jmeno, akce: 'přihlášení', ip: ip(req) });
     return u;
   });
+  if (r.chyba) throw chyba('Nesprávné přihlašovací jméno nebo heslo', 401);
   omezReset(`login:${ip(req)}:${tenant}:${login}`);
   return { session: podepis({ typ: 'kp', tenant, uzivatelId: r.UzivatelID }, TTL), musiZmenitHeslo: !!r.MusiZmenitHeslo };
 }));

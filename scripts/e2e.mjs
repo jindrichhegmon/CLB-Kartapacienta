@@ -24,14 +24,17 @@ const h = await api('/api/health'); if (!h.ok) throw new Error('health'); krok(`
 const adm = (await api('/api/admin/login', { method: 'POST', body: { heslo: process.env.KP_ADMIN_HESLO } })).session; krok('přihlášení do správy tenantů');
 const tenanti = (await api('/api/admin/tenanti', { token: adm })).tenanti;
 let t = tenanti.find((x) => x.ico === ICO);
-let login = 'test.lekar', heslo;
+// test používá VLASTNÍ účet e2e.test – nikdy nemění hesla účtů, kterými se přihlašují lidé
+const login = 'e2e.test'; let heslo;
 if (!t || !t.uzivatelu) {
-  const z = await api('/api/admin/zalozit', { method: 'POST', token: adm, body: { ico: ICO, typ: 'AMBULANCE', telefon24: '777 000 001', nazevSite: 'Testovací síť karty pacienta', spravceJmeno: 'MUDr. Test Lékař', spravceLogin: login, spravceLekar: true, demo: true } });
-  heslo = z.heslo; t = { id: z.tenant }; krok(`tenant ${z.tenant} ${z.novyTenant ? 'založen' : 'existoval'}, karta zapnuta, správce ${z.login}, ukázková data`);
+  const z = await api('/api/admin/zalozit', { method: 'POST', token: adm, body: { ico: ICO, typ: 'AMBULANCE', telefon24: '777 000 001', nazevSite: 'Testovací síť karty pacienta', spravceJmeno: 'Automatický test', spravceLogin: login, spravceLekar: true, demo: true } });
+  heslo = z.heslo; t = { id: z.tenant }; krok(`tenant ${z.tenant} ${z.novyTenant ? 'založen' : 'existoval'}, karta zapnuta, ukázková data`);
 } else {
   const sp = (await api('/api/admin/spravci', { method: 'POST', token: adm, body: { tenant: t.id } })).uzivatele;
-  const u = sp.find((x) => x.login === login) || sp[0]; login = u.login;
-  heslo = (await api('/api/admin/reset-hesla', { method: 'POST', token: adm, body: { tenant: t.id, uzivatelId: u.id } })).heslo; krok(`tenant ${t.id} existuje, reset hesla ${login}`);
+  const u = sp.find((x) => x.login === login);
+  if (u) heslo = (await api('/api/admin/reset-hesla', { method: 'POST', token: adm, body: { tenant: t.id, uzivatelId: u.id } })).heslo;
+  else heslo = (await api('/api/admin/zalozit', { method: 'POST', token: adm, body: { ico: ICO, typ: 'AMBULANCE', spravceJmeno: 'Automatický test', spravceLogin: login, spravceLekar: true, pridatSpravce: true } })).heslo;
+  krok(`tenant ${t.id} existuje, testovací účet ${login} připraven`);
 }
 const ses = (await api('/api/c/login', { method: 'POST', body: { tenant: t.id, login, heslo } })).session; krok('přihlášení do centrální aplikace');
 const ja = await api('/api/c/ja', { token: ses }); krok(`uživatel ${ja.ja.jmeno} (${ja.ja.role}), AI ${ja.ai ? 'zapnuta' : 'lokální'}`);
@@ -76,4 +79,4 @@ const s3 = await api('/api/d/sync', { method: 'POST', token: tel.token, typ: 'De
 if (s3.prikaz !== 'smazat') throw new Error('smazat'); krok('telefon po uzavření dostal příkaz smazat data');
 await ocekavejChybu(() => api('/api/d/sync', { method: 'POST', token: tel.token, typ: 'Device', body: {} }), 401, 'vymazaný telefon už nemá přístup');
 await ocekavejChybu(() => api('/api/c/prehled', { token: ses.slice(0, -3) + 'abc' }), 401, 'podvržená session odmítnuta');
-console.log(`\nVše v pořádku (${ok} kroků). Tenant ${t.id}, přihlášení ${BASE.replace('http://127.0.0.1:3120', process.env.KP_VEREJNA_ADRESA || '')}/centrala/?t=${t.id} · ${login} / ${heslo}`);
+console.log(`\nVše v pořádku (${ok} kroků). Tenant ${t.id}. Hesla lidských účtů test neměnil.`);
