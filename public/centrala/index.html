@@ -235,19 +235,25 @@ function kontaktForm(k) {
 /* ---- tým a garance ---- */
 function tabTym(d) {
   const vTymu = new Set(d.tym.map((t) => t.poskytovatelId));
+  const kPridani = S.posk.filter((p) => p.aktivni && !vTymu.has(p.id));
+  const kPredani = S.posk.filter((p) => p.aktivni && p.smiBytGarant && p.id !== (d.garance.find((x) => x.stav === 'PLATNA') || {}).poskytovatelId);
+  // prázdný výběr = v organizaci zatím není další pracoviště → odkaz na Správa organizace → Pracoviště
+  const zadne = (co) => `<div class="banner warn">${co} ${jeAdmin() ? '<button class="btn sm" data-novaposk>Založit pracoviště</button>' : 'Požádejte správce organizace, ať ho založí (Správa organizace → Pracoviště).'}</div>`;
   return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">
       <div class="panel"><div class="panel-h"><h2>Tým kolem pacienta</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.tym.map((t) => `<tr><td><b>${esc(t.nazev)}</b><div class="lbl">${esc(t.typ)} · od ${fmtD(t.od)}${t.telefon24 ? ' · ' + esc(t.telefon24) : ''}</div></td><td><span class="chip ${t.role === 'GARANT' ? 'acc' : ''}">${TYM_NAZ[t.role]}</span></td><td>${d.op.garant && t.role !== 'GARANT' ? `<button class="btn sm" data-todeb="${t.id}">Odebrat</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>
       ${d.op.garant ? `<div class="panel"><div class="panel-h"><h2>Přidat pracoviště do týmu</h2></div><div class="form" style="padding:14px">
-        <div class="frow"><div class="field"><label>Pracoviště</label><select id="t_p">${S.posk.filter((p) => p.aktivni && !vTymu.has(p.id)).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div>
+        ${kPridani.length ? '' : zadne('Všechna pracoviště organizace už jsou v týmu. Partnera (hospic, PL, domov, agenturu…) nejdřív založte jako pracoviště.')}
+        <div class="frow"><div class="field"><label>Pracoviště</label><select id="t_p">${kPridani.map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div>
         <div class="field"><label>Role</label><select id="t_r"><option value="PECE">péče (deník, kontakty)</option><option value="LEKAR">lékař (smí měnit plán)</option><option value="HOST">host – jen čtení (např. nemocnice při hospitalizaci)</option></select></div></div>
-        <button class="btn" id="t_ok">Přidat do týmu</button></div></div>` : ''}
+        <button class="btn" id="t_ok"${kPridani.length ? '' : ' disabled'}>Přidat do týmu</button></div></div>` : ''}
       <div class="note">Při přesunu pacienta se mění tým, telefon zůstává stejný. Odebrané pracoviště ztratí přístup a PINy jeho personálu přestanou platit při nejbližší synchronizaci telefonu.</div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${d.op.garant ? `<div class="panel"><div class="panel-h"><h2>Předat garanci</h2></div><div class="form" style="padding:14px">
-        <div class="field"><label>Nový garant</label><select id="g_p">${S.posk.filter((p) => p.aktivni && p.smiBytGarant && p.id !== (d.garance.find((x) => x.stav === 'PLATNA') || {}).poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Garantem je nemocnice (dočasně, max. 30 dní), hospic, paliativní ambulance nebo praktický lékař – domov ne.</span></div>
+        ${kPredani.length ? '' : zadne('Garanci zatím není komu předat – chybí další pracoviště typu nemocnice, hospic, ambulance nebo PL.')}
+        <div class="field"><label>Nový garant</label><select id="g_p">${kPredani.map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Garantem je nemocnice (dočasně, max. 30 dní), hospic, paliativní ambulance nebo praktický lékař – domov ne.</span></div>
         <div class="field"><label>Poznámka pro přebírajícího</label><input id="g_poz"></div>
-        <button class="btn primary" id="g_ok">Navrhnout předání</button>
+        <button class="btn primary" id="g_ok"${kPredani.length ? '' : ' disabled'}>Navrhnout předání</button>
         <div class="note">Přebírající lékař převzetí potvrdí. Do potvrzení zůstává garance u vás; po 72 h bez potvrzení přijde upozornění.</div></div></div>` : ''}
       <div class="panel"><div class="panel-h"><h2>Historie garance</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.garance.map((g) => `<tr><td><b>${esc(g.nazev)}</b><div class="lbl">${g.stav === 'NAVRZENO' ? 'navrženo ' + esc(fmtDT(g.navrzeno)) + ' · ' + esc(g.navrhl || '') : `${esc(fmtDT(g.od))} – ${esc(g.do ? fmtDT(g.do) : 'dosud')}${g.lekar ? ' · ' + esc(g.lekar) : ''}`}${g.poznamka ? ' · ' + esc(g.poznamka) : ''}</div></td><td><span class="chip ${g.stav === 'PLATNA' ? 'ok' : g.stav === 'NAVRZENO' ? 'vio' : ''}">${esc(g.stav.toLowerCase())}</span></td></tr>`).join('')}</tbody></table></div></div>
     </div></div>`;
@@ -317,6 +323,7 @@ function bindTab() {
       $('ke_ok').onclick = () => { closeModal(); akce('/kontakt', { id: k.id, jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value, poradi: $('k_o').value }, 'Uloženo'); };
     });
   }));
+  document.querySelectorAll('[data-novaposk]').forEach((b) => (b.onclick = () => { S.view = 'sprava'; S.sTab = 'posk'; render(); window.scrollTo(0, 0); }));
   on('t_ok', () => akce('/tym', { poskytovatelId: Number($('t_p').value), role: $('t_r').value }, 'Přidáno do týmu'));
   document.querySelectorAll('[data-todeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat z týmu', 'Pracoviště ztratí přístup k průkazu a PINy jeho personálu přestanou platit.', 'Odebrat', true)) akce('/tym', { odebratId: Number(b.dataset.todeb) }, 'Odebráno'); }));
   on('g_ok', async () => { const n = $('g_p').selectedOptions[0]; if (!n) return toast('Vyberte pracoviště'); if (await KP.confirm('Předat garanci', `Navrhnout předání garance pracovišti <b>${esc(n.textContent)}</b>? Garance přejde až po potvrzení přebírajícím lékařem.`, 'Navrhnout')) akce('/predat', { poskytovatelId: Number(n.value), poznamka: $('g_poz').value }, 'Předání navrženo'); });
