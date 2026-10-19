@@ -3,8 +3,13 @@
  * (DB_PECEDOMAPLUS_*), takže na VPS stačí hodnoty převzít z /opt/jhn-apps/.env.
  */
 import 'dotenv/config';
+import fs from 'node:fs';
+import dotenv from 'dotenv';
 
 const env = (k, d = '') => (process.env[k] ?? d).toString().trim();
+// Twilio pro SMS: když v .env karty chybí, převezme se ze sdíleného .env jhn-apps na stejném VPS (stejné názvy proměnných)
+const jhnApps = (() => { try { return dotenv.parse(fs.readFileSync(process.env.JHN_APPS_ENV || '/opt/jhn-apps/.env')); } catch { return {}; } })();
+const tw = (...k) => { for (const x of k) { const v = env(x) || String(jhnApps[x] ?? '').trim(); if (v) return v; } return ''; };
 const bool = (v, d) => (v === '' ? d : /^(1|true|yes|ano)$/i.test(v));
 
 export const config = {
@@ -30,13 +35,13 @@ export const config = {
   },
   // SMS s odkazem na spárování telefonu s kartou (Twilio – stejné proměnné jako jhn-apps; účet + token, nebo API klíč + tajemství)
   sms: {
-    ucet: env('TWILIO_ACCOUNT_SID'),
-    token: env('TWILIO_AUTH_TOKEN'),
-    klic: env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY')),
-    tajemstvi: env('TWILIO_API_KEY_SECRET', env('TWILIO_API_SECRET')),
-    from: env('TWILIO_SMS_FROM', env('TWILIO_FROM')),
+    ucet: tw('TWILIO_ACCOUNT_SID'),
+    token: tw('TWILIO_AUTH_TOKEN'),
+    klic: tw('TWILIO_API_KEY_SID', 'TWILIO_API_KEY'),
+    tajemstvi: tw('TWILIO_API_KEY_SECRET', 'TWILIO_API_SECRET'),
+    from: tw('TWILIO_SMS_FROM', 'TWILIO_FROM') || '+420736354150',   // odesílací číslo jako v jhn-apps
   },
-  verze: '0.2.0',
+  verze: '0.2.1',
 };
 
 export function zkontrolujKonfiguraci() {

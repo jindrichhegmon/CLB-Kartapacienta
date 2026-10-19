@@ -259,7 +259,7 @@ function tabTelefon(d) {
       <div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2>${d.pacient.telefonKarty ? `<span class="chip acc">karta jen na ${esc(d.pacient.telefonKarty)}</span>` : '<span class="chip warn">chybí číslo telefonu s kartou</span>'}</div><div class="tblwrap"><table class="tbl"><tbody>${zar.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon #' + z.id)}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `spárováno ${esc(fmtDT(z.sparovano))} · spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ' · ' + z.baterie + ' %' : ''}${z.verzeAplikace ? ' · app ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? 'čeká na spárování' + (z.kodPlatnost ? ' do ' + esc(fmtDT(z.kodPlatnost)) : '') : 'zablokováno – data se při připojení smažou'}</div></td>
         <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${esc(z.stav.toLowerCase())}</span></td>
         <td>${d.op.garant && z.stav !== 'ZABLOKOVANO' && z.stav !== 'CEKA' ? `<button class="btn sm" data-zblok="${z.id}">Zablokovat</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Vráceno</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný telefon.</td></tr>'}</tbody></table></div>
-        ${d.op.garant || d.op.lekar ? '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="parovat">Spárovat telefon</button>' + (jeLekar() && zar.some((z) => z.stav === 'SPAROVANO') ? '<button class="btn" id="kodLekare">Kód lékaře pro odemčení</button>' : '') + '</div>' : ''}</div>
+        ${d.op.garant || d.op.lekar ? '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="parovat">Spárovat telefon</button>' + (d.pacient.telefonKarty ? '<button class="btn" id="parovatSms">Poslat odkaz SMS na ' + esc(d.pacient.telefonKarty) + '</button>' : '') + (jeLekar() && zar.some((z) => z.stav === 'SPAROVANO') ? '<button class="btn" id="kodLekare">Kód lékaře pro odemčení</button>' : '') + '</div>' : ''}</div>
       <div class="note"><b>Jak to funguje:</b> karta je jen v jednom telefonu – s číslem uvedeným u pacienta (záložka Údaje). Odkaz na spárování přijde SMS na toto číslo (nebo naskenujte QR kód) a telefon při spárování potvrdí své číslo; jiné číslo server odmítne. Telefon komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
@@ -321,6 +321,7 @@ function bindTab() {
   document.querySelectorAll('[data-todeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat z týmu', 'Pracoviště ztratí přístup k průkazu a PINy jeho personálu přestanou platit.', 'Odebrat', true)) akce('/tym', { odebratId: Number(b.dataset.todeb) }, 'Odebráno'); }));
   on('g_ok', async () => { const n = $('g_p').selectedOptions[0]; if (!n) return toast('Vyberte pracoviště'); if (await KP.confirm('Předat garanci', `Navrhnout předání garance pracovišti <b>${esc(n.textContent)}</b>? Garance přejde až po potvrzení přebírajícím lékařem.`, 'Navrhnout')) akce('/predat', { poskytovatelId: Number(n.value), poznamka: $('g_poz').value }, 'Předání navrženo'); });
   on('parovat', () => parovat(false));
+  on('parovatSms', () => parovat(true));
   on('kodLekare', async () => {
     try { const r = await C(`/pacient/${S.pacId}/kod-lekare`); modal(`<h2>Kód lékaře pro odemčení telefonu</h2><div class="secret">${esc(r.kod.slice(0, 3))} ${esc(r.kod.slice(3))}</div><p class="muted">Platí do ${esc(new Date(r.platiDo).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} (telefon přijme i kód z předchozích 5 minut). Na telefonu zvolte „Jsem lékař“ a kód zadejte – funguje i bez signálu. Vydání kódu je zapsáno v deníku přístupů.</p><div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
   });
@@ -355,16 +356,17 @@ function bindTab() {
 async function parovat(sms) {
   try {
     const r = await C(`/pacient/${S.pacId}/parovat`, { method: 'POST', body: { sms: !!sms } });
-    if (sms && r.sms && !r.sms.ok) toast(r.sms.chyba);
+    const smsOk = r.sms && r.sms.ok;
     const qr = qrcode(0, 'M'); qr.addData(r.odkaz); qr.make();
     modal(`<h2>Spárovat telefon u pacienta</h2>
-      <div class="banner ${r.sms && r.sms.ok ? 'ok' : 'warn'}" style="margin-bottom:10px">Karta jde nahrát jen do telefonu s číslem <b>${esc(r.telefonKarty)}</b> – telefon při spárování zadá své číslo.${r.sms && r.sms.ok ? ' Odkaz na spárování byl odeslán SMS na toto číslo.' : ''}</div>
-      ${r.smsDostupne && !(r.sms && r.sms.ok) ? `<div class="quick" style="margin-bottom:8px"><button class="btn primary" id="pr_sms">Poslat odkaz SMS na ${esc(r.telefonKarty)}</button></div>` : ''}
+      <div class="banner ${smsOk ? 'ok' : 'warn'}" style="margin-bottom:10px">${smsOk ? `Odkaz na spárování byl odeslán SMS na <b>${esc(r.telefonKarty)}</b>. Na tom telefonu ho otevřete a potvrďte číslo.` : `Karta jde nahrát jen do telefonu s číslem <b>${esc(r.telefonKarty)}</b> – telefon při spárování zadá své číslo.`}</div>
+      ${r.sms && !r.sms.ok ? `<div class="banner crit" style="margin-bottom:10px">${esc(r.sms.chyba)}</div>` : ''}
+      <div class="quick" style="margin-bottom:8px"><button class="btn ${smsOk ? '' : 'primary'}" id="pr_sms"${r.smsDostupne ? '' : ' disabled'}>${smsOk ? 'Poslat SMS znovu' : 'Poslat odkaz SMS na ' + esc(r.telefonKarty)}</button>${r.smsDostupne ? '' : `<span class="muted" style="font-size:13px">SMS teď nejde – ${esc(r.smsDuvod || 'není nastavená')}</span>`}</div>
       <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
       <p>Na telefonu u pacienta otevřete odkaz z SMS nebo naskenujte QR kód fotoaparátem, případně otevřete <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
       <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Párovací kód</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
       <p class="muted">Kód platí 15 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}) a jen jednou. Po spárování se případný předchozí telefon pacienta zablokuje.</p>
-      <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; if ($('pr_sms')) $('pr_sms').onclick = () => { closeModal(); parovat(true); }; });
+      <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; $('pr_sms').onclick = () => { closeModal(); parovat(true); }; });
   } catch (e) { toast(e.message); }
 }
 

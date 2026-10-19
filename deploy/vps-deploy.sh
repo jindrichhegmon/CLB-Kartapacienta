@@ -35,11 +35,10 @@ if [ ! -f .env ]; then
   echo "=== Vytvořen .env – heslo správy tenantů (uschovejte): \$(grep ^KP_ADMIN_HESLO= .env | cut -d= -f2) ==="
 fi
 # SMS s odkazem na spárování telefonu (od 0.2.0): Twilio převezme z jhn-apps, když v .env ještě není
-if ! grep -q '^TWILIO_' .env && grep -q '^TWILIO_' /opt/jhn-apps/.env 2>/dev/null; then
-  grep -E '^TWILIO_' /opt/jhn-apps/.env >> .env
+if ! grep -qE '^[[:space:]]*(export[[:space:]]+)?TWILIO_' .env && grep -qE '^[[:space:]]*(export[[:space:]]+)?TWILIO_' /opt/jhn-apps/.env 2>/dev/null; then
+  grep -E '^[[:space:]]*(export[[:space:]]+)?TWILIO_' /opt/jhn-apps/.env | sed -E 's/^[[:space:]]*(export[[:space:]]+)?//' >> .env
   echo "=== Do .env doplněno nastavení SMS (TWILIO_*) z /opt/jhn-apps/.env ==="
 fi
-grep -q '^TWILIO_SMS_FROM=.' .env && echo "=== SMS s odkazem na spárování: zapnuto ===" || echo "=== SMS s odkazem na spárování: vypnuto (chybí TWILIO_* – párování jde QR kódem a potvrzením čísla) ==="
 chown -R jhnapps:jhnapps $DIR
 su - jhnapps -c "cd $DIR && npm install --omit=dev --no-audit --no-fund 2>&1 | tail -1 && npm run migrate 2>&1 | tail -4"
 if su - jhnapps -c "pm2 describe clb-kartapacienta" >/dev/null 2>&1; then

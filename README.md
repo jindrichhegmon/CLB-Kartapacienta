@@ -22,8 +22,10 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   (`/api/d/parovat { tenant, kod, telefon }`) – jiné číslo server odmítne. Spárovaný telefon si číslo pamatuje
   (`A_KP_Zarizeni.Telefon`). Při změně čísla v Údajích se telefon spárovaný s předchozím číslem zablokuje (při připojení se
   vymaže). Jako dosud platí: nový telefon zablokuje předchozí, takže karta je vždy jen v jednom telefonu.
-- **SMS s odkazem:** v okně „Spárovat telefon“ jde odkaz poslat SMS přímo na číslo s kartou (Twilio, proměnné `TWILIO_*`,
-  `vps-deploy.sh` je převezme z `/opt/jhn-apps/.env`). Bez nich se páruje QR kódem a potvrzením čísla.
+- **SMS s odkazem:** v záložce Telefon a PINy tlačítko „Poslat odkaz SMS na …“ (a totéž v okně „Spárovat telefon“) vydá
+  párovací kód a pošle odkaz SMS přímo na číslo s kartou (Twilio, proměnné `TWILIO_*` jako jhn-apps; když v `.env` karty
+  chybí, server je přečte z `/opt/jhn-apps/.env`, odesílací číslo výchozí `+420736354150`). Stav ukazuje `/api/health` → `sms`.
+  Když SMS nejde, okno napíše proč a páruje se QR kódem a potvrzením čísla.
 - **Načtení z PéčeDoma:** v průvodci „Nový pacient“ tlačítko **Načíst soubor JSON** převezme soubor z portálu PéčeDoma
   (Data klienta → Export pro Kartu pacienta, `format: 'CLB-Kartapacienta/pacient'`): údaje pacienta, diagnózy, léky, funkční
   stav a kontakty. Lékař zkontroluje a doplní cíl péče, limitace a číslo telefonu s kartou (předvyplněný je telefon klienta).

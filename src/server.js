@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config, zkontrolujKonfiguraci } from './config.js';
 import { pool } from './db.js';
+import { smsDuvod } from './telefon.js';
 import { admin } from './routes/admin.js';
 import { central } from './routes/central.js';
 import { device } from './routes/device.js';
@@ -33,7 +34,7 @@ app.use('/api', express.json({ limit: '12mb' }));
 app.get('/api/health', async (req, res) => {
   let db = 'ok';
   try { const p = await pool(); await p.request().query('SELECT 1 AS x'); } catch (e) { db = 'chyba: ' + String(e.message).slice(0, 80); }
-  res.json({ ok: db === 'ok', aplikace: 'clb-kartapacienta', verze: config.verze, db, cas: new Date().toISOString(), konfigurace: zkontrolujKonfiguraci() });
+  res.json({ ok: db === 'ok', aplikace: 'clb-kartapacienta', verze: config.verze, db, sms: smsDuvod() || 'zapnuto', cas: new Date().toISOString(), konfigurace: zkontrolujKonfiguraci() });
 });
 app.use('/api/admin', admin);
 app.use('/api/c', central);

@@ -22,11 +22,19 @@ export function hezkyTel(t) {
   return m ? `+420 ${m[1]} ${m[2]} ${m[3]}` : String(t || '');
 }
 
-export const smsDostupne = () => !!(config.sms.from && config.sms.ucet && ((config.sms.token) || (config.sms.klic && config.sms.tajemstvi)));
+/** '' = SMS jde poslat, jinak důvod (co v nastavení serveru chybí) */
+export function smsDuvod() {
+  const { ucet, token, klic, tajemstvi, from } = config.sms;
+  if (!ucet) return 'na serveru chybí TWILIO_ACCOUNT_SID';
+  if (!token && !(klic && tajemstvi)) return 'na serveru chybí TWILIO_AUTH_TOKEN';
+  if (!from) return 'na serveru chybí TWILIO_SMS_FROM';
+  return '';
+}
+export const smsDostupne = () => !smsDuvod();
 
 /** SMS přes Twilio REST API; vrací SID zprávy, při chybě vyhodí výjimku s důvodem */
 export async function posliSms(telefon, text) {
-  if (!smsDostupne()) throw Object.assign(new Error('Odesílání SMS není na serveru nastavené (TWILIO_* v .env)'), { status: 503 });
+  if (!smsDostupne()) throw Object.assign(new Error('Odesílání SMS není na serveru nastavené – ' + smsDuvod()), { status: 503 });
   const to = normTel(telefon);
   if (!to) throw Object.assign(new Error('Neplatné číslo telefonu'), { status: 400 });
   const { ucet, token, klic, tajemstvi, from } = config.sms;

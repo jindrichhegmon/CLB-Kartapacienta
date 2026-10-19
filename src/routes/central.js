@@ -10,7 +10,7 @@ import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, totp, TOTP_KROK } from '../crypto.js';
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
-import { normTel, hezkyTel, smsDostupne, posliSms } from '../telefon.js';
+import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 
 export const central = Router();
 
@@ -374,7 +374,7 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
       await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací odkaz poslán SMS', detail: hezkyTel(telKarty), ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }
-  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), sms };
+  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms };
 }));
 
 central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
