@@ -1,6 +1,7 @@
 /**
  * Telefon u pacienta – /api/d/*
- *   POST /parovat  { tenant, kod }                 → { token, tajemstvi, balik }
+ *   POST /parovat  { tenant, kod, telefon }        → { token, tajemstvi, balik }   telefon = číslo tohoto telefonu, musí se shodovat
+ *                                                  s číslem karty u pacienta (A_KP_Pacient.TelefonKarty) – karta je jen v jednom telefonu
  *   POST /sync     Authorization: Device <token>   { fronta:[…], verzePlanu, baterie, verzeAplikace }
  *                                                  → { potvrzeno:[uuid], balik } | { prikaz:'smazat' }
  * Token zařízení = "<IDTENANT>.<ZarizeniID>.<náhodných 32 B>", v DB je jen jeho SHA-256.
@@ -13,6 +14,7 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
+import { normTel, hezkyTel } from '../telefon.js';
 
 export const device = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -32,20 +34,27 @@ device.post('/parovat', h(async (req) => {
   const tenant = String(req.body.tenant || '').toUpperCase().trim();
   const kod = String(req.body.kod || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!tenantRe.test(tenant) || kod.length !== 8) throw chyba('Neplatný párovací kód');
+  const telefon = normTel(req.body.telefon);
+  if (!telefon) throw chyba('Zadejte číslo tohoto telefonu (např. +420 777 123 456)');
   omez('parovani:' + ip(req), 10);
   return vTenantu(tenant, async (q) => {
-    const z = await q.one(`SELECT ZarizeniID, PacientID FROM dbo.A_KP_Zarizeni WHERE ParovaciKod = @k AND Stav = 'CEKA' AND ParovaciPlatnost > SYSDATETIME()`, { k: kod });
+    const z = await q.one(`SELECT z.ZarizeniID, z.PacientID, p.TelefonKarty FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+      WHERE z.ParovaciKod = @k AND z.Stav = 'CEKA' AND z.ParovaciPlatnost > SYSDATETIME()`, { k: kod });
     if (!z) throw chyba('Kód je neplatný nebo vypršel – vygenerujte v centrální aplikaci nový', 404);
+    // karta je jen v telefonu s číslem uvedeným u pacienta
+    if (!z.TelefonKarty || normTel(z.TelefonKarty) !== telefon) {
+      throw chyba('Karta tohoto pacienta je určená pro jiné číslo telefonu – nahrát ji jde jen do telefonu s číslem uvedeným v centrální aplikaci', 403);
+    }
     const raw = nahodny(32);
     const tajemstvi = randomBytes(20).toString('hex');
     // předchozí telefon pacienta se zablokuje (při připojení se vymaže) – platí vždy jen jeden
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO' WHERE PacientID = @p AND Stav = 'SPAROVANO'`, { p: z.PacientID });
-    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'SPAROVANO', TokenHash = @th, Tajemstvi = @t, Sparovano = SYSDATETIME(), PosledniSync = SYSDATETIME(), ParovaciKod = NULL, ParovaciPlatnost = NULL
-      WHERE ZarizeniID = @z`, { th: sha256(raw), t: zasifruj(tajemstvi), z: z.ZarizeniID });
-    await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: 'Průkaz nahrán do telefonu u pacienta.', autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'SPAROVANO', TokenHash = @th, Tajemstvi = @t, Sparovano = SYSDATETIME(), PosledniSync = SYSDATETIME(), ParovaciKod = NULL, ParovaciPlatnost = NULL, Telefon = @tel
+      WHERE ZarizeniID = @z`, { th: sha256(raw), t: zasifruj(tajemstvi), tel: telefon, z: z.ZarizeniID });
+    await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Průkaz nahrán do telefonu u pacienta (${hezkyTel(telefon)}).`, autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
     await audit(q, { zarizeniId: z.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'telefon spárován', ip: ip(req) });
     const balik = await balikProZarizeni(q, z.PacientID);
-    return { token: `${tenant}.${z.ZarizeniID}.${raw}`, tajemstvi, zarizeniId: z.ZarizeniID, balik };
+    return { token: `${tenant}.${z.ZarizeniID}.${raw}`, tajemstvi, zarizeniId: z.ZarizeniID, telefon: hezkyTel(telefon), balik };
   });
 }));
 

@@ -191,6 +191,7 @@ pre.out{background:var(--surface-2);border-radius:10px;padding:12px;white-space:
 .banner{display:flex;gap:10px;align-items:center;padding:11px 14px;border-radius:12px;font-weight:600;font-size:13.5px;flex-wrap:wrap}
 .banner.warn{background:var(--warn-soft);color:var(--warn)}
 .banner.crit{background:var(--crit-soft);color:var(--crit)}
+.banner.ok{background:var(--ok-soft);color:var(--ok)}
 .banner .btn{margin-left:auto}
 .footer{text-align:center;color:var(--muted);font-size:11.5px;padding:4px 0 0}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,li:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

@@ -28,7 +28,7 @@
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.1.0';
+const APP_VERZE = 'karta-0.2.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -143,7 +143,7 @@ function hlavicka() {
   if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Karta pacienta</h1><div class="meta">telefon u lůžka</div></div><span class="verbadge">${APP_VERZE.replace('karta-', 'v')}</span>`; return; }
   const p = D.balik.pacient;
   $('top').innerHTML = `${tab !== 'karta' && U.role ? `<button class="back" id="btnBack" aria-label="Zpět">${KP.ICON.back}</button>` : '<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt="">'}
-    <div class="ttl"><h1>${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h1><div class="meta">${esc(p.kod)} · ${esc(p.pobyt || '')}</div></div>
+    <div class="ttl"><h1>${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h1><div class="meta">${esc(p.kod)} · ${esc(p.pobyt || '')}${D.telefon ? ' · telefon ' + esc(D.telefon) : ''}</div></div>
     ${U.role ? `<button class="rolebtn" id="btnZamek" style="--c:var(--ok)"><span class="dot"></span>${esc(ROLE_NAZ[U.role] || U.role)} · zamknout</button>` : `<span class="rolebtn" style="--c:var(--crit)">${KP.ICON.zamek}</span>`}`;
   if ($('btnBack')) $('btnBack').onclick = () => { tab = 'karta'; kresli(); };
   if ($('btnZamek')) $('btnZamek').onclick = zamkni;
@@ -252,19 +252,23 @@ function bind() {
 /* ---------------- párování ---------------- */
 function kresliParovani(predvyplnit = {}) {
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Spárovat telefon s průkazem</h2></div><div class="form" style="padding:14px">
-    <div class="note">Párovací kód vygeneruje lékař nebo hospic v centrální aplikaci (Telefon a PINy → Spárovat telefon). Nejjednodušší je naskenovat jeho QR kód fotoaparátem telefonu.</div>
+    <div class="note">Párovací kód vygeneruje lékař nebo hospic v centrální aplikaci (Telefon a PINy → Spárovat telefon) – odkaz přijde SMS na číslo tohoto telefonu, nebo naskenujte QR kód. Karta jde nahrát jen do telefonu s číslem, které je u pacienta uvedené.</div>
+    ${predvyplnit.kod ? `<input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters" value="${esc(predvyplnit.tenant || '')}"></div>
-    <div class="field"><label>Párovací kód (8 znaků)</label><input id="p_k" autocapitalize="characters" value="${esc(predvyplnit.kod || '')}" style="font-size:22px;letter-spacing:.2em"></div>
+    <div class="field"><label>Párovací kód (8 znaků)</label><input id="p_k" autocapitalize="characters" value="${esc(predvyplnit.kod || '')}" style="font-size:22px;letter-spacing:.2em"></div>`}
+    <div class="field"><label>Číslo tohoto telefonu</label><input id="p_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
     <button class="btn primary" id="p_ok">Spárovat</button></div></div>
     <div class="note">Po spárování telefon ukazuje krizovou kartu pacienta i bez připojení a při každém připojení se sám sesynchronizuje. Data jsou v telefonu šifrovaná. Telefon používejte jen pro tento průkaz.</div>
     <div class="footer">${APP_VERZE}</div>`;
-  $('p_ok').onclick = () => parovat($('p_t').value, $('p_k').value);
+  $('p_ok').onclick = () => parovat($('p_t').value, $('p_k').value, $('p_tel').value);
+  setTimeout(() => { const t = $('p_tel'); if (t && predvyplnit.kod) t.focus(); }, 50);
 }
-async function parovat(tenant, kod) {
+async function parovat(tenant, kod, telefon) {
   tenant = String(tenant || '').toUpperCase().trim(); kod = String(kod || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!String(telefon || '').replace(/\D/g, '')) return toast('Zadejte číslo tohoto telefonu');
   try {
-    const r = await KP.api('/api/d/parovat', { method: 'POST', body: { tenant, kod } });
-    D = { tenant, token: r.token, tajemstvi: r.tajemstvi, zarizeniId: r.zarizeniId, balik: r.balik, fronta: [], posledniSync: new Date().toISOString(), parovano: new Date().toISOString() };
+    const r = await KP.api('/api/d/parovat', { method: 'POST', body: { tenant, kod, telefon } });
+    D = { tenant, token: r.token, tajemstvi: r.tajemstvi, zarizeniId: r.zarizeniId, telefon: r.telefon, balik: r.balik, fronta: [], posledniSync: new Date().toISOString(), parovano: new Date().toISOString() };
     await uloz(); history.replaceState(null, '', location.pathname); U = { role: null }; tab = 'karta'; kresli(); toast('Průkaz nahrán do telefonu');
   } catch (e) { toast(e.message); }
 }
@@ -273,7 +277,7 @@ async function parovat(tenant, kod) {
 (async function start() {
   D = await nacti();
   const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i);
-  if (h && !D) { kresli(); kresliParovani({ tenant: h[1], kod: h[2] }); parovat(h[1], h[2]); }
+  if (h && !D) { kresli(); kresliParovani({ tenant: h[1], kod: h[2] }); }   // odkaz z SMS / QR předvyplní kódy, telefon potvrdí své číslo
   else if (h && D) { history.replaceState(null, '', location.pathname); kresli(); modal('<h2>Telefon už má průkaz</h2><p>Tento telefon už je spárován. Pokud má převzít jiný průkaz, nejdřív ho v centrální aplikaci zablokujte (data se smažou) a pak kód naskenujte znovu.</p><div class="quick"><button class="btn" data-close>Rozumím</button></div>'); }
   else kresli();
   if (D) sync();

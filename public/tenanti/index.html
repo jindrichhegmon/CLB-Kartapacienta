@@ -82,8 +82,7 @@ function formular(predvyplnit = {}) {
       <h3 style="font-size:14px;margin-top:6px">Správce organizace</h3>
       <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="f_sj" placeholder="MUDr. Jana Nová"></div><div class="field"><label>Přihlašovací jméno</label><input id="f_sl" placeholder="jana.nova" autocapitalize="off"></div></div>
       <div class="frow"><div class="field"><label>E-mail</label><input id="f_se" type="email"></div><div class="field"><label>Telefon</label><input id="f_st"></div></div>
-      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label>
-        <label style="color:inherit"><input type="checkbox" id="f_demo" style="accent-color:var(--accent)"> vložit ukázková data (2 pacienti, 4 pracoviště)</label></div>
+      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label></div>
       <div class="quick"><button class="btn primary" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
       <div class="note">Vznikne: tenant v PeceDomaPlus (IDTENANT = IČO + 8 písmen z názvu), první pracoviště, účet správce s vygenerovaným heslem a odkaz pro přihlášení. Heslo se zobrazí jen jednou – správce si ho po prvním přihlášení změní.</div>
     </div>`, () => {
@@ -95,7 +94,7 @@ function formular(predvyplnit = {}) {
     };
     $('f_ok').onclick = async () => {
       const b = { ico: $('f_ico').value, nazev: $('f_nazev').value, adresa: $('f_adresa').value, typ: $('f_typ').value, telefon24: $('f_tel').value, nazevSite: $('f_sit').value,
-        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked, demo: $('f_demo').checked };
+        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked };
       $('f_ok').disabled = true;
       try { const r = await A('/zalozit', { method: 'POST', body: b }); vysledek(r); renderSeznam(); } catch (e) { toast(e.message); $('f_ok').disabled = false; }
     };

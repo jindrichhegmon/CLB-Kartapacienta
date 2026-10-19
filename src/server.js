@@ -2,8 +2,8 @@
  * Karta pacienta – server. Tři aplikace na jednom endpointu:
  *   /tenanti/   správa tenantů (provozovatel platformy)
  *   /centrala/  centrální aplikace (garant, tým kolem pacienta)
- *   /karta/     karta pacienta na mobil (PWA, offline, synchronizace)
- *   /demo/      původní lokální prototyp (data jen v prohlížeči)
+ *   /karta/     karta pacienta na mobil (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
+ *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
  * API: /api/admin/*, /api/c/*, /api/d/*, /api/health
  */
 import express from 'express';
@@ -40,6 +40,8 @@ app.use('/api/c', central);
 app.use('/api/d', device);
 app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznámý endpoint' }));
 
+// ostrá verze: lokální prototyp už není
+app.get(/^\/demo(\/.*)?$/, (req, res) => res.redirect(301, '/'));
 // statické aplikace; service worker karty smí řídit celé /karta/
 app.use('/karta', (req, res, next) => { if (req.path === '/sw.js') res.setHeader('Service-Worker-Allowed', '/karta/'); next(); });
 app.use(express.static(path.join(koren, 'public'), {

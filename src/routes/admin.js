@@ -15,7 +15,6 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text } from '../http.js';
 import { podepis, overSession, hashHeslo, generujHeslo, zasifruj, desifruj } from '../crypto.js';
 import { TYPY_POSKYTOVATELE, audit } from '../kp.js';
-import { naplnDemo } from '../demo.js';
 
 export const admin = Router();
 
@@ -122,7 +121,6 @@ admin.post('/zalozit', h(async (req) => {
       OUTPUT inserted.UzivatelID VALUES (@p, @j, @l, @e, @tel, @hh, @hp, 1, @r)`,
     { p: posk.PoskytovatelID, j: spravceJmeno, l: spravceLogin, e: text(b.spravceEmail, 200) || null, tel: text(b.spravceTelefon, 40) || null, hh: hashHeslo(heslo), hp: zasifruj(heslo), r: role });
     await audit(q, { kdo: 'správa tenantů', akce: 'tenant zapnut', detail: `správce ${spravceLogin}`, ip: ip(req) });
-    if (b.demo) await naplnDemo(q, { poskytovatelId: posk.PoskytovatelID, uzivatelId: u.UzivatelID, jmeno: spravceJmeno });
     return { poskytovatelId: posk.PoskytovatelID, uzivatelId: u.UzivatelID };
   });
 

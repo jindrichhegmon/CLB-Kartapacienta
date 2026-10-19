@@ -10,10 +10,24 @@ připojení se sesynchronizuje. Dotazy na AI jsou vždy anonymní.
 |---|---|---|
 | Správa tenantů | `/tenanti/` | provozovatel platformy – založení organizace jedním formulářem |
 | Centrální aplikace | `/centrala/?t=<IDTENANT>` | garant a tým kolem pacienta (nemocnice, hospic, PL, domov) |
-| Karta na mobil | `/karta/` | telefon u lůžka (PWA, offline, šifrovaná data) |
-| Lokální prototyp | `/demo/` | původní demo v8 (data jen v prohlížeči, max. 10 pacientů) |
+| Karta na mobil | `/karta/` | telefon u lůžka (PWA, offline, šifrovaná data) – **jeden pacient, jen v telefonu s číslem uvedeným u pacienta** |
 
 Vše startuje z jednoho serveru (`src/server.js`), zatím ne z Netlify. Make se nepoužívá.
+Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa přesměruje na úvod) a nový tenant se zakládá bez ukázkových dat.
+
+## Ostrá verze (0.2.0) – jeden telefon na pacienta, načtení z PéčeDoma
+
+- **Telefon s kartou:** u každého pacienta je povinné číslo telefonu, na kterém bude karta (`A_KP_Pacient.TelefonKarty`,
+  normalizované `+420…`, `src/telefon.js`). Telefon se spáruje jen tehdy, když při párování zadá **stejné číslo**
+  (`/api/d/parovat { tenant, kod, telefon }`) – jiné číslo server odmítne. Spárovaný telefon si číslo pamatuje
+  (`A_KP_Zarizeni.Telefon`). Při změně čísla v Údajích se telefon spárovaný s předchozím číslem zablokuje (při připojení se
+  vymaže). Jako dosud platí: nový telefon zablokuje předchozí, takže karta je vždy jen v jednom telefonu.
+- **SMS s odkazem:** v okně „Spárovat telefon“ jde odkaz poslat SMS přímo na číslo s kartou (Twilio, proměnné `TWILIO_*`,
+  `vps-deploy.sh` je převezme z `/opt/jhn-apps/.env`). Bez nich se páruje QR kódem a potvrzením čísla.
+- **Načtení z PéčeDoma:** v průvodci „Nový pacient“ tlačítko **Načíst soubor JSON** převezme soubor z portálu PéčeDoma
+  (Data klienta → Export pro Kartu pacienta, `format: 'CLB-Kartapacienta/pacient'`): údaje pacienta, diagnózy, léky, funkční
+  stav a kontakty. Lékař zkontroluje a doplní cíl péče, limitace a číslo telefonu s kartou (předvyplněný je telefon klienta).
+- Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
 ## Tenanti – stejný princip jako Péče doma Plus
 
@@ -26,7 +40,7 @@ Vše startuje z jednoho serveru (`src/server.js`), zatím ne z Netlify. Make se 
   Uvnitř tenanta jsou pracoviště (`A_KP_Poskytovatel`: nemocnice, hospic, ambulance, PL, domov, ZZS), uživatelé,
   pacienti, garance a tým kolem pacienta – předání pacienta mezi pracovišti tak zůstává uvnitř RLS.
 - **Snadné založení tenanta** (`/tenanti/` → „Založit tenanta“): IČO (název a adresa z ARES), typ prvního pracoviště,
-  jméno a login správce, volitelně ukázková data. Vznikne tenant (nebo se použije existující se stejným IČO, např. CLB
+  jméno a login správce. Vznikne tenant (nebo se použije existující se stejným IČO, např. CLB
   `02570459DSIDEQAJ`), první pracoviště, správce s vygenerovaným heslem a odkaz pro přihlášení + text k odeslání.
 
 ### Tabulky

@@ -28,7 +28,15 @@ export const config = {
     apiKey: env('ANTHROPIC_API_KEY'),
     model: env('KP_AI_MODEL', 'claude-sonnet-5-5'),
   },
-  verze: '0.1.0',
+  // SMS s odkazem na spárování telefonu s kartou (Twilio – stejné proměnné jako jhn-apps; účet + token, nebo API klíč + tajemství)
+  sms: {
+    ucet: env('TWILIO_ACCOUNT_SID'),
+    token: env('TWILIO_AUTH_TOKEN'),
+    klic: env('TWILIO_API_KEY_SID', env('TWILIO_API_KEY')),
+    tajemstvi: env('TWILIO_API_KEY_SECRET', env('TWILIO_API_SECRET')),
+    from: env('TWILIO_SMS_FROM', env('TWILIO_FROM')),
+  },
+  verze: '0.2.0',
 };
 
 export function zkontrolujKonfiguraci() {

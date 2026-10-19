@@ -58,3 +58,11 @@ test('lokální rozbor najde limitace, SOS léky a chybějící DVP', () => {
   assert.equal(r.sos.length, 2);
   assert.ok(r.chybi.some((x) => /vyslovené přání/.test(x)));
 });
+
+test('číslo telefonu s kartou: normalizace a porovnání', async () => {
+  const { normTel, hezkyTel } = await import('../src/telefon.js');
+  for (const v of ['777 123 456', '+420 777 123 456', '00420777123456', '420777123456', '(777) 123-456']) assert.equal(normTel(v), '+420777123456');
+  assert.equal(normTel('+421 905 123 456'), '+421905123456');
+  for (const v of ['', '12345', 'abc', '+420 777 12', '0777123456789012345']) assert.equal(normTel(v), '');
+  assert.equal(hezkyTel('+420777123456'), '+420 777 123 456');
+});

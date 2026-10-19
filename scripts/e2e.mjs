@@ -49,15 +49,16 @@ krok(`anonymní rozbor (${ai.zdroj}${ai.model ? ' ' + ai.model : ''}): ${ai.poce
 const posk = (await api('/api/c/poskytovatele', { token: ses })).poskytovatele;
 const hospic = posk.find((p) => p.typ === 'HOSPIC'); const domov = posk.find((p) => p.typ === 'DOMOV');
 const novy = await api('/api/c/pacient', { method: 'POST', token: ses, body: {
-  pacient: { jmeno: 'Karel', prijmeni: 'Testovací', rok: 1947, pohlavi: 'muž', pobyt: 'Domov pro seniory, pokoj 3' },
+  pacient: { jmeno: 'Karel', prijmeni: 'Testovací', rok: 1947, pohlavi: 'muž', pobyt: 'Domov pro seniory, pokoj 3', telefonKarty: '777 000 123' },
   plan: { ...ai.vysledek, doklad: { dvp: false, zprava: 'Krajská nemocnice, propouštěcí zpráva' } }, kontakty: ai.vysledek.kontakty, tym: [hospic && hospic.id, domov && domov.id].filter(Boolean), aiPouzito: true } });
 krok(`pacient založen ${novy.kod}`);
 const pid = novy.id;
 await api(`/api/c/pacient/${pid}/plan`, { method: 'POST', token: ses, body: { typ: 'REVIZE', platnostDo: '2027-01-31', poznamka: 'test' } }); krok('revize plánu → verze 2');
 const pin = (await api(`/api/c/pacient/${pid}/pin`, { method: 'POST', token: ses, body: { jmeno: 'Jana (dcera)', role: 'RODINA' } })).pin; krok('PIN vydán');
 const par = await api(`/api/c/pacient/${pid}/parovat`, { method: 'POST', token: ses, body: { stitek: 'test-telefon' } }); krok(`párovací kód ${par.kod}`);
-const tel = await api('/api/d/parovat', { method: 'POST', body: { tenant: par.tenant, kod: par.kod } }); krok(`telefon spárován, balík: ${tel.balik.pacient.kod}, plán v${tel.balik.plan.verze}, ${tel.balik.piny.length} PIN`);
-await ocekavejChybu(() => api('/api/d/parovat', { method: 'POST', body: { tenant: par.tenant, kod: par.kod } }), 404, 'párovací kód nejde použít podruhé');
+await ocekavejChybu(() => api('/api/d/parovat', { method: 'POST', body: { tenant: par.tenant, kod: par.kod, telefon: '777 999 999' } }), 403, 'telefon s jiným číslem kartu nedostane');
+const tel = await api('/api/d/parovat', { method: 'POST', body: { tenant: par.tenant, kod: par.kod, telefon: '+420 777 000 123' } }); krok(`telefon spárován, balík: ${tel.balik.pacient.kod}, plán v${tel.balik.plan.verze}, ${tel.balik.piny.length} PIN`);
+await ocekavejChybu(() => api('/api/d/parovat', { method: 'POST', body: { tenant: par.tenant, kod: par.kod, telefon: '777000123' } }), 404, 'párovací kód nejde použít podruhé');
 const p0 = tel.balik.piny[0];
 if (pbkdf2Sync(pin, Buffer.from(p0.salt, 'hex'), p0.iterace, 32, 'sha256').toString('hex') !== p0.hash) throw new Error('PIN nesedí'); krok('PIN ověřitelný offline (PBKDF2)');
 const uuid = crypto.randomUUID();
