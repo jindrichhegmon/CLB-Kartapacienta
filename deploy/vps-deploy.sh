@@ -12,9 +12,17 @@ KEY="${KEY:-$HOME/.ssh/id_ed25519_jhnapps}"
 DIR=/opt/clb-kartapacienta
 DOMENA="${DOMENA:-kartapacienta.95-216-201-2.sslip.io}"
 PORT=3120
-SSH="ssh -i $KEY -o BatchMode=yes"
 
 cd "$(dirname "$0")/.."
+# Jedno sdílené SSH spojení (ControlMaster) s opakováním: server odmítá spojení otevřená rychle po sobě („Connection reset by peer“)
+CM="$HOME/.ssh/cm-jhnapps-%r@%h-%p"
+SSH="ssh -i $KEY -o BatchMode=yes -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=$CM -o ControlPersist=180"
+trap 'ssh -o ControlPath="$CM" -O exit "$VPS" >/dev/null 2>&1 || true' EXIT
+for i in 1 2 3 4 5 6; do
+  if $SSH "$VPS" true 2>/dev/null; then break; fi
+  if [ "$i" = 6 ]; then echo "Server $VPS nepřijímá SSH spojení ani po 2 minutách – zkuste skript spustit znovu za pár minut." >&2; exit 1; fi
+  echo "   server zatím nepřijímá SSH spojení – zkusím znovu za 20 s ($i/5)"; sleep 20
+done
 $SSH "$VPS" "mkdir -p $DIR"
 rsync -az --delete -e "$SSH" --exclude node_modules --exclude .git --exclude .DS_Store --exclude .env ./ "$VPS:$DIR/"
 

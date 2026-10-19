@@ -6,7 +6,6 @@
 set -e
 VPS="${VPS:-root@95.216.201.2}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519_jhnapps}"
-SSH="ssh -i $KEY -o BatchMode=yes"
 
 read -r -p "Twilio Account SID (začíná AC…): " SID
 read -r -s -p "Twilio Auth Token (nezobrazuje se): " TOKEN; echo
@@ -15,6 +14,15 @@ FROM="${FROM:-+420736354150}"
 [[ "$SID" =~ ^AC[0-9a-fA-F]{32}$ ]] || { echo "Account SID má tvar AC + 32 znaků (0-9, a-f)."; exit 1; }
 [[ "$TOKEN" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "Auth Token má 32 znaků (0-9, a-f)."; exit 1; }
 
+# Jedno sdílené SSH spojení (ControlMaster) s opakováním: server odmítá spojení otevřená rychle po sobě („Connection reset by peer“)
+CM="$HOME/.ssh/cm-jhnapps-%r@%h-%p"
+SSH="ssh -i $KEY -o BatchMode=yes -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=$CM -o ControlPersist=180"
+trap 'ssh -o ControlPath="$CM" -O exit "$VPS" >/dev/null 2>&1 || true' EXIT
+for i in 1 2 3 4 5 6; do
+  if $SSH "$VPS" true 2>/dev/null; then break; fi
+  if [ "$i" = 6 ]; then echo "Server $VPS nepřijímá SSH spojení ani po 2 minutách – zkuste skript spustit znovu za pár minut." >&2; exit 1; fi
+  echo "   server zatím nepřijímá SSH spojení – zkusím znovu za 20 s ($i/5)"; sleep 20
+done
 # 1) hodnoty do dočasného souboru na serveru (přes stdin, jen pro roota)
 printf 'TWILIO_ACCOUNT_SID=%s\nTWILIO_AUTH_TOKEN=%s\nTWILIO_SMS_FROM=%s\n' "$SID" "$TOKEN" "$FROM" | $SSH "$VPS" "umask 077 && cat > /root/.twilio-nove"
 # 2) zapsat do .env obou aplikací a restartovat
