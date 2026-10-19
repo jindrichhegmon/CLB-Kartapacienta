@@ -7,4 +7,7 @@
 - Do DB jen přes `vTenantu(tenant, q => …)` z `src/db.js`. `'*'` jen ve správě tenantů a migracích. Žádné SQL z prohlížeče.
 - Deník a audit log jsou jen pro doplňování. Plán péče = nová verze, nikdy UPDATE.
 - Do AI nikdy neposílat identitu pacienta – vždy přes `rozborZpravy()` (`src/ai.js` → `src/anonym.js`). Po úpravě anonymizace spustit `npm test`.
+- Standard aplikací jako PéčeDoma: 📖 nápověda s obrázky, 💬 chat nad ní a 🎨 vzhled (`public/shared/kp-napoveda.js`). Když se změní obrazovka
+  nebo postup, uprav `napoveda/napoveda.md` (číslované kapitoly `## N. Název` – na čísla odkazují aplikace i chat) a obnov snímky
+  `node scripts/napoveda-snimky.mjs` + `python3 scripts/napoveda-zmensit.py` (smyšlená data v napodobeném API ve skriptu).
 - Po změně: `npm test`, commit, push a nasazení `./deploy/vps-deploy.sh` z Macu (SQL je dostupné jen z VPS).

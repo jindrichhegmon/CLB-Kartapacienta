@@ -7,6 +7,8 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script>/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
 </head>
 <body>
@@ -16,6 +18,7 @@
 </div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
+<script src="/shared/kp-napoveda.js"></script>
 <script>
 const { esc, api, toast, modal, closeModal } = KP;
 const KEY = 'kp_tenanti_session';
@@ -23,9 +26,11 @@ let S = { session: sessionStorage.getItem(KEY) || '', tenanti: [], typy: {} };
 const $ = (id) => document.getElementById(id);
 const A = (p, o = {}) => api('/api/admin' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { S.session = ''; sessionStorage.removeItem(KEY); render(); } throw e; });
 
+KP.napoveda.nastav({ aplikace: 'tenanti', kapitola: 13, auth: () => ({ token: S.session }), obrazovka: () => (S.session ? 'Seznam tenantů' : 'Přihlášení') });
+
 function hlavicka(meta) {
   $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Správa tenantů</h1><div class="meta">${esc(meta || 'Karta pacienta · provozovatel platformy')}</div></div>
-    ${S.session ? '<button class="btn sm" id="odhlasit">Odhlásit</button>' : ''}`;
+    ${KP.tlacitkaHlavicky()}${S.session ? '<button class="btn sm" id="odhlasit">Odhlásit</button>' : ''}`;
   if ($('odhlasit')) $('odhlasit').onclick = () => { S.session = ''; sessionStorage.removeItem(KEY); render(); };
 }
 

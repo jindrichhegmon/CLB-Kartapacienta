@@ -35,6 +35,17 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Standard aplikací (0.3.0) – nápověda, chat a vzhled jako PéčeDoma
+
+- **📖 Nápověda** ve všech třech aplikacích: návod s obrázky (`napoveda/napoveda.md`, 16 kapitol, snímky v `public/napoveda/img`),
+  obsah vlevo, otevře se na kapitole k aktuální obrazovce, klik zvětší obrázek, **🖨 Tisk** / Uložit jako PDF. Na telefonu funguje i offline.
+- **💬 Chat nad návodem** (`POST /api/napoveda/dotaz`, `src/routes/napoveda.js`): Claude odpovídá jen podle návodu a odkáže na kapitolu;
+  jen pro přihlášené (session centrály / správy tenantů) a spárované telefony; dotazy jdou přes anonymizační bránu; bez `ANTHROPIC_API_KEY`
+  odpoví lokální hledání v návodu. V centrále modré **?** vlevo dole.
+- **🎨 Vzhled**: 10 barevných schémat jako v PéčeDoma (Karta modrá – výchozí, v noci tmavá podle systému –, PéčeDoma Plus zelená, Datec modrá,
+  Veselá, Konzervativní, Letní, Zimní, Podzimní, Jarní, Tmavá); pamatuje se na zařízení (`localStorage kp_vzhled`). Společný modul `public/shared/kp-napoveda.js`.
+- **Snímky do návodu** se smyšlenými daty, bez databáze: `node scripts/napoveda-snimky.mjs` (Playwright) a `python3 scripts/napoveda-zmensit.py` (256 barev).
+
 ## Tenanti – stejný princip jako Péče doma Plus
 
 - Databáze **PeceDomaPlus** (Srv-MPerfect), sdílená tabulka `dbo.Tenants` (IDTENANT `char(16)` = IČO + 8 písmen).
@@ -111,5 +122,6 @@ a heslo správy tenantů a jednou ho vypíše), spustí migraci, pm2 a doplní d
   `/predat`, `/prevzit`, `/parovat`, `/zarizeni`, `/pin`, `/kod-lekare`, `/dokument`, `/vypis`, `/uzavrit`, `/souhlas`), `ai/rozbor`,
   správa: `poskytovatel`, `uzivatele`, `uzivatel`, `zarizeni`, `audit`, `nastaveni`
 - `/api/d/*` – `parovat` (kód z QR → token + balík), `sync` (fronta zápisů → potvrzená UUID + aktuální balík / příkaz smazat)
+- `/api/napoveda` – návod (Markdown, veřejné), `/api/napoveda/dotaz` – chat nad návodem (přihlášený uživatel / spárovaný telefon)
 
 Podklady k návrhu (proč a jak): `docs/`.

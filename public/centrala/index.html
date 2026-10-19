@@ -7,6 +7,8 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script>/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
 <style>
   .nav{display:flex;gap:6px;flex-wrap:wrap}
@@ -28,6 +30,7 @@
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
 <script src="/shared/qrcode.js"></script>
+<script src="/shared/kp-napoveda.js"></script>
 <script>
 const { esc, api, toast, modal, closeModal, fmtD, fmtDT, CILE, LIMITY } = KP;
 const $ = (id) => document.getElementById(id);
@@ -40,14 +43,21 @@ const jeAdmin = () => S.ja && S.ja.role.includes('admin');
 const ROLE_NAZ = { admin: 'správce', lekar: 'lékař', sestra: 'sestra', ctenar: 'jen čtení' };
 const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'host (čtení)' };
 
+/* nápověda: kapitola a název obrazovky podle toho, co má uživatel otevřené */
+const TAB_KAP = { karta: 5, plan: 5, denik: 6, kontakty: 6, tym: 7, telefon: 8, udaje: 9, dok: 9, pristupy: 9 };
+const TAB_NAZ = { karta: 'Krizová karta', plan: 'Plán péče', denik: 'Deník', kontakty: 'Kontakty', tym: 'Tým a garance', telefon: 'Telefon a PINy', udaje: 'Údaje', dok: 'Dokumenty', pristupy: 'Přístupy' };
+KP.napoveda.nastav({ aplikace: 'centrala', fab: true, auth: () => ({ token: S.session }),
+  kapitola: () => (!S.session ? 2 : ({ pacienti: 3, novy: 4, detail: TAB_KAP[S.tab] || 5, sprava: 10, ucet: 2 }[S.view] || 3)),
+  obrazovka: () => (!S.session ? 'Přihlášení' : S.view === 'detail' ? 'Detail pacienta, záložka ' + (TAB_NAZ[S.tab] || '') : ({ pacienti: 'Pacienti', novy: 'Nový pacient', sprava: 'Správa organizace' + (S.sTab ? ' – ' + S.sTab : ''), ucet: 'Můj účet' }[S.view] || S.view)) });
+
 function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_session'); render(); }
 
 /* ================= hlavička ================= */
 function hlavicka() {
-  if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>`; return; }
+  if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>${KP.tlacitkaHlavicky()}`; return; }
   $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>${esc(S.nazevSite || 'Karta pacienta')}</h1><div class="meta">Centrální aplikace · garant a tým kolem pacienta</div></div>
     <div class="who noprint">${esc(S.ja.jmeno)}<br>${esc(S.ja.poskytovatel)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</div>
-    <span class="verbadge">v${esc(S.verze || '')}</span><button class="btn sm noprint" id="odhl">Odhlásit</button>`;
+    ${KP.tlacitkaHlavicky()}<span class="verbadge">v${esc(S.verze || '')}</span><button class="btn sm noprint" id="odhl">Odhlásit</button>`;
   $('odhl').onclick = odhlas;
 }
 function nav() {

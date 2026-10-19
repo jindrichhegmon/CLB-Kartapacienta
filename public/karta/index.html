@@ -12,6 +12,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Karta">
 <meta name="theme-color" content="#1d6fd6">
+<script>/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
 </head>
 <body>
@@ -21,6 +23,7 @@
 </div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
+<script src="/shared/kp-napoveda.js"></script>
 <script>
 /*
  * Karta pacienta na mobilu – šifrovaná offline kopie průkazu.
@@ -28,12 +31,15 @@
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.2.2';
+const APP_VERZE = 'karta-0.3.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
 let U = { role: null, jmeno: '', posledni: 0 };   // odemčení (jen v paměti)
 let tab = 'karta', syncBezi = false, chybaSync = '';
+const TAB_NAZ = { karta: 'Karta', plan: 'Plán', denik: 'Deník', zhorseni: 'Zhoršení', kontakty: 'Kontakty', udaje: 'Tým' };
+KP.napoveda.nastav({ aplikace: 'karta', auth: () => (D ? { token: D.token, typ: 'Device' } : null), kapitola: () => (D ? 12 : 11),
+  obrazovka: () => (!D ? 'Spárování telefonu' : !U.role ? 'Zamčená krizová karta' : `${TAB_NAZ[tab] || tab} (odemčeno jako ${U.role})`) });
 
 /* ---------------- šifrované úložiště ---------------- */
 const IDB = {
@@ -140,11 +146,11 @@ function kresliSyncBar() {
   $('btnSync').onclick = () => sync({ tichy: false });
 }
 function hlavicka() {
-  if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Karta pacienta</h1><div class="meta">telefon u lůžka</div></div><span class="verbadge">${APP_VERZE.replace('karta-', 'v')}</span>`; return; }
+  if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Karta pacienta</h1><div class="meta">telefon u lůžka</div></div>${KP.tlacitkaHlavicky({ vzhled: false })}<span class="verbadge">${APP_VERZE.replace('karta-', 'v')}</span>`; return; }
   const p = D.balik.pacient;
   $('top').innerHTML = `${tab !== 'karta' && U.role ? `<button class="back" id="btnBack" aria-label="Zpět">${KP.ICON.back}</button>` : '<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt="">'}
     <div class="ttl"><h1>${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h1><div class="meta">${esc(p.kod)} · ${esc(p.pobyt || '')}${D.telefon ? ' · telefon ' + esc(D.telefon) : ''}</div></div>
-    ${U.role ? `<button class="rolebtn" id="btnZamek" style="--c:var(--ok)"><span class="dot"></span>${esc(ROLE_NAZ[U.role] || U.role)} · zamknout</button>` : `<span class="rolebtn" style="--c:var(--crit)">${KP.ICON.zamek}</span>`}`;
+    ${KP.tlacitkaHlavicky({ vzhled: false })}${U.role ? `<button class="rolebtn" id="btnZamek" style="--c:var(--ok)"><span class="dot"></span>${esc(ROLE_NAZ[U.role] || U.role)} · zamknout</button>` : `<span class="rolebtn" style="--c:var(--crit)">${KP.ICON.zamek}</span>`}`;
   if ($('btnBack')) $('btnBack').onclick = () => { tab = 'karta'; kresli(); };
   if ($('btnZamek')) $('btnZamek').onclick = zamkni;
 }

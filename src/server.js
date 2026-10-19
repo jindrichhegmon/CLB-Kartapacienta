@@ -4,7 +4,7 @@
  *   /centrala/  centrální aplikace (garant, tým kolem pacienta)
  *   /karta/     karta pacienta na mobil (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
  *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
- * API: /api/admin/*, /api/c/*, /api/d/*, /api/health
+ * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/health
  */
 import express from 'express';
 import path from 'node:path';
@@ -15,6 +15,7 @@ import { smsDuvod } from './telefon.js';
 import { admin } from './routes/admin.js';
 import { central } from './routes/central.js';
 import { device } from './routes/device.js';
+import { napoveda } from './routes/napoveda.js';
 
 const koren = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = express();
@@ -39,6 +40,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/admin', admin);
 app.use('/api/c', central);
 app.use('/api/d', device);
+app.use('/api/napoveda', napoveda);
 app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznámý endpoint' }));
 
 // ostrá verze: lokální prototyp už není

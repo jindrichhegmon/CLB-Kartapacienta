@@ -41,7 +41,7 @@ export const config = {
     tajemstvi: tw('TWILIO_API_KEY_SECRET', 'TWILIO_API_SECRET'),
     from: tw('TWILIO_SMS_FROM', 'TWILIO_FROM') || '+420736354150',   // odesílací číslo jako v jhn-apps
   },
-  verze: '0.2.3',
+  verze: '0.3.0',
 };
 
 export function zkontrolujKonfiguraci() {

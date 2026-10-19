@@ -66,3 +66,16 @@ test('číslo telefonu s kartou: normalizace a porovnání', async () => {
   for (const v of ['', '12345', 'abc', '+420 777 12', '0777123456789012345']) assert.equal(normTel(v), '');
   assert.equal(hezkyTel('+420777123456'), '+420 777 123 456');
 });
+
+test('nápověda: kapitoly, obrázky a lokální odpověď bez AI', async () => {
+  const { textNapovedy, lokalne } = await import('../src/routes/napoveda.js');
+  const t = textNapovedy();
+  const kapitoly = t.match(/^## \d+\. .+$/gm);
+  assert.equal(kapitoly.length, 16);
+  kapitoly.forEach((k, i) => assert.ok(k.startsWith(`## ${i + 1}. `), `pořadí kapitol: ${k}`));
+  for (const [, src] of t.matchAll(/!\[[^\]]*\]\((\/napoveda\/img\/[^)]+)\)/g)) {
+    assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), `chybí obrázek ${src}`);
+  }
+  const o = lokalne('Jak vydám PIN pro pečující?');
+  assert.match(o, /Kapitola: 8\. Telefon a PINy/);
+});
