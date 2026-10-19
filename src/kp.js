@@ -66,7 +66,8 @@ export async function opravneni(q, s, pacientId) {
     aktivni,
     lekar: aktivni && jeLekar && (jeGarant || tym.some((t) => ['GARANT', 'LEKAR'].includes(t.Role))),
     garant: aktivni && ((jeGarant && (jeLekar || admin)) || admin),
-    zapis: aktivni && (vTymu || admin) && !s.role.every((r) => r === 'ctenar'),
+    // host v týmu (např. nemocnice při hospitalizaci) jen čte – zapisuje garant, lékař a péče
+    zapis: aktivni && (tym.some((t) => t.Role !== 'HOST') || admin) && !s.role.every((r) => r === 'ctenar'),
     prijmoutGaranci: aktivni && !!navrh && jeLekar,
     navrhGaranceId: navrh ? navrh.GaranceID : null,
   };

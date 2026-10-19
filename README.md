@@ -30,6 +30,9 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 - **Načtení z PéčeDoma:** v průvodci „Nový pacient“ tlačítko **Načíst soubor JSON** převezme soubor z portálu PéčeDoma
   (Data klienta → Export pro Kartu pacienta, `format: 'CLB-Kartapacienta/pacient'`): údaje pacienta, diagnózy, léky, funkční
   stav a kontakty. Lékař zkontroluje a doplní cíl péče, limitace a číslo telefonu s kartou (předvyplněný je telefon klienta).
+- **QR kód přímo v aplikaci (0.2.2):** na úvodní obrazovce karty tlačítko **Načíst QR kód fotoaparátem** (BarcodeDetector, na iPhonu
+  `public/shared/jsqr.min.js`, jsQR 1.4.0, Apache-2.0). Na iPhonu má aplikace přidaná na plochu vlastní úložiště, proto se páruje až v ní –
+  karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
 ## Tenanti – stejný princip jako Péče doma Plus
