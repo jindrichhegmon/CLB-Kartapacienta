@@ -47,8 +47,8 @@ const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'hos
 const TAB_KAP = { karta: 5, plan: 5, denik: 6, kontakty: 6, tym: 7, telefon: 8, udaje: 9, dok: 9, pristupy: 9 };
 const TAB_NAZ = { karta: 'Krizová karta', plan: 'Plán péče', denik: 'Deník', kontakty: 'Kontakty', tym: 'Tým a garance', telefon: 'Telefon a PINy', udaje: 'Údaje', dok: 'Dokumenty', pristupy: 'Přístupy' };
 KP.napoveda.nastav({ aplikace: 'centrala', fab: true, auth: () => ({ token: S.session }),
-  kapitola: () => (!S.session ? 2 : ({ pacienti: 3, novy: 4, detail: TAB_KAP[S.tab] || 5, sprava: 10, ucet: 2 }[S.view] || 3)),
-  obrazovka: () => (!S.session ? 'Přihlášení' : S.view === 'detail' ? 'Detail pacienta, záložka ' + (TAB_NAZ[S.tab] || '') : ({ pacienti: 'Pacienti', novy: 'Nový pacient', sprava: 'Správa organizace' + (S.sTab ? ' – ' + S.sTab : ''), ucet: 'Můj účet' }[S.view] || S.view)) });
+  kapitola: () => (!S.session ? 2 : ({ pacienti: 3, novy: 4, detail: TAB_KAP[S.tab] || 5, lide: 11, sprava: 12, ucet: 2 }[S.view] || 3)),
+  obrazovka: () => (!S.session ? 'Přihlášení' : S.view === 'detail' ? 'Detail pacienta, záložka ' + (TAB_NAZ[S.tab] || '') : ({ pacienti: 'Pacienti', novy: 'Nový pacient', lide: 'Lidé a týmy', sprava: 'Správa organizace' + (S.sTab ? ' – ' + S.sTab : ''), ucet: 'Můj účet' }[S.view] || S.view)) });
 
 function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_session'); render(); }
 
@@ -61,7 +61,7 @@ function hlavicka() {
   $('odhl').onclick = odhlas;
 }
 function nav() {
-  const pol = [['pacienti', 'Pacienti'], ...(jeLekar() ? [['novy', '+ Nový pacient']] : []), ...(jeAdmin() ? [['sprava', 'Správa organizace']] : []), ['ucet', 'Můj účet']];
+  const pol = [['pacienti', 'Pacienti'], ...(jeLekar() ? [['novy', '+ Nový pacient']] : []), ...(S.ja.role.some((r) => r !== 'ctenar') ? [['lide', 'Lidé a týmy']] : []), ...(jeAdmin() ? [['sprava', 'Správa organizace']] : []), ['ucet', 'Můj účet']];
   return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 }
 function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.view = b.dataset.v; if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
@@ -75,7 +75,7 @@ async function render() {
   }
   hlavicka();
   if (S.ja.musiZmenitHeslo) return renderUcet(true);
-  ({ pacienti: renderPacienti, detail: renderDetail, novy: renderNovy, sprava: renderSprava, ucet: () => renderUcet(false) }[S.view] || renderPacienti)();
+  ({ pacienti: renderPacienti, detail: renderDetail, novy: renderNovy, lide: renderLide, sprava: renderSprava, ucet: () => renderUcet(false) }[S.view] || renderPacienti)();
 }
 
 function renderLogin() {
@@ -279,11 +279,12 @@ function tabTelefon(d) {
       <div class="note"><b>Jak to funguje:</b> karta je jen v jednom telefonu – s číslem uvedeným u pacienta (záložka Údaje). Odkaz na spárování přijde SMS na toto číslo (nebo naskenujte QR kód) a telefon při spárování potvrdí své číslo; jiné číslo server odmítne. Telefon komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>PINy pro pečující</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.piny.map((p) => `<tr><td><b>${esc(p.jmeno)}</b><div class="lbl">${esc(p.role.toLowerCase())} · vydán ${fmtD(p.vytvoreno)}</div></td><td>${d.op.garant || d.op.lekar ? `<button class="btn sm" data-pzrus="${p.id}">Zrušit</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný PIN.</td></tr>'}</tbody></table></div>
+      ${lidePanel(d)}
+      <div class="panel"><div class="panel-h"><h2>Rodina a jednorázové PINy</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.piny.map((p) => `<tr><td><b>${esc(p.jmeno)}</b><div class="lbl">${esc(p.role.toLowerCase())} · vydán ${fmtD(p.vytvoreno)}</div></td><td>${d.op.garant || d.op.lekar ? `<button class="btn sm" data-pzrus="${p.id}">Zrušit</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný PIN.</td></tr>'}</tbody></table></div>
         ${d.op.garant || d.op.lekar ? `<div class="form" style="padding:12px 14px"><div class="frow"><div class="field"><label>Jméno držitele</label><input id="pin_j" placeholder="např. Jana Nováková (dcera)"></div><div class="field"><label>Role</label><select id="pin_r"><option value="RODINA">rodina</option><option value="SESTRA">sestra (domov)</option><option value="HOSPIC">hospic</option><option value="PL">praktický lékař</option></select></div></div>
           <div class="field"><label>Pracoviště (pro sestru / hospic)</label><select id="pin_p"><option value="">—</option>${d.tym.map((t) => `<option value="${t.poskytovatelId}">${esc(t.nazev)}</option>`).join('')}</select><span class="hint">PIN pracoviště přestane platit, když pracoviště odejde z týmu.</span></div>
           <button class="btn" id="pin_ok">Vydat PIN</button></div>` : ''}</div>
-      <div class="note">PIN (6 číslic) se zobrazí jen jednou – předejte ho držiteli. Telefon ho ověřuje i bez signálu. ZZS žádný PIN nepotřebuje: krizovou kartu vidí bez přihlášení.</div>
+      <div class="note">Lidé pracovišť odemykají kartu svým <b>osobním PINem</b> z agendy Lidé a týmy – platí u všech pacientů, ke kterým jsou přiřazení. Rodině vydejte PIN tady (6 číslic, zobrazí se jen jednou). Telefon PINy ověřuje i bez signálu. <b>ZZS</b> žádný PIN nepotřebuje: krizovou kartu vidí bez přihlášení a jméno zapíše až u výjezdu.</div>
     </div></div>`;
 }
 function tabUdaje(d) {
@@ -351,6 +352,8 @@ function bindTab() {
     } catch (e) { toast(e.message); }
   });
   document.querySelectorAll('[data-pzrus]').forEach((b) => (b.onclick = () => akce('/pin', { zrusitId: Number(b.dataset.pzrus) }, 'PIN zrušen')));
+  on('lide_prirad', prirazeniOkno);
+  document.querySelectorAll('[data-lodeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat přístup', 'Tento člověk už kartu tohoto pacienta neodemkne (při nejbližší synchronizaci telefonu).', 'Odebrat', true)) akce('/lide', { odebrat: [Number(b.dataset.lodeb)] }, 'Odebráno'); }));
   on('u_ok', () => akce('/udaje', ctiUdaje('u'), 'Údaje uloženy'));
   on('souhlas', () => akce('/souhlas', {}, 'Potvrzeno'));
   on('uzavrit', () => modal(`<h2>Uzavřít průkaz</h2><p>Průkaz se uzavře, telefon se při příštím připojení vymaže, PINy přestanou platit. Před uzavřením si pořiďte výpis do dokumentace.</p>
@@ -530,6 +533,186 @@ async function ocr(f) {
     const r = await Tesseract.recognize(f, 'ces', { logger: (m) => { if (m.status === 'recognizing text') st.textContent = `Rozpoznávám text v prohlížeči… ${Math.round(m.progress * 100)} %`; } });
     $('w_t').value = r.data.text; st.textContent = 'Text rozpoznán – zkontrolujte ho a spusťte rozbor.';
   } catch (e) { st.textContent = 'Rozpoznání se nezdařilo – vložte text ručně.'; }
+}
+
+/* ================= lidé a týmy pracovišť ================= */
+// lidé se zapíší jednou (ručně, CSV, PéčeDoma) a k pacientovi se jen přiřazují; osobní PIN platí u všech jejich pacientů
+const ROLE_OS = { LEKAR: 'lékař', PL: 'praktický lékař', HOSPIC: 'hospic', SESTRA: 'sestra DPS' };
+const bezDia = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const smiLidi = (psId) => jeAdmin() || (psId === S.ja.poskytovatelId && S.ja.role.some((r) => r !== 'ctenar'));
+/** role z textu (CSV, PéčeDoma) podle typu pracoviště – stejná pravidla jako server (src/kp.js roleOsoby) */
+function roleZTextu(v, typ) {
+  const kod = String(v || '').trim(); if (/^[A-Z]+$/.test(kod) && ROLE_OS[kod]) return kod;
+  const t = bezDia(v);
+  if (/prakt|\bpl\b/.test(t)) return 'PL';
+  if (/lekar|doktor|mudr|doctor/.test(t)) return typ === 'PL' ? 'PL' : 'LEKAR';
+  if (/dps|domov/.test(t)) return 'SESTRA';
+  if (/sestr|pecovat|pecuj|casemanager|nurse|hospic|zdravot/.test(t)) return typ === 'DOMOV' ? 'SESTRA' : 'HOSPIC';
+  return '';
+}
+const tymNazev = (t) => (/^t[yý]m\b/i.test(t) ? t : 'Tým ' + t);
+const seskup = (pole, klic) => pole.reduce((m, x) => { const k = klic(x); (m.get(k) || m.set(k, []).get(k)).push(x); return m; }, new Map());
+
+async function renderLide() {
+  $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav();
+  let d; try { d = await C('/lide'); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+  S.lide = d.lide; S.smsLide = d.smsDostupne;
+  const spravuji = S.posk.filter((p) => p.aktivni && smiLidi(p.id));
+  if (S.lideFiltr === undefined) S.lideFiltr = jeAdmin() ? '' : String(S.ja.poskytovatelId);
+  const vidim = d.lide.filter((o) => (!S.lideFiltr || String(o.poskytovatelId) === S.lideFiltr) && (S.lideNeaktivni || o.aktivni));
+  const skupiny = seskup(vidim, (o) => o.poskytovatel);
+  $('work').innerHTML = `${nav()}
+    <div class="row"><select id="lf" style="max-width:320px"><option value="">Všechna pracoviště</option>${S.posk.map((p) => `<option value="${p.id}" ${String(p.id) === S.lideFiltr ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select>
+      ${spravuji.length ? `<button class="btn primary" id="l_new">+ Člověk</button><label class="btn">Načíst CSV<input type="file" id="l_csv" accept=".csv,text/csv,.txt" hidden></label><button class="btn" id="l_pd">Načíst z PéčeDoma</button><button class="btn ghost" id="l_vzor">Vzor CSV</button>` : ''}
+      <label class="row" style="font-size:13px;gap:6px;margin-left:auto"><input type="checkbox" id="l_neakt" ${S.lideNeaktivni ? 'checked' : ''}> i vyřazení</label></div>
+    <div class="note">Každé pracoviště – garant i partneři (domov, praktický lékař…) – si své lidi zapíše <b>jednou</b> a rozdělí do týmů. Každý dostane <b>osobní PIN</b>, kterým odemkne kartu na telefonu u všech pacientů, ke kterým ho přiřadíte (detail pacienta → Telefon a PINy → Přiřadit lidi z týmů). Role určuje, co na kartě smí. Rodina má PIN u konkrétního pacienta, záchranná služba žádný – jméno zapíše až u výjezdu.</div>
+    ${[...skupiny].map(([nazev, os]) => `<div class="panel"><div class="panel-h"><h2>${esc(nazev)}</h2><span class="chip">${os.filter((o) => o.aktivni).length} lidí</span></div><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Jméno</th><th>Role</th><th>Telefon</th><th>Osobní PIN</th><th>Pacientů</th></tr></thead><tbody>
+      ${[...seskup(os, (o) => o.tym || '')].map(([tym, cl]) => `<tr><td colspan="5" style="background:var(--surface-2);font-weight:600;font-size:13px">${tym ? esc(tymNazev(tym)) : 'Bez týmu'} · ${cl.length}</td></tr>
+        ${cl.map((o) => `<tr data-oid="${o.id}" style="${smiLidi(o.poskytovatelId) ? 'cursor:pointer' : ''}"><td><b>${esc(o.jmeno)}</b>${o.aktivni ? '' : ' <span class="chip">vyřazen</span>'}${o.zdroj !== 'RUCNE' ? ` <span class="chip">${o.zdroj === 'PECEDOMA' ? 'PéčeDoma' : 'CSV'}</span>` : ''}</td><td>${esc(ROLE_OS[o.role] || o.role)}</td><td class="mono">${esc(o.telefon || '')}</td><td>${o.maPin ? `vydán ${esc(fmtD(o.pinVydan))}` : '<span class="chip warn">chybí</span>'}</td><td>${o.pacientu}</td></tr>`).join('')}`).join('')}
+    </tbody></table></div></div>`).join('') || '<div class="note">Zatím tu nikdo není. Přidejte lidi tlačítkem + Člověk, načtěte je ze souboru CSV nebo z PéčeDoma.</div>'}`;
+  bindNav();
+  $('lf').onchange = () => { S.lideFiltr = $('lf').value; renderLide(); };
+  $('l_neakt').onchange = () => { S.lideNeaktivni = $('l_neakt').checked; renderLide(); };
+  if ($('l_new')) $('l_new').onclick = () => osobaOkno({ poskytovatelId: Number(S.lideFiltr) || (spravuji.find((p) => p.id === S.ja.poskytovatelId) || spravuji[0]).id });
+  if ($('l_csv')) $('l_csv').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const r = ctiCsv(await textSouboru(f)); if (!r.length) return toast('V souboru nejsou žádní lidé'); importOkno(r, 'CSV'); } catch (err) { toast(err.message); } };
+  if ($('l_pd')) $('l_pd').onclick = async () => { try { const r = await C('/lide/pecedoma'); if (!r.lide.length) return toast('V PéčeDoma pro tuto organizaci nikdo není'); importOkno(r.lide, 'PECEDOMA'); } catch (e) { toast(e.message); } };
+  if ($('l_vzor')) $('l_vzor').onclick = () => {
+    const a = document.createElement('a'); a.download = 'lide-vzor.csv';
+    a.href = URL.createObjectURL(new Blob(['﻿jméno;role;telefon;e-mail;tým\nMUDr. Jana Nová;lékař;777 123 456;jana.nova@example.cz;Tým Zlín\nBc. Petra Malá;sestra;777 234 567;;Tým Zlín\nIvana Dlouhá;pečovatelka;777 345 678;;Tým Otrokovice\n'], { type: 'text/csv' }));
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  document.querySelectorAll('tr[data-oid]').forEach((r) => (r.onclick = () => { const o = S.lide.find((x) => x.id === Number(r.dataset.oid)); if (o && smiLidi(o.poskytovatelId)) osobaOkno(o); }));
+}
+
+function osobaOkno(o) {
+  const spravuji = S.posk.filter((p) => p.aktivni && smiLidi(p.id));
+  const tymy = [...new Set(S.lide.filter((x) => x.tym).map((x) => x.tym))].sort();
+  modal(`<h2>${o.id ? 'Upravit' : 'Nový'} člověk</h2><div class="form">
+    <div class="frow"><div class="field"><label>Pracoviště</label><select id="os_p">${spravuji.map((p) => `<option value="${p.id}" ${p.id === o.poskytovatelId ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select></div>
+      <div class="field"><label>Tým (volitelně)</label><input id="os_t" list="os_tymy" value="${esc(o.tym || '')}" placeholder="např. Tým Zlín"><datalist id="os_tymy">${tymy.map((t) => `<option value="${esc(t)}">`).join('')}</datalist></div></div>
+    <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="os_j" value="${esc(o.jmeno || '')}"></div>
+      <div class="field"><label>Role na kartě</label><select id="os_r">${Object.entries(ROLE_OS).map(([k, n]) => `<option value="${k}" ${o.role === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
+    <div class="frow"><div class="field"><label>Telefon</label><input id="os_tel" type="tel" value="${esc(o.telefon || '')}"></div><div class="field"><label>E-mail</label><input id="os_e" type="email" value="${esc(o.email || '')}"></div></div>
+    <div class="field"><label>Poznámka</label><input id="os_poz" value="${esc(o.pozn || '')}"></div>
+    ${o.id ? `<label class="row"><input type="checkbox" id="os_a" ${o.aktivni ? 'checked' : ''}> aktivní (vyřazený člověk kartu neodemkne u žádného pacienta)</label>` : ''}
+    ${S.smsLide ? `<label class="row"><input type="checkbox" id="os_sms"> ${o.id ? 'nový PIN poslat SMS' : 'poslat osobní PIN SMS'} na jeho telefon</label>` : ''}
+    <div class="quick"><button class="btn primary" id="os_ok">Uložit</button>${o.id ? '<button class="btn" id="os_pin">Nový PIN</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
+    <div class="note">Role určuje, co člověk na kartě uvidí a zapíše: lékař a praktický lékař vše včetně návštěv lékaře, hospic a sestra DPS stav, SOS léky a zhoršení. ${o.id ? '' : 'Po uložení se zobrazí osobní PIN – jen jednou.'}</div></div>`, () => {
+    const telo = () => ({ id: o.id, poskytovatelId: Number($('os_p').value), tym: $('os_t').value, jmeno: $('os_j').value, role: $('os_r').value, telefon: $('os_tel').value, email: $('os_e').value, pozn: $('os_poz').value,
+      aktivni: $('os_a') ? $('os_a').checked : true, sms: !!($('os_sms') && $('os_sms').checked) });
+    $('os_ok').onclick = async () => {
+      const b = telo();
+      try { const r = await C('/osoba', { method: 'POST', body: b }); closeModal(); toast('Uloženo');
+        await renderLide(); if (r.pin) pinyOkno([{ ...b, pin: r.pin, sms: r.sms }]); } catch (e) { toast(e.message); }
+    };
+    if ($('os_pin')) $('os_pin').onclick = async () => {
+      if (!(await KP.confirm('Nový osobní PIN', `Dosavadní PIN ${esc(o.jmeno)} přestane platit na všech telefonech (při jejich synchronizaci).`, 'Vydat nový PIN'))) return;
+      try { const sms = !!($('os_sms') && $('os_sms').checked); const r = await C(`/osoba/${o.id}/pin`, { method: 'POST', body: { sms } }); await renderLide(); pinyOkno([{ ...o, pin: r.pin, sms: r.sms }]); } catch (e) { toast(e.message); }
+    };
+  });
+}
+
+/** vydané osobní PINy – zobrazí se jen jednou; tisk kartiček pro předání */
+function pinyOkno(piny) {
+  if (!piny || !piny.length) return;
+  modal(`<h2>Osobní PIN${piny.length > 1 ? 'y' : ''}</h2><p class="muted" style="margin:0">PIN se zobrazuje jen teď. Předejte ho – vytištěnou kartičkou nebo SMS. Na telefony pacientů se dostane při nejbližší synchronizaci.</p>
+    <div class="tblwrap"><table class="tbl"><tbody>${piny.map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc(ROLE_OS[x.role] || x.role || '')}${x.tym ? ' · ' + esc(x.tym) : ''}${x.sms ? (x.sms.ok ? ' · SMS odeslána' : ' · SMS neodešla: ' + esc(x.sms.chyba)) : ''}</div></td><td class="mono" style="font-size:20px;letter-spacing:.15em">${esc(x.pin)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="quick"><button class="btn primary" id="pn_tisk">Vytisknout kartičky</button><button class="btn" data-close>Hotovo</button></div>`, () => {
+    $('pn_tisk').onclick = () => {
+      const w = window.open('', '_blank'); if (!w) return toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
+      w.document.write(`<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Osobní PINy – Karta pacienta</title><style>body{font-family:system-ui,sans-serif;margin:12mm}.k{display:inline-block;width:84mm;height:50mm;border:1px dashed #999;border-radius:4mm;padding:5mm;margin:0 3mm 3mm 0;box-sizing:border-box;vertical-align:top;page-break-inside:avoid}
+        .k small{color:#555;font-size:9pt}.k b{display:block;font-size:12pt;margin:2mm 0}.k .p{font:700 22pt ui-monospace,monospace;letter-spacing:3pt;margin:2mm 0}</style></head><body>
+        ${piny.map((x) => `<div class="k"><small>Karta pacienta – osobní PIN</small><b>${esc(x.jmeno)}</b><small>${esc(ROLE_OS[x.role] || '')}${x.tym ? ' · ' + esc(x.tym) : ''}</small><div class="p">${esc(x.pin)}</div><small>Odemknete jím kartu na telefonu u pacientů, ke kterým jste přiřazen(a). Nikomu ho nesdělujte.</small></div>`).join('')}
+        <script>print()<\/script></body></html>`);
+      w.document.close();
+    };
+  });
+}
+
+/* ---- import: CSV (Excel uloží UTF-8 nebo Windows-1250, oddělovač ; nebo ,) a tým z PéčeDoma ---- */
+async function textSouboru(f) {
+  const buf = await f.arrayBuffer();
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''); } catch { return new TextDecoder('windows-1250').decode(buf); }
+}
+function ctiCsv(t) {
+  const radky = String(t).split(/\r?\n/).filter((l) => l.trim());
+  if (!radky.length) return [];
+  const odd = [';', '\t', ','].sort((a, b) => radky[0].split(b).length - radky[0].split(a).length)[0];
+  const deleni = (l) => { const o = []; let c = '', uv = false; for (let i = 0; i < l.length; i++) { const z = l[i]; if (z === '"') { if (uv && l[i + 1] === '"') { c += '"'; i++; } else uv = !uv; } else if (z === odd && !uv) { o.push(c.trim()); c = ''; } else c += z; } o.push(c.trim()); return o; };
+  const NAZVY = { jmeno: /^(jmeno|jmeno a prijmeni|cele jmeno|prijmeni a jmeno|name|osoba)$/, role: /^(role|funkce|pozice|profese)$/, telefon: /^(telefon|tel|mobil|phone|tel\.)$/, email: /^(e-?mail|mail)$/, tym: /^(tym|team|skupina|usek)$/ };
+  const hlava = deleni(radky[0]).map((h) => Object.keys(NAZVY).find((k) => NAZVY[k].test(bezDia(h))) || null);
+  const maHlavu = hlava.includes('jmeno');
+  const sloupce = maHlavu ? hlava : ['jmeno', 'role', 'telefon', 'email', 'tym'];
+  return (maHlavu ? radky.slice(1) : radky).map((l) => { const v = deleni(l); const o = {}; sloupce.forEach((k, i) => { if (k) o[k] = v[i] || ''; }); return o; }).filter((o) => o.jmeno && o.jmeno.length >= 3);
+}
+function importOkno(radky, zdroj) {
+  const spravuji = S.posk.filter((p) => p.aktivni && smiLidi(p.id));
+  let ps = spravuji.find((p) => String(p.id) === S.lideFiltr) || spravuji.find((p) => p.id === S.ja.poskytovatelId) || spravuji[0];
+  const kresli = () => {
+    const role = radky.map((r) => roleZTextu(r.role, ps.typ));
+    modal(`<h2>${zdroj === 'PECEDOMA' ? 'Načíst tým z PéčeDoma' : 'Načíst lidi ze souboru CSV'}</h2>
+      <div class="frow"><div class="field"><label>Do pracoviště</label><select id="im_p">${spravuji.map((p) => `<option value="${p.id}" ${p.id === ps.id ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select></div>
+        <div class="field"><label>Tým pro ty, kdo ho nemají (volitelně)</label><input id="im_t" placeholder="např. Tým Zlín"></div></div>
+      <div class="tblwrap" style="max-height:48vh;overflow:auto"><table class="tbl"><thead><tr><th><input type="checkbox" id="im_vse" checked></th><th>Jméno</th><th>Role na kartě</th><th>Tým</th><th>Telefon</th></tr></thead><tbody>
+        ${radky.map((r, i) => `<tr><td><input type="checkbox" data-im="${i}" ${role[i] && !r.nacteno ? 'checked' : ''}></td><td><b>${esc(r.jmeno)}</b>${r.nacteno ? ' <span class="chip">už načten</span>' : ''}${r.role ? `<div class="lbl">${esc(r.role)}</div>` : ''}</td>
+          <td><select data-imr="${i}"><option value="">—</option>${Object.entries(ROLE_OS).map(([k, n]) => `<option value="${k}" ${role[i] === k ? 'selected' : ''}>${n}</option>`).join('')}</select></td>
+          <td><input data-imt="${i}" value="${esc(r.tym || '')}" style="min-width:110px"></td><td class="mono" style="font-size:13px">${esc(r.telefon || '')}</td></tr>`).join('')}</tbody></table></div>
+      ${S.smsLide ? '<label class="row"><input type="checkbox" id="im_sms"> novým lidem poslat osobní PIN SMS (kdo má telefon)</label>' : ''}
+      <div class="quick"><button class="btn primary" id="im_ok">Načíst vybrané</button><button class="btn" data-close>Zrušit</button></div>
+      <div class="note">${zdroj === 'PECEDOMA' ? 'Tým PéčeDoma = uživatelé portálu PéčeDoma této organizace. Správci a monitor bez další role nejsou předvybraní. ' : ''}Kdo už v pracovišti je (stejné jméno), jen se aktualizuje a PIN mu zůstane. Novým lidem se vydá osobní PIN – zobrazí se po načtení.</div>`, (m) => {
+      m.querySelector('.box').style.maxWidth = '880px';
+      $('im_p').onchange = () => { ps = spravuji.find((p) => p.id === Number($('im_p').value)); kresli(); };
+      $('im_vse').onchange = () => document.querySelectorAll('[data-im]').forEach((c) => (c.checked = $('im_vse').checked));
+      $('im_ok').onclick = async () => {
+        const vyber = [...document.querySelectorAll('[data-im]:checked')].map((c) => Number(c.dataset.im));
+        const vychozi = $('im_t').value.trim();
+        const data = vyber.map((i) => ({ jmeno: radky[i].jmeno, role: document.querySelector(`[data-imr="${i}"]`).value, tym: document.querySelector(`[data-imt="${i}"]`).value.trim() || vychozi, telefon: radky[i].telefon || '', email: radky[i].email || '', externiId: radky[i].externiId || '' }));
+        if (!data.length) return toast('Vyberte aspoň jednoho člověka');
+        const bezRole = data.find((x) => !x.role); if (bezRole) return toast(`${bezRole.jmeno}: vyberte roli na kartě`);
+        $('im_ok').disabled = true; $('im_ok').textContent = 'Načítám…';
+        try { const r = await C('/lide/import', { method: 'POST', body: { poskytovatelId: ps.id, zdroj, radky: data, sms: !!($('im_sms') && $('im_sms').checked) } });
+          closeModal(); toast(`Přidáno ${r.pridano}, aktualizováno ${r.aktualizovano}${r.chyby.length ? `, chyby ${r.chyby.length}` : ''}`); S.lideFiltr = String(ps.id); await renderLide(); pinyOkno(r.piny);
+        } catch (e) { toast(e.message); $('im_ok').disabled = false; $('im_ok').textContent = 'Načíst vybrané'; }
+      };
+    });
+  };
+  kresli();
+}
+
+/* ---- u pacienta: kdo odemkne kartu (lidé z týmů pracovišť v týmu kolem pacienta) ---- */
+const smiPriradit = (d, psId) => d.op.garant || d.op.lekar || (d.op.zapis && psId === S.ja.poskytovatelId);
+function lidePanel(d) {
+  const muze = d.op.aktivni && (d.op.garant || d.op.lekar || d.op.zapis);
+  return `<div class="panel"><div class="panel-h"><h2>Lidé, kteří odemknou kartu</h2><span class="chip ${d.lide.length ? 'ok' : 'warn'}">${d.lide.length}</span></div>
+    ${d.lide.length ? `<div class="tblwrap"><table class="tbl"><tbody>${[...seskup(d.lide, (o) => o.poskytovatel)].map(([n, os]) => `<tr><td colspan="2" style="background:var(--surface-2);font-weight:600;font-size:13px">${esc(n)}</td></tr>`
+      + os.map((o) => `<tr><td><b>${esc(o.jmeno)}</b><div class="lbl">${esc(ROLE_OS[o.role] || o.role)}${o.tym ? ' · ' + esc(o.tym) : ''}${o.maPin ? '' : ' · <span style="color:var(--warn)">nemá PIN</span>'}</div></td><td>${smiPriradit(d, o.poskytovatelId) ? `<button class="btn sm" data-lodeb="${o.osobaId}">Odebrat</button>` : ''}</td></tr>`).join('')).join('')}</tbody></table></div>`
+      : '<div class="note" style="margin:12px 14px">Zatím nikdo. Přiřaďte lidi z týmů pracovišť kolem pacienta – odemknou kartu svým osobním PINem.</div>'}
+    ${muze ? '<div style="padding:12px 14px"><button class="btn primary" id="lide_prirad">+ Přiřadit lidi z týmů</button></div>' : ''}</div>`;
+}
+async function prirazeniOkno() {
+  const d = S.pac;
+  let lide; try { lide = (await C('/lide')).lide; } catch (e) { return toast(e.message); }
+  const prirazeni = new Set(d.lide.map((o) => o.osobaId));
+  const prac = d.tym.filter((t) => smiPriradit(d, t.poskytovatelId));
+  const html = prac.map((t) => {
+    const os = lide.filter((o) => o.aktivni && o.poskytovatelId === t.poskytovatelId);
+    if (!os.length) return `<div class="panel"><div class="panel-h"><h2>${esc(t.nazev)}</h2></div><div class="note" style="margin:10px 14px">Pracoviště zatím nemá zapsané lidi – přidejte je v agendě Lidé a týmy.</div></div>`;
+    return `<div class="panel"><div class="panel-h"><h2>${esc(t.nazev)}</h2><span class="chip">${esc(TYM_NAZ[t.role])}</span></div><div style="padding:8px 14px 12px;display:grid;gap:8px">
+      ${[...seskup(os, (o) => o.tym || '')].map(([tym, cl], gi) => `<div><label class="row" style="font-weight:600;gap:8px"><input type="checkbox" data-celytym="${t.poskytovatelId}-${gi}"> ${tym ? esc(tymNazev(tym)) + ' – celý tým' : 'všichni bez týmu'} (${cl.length})</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 0 0 26px">${cl.map((o) => `<label class="row" style="gap:6px;font-size:14px"><input type="checkbox" data-os="${o.id}" data-skup="${t.poskytovatelId}-${gi}" ${prirazeni.has(o.id) ? 'checked disabled' : ''}> ${esc(o.jmeno)} <span class="muted" style="font-size:12px">${esc(ROLE_OS[o.role] || '')}${o.maPin ? '' : ', bez PINu'}</span></label>`).join('')}</div></div>`).join('')}
+    </div></div>`;
+  }).join('');
+  modal(`<h2>Přiřadit lidi z týmů</h2><p class="muted" style="margin:0;font-size:13.5px">Nabízejí se lidé pracovišť v týmu kolem pacienta. Odemknou kartu svým osobním PINem; co uvidí a zapíší, určuje jejich role. Další pracoviště přidáte v záložce Tým a garance.</p>
+    <div style="display:grid;gap:10px;max-height:58vh;overflow:auto">${html || '<div class="note">Žádné pracoviště, za které můžete přiřazovat.</div>'}</div>
+    <div class="quick"><button class="btn primary" id="pr_ok">Přiřadit vybrané</button><button class="btn" data-close>Zrušit</button></div>`, (m) => {
+    m.querySelector('.box').style.maxWidth = '760px';
+    document.querySelectorAll('[data-celytym]').forEach((c) => (c.onchange = () => document.querySelectorAll(`[data-skup="${c.dataset.celytym}"]:not(:disabled)`).forEach((x) => (x.checked = c.checked))));
+    $('pr_ok').onclick = async () => {
+      const pridat = [...document.querySelectorAll('[data-os]:checked:not(:disabled)')].map((c) => Number(c.dataset.os));
+      if (!pridat.length) return toast('Vyberte lidi nebo celý tým');
+      closeModal(); await akce('/lide', { pridat }, `Přiřazeno: ${pridat.length}`);
+    };
+  });
 }
 
 /* ================= správa organizace ================= */

@@ -9,6 +9,20 @@ export const ROLE_UZIVATELE = ['admin', 'lekar', 'sestra', 'ctenar'];
 export const TYPY_POSKYTOVATELE = { NEMOCNICE: 'Nemocnice', HOSPIC: 'Mobilní hospic', AMBULANCE: 'Paliativní ambulance', PL: 'Praktický lékař', DOMOV: 'Domov / pobytová služba', ZZS: 'Záchranná služba', JINY: 'Jiný' };
 export const TYPY_DENIKU = ['Založení', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Revize', 'Úprava údajů', 'Předání garance', 'Ukončení', 'Systém'];
 
+/** Role lidí pracovišť na kartě (jako v demu): lékař, praktický lékař, hospic, sestra DPS. Rodina má PIN u konkrétního pacienta, ZZS žádný. */
+export const ROLE_OSOBY = { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' };
+/** Role z textu (CSV, PéčeDoma: lekar / sestra / casemanager…) podle typu pracoviště; neznámá → null */
+export function roleOsoby(v, typPracoviste = '') {
+  const t = String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const domov = typPracoviste === 'DOMOV';
+  const kod = String(v || '').trim();
+  if (/^[A-Z]+$/.test(kod) && ROLE_OSOBY[kod]) return kod;   // přesný kód (vlastní export, výběr v aplikaci)
+  if (/prakt|\bpl\b/.test(t)) return 'PL';
+  if (/lekar|doktor|mudr|doctor/.test(t)) return typPracoviste === 'PL' ? 'PL' : 'LEKAR';
+  if (/dps|domov/.test(t)) return 'SESTRA';
+  if (/sestr|pecovat|pecuj|casemanager|nurse|hospic|zdravot/.test(t)) return domov ? 'SESTRA' : 'HOSPIC';
+  return null;
+}
 export const roleSeznam = (v) => String(v || '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => ROLE_UZIVATELE.includes(x));
 
 export async function audit(q, { uzivatelId = null, zarizeniId = null, kdo = null, pacientId = null, akce, detail = null, ip = null }) {
@@ -86,6 +100,11 @@ export async function balikProZarizeni(q, pacientId) {
     JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.PacientID = @p AND t.Aktivni = 1`, { p: pacientId });
   const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, LOWER(Role) AS role, Salt AS salt, Hash AS hash, Iterace AS iterace
     FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1`, { p: pacientId });
+  // lidé pracovišť přiřazení k pacientovi – osobní PIN platí u všech jejich pacientů
+  const lide = await q.all(`SELECT 'o' + CAST(o.OsobaID AS varchar(12)) AS id, o.Jmeno AS jmeno, LOWER(o.Role) AS role, o.Salt AS salt, o.Hash AS hash, o.Iterace AS iterace
+    FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
+    WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 AND o.Hash IS NOT NULL`, { p: pacientId });
+  piny.push(...lide);
   const denik = await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
   return {

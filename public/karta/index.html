@@ -31,14 +31,14 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.3.0';
+const APP_VERZE = 'karta-0.4.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
 let U = { role: null, jmeno: '', posledni: 0 };   // odemčení (jen v paměti)
 let tab = 'karta', syncBezi = false, chybaSync = '';
 const TAB_NAZ = { karta: 'Karta', plan: 'Plán', denik: 'Deník', zhorseni: 'Zhoršení', kontakty: 'Kontakty', udaje: 'Tým' };
-KP.napoveda.nastav({ aplikace: 'karta', auth: () => (D ? { token: D.token, typ: 'Device' } : null), kapitola: () => (D ? 12 : 11),
+KP.napoveda.nastav({ aplikace: 'karta', auth: () => (D ? { token: D.token, typ: 'Device' } : null), kapitola: () => (D ? 14 : 13),
   obrazovka: () => (!D ? 'Spárování telefonu' : !U.role ? 'Zamčená krizová karta' : `${TAB_NAZ[tab] || tab} (odemčeno jako ${U.role})`) });
 
 /* ---------------- šifrované úložiště ---------------- */
@@ -132,7 +132,15 @@ setInterval(() => { if (U.role && Date.now() - U.posledni > ZAMEK_MS) { zamkni()
 function zamkni() { U = { role: null }; tab = 'karta'; closeModal(); kresli(); }
 
 /* ---------------- vykreslení ---------------- */
-const ROLE_NAZ = { lekar: 'lékař', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS' };
+const ROLE_NAZ = { lekar: 'lékař', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS' };
+/* co která role na kartě smí (jako v demu); typy zápisů odpovídají serveru (src/routes/device.js POVOLENE), zhoršení zapisuje průvodce */
+const ROLE_KARTA = {
+  lekar: { nazev: 'Lékař', c: 'var(--accent)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče (cíl, limitace, léky) měníte v centrální aplikaci – telefon ho jen zobrazuje.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Návštěva hospice', 'Telefonát'] },
+  pl: { nazev: 'Praktický lékař', c: 'var(--accent-ink)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče měníte v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Telefonát'] },
+  hospic: { nazev: 'Hospic', c: 'var(--violet)', popis: 'Vidíte celý záznam, zapisujete do deníku a jste prvním kontaktem při zhoršení. Plán péče mění lékař.', typy: ['Návštěva hospice', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát'] },
+  sestra: { nazev: 'Sestra DPS', c: 'var(--ok)', popis: 'Vidíte celý záznam, zapisujete stav a podané SOS léky, při zhoršení vyplníte průvodce. Plán péče měnit nemůžete.', typy: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát', 'Pozorování rodiny'] },
+  rodina: { nazev: 'Rodina', c: 'var(--warn)', popis: 'Vidíte celý záznam a můžete připsat do deníku, co pozorujete a jaký SOS lék jste podali. Při zhoršení vám pomůže průvodce.', typy: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát'] },
+};
 function stariSync() { if (!D || !D.posledniSync) return Infinity; return Date.now() - new Date(D.posledniSync).getTime(); }
 function textStari() {
   const ms = stariSync(); if (ms === Infinity) return 'nikdy';
@@ -166,16 +174,19 @@ function kresli() {
   if (b.pacient.stav === 'UZAVRENY') html += '<div class="banner warn">Průkaz byl uzavřen.</div>';
   if (!U.role) {
     html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – bez přihlášení je vidět jen krizová karta.</div>
-      ${KP.kartaHTML(bb, { tlacitka: '<button class="btn" id="unCarer">Jsem pečující</button><button class="btn primary" id="unDoc">Jsem lékař</button>' })}
-      <div class="panel"><div class="panel-h"><h2>Výjezd ZZS</h2></div><div class="form" style="padding:14px">
+      ${KP.kartaHTML(bb, { tlacitka: '<button class="btn primary" id="unCarer">Odemknout PINem</button><button class="btn" id="unDoc">Kód lékaře</button>' })}
+      <div class="panel"><div class="panel-h"><h2>Záchranná služba – zápis výjezdu</h2></div><div class="form" style="padding:14px">
         <div class="field"><label>Výsledek zásahu</label><select id="zzs_v"><option>ošetřen, ponechán na místě</option><option>konzultováno s lékařem plánu, bez transportu</option><option>transport do nemocnice</option><option>konstatováno úmrtí</option></select></div>
-        <div class="field"><label>Posádka / poznámka</label><input id="zzs_p" placeholder="např. RZP Zlín 12"></div>
+        <div class="field"><label>Vaše jméno a posádka *</label><input id="zzs_p" placeholder="např. Jan Novák, RZP Zlín 12" autocomplete="name"></div>
+        <div class="field"><label>Poznámka (volitelně)</label><input id="zzs_n" placeholder="co bylo provedeno, podané léky…"></div>
         <button class="btn primary" id="btnZZS">Zapsat výjezd do deníku</button>
-        <div class="note">Jediný zápis, který posádka bez přihlášení dělá. Hospic a lékař plánu ho uvidí v deníku (označen jako neověřený).</div></div></div>`;
+        <div class="note">Záchranná služba nepotřebuje PIN – krizovou kartu vidí bez přihlášení. Jméno se zapisuje jen k výjezdu. Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený).</div></div></div>`;
   } else {
     const tabs = [['karta', 'Karta'], ['plan', 'Plán'], ['denik', 'Deník'], ['zhorseni', 'Zhoršení'], ['kontakty', 'Kontakty'], ['udaje', 'Tým']];
     const badge = (id) => (id === 'zhorseni' && zh ? '<span class="bdg">!</span>' : id === 'denik' && D.fronta.length ? `<span class="bdg">${D.fronta.length}</span>` : id === 'plan' && (!b.plan || KP.prosly(b.plan.platnostDo)) ? '<span class="bdg">!</span>' : '');
     html += `<div class="tiles">${tabs.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${KP.ICON[id] || KP.ICON.udaje}<span>${n}</span>${badge(id)}</button>`).join('')}</div>`;
+    const rk = ROLE_KARTA[U.role];
+    if (tab === 'karta' && rk) html += `<div class="panel" style="border-left:4px solid ${rk.c}"><div class="rolehelp"><b>${esc(U.jmeno || '')} · ${esc(rk.nazev)}.</b> ${esc(rk.popis)}</div></div>`;
     html += ({ karta: () => KP.kartaHTML(bb) + (zh ? '<div class="banner crit">Probíhá zhoršení stavu.<button class="btn sm" id="btnStab">Stav stabilizován</button></div>' : '') + `<div class="panel"><div class="panel-h"><h2>Diagnózy</h2></div><div class="rolehelp" style="color:var(--fg)">${esc((b.plan && b.plan.data.dg) || '—')}</div></div>`,
       plan: () => planHTML(b), denik: () => denikHTML(denik), zhorseni: () => zhorseniHTML(b, zh), kontakty: () => kontaktyHTML(b), udaje: () => tymHTML(b) })[tab]();
   }
@@ -197,7 +208,7 @@ function planHTML(b) {
     <div class="note">Plán péče mění jen lékař v centrální aplikaci. Telefon ho jen zobrazuje a nikdy nepřepíše.</div>`;
 }
 function denikHTML(denik) {
-  const typy = U.role === 'rodina' ? ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát'] : ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny'];
+  const typy = (ROLE_KARTA[U.role] || ROLE_KARTA.rodina).typy;
   return `<div class="panel"><div class="panel-h"><h2>Nový zápis</h2></div><div class="form" style="padding:14px">
       <div class="field"><label>Typ</label><div class="quick" id="qtypes">${typy.map((t, i) => `<button class="btn sm" data-t="${t}" style="${i === 0 ? 'background:var(--accent-soft);border-color:var(--accent)' : ''}">${t}</button>`).join('')}</div></div>
       <div class="field"><label>Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
@@ -230,7 +241,7 @@ function tymHTML(b) {
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   document.querySelectorAll('.tile[data-tab]').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; kresli(); scrollTo(0, 0); }));
-  on('unCarer', () => modal(`<h2>Vstup pro pečující</h2><div class="field"><label>Váš PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div><button class="btn primary block" id="pinOk">Odemknout</button><div class="note">PIN jste dostali od lékaře nebo hospice při předání průkazu. Ověří se i bez signálu.</div>`, () => {
+  on('unCarer', () => modal(`<h2>Odemknout PINem</h2><p class="muted" style="margin:0;font-size:13.5px">Osobní PIN z vašeho pracoviště (lékař, hospic, sestra DPS, praktický lékař), nebo PIN, který rodině vydal garant. Záchranná služba PIN nepotřebuje.</p><div class="field"><label>PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div><button class="btn primary block" id="pinOk">Odemknout</button><div class="note">PIN jste dostali od lékaře nebo hospice při předání průkazu. Ověří se i bez signálu.</div>`, () => {
     $('pin').focus(); let pokusy = 0;
     const go = async () => { const p = await overPin($('pin').value.trim()); if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; closeModal(); kresli(); };
     $('pinOk').onclick = go; $('pin').onkeydown = (e) => { if (e.key === 'Enter') go(); };
@@ -239,7 +250,7 @@ function bind() {
     $('kod').focus();
     $('kodOk').onclick = async () => { const k = $('kod').value.replace(/\s/g, ''); if (!$('kodJ').value.trim()) return toast('Vyplňte jméno'); if (!(await overKodLekare(k))) return toast('Neplatný nebo prošlý kód'); U = { role: 'lekar', jmeno: $('kodJ').value.trim(), posledni: Date.now() }; closeModal(); kresli(); };
   }));
-  on('btnZZS', () => { const v = $('zzs_v').value, p = $('zzs_p').value.trim(); pridejZapis('Výjezd ZZS', `Výjezd ZZS: ${v}.${p ? ' ' + p : ''}`, 'zzs', p || 'posádka ZZS'); toast('Výjezd zapsán'); });
+  on('btnZZS', () => { const v = $('zzs_v').value, p = $('zzs_p').value.trim(), n = $('zzs_n').value.trim(); if (p.length < 3) { $('zzs_p').focus(); return toast('Vyplňte své jméno a posádku'); } pridejZapis('Výjezd ZZS', `Výjezd ZZS: ${v}.${n ? ' ' + n : ''}`, 'zzs', p); toast('Výjezd zapsán'); });
   if ($('qtypes')) {
     let typ = $('qtypes').querySelector('button').dataset.t;
     $('qtypes').querySelectorAll('button').forEach((b) => (b.onclick = () => { typ = b.dataset.t; $('qtypes').querySelectorAll('button').forEach((x) => (x.style = '')); b.style = 'background:var(--accent-soft);border-color:var(--accent)'; }));

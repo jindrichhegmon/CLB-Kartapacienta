@@ -2,7 +2,7 @@
  * Kryptografie: hesla (scrypt), podepsané session (HMAC), šifrování tajemství (AES-256-GCM),
  * tokeny zařízení, PINy (PBKDF2 – ověřuje je i telefon offline přes WebCrypto) a kód lékaře (TOTP).
  */
-import { createCipheriv, createDecipheriv, createHash, createHmac, pbkdf2Sync, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, pbkdf2, pbkdf2Sync, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
 import { config } from './config.js';
 
 const klic = (ucel) => createHash('sha256').update(`kp:${ucel}:${config.secret}`).digest();
@@ -76,6 +76,13 @@ export function parovaciKod() {
 export const PIN_ITERACE = 120000;
 export function hashPin(pin, saltHex, iterace = PIN_ITERACE) {
   return pbkdf2Sync(String(pin), Buffer.from(saltHex, 'hex'), iterace, 32, 'sha256').toString('hex');
+}
+/** totéž jako novyPin(), ale PBKDF2 neblokuje server (hromadný import lidí) */
+export async function novyPinAsync() {
+  const pin = String(randomInt(0, 1000000)).padStart(6, '0');
+  const salt = randomBytes(16).toString('hex');
+  const hash = await new Promise((ok, chyba) => pbkdf2(pin, Buffer.from(salt, 'hex'), PIN_ITERACE, 32, 'sha256', (e, k) => (e ? chyba(e) : ok(k.toString('hex')))));
+  return { pin, salt, hash, iterace: PIN_ITERACE };
 }
 export function novyPin() {
   const pin = String(randomInt(0, 1000000)).padStart(6, '0');

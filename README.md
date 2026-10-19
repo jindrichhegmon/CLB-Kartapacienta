@@ -35,9 +35,20 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Lidé a týmy, role na kartě (0.4.0)
+
+- **Lidé a týmy** (menu v centrále, `A_KP_Osoba`): každé pracoviště – garant i partner (domov, PL) – zapíše své lidi **jednou** a rozdělí do týmů;
+  ručně, z **CSV** (jméno; role; telefon; e-mail; tým – UTF-8 i Windows-1250) nebo **z PéčeDoma** (`A_MSPPP_UzivatelSestra` ve stejné databázi
+  a tenantu). Každý dostane **osobní PIN** (zobrazí se jednou, tisk kartiček, volitelně SMS), který platí u všech pacientů, ke kterým je přiřazen.
+- **Přiřazení k pacientovi** (`A_KP_PacientOsoba`, detail → Telefon a PINy → Přiřadit lidi z týmů): celý tým nebo jednotlivci z pracovišť v týmu
+  kolem pacienta; garant a lékař kohokoli, partner své lidi. Odchod pracoviště z týmu přiřazení zruší. Telefon dostane PINy přiřazených lidí v balíku.
+- **Role na kartě** jako v demu: lékař, praktický lékař, hospic, sestra DPS (osobní PIN), rodina (PIN u pacienta), ZZS (bez PINu, jméno a posádka
+  povinně až u výjezdu). Po odemknutí telefon ukáže, co role smí; typy zápisů = `POVOLENE` v `src/routes/device.js` (test hlídá shodu).
+- Migrace `sql/01b_kp_lide.sql` běží před `02_kp_rls.sql`, takže indexy a RLS doplní tentýž běh.
+
 ## Standard aplikací (0.3.0) – nápověda, chat a vzhled jako PéčeDoma
 
-- **📖 Nápověda** ve všech třech aplikacích: návod s obrázky (`napoveda/napoveda.md`, 16 kapitol, snímky v `public/napoveda/img`),
+- **📖 Nápověda** ve všech třech aplikacích: návod s obrázky (`napoveda/napoveda.md`, 18 kapitol, snímky v `public/napoveda/img`),
   obsah vlevo, otevře se na kapitole k aktuální obrazovce, klik zvětší obrázek, **🖨 Tisk** / Uložit jako PDF. Na telefonu funguje i offline.
 - **💬 Chat nad návodem** (`POST /api/napoveda/dotaz`, `src/routes/napoveda.js`): Claude odpovídá jen podle návodu a odkáže na kapitolu;
   jen pro přihlášené (session centrály / správy tenantů) a spárované telefony; dotazy jdou přes anonymizační bránu; bez `ANTHROPIC_API_KEY`

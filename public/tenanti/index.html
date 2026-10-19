@@ -26,7 +26,7 @@ let S = { session: sessionStorage.getItem(KEY) || '', tenanti: [], typy: {} };
 const $ = (id) => document.getElementById(id);
 const A = (p, o = {}) => api('/api/admin' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { S.session = ''; sessionStorage.removeItem(KEY); render(); } throw e; });
 
-KP.napoveda.nastav({ aplikace: 'tenanti', kapitola: 13, auth: () => ({ token: S.session }), obrazovka: () => (S.session ? 'Seznam tenantů' : 'Přihlášení') });
+KP.napoveda.nastav({ aplikace: 'tenanti', kapitola: 15, auth: () => ({ token: S.session }), obrazovka: () => (S.session ? 'Seznam tenantů' : 'Přihlášení') });
 
 function hlavicka(meta) {
   $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Správa tenantů</h1><div class="meta">${esc(meta || 'Karta pacienta · provozovatel platformy')}</div></div>

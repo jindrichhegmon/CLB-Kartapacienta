@@ -71,11 +71,31 @@ test('nápověda: kapitoly, obrázky a lokální odpověď bez AI', async () => 
   const { textNapovedy, lokalne } = await import('../src/routes/napoveda.js');
   const t = textNapovedy();
   const kapitoly = t.match(/^## \d+\. .+$/gm);
-  assert.equal(kapitoly.length, 16);
+  assert.equal(kapitoly.length, 18);
   kapitoly.forEach((k, i) => assert.ok(k.startsWith(`## ${i + 1}. `), `pořadí kapitol: ${k}`));
   for (const [, src] of t.matchAll(/!\[[^\]]*\]\((\/napoveda\/img\/[^)]+)\)/g)) {
     assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), `chybí obrázek ${src}`);
   }
   const o = lokalne('Jak vydám PIN pro pečující?');
   assert.match(o, /Kapitola: 8\. Telefon a PINy/);
+});
+
+test('role na kartě: typy zápisů v telefonu povoluje i server', async () => {
+  const { POVOLENE } = await import('../src/routes/device.js');
+  const html = fs.readFileSync(new URL('../public/karta/index.html', import.meta.url), 'utf8');
+  const blok = html.match(/const ROLE_KARTA = (\{[\s\S]*?\n\});/)[1];
+  const ROLE_KARTA = new Function(`return ${blok}`)();
+  for (const [role, r] of Object.entries(ROLE_KARTA)) for (const t of r.typy) assert.ok(POVOLENE[role] && POVOLENE[role].includes(t), `${role}: server nepovoluje „${t}“`);
+  assert.deepEqual(Object.keys(ROLE_KARTA).sort(), ['hospic', 'lekar', 'pl', 'rodina', 'sestra']);
+});
+
+test('role lidí z CSV a PéčeDoma podle typu pracoviště', async () => {
+  const { roleOsoby } = await import('../src/kp.js');
+  assert.equal(roleOsoby('lekar', 'HOSPIC'), 'LEKAR');
+  assert.equal(roleOsoby('lékař', 'PL'), 'PL');
+  assert.equal(roleOsoby('sestra', 'HOSPIC'), 'HOSPIC');
+  assert.equal(roleOsoby('sestra', 'DOMOV'), 'SESTRA');
+  assert.equal(roleOsoby('Pečovatelka', 'DOMOV'), 'SESTRA');
+  assert.equal(roleOsoby('SESTRA', 'HOSPIC'), 'SESTRA');
+  assert.equal(roleOsoby('admin', 'HOSPIC'), null);
 });

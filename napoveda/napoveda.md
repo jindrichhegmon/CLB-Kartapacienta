@@ -16,8 +16,9 @@ Jak to funguje v kostce:
 
 1. Lékař v centrální aplikaci založí pacienta – údaje načte ze souboru z portálu PéčeDoma, z propouštěcí zprávy (anonymní rozbor) nebo je vyplní ručně – a stanoví **cíl péče a limitace**.
 2. U pacienta je uvedené **číslo telefonu s kartou**. Kartu jde nahrát jen do telefonu s tímto číslem: odkazem z SMS nebo naskenováním QR kódu.
-3. Telefon ukazuje **krizovou kartu** (bez přihlášení), pečující se odemknou **PINem** a zapisují do **deníku**, lékař na místě se odemkne **kódem lékaře**. Vše funguje i bez signálu a sesynchronizuje se při nejbližším připojení.
-4. Plán péče mění jen lékař v centrální aplikaci. Každá změna je nová verze s podpisem, telefon plán nikdy nepřepíše.
+3. Každé pracoviště – garant i partneři (domov, praktický lékař…) – si své **lidi a týmy** zapíše jednou (ručně, ze souboru CSV nebo z PéčeDoma). K pacientovi se pak lidé jen **přiřadí** – celý tým jedním zaškrtnutím.
+4. Telefon ukazuje **krizovou kartu** (bez přihlášení – stačí záchranné službě). Přiřazení lidé se odemknou svým **osobním PINem**, rodina PINem od garanta, lékař na místě **kódem lékaře**. Co kdo vidí a zapíše, určuje jeho **role** (lékař, praktický lékař, hospic, sestra DPS, rodina, ZZS). Vše funguje i bez signálu a sesynchronizuje se při nejbližším připojení.
+5. Plán péče mění jen lékař v centrální aplikaci. Každá změna je nová verze s podpisem, telefon plán nikdy nepřepíše.
 
 > Karta je vždy jen v jednom telefonu. Nový telefon zablokuje předchozí a zablokovaný telefon se při připojení sám vymaže.
 
@@ -96,7 +97,7 @@ Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (tex
 
 - Plán upravuje jen **lékař** pracoviště, které je garant nebo lékař v týmu. Ostatní ho vidí jen ke čtení.
 - **Uložit jako novou verzi** – každá změna je nová verze s podpisem lékaře, starší verze zůstávají (seznam **Verze plánu** vpravo, klik zobrazí starou verzi).
-- **Platnost plánu do** – po datu platnosti se v přehledu i u pacienta objeví upozornění a lékař udělá **revizi**: potvrdí, že plán platí beze změny, a nastaví novou platnost. Výchozí interval revize nastavuje správce (kapitola 10).
+- **Platnost plánu do** – po datu platnosti se v přehledu i u pacienta objeví upozornění a lékař udělá **revizi**: potvrdí, že plán platí beze změny, a nastaví novou platnost. Výchozí interval revize nastavuje správce (kapitola 12).
 - Sestra ani rodina cíl péče a limitace vyplnit nemohou.
 
 ## 6. Deník a kontakty
@@ -152,7 +153,7 @@ Tři skupiny: **Rozhoduje** (zástupce, opatrovník, určená osoba – tuto sku
 Karta je jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telefon s kartou** v Údajích). Párovat smí garant nebo lékař v týmu.
 
 1. Klikněte na **Poslat odkaz SMS na +420…** – pacientovi přijde SMS s odkazem, nebo na **Spárovat telefon** – otevře se okno s QR kódem a kódy.
-2. Na telefonu otevřete odkaz z SMS, nebo v aplikaci karty klepněte na **Načíst QR kód fotoaparátem** a namiřte na obrazovku (kapitola 11).
+2. Na telefonu otevřete odkaz z SMS, nebo v aplikaci karty klepněte na **Načíst QR kód fotoaparátem** a namiřte na obrazovku (kapitola 13).
 3. Telefon zadá **své číslo**. Server kartu nahraje jen tehdy, když se číslo shoduje s číslem u pacienta; jiné číslo odmítne.
 
 ![Okno Spárovat telefon – QR kód, kódy a SMS](/napoveda/img/c-parovani.png)
@@ -167,11 +168,24 @@ Karta je jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telef
 
 Tlačítko **Kód lékaře pro odemčení** (jen lékař, když je telefon spárovaný) vydá šestimístný kód. Lékař na místě ho zadá v telefonu (**Jsem lékař**) a odemkne kartu. Kód platí 5 minut, telefon ho ověří i bez signálu a vydání se zapíše do logu.
 
-### PINy pro pečující
+### Lidé, kteří odemknou kartu
 
-Vyplňte **jméno držitele**, **roli** (rodina, sestra v domově, hospic, praktický lékař) a případně pracoviště a klikněte na **Vydat PIN**. Šestimístný PIN se zobrazí **jen jednou** – předejte ho držiteli. Do telefonu se dostane při nejbližší synchronizaci a telefon ho ověřuje i bez signálu. PIN pracoviště přestane platit, když pracoviště odejde z týmu; **Zrušit** ho zneplatní hned.
+Lékaři, sestry, pečovatelé hospice i domova se **nezapisují ke každému pacientovi znovu**. Jsou jednou zapsaní v agendě **Lidé a týmy** (kapitola 11) a mají osobní PIN. U pacienta je jen přiřadíte:
 
-ZZS žádný PIN nepotřebuje – krizovou kartu vidí bez přihlášení.
+1. Klikněte na **+ Přiřadit lidi z týmů**.
+2. Nabídnou se lidé pracovišť, která jsou v týmu kolem pacienta (záložka Tým a garance), rozdělení podle týmů. Zaškrtněte **celý tým** nebo jednotlivé lidi.
+3. **Přiřadit vybrané** – při nejbližší synchronizaci telefonu odemknou kartu svým osobním PINem. Co uvidí a zapíší, určuje jejich role (kapitola 10).
+
+![Přiřazení lidí z týmů pracovišť k pacientovi](/napoveda/img/c-prirazeni.png)
+
+- Garant a lékař v týmu přiřazují lidi všech pracovišť v týmu. Partner (např. domov s rolí péče) přiřazuje své vlastní lidi.
+- **Odebrat** – člověk kartu tohoto pacienta už neodemkne. Když pracoviště odejde z týmu, jeho lidé se odeberou sami.
+
+### Rodina a jednorázové PINy
+
+Rodině vydejte PIN přímo u pacienta: **jméno držitele**, role **rodina** a **Vydat PIN**. Šestimístný PIN se zobrazí **jen jednou** – předejte ho. Stejně jde vydat jednorázový PIN i komukoli, kdo není v Lidech a týmech. **Zrušit** PIN zneplatní hned.
+
+**Záchranná služba** žádný PIN ani seznam lidí nepotřebuje – krizovou kartu vidí bez přihlášení a jméno a posádku zapíše až u zápisu výjezdu.
 
 ## 9. Údaje, dokumenty a uzavření průkazu
 
@@ -183,14 +197,69 @@ ZZS žádný PIN nepotřebuje – krizovou kartu vidí bez přihlášení.
 - **Přístupy** (garant a správce): kdo a kdy průkaz zobrazil nebo měnil.
 - **Uzavřít průkaz** (garant): vyberete důvod (úmrtí, předání mimo síť, hospitalizace, na přání pacienta, jiný). Telefon se při příštím připojení vymaže a PINy přestanou platit. Předtím si pořiďte **výpis do dokumentace**.
 
-## 10. Správa organizace
+## 10. Role na kartě – kdo co vidí a zapisuje
+
+Role jsou stejné jako v ukázkové verzi. Každý po odemknutí karty vidí nahoře, kdo je přihlášený a co jeho role smí, a nabídnou se mu jen jeho typy zápisů.
+
+| Role | Jak se dostane ke kartě | Co vidí | Co zapisuje do deníku |
+|---|---|---|---|
+| Lékař | osobní PIN (Lidé a týmy) nebo kód lékaře | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, návštěva hospice, telefonát, zhoršení |
+| Praktický lékař | osobní PIN nebo kód lékaře | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, telefonát, zhoršení |
+| Hospic | osobní PIN | celý záznam, je prvním kontaktem při zhoršení | návštěva hospice, změna stavu, podán SOS lék, návštěva lékaře, telefonát, zhoršení |
+| Sestra DPS | osobní PIN | celý záznam | změna stavu, podán SOS lék, návštěva lékaře, telefonát, pozorování, zhoršení |
+| Rodina | PIN od garanta u pacienta | celý záznam | pozorování, podán SOS lék, změna stavu, telefonát, zhoršení |
+| ZZS | bez PINu | jen krizovou kartu | jen výjezd – jméno a posádku zapíše až u výjezdu |
+
+![Telefon – po odemknutí je vidět jméno, role a co role smí](/napoveda/img/k-odemceno.png)
+
+- **Plán péče** (cíl péče, limitace, léky) mění jen lékař v centrální aplikaci. Telefon ho všem rolím jen zobrazuje.
+- Typy zápisů hlídá i server: zápis, který role nesmí, se do deníku nepřijme.
+- Role člověka nastavíte v agendě Lidé a týmy (kapitola 11), roli rodinného PINu při jeho vydání (kapitola 8).
+
+## 11. Lidé a týmy
+
+Menu **Lidé a týmy** (všichni kromě role jen čtení). Každé pracoviště – garant i partneři, např. domov pro seniory nebo praktický lékař – si tu své lidi zapíše **jednou** a rozdělí je do týmů. Správce organizace spravuje lidi všech pracovišť, ostatní lidi svého pracoviště.
+
+![Lidé a týmy – lidé pracovišť po týmech](/napoveda/img/c-lide.png)
+
+### Přidání člověka
+
+**+ Člověk**: pracoviště, tým (volitelně, např. „Tým Zlín“ nebo „Oddělení A“), jméno, **role na kartě** (lékař, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
+
+![Úprava člověka – role na kartě a nový PIN](/napoveda/img/c-osoba.png)
+
+- Klik na řádek člověka ho upraví. **Nový PIN** – dosavadní PIN přestane platit na všech telefonech.
+- Zrušené zaškrtnutí **aktivní** člověka vyřadí: kartu už neodemkne u žádného pacienta (vyřazené ukáže zaškrtnutí **i vyřazení**).
+- Sloupec **Pacientů** ukazuje, u kolika aktivních pacientů je člověk přiřazený.
+
+### Načtení z PéčeDoma
+
+**Načíst z PéčeDoma** nabídne uživatele portálu PéčeDoma vaší organizace (stejná databáze). Role se navrhne podle role v PéčeDoma a typu pracoviště (lékař → lékař, u praktika praktický lékař; sestra → hospic, v domově sestra DPS). Správci a monitor bez další role a lidé, kteří už načtení jsou, nejsou předvybraní. Před načtením jde u každého upravit roli a tým.
+
+![Načtení týmu z PéčeDoma](/napoveda/img/c-lide-import.png)
+
+### Načtení ze souboru CSV
+
+**Načíst CSV** – soubor z Excelu (uložit jako CSV, oddělovač středník nebo čárka, kódování UTF-8 i Windows-1250). Sloupce: **jméno; role; telefon; e-mail; tým** – první řádek může být záhlaví. Role stačí napsat slovy (lékař, praktický lékař, sestra, pečovatelka, hospic, sestra DPS). Tlačítko **Vzor CSV** stáhne ukázkový soubor.
+
+Kdo už v pracovišti je (stejné jméno), se jen aktualizuje a PIN mu zůstane. Novým lidem se vydá osobní PIN.
+
+### Osobní PINy
+
+Po načtení se zobrazí seznam nových lidí s PINy. **Vytisknout kartičky** připraví kartičky k rozstříhání (jméno, role, PIN); nebo je pošlete SMS. PINy se zobrazují jen jednou.
+
+![Vydané osobní PINy – tisk kartiček](/napoveda/img/c-piny.png)
+
+K pacientovi lidi přiřadíte v detailu pacienta → **Telefon a PINy** → **+ Přiřadit lidi z týmů** (kapitola 8).
+
+## 12. Správa organizace
 
 Menu **Správa organizace** (jen správce) má záložky:
 
 ![Správa organizace – pracoviště](/napoveda/img/c-pracoviste.png)
 
 - **Pracoviště**: **+ Pracoviště** – název, typ (nemocnice, hospic, ambulance, praktický lékař, domov, ZZS, jiný), telefon 24/7, IČO / IČP, adresa. Garantem může být jen nemocnice, hospic, ambulance nebo PL. Každý partner, který má s pacienty pracovat, musí být pracovištěm v této organizaci. Klik na řádek pracoviště upraví nebo vypne.
-- **Uživatelé**: **+ Uživatel** – jméno, přihlašovací jméno, pracoviště, role (lékař, sestra, jen čtení, správce), telefon, e-mail, číslo ČLK. Po uložení se zobrazí **první heslo**, které uživateli předáte; dokud si ho nezmění, vidíte ho v seznamu. Tlačítko pro nové heslo slouží i při zapomenutém hesle.
+- **Uživatelé** (přihlášení do centrální aplikace – lidé s PINem pro telefon jsou v agendě Lidé a týmy): **+ Uživatel** – jméno, přihlašovací jméno, pracoviště, role (lékař, sestra, jen čtení, správce), telefon, e-mail, číslo ČLK. Po uložení se zobrazí **první heslo**, které uživateli předáte; dokud si ho nezmění, vidíte ho v seznamu. Tlačítko pro nové heslo slouží i při zapomenutém hesle.
 
 ![Správa organizace – uživatelé](/napoveda/img/c-uzivatele.png)
 
@@ -198,7 +267,7 @@ Menu **Správa organizace** (jen správce) má záložky:
 - **Log přístupů a AI**: neměnný záznam, kdo co zobrazil a změnil, a dotazy na AI (jen délka a počet anonymizovaných údajů, bez obsahu).
 - **Nastavení**: **Název sítě** (zobrazuje se v hlavičce), výchozí **interval revize plánu** v měsících a **odkaz pro přihlášení** uživatelů, který rozešlete.
 
-## 11. Karta na telefonu – instalace a spárování
+## 13. Karta na telefonu – instalace a spárování
 
 ![Telefon – spárování karty](/napoveda/img/k-parovani.png)
 
@@ -213,27 +282,30 @@ Menu **Správa organizace** (jen správce) má záložky:
 - Data jsou v telefonu **šifrovaná**; telefon používejte jen pro tento průkaz.
 - Hláška „Karta tohoto pacienta je určená pro jiné číslo telefonu“ znamená, že číslo neodpovídá – zkontrolujte ho v centrální aplikaci (Údaje → Telefon s kartou).
 
-## 12. Karta na telefonu – každodenní používání
+## 14. Karta na telefonu – každodenní používání
 
 ### Zamčená karta – pro každého, i pro záchranku
 
 ![Telefon – zamčená krizová karta](/napoveda/img/k-zamceno.png)
 
-Bez přihlášení je vidět **krizová karta**: cíl péče, limitace s dokladem, SOS léky, alergie, kontakty a telefon na garanta. Posádka ZZS může bez přihlášení zapsat **výjezd** (výsledek zásahu, posádka) – v deníku je označený jako neověřený.
+Bez přihlášení je vidět **krizová karta**: cíl péče, limitace s dokladem, SOS léky, alergie, kontakty a telefon na garanta. **Záchranná služba** nepotřebuje PIN ani žádný seznam lidí: bez přihlášení zapíše **výjezd** – výsledek zásahu, **své jméno a posádku** (povinné) a poznámku. V deníku je výjezd označený jako neověřený.
+
+![Telefon – zápis výjezdu záchranné služby](/napoveda/img/k-zzs.png)
 
 Pruh nahoře ukazuje, kdy se karta naposledy aktualizovala. Když jsou data starší než 24 hodin, objeví se červené upozornění – připojte telefon k síti.
 
 ### Odemknutí
 
-- **Jsem pečující** → PIN (6 číslic) od garanta. Po 5 chybných pokusech se okno zavře.
-- **Jsem lékař** → kód lékaře z centrální aplikace (platí 5 minut).
+- **Odemknout PINem** → osobní PIN z vašeho pracoviště (lékař, hospic, sestra DPS, praktický lékař) nebo PIN, který rodině vydal garant. Po 5 chybných pokusech se okno zavře.
+- **Kód lékaře** → kód z centrální aplikace pro lékaře, který na kartu přiřazený není (platí 5 minut).
+- Po odemknutí je nahoře vidět, kdo je přihlášený a co jeho role smí (kapitola 10).
 - Karta se sama zamkne po 2 minutách bez dotyku; ručně tlačítkem s rolí vpravo nahoře.
 
 ![Telefon – odemčená karta pro pečující](/napoveda/img/k-odemceno.png)
 
 Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**:
 
-- **Deník** – vyberete typ zápisu a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
+- **Deník** – vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
 
 ![Telefon – zápis do deníku](/napoveda/img/k-denik.png)
 
@@ -246,7 +318,7 @@ Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým*
 
 Při ohrožení života volejte **155** – karta nenahrazuje záchrannou službu.
 
-## 13. Správa tenantů
+## 15. Správa tenantů
 
 Jen pro provozovatele platformy (`/tenanti/`, heslo správy).
 
@@ -259,7 +331,7 @@ Jen pro provozovatele platformy (`/tenanti/`, heslo správy).
 
 ![Správa tenantů – založení organizace](/napoveda/img/t-zalozit.png)
 
-## 14. Vzhled, nápověda a chat
+## 16. Vzhled, nápověda a chat
 
 ### Vzhled – barevná schémata
 
@@ -280,7 +352,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 - Chat **nevidí data pacientů**. Do dotazu nepište jména, rodná čísla ani telefony – dotaz projde anonymizační bránou, a kdyby v něm identifikátor zůstal, neodešle se.
 - Chat mohou používat přihlášení uživatelé a spárované telefony. Konverzace zůstává jen v tomto okně prohlížeče (tlačítko **Nový** ji smaže).
 
-## 15. Bezpečnost a soukromí
+## 17. Bezpečnost a soukromí
 
 - Prohlížeč neposílá do databáze žádné příkazy – vše jde přes server a je vázané na přihlášeného uživatele. Každá organizace vidí jen svá data.
 - Pacienta vidí jen pracoviště v týmu kolem pacienta a správce organizace. Každé zobrazení a změna se zapisuje do neměnného logu přístupů.
@@ -288,13 +360,13 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 - **AI jen anonymně**: rozbor propouštěcí zprávy i chat nápovědy dostávají text až po anonymizaci (jména, rodná čísla, data, adresy, telefony, e-maily → značky). Když v textu zůstane něco jako identifikátor, dotaz se neodešle.
 - Deník, historie garance, verze plánu a log přístupů nejde mazat ani přepisovat.
 
-## 16. Časté otázky
+## 18. Časté otázky
 
-**Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy.** Aplikace na ploše má vlastní úložiště. V centrální aplikaci klikněte znovu na Spárovat telefon (kód platí jen jednou) a v aplikaci na ploše klepněte na Načíst QR kód fotoaparátem (kapitola 11).
+**Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy.** Aplikace na ploše má vlastní úložiště. V centrální aplikaci klikněte znovu na Spárovat telefon (kód platí jen jednou) a v aplikaci na ploše klepněte na Načíst QR kód fotoaparátem (kapitola 13).
 
 **Telefon hlásí „určená pro jiné číslo telefonu“.** Zadané číslo neodpovídá poli Telefon s kartou u pacienta. Opravte číslo v Údajích, nebo zadejte číslo telefonu, který držíte.
 
-**V Týmu a garanci se nenabízí žádné pracoviště.** V organizaci zatím není další pracoviště. Založte ho ve Správa organizace → Pracoviště (kapitola 10).
+**V Týmu a garanci se nenabízí žádné pracoviště.** V organizaci zatím není další pracoviště. Založte ho ve Správa organizace → Pracoviště (kapitola 12).
 
 **Nejde poslat SMS.** Okno Spárovat telefon napíše důvod. Spárujte QR kódem; nastavení SMS na serveru řeší provozovatel.
 
@@ -302,7 +374,11 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Ztratil se telefon.** V záložce Telefon a PINy telefon zablokujte – při připojení se vymaže. Pak spárujte nový.
 
-**Pečující zapomněl PIN.** PIN nejde zobrazit znovu. Zrušte ho a vydejte nový.
+**Pečující zapomněl PIN.** PIN nejde zobrazit znovu. Člověku z Lidí a týmů vydejte **Nový PIN** (platí pak u všech jeho pacientů), rodinný PIN u pacienta zrušte a vydejte nový.
+
+**Musím každou sestru domova zapisovat ke každému pacientovi?** Ne. Domov (nebo správce) své sestry zapíše jednou v Lidech a týmech, rozdělí do oddělení a k pacientovi přiřadíte celé oddělení jedním zaškrtnutím.
+
+**Jak se do karty dostane záchranka?** Bez PINu – krizovou kartu vidí každý. Jméno a posádku zapíše až u zápisu výjezdu.
 
 **Zapsal jsem do deníku chybu.** Zápisy nejde mazat. Napište nový zápis s opravou.
 

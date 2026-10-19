@@ -1,6 +1,6 @@
 {
   "name": "clb-kartapacienta",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Karta pacienta (paliativní průkaz): správa tenantů, centrální aplikace a karta na mobilu nad PeceDomaPlus",
   "type": "module",
   "private": true,

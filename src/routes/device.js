@@ -20,7 +20,7 @@ export const device = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
 
 // co smí telefon zapsat (podle toho, kdo je na telefonu odemčený)
-const POVOLENE = {
+export const POVOLENE = {
   zzs: ['Výjezd ZZS'],
   rodina: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát', 'Zhoršení stavu', 'Stav stabilizován'],
   sestra: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován'],
