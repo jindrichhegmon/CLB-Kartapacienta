@@ -21,7 +21,7 @@ export const napoveda = Router();
 const SOUBOR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'napoveda', 'napoveda.md');
 const MAX_ZPRAV = 12;
 const MAX_ZNAKU = 1500;
-const APLIKACE = { centrala: 'centrální aplikace (lékař, sestra, správce organizace)', karta: 'karta pacienta na telefonu u lůžka (pečující s PINem, lékař s kódem, posádka ZZS)', tenanti: 'správa tenantů (provozovatel platformy)' };
+const APLIKACE = { centrala: 'centrální aplikace (lékař, sestra, správce organizace)', karta: 'karta pacienta na telefonu u lůžka (pečující s PINem, lékař s kódem, posádka ZZS)', tenanti: 'správa tenantů (provozovatel platformy)', pacient: 'Můj průkaz – aplikace pacienta ve vlastním telefonu (pacient sám)' };
 
 let cache = { text: '', mtime: 0 };
 export function textNapovedy() {
@@ -45,7 +45,7 @@ async function kdo(req) {
   throw chyba('Chat nápovědy je jen pro přihlášené uživatele a spárované telefony', 401);
 }
 
-const POKYNY = `Jsi asistent nápovědy k aplikaci "Karta pacienta" (paliativní průkaz: krizový plán péče, který má pacient v telefonu u lůžka). Aplikace má tři části: centrální aplikaci pro garanta a tým kolem pacienta, kartu na telefonu u pacienta a správu tenantů pro provozovatele platformy. Odpovídáš lékařům, sestrám, pečujícím a správcům.
+const POKYNY = `Jsi asistent nápovědy k aplikaci "Karta pacienta" (paliativní průkaz: krizový plán péče, který má pacient v telefonu u lůžka). Aplikace má čtyři části: centrální aplikaci pro garanta a tým kolem pacienta, kartu na zapůjčeném telefonu u pacienta, aplikaci Můj průkaz pro pacienta ve vlastním telefonu a správu tenantů pro provozovatele platformy. Odpovídáš lékařům, sestrám, pečujícím, pacientům a správcům.
 
 Pravidla:
 - Odpovídej česky, stručně a prakticky: nejdřív odpověď, pak postup po krocích, když je potřeba. Názvy obrazovek, záložek a tlačítek piš přesně jako v návodu (např. záložka Telefon a PINy, tlačítko Spárovat telefon).

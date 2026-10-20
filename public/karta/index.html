@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.4.0';
+const APP_VERZE = 'karta-0.5.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -200,7 +200,7 @@ function planHTML(b) {
   const p = b.plan.data, dk = p.doklad || {};
   return `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${b.plan.verze}</span></div><dl class="kv" style="padding:12px 14px">
     <dt>Cíl péče</dt><dd>${esc(CILE[p.cil] || '—')}</dd><dt>Limitace</dt><dd>${esc((p.limity || []).join(', ') || 'žádné')}</dd>
-    <dt>Doklad</dt><dd>${dk.dvp ? 'dříve vyslovené přání ' + fmtD(dk.datum) + (dk.original ? ' (originál: ' + esc(dk.original) + ')' : '') : 'rozhodnutí lékaře' + (dk.zprava ? ' – ' + esc(dk.zprava) : '')}</dd>
+    <dt>Doklad</dt><dd>${KP.dokladHTML(dk)}${dk.dvp && dk.original ? '<br>originál: ' + esc(dk.original) : ''}${!dk.dvp && dk.zprava ? ' – ' + esc(dk.zprava) : ''}</dd>
     <dt>Funkční stav</dt><dd>${esc(p.funkce || '—')}</dd><dt>Alergie</dt><dd>${esc(p.alergie || '—')}</dd>
     <dt>Stanovil</dt><dd>${esc(b.plan.podepsal)}, ${fmtDT(b.plan.vytvoreno)}</dd><dt>Platnost</dt><dd>${KP.prosly(b.plan.platnostDo) ? '<span class="chip crit">po platnosti – čeká na revizi</span>' : 'do ' + fmtD(b.plan.platnostDo)}</dd></dl></div>
     <div class="panel"><div class="panel-h"><h2>SOS léky</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedeny</li>'}</ul></div>

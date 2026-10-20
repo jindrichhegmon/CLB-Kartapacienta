@@ -88,7 +88,7 @@ export async function opravneni(q, s, pacientId) {
 }
 
 /** Balík dat pro telefon (vše, co průkaz zobrazuje offline). */
-export async function balikProZarizeni(q, pacientId) {
+export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {}) {
   const p = await q.one(`SELECT PacientID, KodPrukazu, Jmeno, Prijmeni, RokNarozeni, CONVERT(char(10), DatumNarozeni, 23) AS DatumNarozeni, Pohlavi, Pobyt, Stav
     FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacientId });
   if (!p) return null;
@@ -105,14 +105,37 @@ export async function balikProZarizeni(q, pacientId) {
     FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
     WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 AND o.Hash IS NOT NULL`, { p: pacientId });
   piny.push(...lide);
-  const denik = await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
+  const pacientuv = rezim === 'PACIENT';
+  const denik = pacientuv ? [] : await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
   return {
     pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, rok: p.RokNarozeni || (p.DatumNarozeni ? Number(p.DatumNarozeni.slice(0, 4)) : null), pohlavi: p.Pohlavi, pobyt: p.Pobyt, stav: p.Stav },
     plan,
     garant: g ? { poskytovatel: g.Poskytovatel, typ: g.Typ, telefon24: g.Telefon24, lekar: g.Lekar, lekarTelefon: g.LekarTelefon } : null,
-    kontakty, tym, piny, denik: denik.reverse(),
+    // vlastní telefon pacienta: odemyká jen pacient svým PINem (PINy týmu ani rodiny do něj nepatří) a deník týmu
+    // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
+    kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(),
+    rezim,
     serverCas: new Date().toISOString(),
+  };
+}
+
+/**
+ * Doklad k limitacím (§ 36 zákona o zdravotních službách): DVP s písemným poučením lékařem a úředně ověřeným podpisem,
+ * nebo DVP sepsané při přijetí u konkrétního poskytovatele (platí jen u něj), jinak rozhodnutí lékaře podle zprávy.
+ * Vyplnění v aplikaci samo DVP nevytváří – evidujeme jen, jaký doklad existuje a kde je originál.
+ */
+export function normalizujDoklad(k = {}) {
+  k = k || {};
+  const dvp = !!k.dvp;
+  return {
+    dvp,
+    datum: String(k.datum || '').trim().slice(0, 10),
+    original: String(k.original || '').trim().slice(0, 200),
+    zprava: String(k.zprava || '').trim().slice(0, 300),
+    pouceni: dvp && !!k.pouceni,
+    overenyPodpis: dvp && !!k.overenyPodpis,
+    prijeti: dvp ? String(k.prijeti || '').trim().slice(0, 200) : '',
   };
 }
 
@@ -123,7 +146,7 @@ export function normalizujPlan(d = {}) {
   return {
     cil,
     limity: pole(d.limity).slice(0, 12),
-    doklad: { dvp: !!(d.doklad && d.doklad.dvp), datum: String((d.doklad && d.doklad.datum) || '').slice(0, 10), original: String((d.doklad && d.doklad.original) || '').slice(0, 200), zprava: String((d.doklad && d.doklad.zprava) || '').slice(0, 300) },
+    doklad: normalizujDoklad(d.doklad),
     dg: String(d.dg || '').slice(0, 1000),
     funkce: String(d.funkce || '').slice(0, 1000),
     alergie: String(d.alergie || 'žádné známé').slice(0, 300),

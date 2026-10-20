@@ -1,8 +1,9 @@
 /**
- * Karta pacienta – server. Tři aplikace na jednom endpointu:
+ * Karta pacienta – server. Čtyři aplikace na jednom endpointu:
  *   /tenanti/   správa tenantů (provozovatel platformy)
  *   /centrala/  centrální aplikace (garant, tým kolem pacienta)
- *   /karta/     karta pacienta na mobil (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
+ *   /karta/     karta pacienta na zapůjčeném telefonu (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
+ *   /pacient/   Můj průkaz – pacient ve vlastním telefonu (PWA): data od lékaře jen ke čtení, vlastní přání a léky jen v telefonu
  *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
  * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/health
  */

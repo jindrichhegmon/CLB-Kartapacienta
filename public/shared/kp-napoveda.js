@@ -1,6 +1,6 @@
 /* Standard aplikací (jako PéčeDoma): 🎨 Vzhled – barevná schémata, 📖 Nápověda – návod s obrázky a 💬 chat nad návodem.
  * Společné pro centrální aplikaci, kartu na mobilu a správu tenantů. Každá aplikace zavolá:
- *   KP.napoveda.nastav({ aplikace: 'centrala' | 'karta' | 'tenanti', kapitola: 2, auth: () => ({ token, typ }), obrazovka: () => 'Pacienti', fab: true })
+ *   KP.napoveda.nastav({ aplikace: 'centrala' | 'karta' | 'pacient' | 'tenanti', kapitola: 2, auth: () => ({ token, typ }), obrazovka: () => 'Pacienti', fab: true })
  * a do hlavičky vloží KP.tlacitkaHlavicky() – tlačítka obsluhuje jeden delegovaný posluchač, takže přežijí překreslení hlavičky.
  * Návod je Markdown z /api/napoveda (soubor napoveda/napoveda.md), obrázky v /napoveda/img. Chat: POST /api/napoveda/dotaz
  * (jen přihlášený uživatel nebo spárovaný telefon; dotazy jdou přes anonymizační bránu, k datům pacientů chat přístup nemá).
@@ -152,6 +152,7 @@
     centrala: ['Jak založím nového pacienta?', 'Jak spáruji telefon s kartou?', 'Jak přidám partnera do týmu?', 'Jak předám garanci?'],
     karta: ['Jak zapíšu do deníku?', 'Co dělat při zhoršení stavu?', 'Kde najdu SOS léky?', 'Proč je karta zamčená?'],
     tenanti: ['Jak založím nového tenanta?', 'Jak resetuji heslo správce?'],
+    pacient: ['Jak pošlu svá přání lékaři?', 'Jak vytisknu souhrn?', 'Co když zapomenu PIN?', 'Jak nastavím Zdravotní ID?'],
   };
   function chat() {
     let p = document.querySelector('.hlp-chat');

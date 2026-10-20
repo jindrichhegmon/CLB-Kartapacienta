@@ -10,7 +10,8 @@ připojení se sesynchronizuje. Dotazy na AI jsou vždy anonymní.
 |---|---|---|
 | Správa tenantů | `/tenanti/` | provozovatel platformy – založení organizace jedním formulářem |
 | Centrální aplikace | `/centrala/?t=<IDTENANT>` | garant a tým kolem pacienta (nemocnice, hospic, PL, domov) |
-| Karta na mobil | `/karta/` | telefon u lůžka (PWA, offline, šifrovaná data) – **jeden pacient, jen v telefonu s číslem uvedeným u pacienta** |
+| Karta na mobil | `/karta/` | zapůjčený telefon u lůžka (PWA, offline, šifrovaná data) – **jeden pacient, jen v telefonu s číslem uvedeným u pacienta** |
+| Můj průkaz | `/pacient/` | vlastní telefon soběstačného pacienta (PWA) – data od lékaře jen ke čtení, vlastní přání, léky a poznámky jen v telefonu |
 
 Vše startuje z jednoho serveru (`src/server.js`), zatím ne z Netlify. Make se nepoužívá.
 Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa přesměruje na úvod) a nový tenant se zakládá bez ukázkových dat.
@@ -35,6 +36,24 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Dva režimy telefonu a doklad k limitacím (0.5.0)
+
+- **Zapůjčený telefon** (`/karta/`, `A_KP_Zarizeni.Rezim = 'ZAPUJCENY'`) – beze změny: telefon garanta jen s kartou, ZZS bez PINu, tým osobními PINy.
+- **Můj průkaz** (`/pacient/`, `Rezim = 'PACIENT'`) – podle připomínek MUDr. Kabelky:
+  - garant nebo lékař v týmu v Telefon a PINy → **Zpřístupnit pacientovi v jeho telefonu** (`POST /api/c/pacient/:id/pacientovi { telefon, sms }`):
+    kód jen pro číslo pacienta (uložené v `A_KP_Zarizeni.Telefon`), SMS s odkazem `/pacient/#p=…` nebo QR v ordinaci, platí 3 dny;
+  - telefon pacienta dostane plán, kontakty a tým (`balikProZarizeni(…, { rezim: 'PACIENT' })`) – **bez deníku, PINů týmu a tajemství kódu lékaře**,
+    do deníku nezapisuje; „Ukončit přístup“ → při synchronizaci `{ prikaz: 'odpojit' }`, nic se nemaže (kopie pacienta, § 65);
+  - vlastní záznamy pacienta (hodnoty a přání s původem, léky, které skutečně užívá, poznámky a otázky) jsou **jen v telefonu**, šifrované dvakrát
+    (PBKDF2 z PINu pacienta 310 000 iterací + nevyexportovatelný klíč telefonu); zapomenutý PIN nikdo neobnoví;
+  - **Sdílet**: výběr → náhled s datem vytvoření a původem každé položky → tisk/PDF, poslat jinam (Web Share) nebo **poslat týmu**
+    (`POST /api/d/sdilet` → `A_KP_Sdileni`, jen doplňovat, + zápis „Sdíleno pacientem“; v centrále panel **Od pacienta** v Krizové kartě);
+  - **Nouzové info**: připravený text do Zdravotního ID na zamčené obrazovce (iPhone, Android).
+- **Doklad k limitacím** (`normalizujDoklad` v `src/kp.js`, `KP.dokladHTML`): u DVP písemné poučení lékařem, úředně ověřený podpis, nebo
+  „sepsáno při přijetí u poskytovatele“ (karta pro ZZS napíše, že platí jen tam). Vyplnění v aplikaci DVP nevytváří – formulář to říká.
+- **Dokumenty** mají datum a pracoviště, které je vydalo (původ informace).
+- Migrace `sql/01c_kp_pacient.sql` (před `02_kp_rls.sql`): `Rezim`, `A_KP_Sdileni` s triggerem jen pro doplňování, `DatumDokumentu`, `Pracoviste`.
+
 ## Lidé a týmy, role na kartě (0.4.0)
 
 - **Lidé a týmy** (menu v centrále, `A_KP_Osoba`): každé pracoviště – garant i partner (domov, PL) – zapíše své lidi **jednou** a rozdělí do týmů;
@@ -48,7 +67,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Standard aplikací (0.3.0) – nápověda, chat a vzhled jako PéčeDoma
 
-- **📖 Nápověda** ve všech třech aplikacích: návod s obrázky (`napoveda/napoveda.md`, 18 kapitol, snímky v `public/napoveda/img`),
+- **📖 Nápověda** ve všech aplikacích: návod s obrázky (`napoveda/napoveda.md`, 19 kapitol, snímky v `public/napoveda/img`),
   obsah vlevo, otevře se na kapitole k aktuální obrazovce, klik zvětší obrázek, **🖨 Tisk** / Uložit jako PDF. Na telefonu funguje i offline.
 - **💬 Chat nad návodem** (`POST /api/napoveda/dotaz`, `src/routes/napoveda.js`): Claude odpovídá jen podle návodu a odkáže na kapitolu;
   jen pro přihlášené (session centrály / správy tenantů) a spárované telefony; dotazy jdou přes anonymizační bránu; bez `ANTHROPIC_API_KEY`

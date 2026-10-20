@@ -57,6 +57,15 @@
   };
 
   /** Krizová karta z balíku (stejný tvar posílá server telefonu i centrální aplikaci). */
+  /* doklad k limitacím (§ 36): DVP s poučením a ověřeným podpisem, DVP z přijetí (platí jen u toho poskytovatele), nebo rozhodnutí lékaře */
+  KP.dokladHTML = (d) => {
+    d = d || {};
+    if (!d.dvp) return '<span class="chip warn">bez dříve vysloveného přání</span> rozhodnutí lékaře';
+    const zaklad = `dříve vyslovené přání${d.datum ? ' z ' + KP.fmtD(d.datum) : ''}`;
+    if (d.prijeti) return `${zaklad}, sepsané při přijetí u ${KP.esc(d.prijeti)} <span class="chip warn">platí jen u tohoto poskytovatele</span>`;
+    if (d.pouceni && d.overenyPodpis) return `${zaklad} <span class="chip ok">poučení lékařem a ověřený podpis</span>`;
+    return `${zaklad} <span class="chip warn">poučení / ověření podpisu neuvedeno – ověřte u originálu</span>`;
+  };
   KP.kartaHTML = (b, { tlacitka = '' } = {}) => {
     const p = b.pacient || {}; const plan = (b.plan && b.plan.data) || {}; const platnost = b.plan && b.plan.platnostDo;
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));
@@ -80,7 +89,7 @@
           <div class="pill ${kpr ? '' : 'ok'}">KPR: ${kpr ? 'NE' : 'ANO'}</div>
           ${dalsi.length ? `<div class="val">Dále ne: ${e(dalsi.join(', '))}</div>` : ''}
           <div class="lbl">Cíl péče</div><div class="val">${e(KP.CILE[plan.cil] || '—')}</div>
-          <div class="lbl">Doklad</div><div class="val">${doklad.dvp ? `dříve vyslovené přání${doklad.datum ? ' z ' + KP.fmtD(doklad.datum) : ''}` : '<span class="chip warn">bez dříve vysloveného přání</span> rozhodnutí lékaře'}</div>
+          <div class="lbl">Doklad</div><div class="val">${KP.dokladHTML(doklad)}</div>
           ${doklad.original || doklad.zprava ? `<div class="lbl" style="margin-top:2px">${e(doklad.dvp && doklad.original ? 'originál: ' + doklad.original : 'zápis: ' + (doklad.zprava || ''))}</div>` : ''}
         </section>
         <section class="sec amber"><h3>ALERGIE A SOS LÉKY</h3>
@@ -98,7 +107,7 @@
     </div>`;
   };
 
-  KP.ROLE = { lekar: 'lékař', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', system: 'systém' };
+  KP.ROLE = { lekar: 'lékař', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', system: 'systém', pacient: 'pacient' };
   KP.denikHTML = (denik, { role = true } = {}) => `<ul class="diary">${[...(denik || [])].reverse().map((e) => `<li><div class="when">${KP.esc(KP.fmtDT(e.cas))} · <span class="who">${KP.esc(e.autor)}${role && e.role ? ' · ' + KP.esc(KP.ROLE[e.role] || e.role) : ''}${e.overeno === false || e.overeno === 0 ? ' · <span class="chip warn">neověřeno</span>' : ''}${e.cekaNaOdeslani ? ' · <span class="chip">čeká na odeslání</span>' : ''}</span></div><div><span class="chip ${/SOS/.test(e.typ) ? 'warn' : /Zhoršení|ZZS/.test(e.typ) ? 'crit' : /Založení|Revize|Ukončení|Předání/.test(e.typ) ? 'acc' : /Úprava|Systém/.test(e.typ) ? 'vio' : ''}">${KP.esc(e.typ)}</span><div style="margin-top:4px;white-space:pre-wrap">${KP.esc(e.text)}</div></div></li>`).join('') || '<li class="muted">Zatím žádné zápisy.</li>'}</ul>`;
 
   window.KP = KP;

@@ -71,7 +71,7 @@ test('nápověda: kapitoly, obrázky a lokální odpověď bez AI', async () => 
   const { textNapovedy, lokalne } = await import('../src/routes/napoveda.js');
   const t = textNapovedy();
   const kapitoly = t.match(/^## \d+\. .+$/gm);
-  assert.equal(kapitoly.length, 18);
+  assert.equal(kapitoly.length, 19);
   kapitoly.forEach((k, i) => assert.ok(k.startsWith(`## ${i + 1}. `), `pořadí kapitol: ${k}`));
   for (const [, src] of t.matchAll(/!\[[^\]]*\]\((\/napoveda\/img\/[^)]+)\)/g)) {
     assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), `chybí obrázek ${src}`);
@@ -98,4 +98,15 @@ test('role lidí z CSV a PéčeDoma podle typu pracoviště', async () => {
   assert.equal(roleOsoby('Pečovatelka', 'DOMOV'), 'SESTRA');
   assert.equal(roleOsoby('SESTRA', 'HOSPIC'), 'SESTRA');
   assert.equal(roleOsoby('admin', 'HOSPIC'), null);
+});
+
+test('doklad k limitacím: DVP s poučením a ověřeným podpisem, DVP z přijetí, rozhodnutí lékaře', async () => {
+  const { normalizujDoklad, normalizujPlan } = await import('../src/kp.js');
+  const plne = normalizujDoklad({ dvp: true, datum: '2026-09-10', pouceni: 1, overenyPodpis: 'ano', prijeti: '  ' });
+  assert.deepEqual([plne.dvp, plne.pouceni, plne.overenyPodpis, plne.prijeti], [true, true, true, '']);
+  // bez DVP nemá poučení, podpis ani přijetí smysl – nesmí se na kartě objevit
+  const bez = normalizujDoklad({ dvp: false, pouceni: true, overenyPodpis: true, prijeti: 'Nemocnice Zlín', zprava: 'zpráva z 1. 10.' });
+  assert.deepEqual([bez.pouceni, bez.overenyPodpis, bez.prijeti, bez.zprava], [false, false, '', 'zpráva z 1. 10.']);
+  assert.equal(normalizujPlan({ doklad: { dvp: true, prijeti: 'Nemocnice Zlín, interna' } }).doklad.prijeti, 'Nemocnice Zlín, interna');
+  assert.equal(normalizujPlan({}).doklad.dvp, false);
 });

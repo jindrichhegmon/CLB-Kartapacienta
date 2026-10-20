@@ -4,12 +4,13 @@ Karta pacienta (paliativní průkaz) je krizový plán péče, který má pacien
 
 ## 1. Co je Karta pacienta
 
-Aplikace má tři části, všechny na jedné adrese:
+Aplikace má čtyři části, všechny na jedné adrese:
 
 | Část | Adresa | Pro koho |
 |---|---|---|
 | Centrální aplikace | `/centrala/` | garant a tým kolem pacienta – lékaři, sestry, správce organizace |
-| Karta na telefonu | `/karta/` | telefon u lůžka pacienta – pečující (rodina, sestry), lékař na místě, posádka ZZS |
+| Karta na telefonu | `/karta/` | zapůjčený telefon u lůžka pacienta (jen karta) – pečující (rodina, sestry), lékař na místě, posádka ZZS |
+| Můj průkaz | `/pacient/` | vlastní telefon soběstačného pacienta – plán od lékaře a vlastní přání, léky a poznámky (kapitola 19) |
 | Správa tenantů | `/tenanti/` | provozovatel platformy – zakládá organizace |
 
 Jak to funguje v kostce:
@@ -20,7 +21,7 @@ Jak to funguje v kostce:
 4. Telefon ukazuje **krizovou kartu** (bez přihlášení – stačí záchranné službě). Přiřazení lidé se odemknou svým **osobním PINem**, rodina PINem od garanta, lékař na místě **kódem lékaře**. Co kdo vidí a zapíše, určuje jeho **role** (lékař, praktický lékař, hospic, sestra DPS, rodina, ZZS). Vše funguje i bez signálu a sesynchronizuje se při nejbližším připojení.
 5. Plán péče mění jen lékař v centrální aplikaci. Každá změna je nová verze s podpisem, telefon plán nikdy nepřepíše.
 
-> Karta je vždy jen v jednom telefonu. Nový telefon zablokuje předchozí a zablokovaný telefon se při připojení sám vymaže.
+> Karta je vždy jen v jednom zapůjčeném telefonu. Nový telefon zablokuje předchozí a zablokovaný telefon se při připojení sám vymaže. Vedle toho může mít pacient průkaz i ve vlastním telefonu v aplikaci **Můj průkaz** (kapitola 19).
 
 ## 2. Přihlášení a můj účet
 
@@ -91,6 +92,10 @@ Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telef
 
 Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (text celého průkazu pro zdravotnickou dokumentaci, ke zkopírování nebo stažení), **Tisk karty**. Panel **Telefon u pacienta** ukáže, jestli má telefon aktuální verzi plánu.
 
+Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám pošle své údaje – hodnoty a přání, léky, které skutečně užívá, poznámky a otázky. U každé položky je původ (např. „jak si pamatuji rozhovor se zdravotníkem“) a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam ani dříve vyslovené přání; v deníku je o tom zápis **Sdíleno pacientem**.
+
+![Panel Od pacienta v záložce Krizová karta](/napoveda/img/c-od-pacienta.png)
+
 ### Plán péče
 
 ![Plán péče s verzemi](/napoveda/img/c-plan.png)
@@ -99,6 +104,12 @@ Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (tex
 - **Uložit jako novou verzi** – každá změna je nová verze s podpisem lékaře, starší verze zůstávají (seznam **Verze plánu** vpravo, klik zobrazí starou verzi).
 - **Platnost plánu do** – po datu platnosti se v přehledu i u pacienta objeví upozornění a lékař udělá **revizi**: potvrdí, že plán platí beze změny, a nastaví novou platnost. Výchozí interval revize nastavuje správce (kapitola 12).
 - Sestra ani rodina cíl péče a limitace vyplnit nemohou.
+
+**Doklad k limitacím.** Aplikace jen eviduje, jaký doklad existuje – vyplnění v aplikaci samo dříve vyslovené přání (DVP) nevytváří. U DVP vyplňte datum, kde je originál a:
+
+- **Písemné poučení lékařem** a **Podpis pacienta – úředně ověřený**: když je obojí doloženo, karta ukáže zelené *poučení lékařem a ověřený podpis*; jinak žluté upozornění, ať posádka ověří originál.
+- **DVP sepsané při přijetí u poskytovatele**: vyplňte jen tehdy, když bylo přání sepsáno při přijetí do péče nebo při hospitalizaci. Takové přání platí jen u tohoto poskytovatele – karta pro ZZS to tak i napíše.
+- Bez DVP karta uvádí **rozhodnutí lékaře** a odkaz na zprávu nebo zápis o rozhovoru.
 
 ## 6. Deník a kontakty
 
@@ -187,13 +198,30 @@ Rodině vydejte PIN přímo u pacienta: **jméno držitele**, role **rodina** a 
 
 **Záchranná služba** žádný PIN ani seznam lidí nepotřebuje – krizovou kartu vidí bez přihlášení a jméno a posádku zapíše až u zápisu výjezdu.
 
+### Vlastní telefon pacienta (Můj průkaz)
+
+Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **Můj průkaz** (kapitola 19). Zpřístupňuje garant nebo lékař v týmu:
+
+1. V panelu **Vlastní telefon pacienta** klikněte na **Zpřístupnit pacientovi v jeho telefonu**.
+2. Zadejte **mobil pacienta**. Kód půjde použít jen s tímto číslem.
+3. **Poslat odkaz SMS** – pacientovi přijde odkaz; nebo **Zobrazit QR kód (v ordinaci)** – pacient ho načte fotoaparátem.
+
+![Zpřístupnění průkazu v telefonu pacienta](/napoveda/img/c-pacientovi.png)
+
+- Kód platí **3 dny a jen jednou**. Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.
+- Pacient vidí plán, kontakty a tým. **Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí** a do deníku z něj nikdo nezapisuje.
+- **Ukončit přístup** – data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie a smazat ji nelze.
+- Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
+
 ## 9. Údaje, dokumenty a uzavření průkazu
 
 ![Údaje pacienta](/napoveda/img/c-udaje.png)
 
 - **Údaje**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
-- **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB) a poznámka, kde je originál. Vkládá garant nebo lékař, klik na dokument ho otevře.
+- **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
+
+![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
 - **Přístupy** (garant a správce): kdo a kdy průkaz zobrazil nebo měnil.
 - **Uzavřít průkaz** (garant): vyberete důvod (úmrtí, předání mimo síť, hospitalizace, na přání pacienta, jiný). Telefon se při příštím připojení vymaže a PINy přestanou platit. Předtím si pořiďte **výpis do dokumentace**.
 
@@ -356,7 +384,8 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 - Prohlížeč neposílá do databáze žádné příkazy – vše jde přes server a je vázané na přihlášeného uživatele. Každá organizace vidí jen svá data.
 - Pacienta vidí jen pracoviště v týmu kolem pacienta a správce organizace. Každé zobrazení a změna se zapisuje do neměnného logu přístupů.
-- Telefon: data v telefonu jsou šifrovaná klíčem, který nejde z telefonu vyexportovat; v databázi je jen otisk tokenu telefonu. Zablokovaný nebo uzavřený průkaz se z telefonu při připojení vymaže.
+- Telefon: data v telefonu jsou šifrovaná klíčem, který nejde z telefonu vyexportovat; v databázi je jen otisk tokenu telefonu. Zablokovaný nebo uzavřený průkaz se ze zapůjčeného telefonu při připojení vymaže.
+- **Můj průkaz** (vlastní telefon pacienta): data jsou šifrovaná dvakrát – PINem pacienta a klíčem telefonu. Vlastní přání, léky a poznámky pacienta jsou jen v jeho telefonu; provozovatel ani tým je nevidí, dokud je pacient sám nepošle (výběr → náhled → potvrzení).
 - **AI jen anonymně**: rozbor propouštěcí zprávy i chat nápovědy dostávají text až po anonymizaci (jména, rodná čísla, data, adresy, telefony, e-maily → značky). Když v textu zůstane něco jako identifikátor, dotaz se neodešle.
 - Deník, historie garance, verze plánu a log přístupů nejde mazat ani přepisovat.
 
@@ -382,4 +411,69 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Zapsal jsem do deníku chybu.** Zápisy nejde mazat. Napište nový zápis s opravou.
 
+**Pacient chce průkaz ve svém telefonu.** V Telefon a PINy klikněte na Zpřístupnit pacientovi v jeho telefonu (kapitola 8, pro pacienta kapitola 19).
+
+**Pacient zapomněl PIN do Můj průkaz.** PIN nikdo neobnoví. Pacient v aplikaci zvolí Zapomněl(a) jsem PIN → Smazat vše a začít znovu a vy mu vydáte nový kód. Jeho vlastní záznamy, které předtím neposlal ani nevytiskl, jsou ztracené.
+
+**Je to, co pacient napíše do Můj průkaz, dříve vyslovené přání?** Ne. Je to jeho osobní záznam. Platné DVP vyžaduje písemné poučení lékařem a úředně ověřený podpis (nebo zápis při přijetí do péče) – evidujte ho v plánu péče a v dokumentech.
+
 **Data na telefonu jsou stará.** Připojte telefon k internetu a klepněte na pruh s časem aktualizace (synchronizovat). Karta se synchronizuje i sama při každém otevření a každých 5 minut.
+
+## 19. Můj průkaz – průkaz ve vlastním telefonu pacienta
+
+Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří chtějí mít svůj průkaz u sebe a připravit se na rozhovor s lékařem. Na rozdíl od zapůjčeného telefonu (kapitola 13) běží ve vlastním telefonu pacienta vedle jiných aplikací a otevírá ji jen pacient svým PINem.
+
+### Propojení
+
+1. Lékař průkaz zpřístupní (kapitola 8) – přijde SMS s odkazem, nebo lékař ukáže QR kód.
+2. Otevřete odkaz v telefonu (nebo `/pacient/` → **Načíst QR kód fotoaparátem**), zadejte **číslo svého telefonu** a **Propojit**.
+3. Nastavte si **PIN** (6–12 číslic, dvakrát). Tímto PINem budete Můj průkaz otevírat a jím jsou data v telefonu zašifrovaná.
+
+![Propojení s průkazem](/napoveda/img/p-propojeni.png)
+![Nastavení PINu](/napoveda/img/p-pin.png)
+
+> Na iPhonu nejdřív přidejte Můj průkaz na plochu (Sdílet → Přidat na plochu) a propojte ho až v aplikaci na ploše.
+
+### Co v aplikaci najdete
+
+![Můj průkaz – přehled s krizovou kartou](/napoveda/img/p-prehled.png)
+
+- **Průkaz** – krizová karta tak, jak ji vede váš lékař, a přehled vašich záznamů.
+- **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
+- **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
+- **Léky** – léky, které **skutečně** užíváte, s dávkou a datem aktualizace. Pro srovnání pod nimi léky podle lékaře.
+- **Poznámky** – otázky pro lékaře a poznámky, jak se máte.
+- **Sdílet** – souhrn k tisku nebo k předání (níže).
+- **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.
+- **Nastavení** – změna PINu, smazání všeho z telefonu.
+
+![Moje hodnoty a přání](/napoveda/img/p-prani.png)
+![Léky, které skutečně užívám](/napoveda/img/p-leky.png)
+
+> **Přání v aplikaci není dříve vyslovené přání podle zákona.** Platné DVP se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.
+
+### Sdílení a tisk
+
+1. V oddílu **Sdílet** zaškrtněte, co chcete předat (u každé položky je, zda je *od lékaře*, nebo *údaj pacienta*, a kdy byla aktualizovaná).
+2. **Zobrazit náhled** – uvidíte přesně to, co předáte, s datem vytvoření a původem každé položky.
+3. Vyberte: **Vytisknout / PDF**, **Poslat svému týmu** (do centrální aplikace – jen vaše vlastní údaje, údaje od lékaře tým už má), nebo **Poslat jinam** (e-mail, zpráva).
+
+![Výběr, co předat](/napoveda/img/p-sdilet.png)
+![Náhled souhrnu](/napoveda/img/p-nahled.png)
+
+Po předání už nejde zaručit, že příjemce kopii smaže; u zdravotníků se může stát součástí zdravotnické dokumentace.
+
+### Nouzové info – Zdravotní ID
+
+Do zamčeného telefonu se záchranka nedostane. Telefon ale umí ukázat **Zdravotní ID** na zamčené obrazovce. V oddílu **Nouzové info** je připravený text (máte paliativní průkaz, koho volat, alergie; diagnózu a limitace přidáte jen když chcete) – **Zkopírovat text** a vložit podle návodu pro iPhone (aplikace Zdraví → Zdravotní ID) nebo Android (Nastavení → Bezpečnost a nouzové situace). Vytiskněte si i krizovou kartu.
+
+![Nouzové info pro Zdravotní ID](/napoveda/img/p-nouze.png)
+
+### Zamykání a PIN
+
+![Zamčený Můj průkaz](/napoveda/img/p-zamek.png)
+
+- Můj průkaz se zamkne po 5 minutách nečinnosti, při odchodu z aplikace na déle než minutu a tlačítkem **zamknout**.
+- Po 5 špatných pokusech je nutné chvíli počkat.
+- **Zapomenutý PIN nikdo neobnoví** – ani lékař, ani provozovatel. Zvolte **Zapomněl(a) jsem PIN → Smazat vše a začít znovu** a požádejte lékaře o nový kód. Údaje od lékaře se vrátí, vaše vlastní záznamy ne – proto je občas vytiskněte nebo pošlete týmu.
+- Když lékař ukončí přístup, údaje od lékaře se přestanou aktualizovat; vše, co v telefonu máte, zůstává.

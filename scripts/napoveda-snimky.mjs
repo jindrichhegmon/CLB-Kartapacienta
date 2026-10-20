@@ -28,7 +28,7 @@ const posk = [
 ];
 const planData = {
   cil: 'symptom', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'],
-  doklad: { dvp: true, datum: den(-40), original: 'u dcery, obálka na lednici', zprava: 'zápis o rozhovoru s pacientkou a dcerou' },
+  doklad: { dvp: true, datum: den(-40), original: 'u dcery, obálka na lednici', zprava: 'zápis o rozhovoru s pacientkou a dcerou', pouceni: true, overenyPodpis: true, prijeti: '' },
   dg: 'C50 karcinom prsu s metastázami do kostí a jater; chronické srdeční selhání', funkce: 'PPS 40 % – většinu dne na lůžku, s pomocí do křesla',
   alergie: 'penicilin',
   sos: ['Morphin 10 mg s.c. při bolesti nebo dušnosti, nejvýš po 4 h', 'Midazolam 5 mg s.c. při neklidu', 'Paracetamol 1 g p.o. při horečce'],
@@ -83,10 +83,14 @@ const detail = {
     { verze: 2, typ: 'REVIZE', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-14, '11:00'), platnostDo: den(60), poznamka: null },
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
   kontakty, tym, garance,
-  zarizeni: [{ id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.3.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123' }],
+  zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT' },
+    { id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123', rezim: 'ZAPUJCENY' }],
+  odPacienta: [{ id: 1, cas: cas(-1, '19:30'), polozky: [
+    { druh: 'PRANI', nazev: 'Moje hodnoty a přání', obsah: 'Co je pro mě důležité: zůstat doma s dcerou a vnoučaty, nemít bolesti.\nČeho se obávám: dušení a převozu do nemocnice v noci.\nCo chci, aby lékaři zohlednili: raději úleva než léčba za každou cenu.', puvod: 'údaj pacienta – jak si pamatuji rozhovor se zdravotníkem (MUDr. Ukázková, ' + den(-30).split('-').reverse().map(Number).join('. ') + ')', aktualizovano: cas(-1, '19:20') },
+    { druh: 'LEKY', nazev: 'Léky, které užívám', obsah: 'MST Continus 30 mg – ráno a večer · aktualizováno ' + den(-1).split('-').reverse().map(Number).join('. ') + '\nFurosemid 40 mg – jen ob den (otoky menší)', puvod: 'údaj pacienta', aktualizovano: cas(-1, '19:25') }] }],
   piny: [{ id: 1, jmeno: 'Jana Zkušební (dcera)', role: 'RODINA', vytvoreno: den(-21) }], lide: prirazeni,
-  denik: [...denik].reverse(), dokumenty: [{ id: 1, typ: 'DVP', nazev: 'Dříve vyslovené přání', kdeOriginal: 'u dcery', mime: 'application/pdf', velikost: 120000, vytvoreno: cas(-21, '09:20') },
-    { id: 2, typ: 'ZPRAVA', nazev: 'Propouštěcí zpráva – interna', kdeOriginal: '', mime: 'application/pdf', velikost: 230000, vytvoreno: cas(-22, '15:00') }],
+  denik: [...denik].reverse(), dokumenty: [{ id: 1, typ: 'DVP', nazev: 'Dříve vyslovené přání', kdeOriginal: 'u dcery', mime: 'application/pdf', velikost: 120000, vytvoreno: cas(-21, '09:20'), datum: den(-40), pracoviste: 'Hospic Ukázka' },
+    { id: 2, typ: 'ZPRAVA', nazev: 'Propouštěcí zpráva – interna', kdeOriginal: '', mime: 'application/pdf', velikost: 230000, vytvoreno: cas(-22, '15:00'), datum: den(-23), pracoviste: 'Krajská nemocnice – interna' }],
   pristupy: [{ cas: cas(0, '08:15'), kdo: 'MUDr. Petra Ukázková', akce: 'zobrazení průkazu', detail: null }, { cas: cas(-2, '02:41'), kdo: 'telefon', akce: 'synchronizace', detail: '1 zápis' }],
   op: { vidi: true, aktivni: true, lekar: true, garant: true, zapis: true, prijmoutGaranci: false, navrhGaranceId: null }, smsDostupne: true,
 };
@@ -116,6 +120,9 @@ const balik = {
   piny: [{ id: 'o2', jmeno: 'Sestra Lucie Příkladná', role: 'hospic', salt, hash: pbkdf2Sync('123456', Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex'), iterace: 120000 }],
   denik, serverCas: new Date().toISOString(),
 };
+// vlastní telefon pacienta: bez PINů týmu a bez deníku (src/kp.js balikProZarizeni, rezim PACIENT)
+const balikPacient = { ...balik, piny: [], denik: [], rezim: 'PACIENT' };
+const sdileno = [];
 const tenanti = [
   { id: TENANT, nazev: 'Hospic Ukázka, z. ú.', ico: '12345678', nazevSite: 'Paliativní síť Ukázkového kraje', kp: true, pacientu: 3, poskytovatelu: 4, uzivatelu: 3, telefonu: 2, sync: cas(0, '08:12'), vytvoreno: cas(-60, '09:00'), odkaz: `https://kartapacienta.example/centrala/?t=${TENANT}` },
   { id: '87654321VZOROVAE', nazev: 'MUDr. Eva Vzorová s.r.o.', ico: '87654321', nazevSite: '', kp: false, pacientu: 0, poskytovatelu: 0, uzivatelu: 0, telefonu: 0, sync: null, vytvoreno: cas(-400, '09:00'), odkaz: '' },
@@ -134,11 +141,12 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.4.0', ai: true }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.5.0', ai: true }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
+app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
 app.get('/api/c/lide', j({ lide, role: { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
 app.get('/api/c/lide/pecedoma', j({ lide: pdTym }));
@@ -147,8 +155,11 @@ app.post('/api/c/lide/import', j((req) => ({ pridano: req.body.radky.length, akt
 app.post('/api/c/pacient/:id/lide', j({ zmeny: 1 }));
 app.get('/api/c/zarizeni', j({ zarizeni: [] }));
 app.get('/api/c/audit', j({ audit: [], ai: [] }));
-app.post('/api/d/parovat', j({ token: `${TENANT}.7.ukazka`, tajemstvi: '00112233445566778899aabbccddeeff00112233', zarizeniId: 7, telefon: '+420 777 000 123', balik }));
-app.post('/api/d/sync', j((req) => ({ potvrzeno: (req.body.fronta || []).map((e) => e.uuid), odmitnuto: [], balik })));
+app.post('/api/d/parovat', j((req) => (req.body.rezim === 'PACIENT'
+  ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient }
+  : { token: `${TENANT}.7.ukazka`, tajemstvi: '00112233445566778899aabbccddeeff00112233', zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
+app.post('/api/d/sync', j((req) => (String(req.headers.authorization || '').includes('.9.') ? { potvrzeno: [], odmitnuto: [], balik: balikPacient } : { potvrzeno: (req.body.fronta || []).map((e) => e.uuid), odmitnuto: [], balik })));
+app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
 app.post('/api/admin/login', j({ session: 'ukazka' }));
 app.get('/api/admin/tenanti', j({ tenanti, typy }));
 app.post('/api/admin/spravci', j({ uzivatele: [] }));
@@ -208,6 +219,15 @@ await p.evaluate(() => KP.closeModal());
 await klik(p, '#parovat'); await p.waitForSelector('#pr_sms');
 await foto(p, 'c-parovani', { vyska: 1000 });
 await p.evaluate(() => KP.closeModal());
+await klik(p, '#pacientovi'); await p.waitForSelector('#pz_t'); await p.fill('#pz_t', '+420 604 000 777');
+await klik(p, '#pz_qr'); await p.waitForSelector('#pz_hot');
+await p.setViewportSize({ width: 1200, height: 1000 }); await foto(p, 'c-pacientovi'); await p.setViewportSize({ width: 1200, height: 760 });
+await p.evaluate(() => KP.closeModal());
+await zalozka('dok', 'c-dokumenty');
+await klik(p, '.tabs [data-t="karta"]'); await p.waitForSelector('details summary');
+await p.evaluate(() => document.querySelector('details').open = true);
+await p.evaluate(() => { const el = [...document.querySelectorAll('.panel-h h2')].find((h) => h.textContent === 'Od pacienta').closest('.panel'); el.scrollIntoView(); });
+await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'c-od-pacienta.png') }); console.log('  ✓ c-od-pacienta');
 await zalozka('udaje', 'c-udaje', { vyska: 900 });
 await klik(p, '.nav button[data-v="sprava"]'); await p.waitForSelector('#p_new');
 await foto(p, 'c-pracoviste');
@@ -264,6 +284,48 @@ await foto(p, 'k-denik');
 await klik(p, '.tile[data-tab="zhorseni"]'); await p.waitForSelector('#btnZ');
 await p.click('#z_sym input[value="dušnost"]'); await p.click('#z_akce input[value="podán SOS lék"]');
 await foto(p, 'k-zhorseni', { vyska: 1150 });
+await p.close();
+
+console.log('Můj průkaz (telefon pacienta)');
+p = await stranka({ mobil: true });
+await p.goto(`${URL}/pacient/#p=${TENANT}.MPK4R7ZD`); await p.waitForSelector('#p_tel');
+await p.fill('#p_tel', '+420 604 000 777');
+await foto(p, 'p-propojeni');
+await klik(p, '#p_ok'); await p.waitForSelector('#np1');
+await p.fill('#np1', '258147'); await p.fill('#np2', '258147');
+await foto(p, 'p-pin');
+await klik(p, '#np_ok'); await p.waitForSelector('.tile[data-tab="prani"]', { timeout: 20000 }); await p.waitForTimeout(3500);
+await foto(p, 'p-prehled', { vyska: 1500 });
+await klik(p, '.tile[data-tab="prani"]'); await p.waitForSelector('#pr_ok');
+await p.fill('#pr_dulezite', 'Zůstat doma s dcerou a vnoučaty, nemít bolesti, mít jasnou hlavu na rozhovory.');
+await p.fill('#pr_obavy', 'Dušení a převozu do nemocnice v noci.');
+await p.fill('#pr_rozhodovani', 'Raději úleva než léčba za každou cenu.');
+await p.fill('#pr_kdo', 'dcera Jana, 777 000 321');
+await p.selectOption('#pr_puvod', 'rozhovor'); await p.fill('#pr_rk', 'MUDr. Ukázková, hospic');
+await klik(p, '#pr_ok'); await p.waitForTimeout(3500);
+await foto(p, 'p-prani', { vyska: 1500 });
+await klik(p, '.tile[data-tab="leky"]'); await klik(p, '#lk_novy'); await p.fill('#lk_n', 'MST Continus'); await p.fill('#lk_d', '30 mg ráno a večer'); await klik(p, '#lk_ok');
+await klik(p, '#lk_novy'); await p.fill('#lk_n', 'Furosemid'); await p.fill('#lk_d', '40 mg'); await p.fill('#lk_p', 'jen ob den – otoky menší'); await klik(p, '#lk_ok');
+await p.waitForTimeout(3500);
+await foto(p, 'p-leky', { vyska: 1300 });
+await klik(p, '.tile[data-tab="poznamky"]'); await p.fill('#pz_t', 'Můžu brát Morphin i přes den, když bolí víc?'); await klik(p, '#pz_ok'); await p.waitForTimeout(300);
+await klik(p, '.tile[data-tab="sdilet"]'); await p.waitForSelector('#sd_nahled');
+await p.check('.vyber input[value="KARTA"]'); await p.waitForTimeout(3300);   // toast „Uloženo“ zmizí
+await foto(p, 'p-sdilet', { vyska: 1200 });
+await klik(p, '#sd_nahled'); await p.waitForSelector('#sd_tym');
+await foto(p, 'p-nahled');
+await klik(p, '#sd_tym'); await klik(p, '#kpOk'); await p.waitForTimeout(500);
+if (sdileno.length !== 1 || sdileno[0].polozky.some((x) => !['PRANI', 'LEKY', 'OTAZKY', 'POZNAMKA'].includes(x.druh))) chyby.push('sdílení týmu poslalo něco jiného než údaje pacienta');
+await klik(p, '.tile[data-tab="nouze"]'); await p.waitForSelector('#nz_kop'); await p.waitForTimeout(3300);
+await foto(p, 'p-nouze', { vyska: 1400 });
+// zamknutí a znovu odemknutí PINem (data jsou šifrovaná PINem)
+await klik(p, '#btnZamek'); await p.waitForSelector('#pin');
+await foto(p, 'p-zamek');
+await p.fill('#pin', '111111'); await klik(p, '#pinOk'); await p.waitForTimeout(1500);
+if (await p.$('.tile[data-tab]')) chyby.push('špatný PIN odemkl Můj průkaz');
+await p.fill('#pin', '258147'); await klik(p, '#pinOk'); await p.waitForSelector('.tile[data-tab="leky"]', { timeout: 20000 });
+await klik(p, '.tile[data-tab="leky"]');
+if (!(await p.textContent('#work')).includes('Furosemid')) chyby.push('po odemknutí chybí vlastní léky pacienta');
 await p.close();
 
 console.log('Správa tenantů');
