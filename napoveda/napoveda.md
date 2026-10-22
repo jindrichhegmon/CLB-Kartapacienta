@@ -407,7 +407,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Ztratil se telefon.** V záložce Telefon a PINy telefon zablokujte – při připojení se vymaže. Pak spárujte nový.
 
-**Lékař na pohotovosti nemá PIN.** Kód lékaře pro dnešek najde v PéčeDoma v Profilu klienta (🪪 Kód lékaře na kartu) nebo mu ho nadiktuje lékař z týmu z centrální aplikace. Na telefonu zvolí Lékař bez PINu (kapitola 8).
+**Lékař na pohotovosti nemá PIN.** Kód lékaře pro dnešek najde v PéčeDoma v Datech klienta (🪪 Kód lékaře na kartu) nebo mu ho nadiktuje lékař z týmu z centrální aplikace. Na telefonu zvolí Lékař bez PINu (kapitola 8).
 
 **Pečující zapomněl PIN.** PIN nejde zobrazit znovu. Člověku z Lidí a týmů vydejte **Nový PIN** (platí pak u všech jeho pacientů), rodinný PIN u pacienta zrušte a vydejte nový.
 
