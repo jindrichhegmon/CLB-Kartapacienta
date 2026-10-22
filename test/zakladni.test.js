@@ -2,15 +2,25 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 process.env.KP_SECRET = 'x'.repeat(40);
-const { totp, hashPin, novyPin, hashHeslo, overHeslo, podepis, overSession, zasifruj, desifruj } = await import('../src/crypto.js');
+const { kodDne, dnesPraha, konecDnePraha, hashPin, novyPin, hashHeslo, overHeslo, podepis, overSession, zasifruj, desifruj } = await import('../src/crypto.js');
 const { anonymizuj, obnov } = await import('../src/anonym.js');
 const { lokalniRozbor } = await import('../src/ai.js');
 const { navrhniIdTenanta } = await import('../src/routes/admin.js');
 
-test('TOTP odpovídá RFC 6238 (SHA1, krok 30 s)', () => {
+test('kód lékaře dne: 6 číslic, celý den stejný, jiný den jiný, telefon (WebCrypto) spočítá totéž', async () => {
   const secret = Buffer.from('12345678901234567890').toString('hex');
-  assert.equal(totp(secret, 59 * 1000, 30), '287082');
-  assert.equal(totp(secret, 1111111109 * 1000, 30), '081804');
+  assert.match(kodDne(secret, '2026-10-22'), /^\d{6}$/);
+  assert.equal(kodDne(secret, '2026-10-22'), kodDne(secret, '2026-10-22'));
+  assert.notEqual(kodDne(secret, '2026-10-22'), kodDne(secret, '2026-10-23'));
+  // stejný výpočet jako public/karta/index.html kodDne()
+  const k = await globalThis.crypto.subtle.importKey('raw', Buffer.from(secret, 'hex'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const h = new Uint8Array(await globalThis.crypto.subtle.sign('HMAC', k, new TextEncoder().encode('kod-dne:2026-10-22')));
+  const telefon = String((((h[0] & 127) << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) % 1000000).padStart(6, '0');
+  assert.equal(telefon, kodDne(secret, '2026-10-22'));
+  // den v Praze: 23:30 UTC 21. 10. je v Praze už 22. 10.; konec dne = půlnoc v Praze
+  assert.equal(dnesPraha(Date.UTC(2026, 9, 21, 23, 30)), '2026-10-22');
+  assert.equal(konecDnePraha(Date.UTC(2026, 9, 22, 10, 0)), '2026-10-22T22:00:00.000Z');
+  assert.equal(konecDnePraha(Date.UTC(2026, 0, 15, 10, 0)), '2026-01-15T23:00:00.000Z');
 });
 
 test('PIN: hash je deterministický a ověřitelný', () => {

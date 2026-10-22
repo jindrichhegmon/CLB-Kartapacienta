@@ -177,7 +177,7 @@ Karta je jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telef
 
 ### Kód lékaře
 
-Tlačítko **Kód lékaře pro odemčení** (jen lékař, když je telefon spárovaný) vydá šestimístný kód. Lékař na místě ho zadá v telefonu (**Jsem lékař**) a odemkne kartu. Kód platí 5 minut, telefon ho ověří i bez signálu a vydání se zapíše do logu.
+Tlačítko **Kód lékaře na dnešek** (jen lékař, když je telefon spárovaný) ukáže šestimístný kód pro lékaře, který k pacientovi není přiřazený (pohotovost, zástup). Kód platí **celý kalendářní den** a je pořád stejný – o půlnoci se změní. Lékař na místě ho zadá v telefonu tlačítkem **Lékař bez PINu** spolu se svým jménem; telefon ho ověří i bez signálu (přijme i včerejší kód) a odemknutí se zapíše se jménem. Stejný kód lékař najde i v **PéčeDoma** v Profilu klienta (tlačítko 🪪 Kód lékaře na kartu). Každé zobrazení kódu je v logu přístupů.
 
 ### Lidé, kteří odemknou kartu
 
@@ -231,8 +231,8 @@ Role jsou stejné jako v ukázkové verzi. Každý po odemknutí karty vidí nah
 
 | Role | Jak se dostane ke kartě | Co vidí | Co zapisuje do deníku |
 |---|---|---|---|
-| Lékař | osobní PIN (Lidé a týmy) nebo kód lékaře | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, návštěva hospice, telefonát, zhoršení |
-| Praktický lékař | osobní PIN nebo kód lékaře | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, telefonát, zhoršení |
+| Lékař | osobní PIN (Lidé a týmy) nebo kód lékaře dne | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, návštěva hospice, telefonát, zhoršení |
+| Praktický lékař | osobní PIN nebo kód lékaře dne | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, telefonát, zhoršení |
 | Hospic | osobní PIN | celý záznam, je prvním kontaktem při zhoršení | návštěva hospice, změna stavu, podán SOS lék, návštěva lékaře, telefonát, zhoršení |
 | Sestra DPS | osobní PIN | celý záznam | změna stavu, podán SOS lék, návštěva lékaře, telefonát, pozorování, zhoršení |
 | Rodina | PIN od garanta u pacienta | celý záznam | pozorování, podán SOS lék, změna stavu, telefonát, zhoršení |
@@ -324,8 +324,12 @@ Pruh nahoře ukazuje, kdy se karta naposledy aktualizovala. Když jsou data star
 
 ### Odemknutí
 
-- **Odemknout PINem** → osobní PIN z vašeho pracoviště (lékař, hospic, sestra DPS, praktický lékař) nebo PIN, který rodině vydal garant. Po 5 chybných pokusech se okno zavře.
-- **Kód lékaře** → kód z centrální aplikace pro lékaře, který na kartu přiřazený není (platí 5 minut).
+Pod krizovou kartou jsou tři tlačítka podle toho, kdo kartu otevírá:
+
+- **Přístup rodina** → PIN, který rodině vydal garant u pacienta.
+- **Přístup tým** → osobní PIN z agendy Lidé a týmy: sestra domova, hospic, praktický lékař, lékař. Po 5 chybných pokusech se okno zavře.
+- **Lékař bez PINu** → kód lékaře pro dnešní den z centrální aplikace nebo z PéčeDoma (kapitola 8) a jméno lékaře.
+- **Záchranná služba** nic nezadává – krizovou kartu vidí bez odemknutí a výjezd zapíše níže.
 - Po odemknutí je nahoře vidět, kdo je přihlášený a co jeho role smí (kapitola 10).
 - Karta se sama zamkne po 2 minutách bez dotyku; ručně tlačítkem s rolí vpravo nahoře.
 
@@ -402,6 +406,8 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 **Plán je po platnosti.** Lékař v záložce Krizová karta klikne na Potvrdit revizi plánu, nebo plán upraví a uloží novou verzi.
 
 **Ztratil se telefon.** V záložce Telefon a PINy telefon zablokujte – při připojení se vymaže. Pak spárujte nový.
+
+**Lékař na pohotovosti nemá PIN.** Kód lékaře pro dnešek najde v PéčeDoma v Profilu klienta (🪪 Kód lékaře na kartu) nebo mu ho nadiktuje lékař z týmu z centrální aplikace. Na telefonu zvolí Lékař bez PINu (kapitola 8).
 
 **Pečující zapomněl PIN.** PIN nejde zobrazit znovu. Člověku z Lidí a týmů vydejte **Nový PIN** (platí pak u všech jeho pacientů), rodinný PIN u pacienta zrušte a vydejte nový.
 

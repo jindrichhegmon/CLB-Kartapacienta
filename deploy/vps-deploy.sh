@@ -6,6 +6,8 @@
 #   vygeneruje KP_SECRET a heslo správy tenantů KP_ADMIN_HESLO (vypíše ho jednou)
 # - nainstaluje balíčky, spustí migraci tabulek A_KP_* (idempotentní), (re)startuje pm2
 # - doplní do Caddy doménu kartapacienta.95-216-201-2.sslip.io → 127.0.0.1:3120
+# - od 0.6.0: vygeneruje KP_PARTNER_KLIC a zapíše ho i do /opt/jhn-apps/.env (KARTA_URL, KARTA_PARTNER_KLIC, KARTA_TENANT –
+#   tenant Centra LB; jiný: KARTA_TENANT=… ./deploy/vps-deploy.sh), aby PéčeDoma ukázalo lékaři kód lékaře dne
 set -e
 VPS="${VPS:-root@95.216.201.2}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519_jhnapps}"
@@ -46,6 +48,21 @@ fi
 if ! grep -qE '^[[:space:]]*(export[[:space:]]+)?TWILIO_' .env && grep -qE '^[[:space:]]*(export[[:space:]]+)?TWILIO_' /opt/jhn-apps/.env 2>/dev/null; then
   grep -E '^[[:space:]]*(export[[:space:]]+)?TWILIO_' /opt/jhn-apps/.env | sed -E 's/^[[:space:]]*(export[[:space:]]+)?//' >> .env
   echo "=== Do .env doplněno nastavení SMS (TWILIO_*) z /opt/jhn-apps/.env ==="
+fi
+# Kód lékaře dne pro PéčeDoma (od 0.6.0): partnerský klíč sdílený s jhn-apps na stejném VPS (/api/partner/kod-dne)
+if ! grep -q '^KP_PARTNER_KLIC=' .env; then
+  echo "KP_PARTNER_KLIC=\$(openssl rand -hex 24)" >> .env
+  echo "=== Do .env doplněn KP_PARTNER_KLIC (partnerské API pro PéčeDoma) ==="
+fi
+J=/opt/jhn-apps/.env
+if [ -f "\$J" ] && ! grep -q '^KARTA_PARTNER_KLIC=' "\$J"; then
+  {
+    echo "KARTA_URL=http://127.0.0.1:$PORT"
+    echo "KARTA_PARTNER_KLIC=\$(grep ^KP_PARTNER_KLIC= .env | cut -d= -f2)"
+    echo "KARTA_TENANT=${KARTA_TENANT:-02570459DSIDEQAJ}"
+  } >> "\$J"
+  su - jhnapps -c "pm2 restart jhn-apps --update-env >/dev/null" || true
+  echo "=== Do /opt/jhn-apps/.env doplněno KARTA_URL, KARTA_PARTNER_KLIC a KARTA_TENANT (PéčeDoma → kód lékaře dne); jhn-apps restartován ==="
 fi
 chown -R jhnapps:jhnapps $DIR
 su - jhnapps -c "cd $DIR && npm install --omit=dev --no-audit --no-fund 2>&1 | tail -1 && npm run migrate 2>&1 | tail -4"

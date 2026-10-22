@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
-import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, totp, TOTP_KROK } from '../crypto.js';
+import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, kodDne, konecDnePraha } from '../crypto.js';
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
@@ -456,10 +456,9 @@ central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
   if (!z) throw chyba('Pacient nemá spárovaný telefon');
   const t = desifruj(z.Tajemstvi);
   if (!t) throw chyba('Tajemství telefonu nelze přečíst – spárujte telefon znovu', 500);
-  const ted = Date.now();
-  const platiDo = new Date((Math.floor(ted / 1000 / TOTP_KROK) + 1) * TOTP_KROK * 1000);
+  // kód dne: celý kalendářní den stejný (najde ho i lékař v PéčeDoma – /api/partner/kod-dne)
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: z.ZarizeniID, akce: 'kód lékaře vydán', ip: s.ip });
-  return { kod: totp(t, ted), platiDo: platiDo.toISOString(), lekar: s.jmeno };
+  return { kod: kodDne(t), platiDo: konecDnePraha(), lekar: s.jmeno };
 }));
 
 /* ---------------- dokumenty ---------------- */

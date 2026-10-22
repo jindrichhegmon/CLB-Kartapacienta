@@ -7,7 +7,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pbkdf2Sync, randomBytes } from 'node:crypto';
+import { pbkdf2Sync, randomBytes, createHmac } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const KOREN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -153,11 +153,16 @@ app.get('/api/c/lide/pecedoma', j({ lide: pdTym }));
 app.post('/api/c/osoba', j({ id: 99, pin: '482913', sms: null }));
 app.post('/api/c/lide/import', j((req) => ({ pridano: req.body.radky.length, aktualizovano: 0, chyby: [], piny: req.body.radky.map((r, i) => ({ ...r, pin: String(305117 + i * 91813).slice(0, 6), sms: req.body.sms ? { ok: true } : null })) })));
 app.post('/api/c/pacient/:id/lide', j({ zmeny: 1 }));
+// kód lékaře dne – stejný výpočet jako src/crypto.js kodDne (telefon ho ověří offline z tajemství '0011…')
+const TAJEMSTVI = '00112233445566778899aabbccddeeff00112233';
+const kodDne = (datum) => { const h = createHmac('sha256', Buffer.from(TAJEMSTVI, 'hex')).update('kod-dne:' + datum).digest(); return String((((h[0] & 0x7f) << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) % 1000000).padStart(6, '0'); };
+const dnesLokalne = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+app.get('/api/c/pacient/:id/kod-lekare', j({ kod: kodDne(dnesLokalne()), platiDo: den(1) + 'T00:00:00+02:00', lekar: 'MUDr. Petra Ukázková' }));
 app.get('/api/c/zarizeni', j({ zarizeni: [] }));
 app.get('/api/c/audit', j({ audit: [], ai: [] }));
 app.post('/api/d/parovat', j((req) => (req.body.rezim === 'PACIENT'
   ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient }
-  : { token: `${TENANT}.7.ukazka`, tajemstvi: '00112233445566778899aabbccddeeff00112233', zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
+  : { token: `${TENANT}.7.ukazka`, tajemstvi: TAJEMSTVI, zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
 app.post('/api/d/sync', j((req) => (String(req.headers.authorization || '').includes('.9.') ? { potvrzeno: [], odmitnuto: [], balik: balikPacient } : { potvrzeno: (req.body.fronta || []).map((e) => e.uuid), odmitnuto: [], balik })));
 app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
 app.post('/api/admin/login', j({ session: 'ukazka' }));
@@ -276,6 +281,12 @@ await p.waitForSelector('#unCarer'); await p.waitForTimeout(3500);
 await foto(p, 'k-zamceno');
 await p.fill('#zzs_p', 'Jan Rychlý, RZP Zlín 12'); await p.evaluate(() => document.querySelector('#zzs_p').scrollIntoView({ block: 'center' }));
 await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'k-zzs.png') }); console.log('  ✓ k-zzs');
+// lékař bez PINu: kód dne (dnešní i včerejší projde, jiný ne), pak zamknout a odemknout PINem týmu
+await klik(p, '#unDoc'); await p.fill('#kod', '000000'); await p.fill('#kodJ', 'MUDr. Test'); await klik(p, '#kodOk'); await p.waitForTimeout(600);
+if (await p.$('.tile[data-tab]')) chyby.push('špatný kód lékaře odemkl kartu');
+await p.fill('#kod', kodDne(dnesLokalne())); await klik(p, '#kodOk'); await p.waitForSelector('.tile[data-tab]', { timeout: 15000 });
+if (!/MUDr\. Test · Lékař/.test(await p.textContent('#work'))) chyby.push('kód dne neodemkl kartu jako lékaře');
+await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await klik(p, '#unCarer'); await p.fill('#pin', '123456'); await klik(p, '#pinOk');
 await p.waitForSelector('.tile[data-tab]', { timeout: 15000 }); await p.waitForTimeout(3500);
 await foto(p, 'k-odemceno');

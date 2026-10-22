@@ -1,6 +1,6 @@
 /**
  * Kryptografie: hesla (scrypt), podepsané session (HMAC), šifrování tajemství (AES-256-GCM),
- * tokeny zařízení, PINy (PBKDF2 – ověřuje je i telefon offline přes WebCrypto) a kód lékaře (TOTP).
+ * tokeny zařízení, PINy (PBKDF2 – ověřuje je i telefon offline přes WebCrypto) a kód lékaře (kód dne – HMAC z data).
  */
 import { createCipheriv, createDecipheriv, createHash, createHmac, pbkdf2, pbkdf2Sync, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
 import { config } from './config.js';
@@ -90,14 +90,19 @@ export function novyPin() {
   return { pin, salt, hash: hashPin(pin, salt), iterace: PIN_ITERACE };
 }
 
-/* ---------- kód lékaře: TOTP (RFC 6238, HMAC-SHA1, 6 číslic, krok 300 s) ---------- */
-export const TOTP_KROK = 300;
-export function totp(tajemstviHex, cas = Date.now(), krok = TOTP_KROK) {
-  const citac = Math.floor(cas / 1000 / krok);
-  const b = Buffer.alloc(8);
-  b.writeBigUInt64BE(BigInt(citac));
-  const h = createHmac('sha1', Buffer.from(tajemstviHex, 'hex')).update(b).digest();
-  const o = h[h.length - 1] & 0x0f;
-  const n = ((h[o] & 0x7f) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3];
+/* ---------- kód lékaře = kód dne: HMAC-SHA256(tajemství telefonu, "kod-dne:RRRR-MM-DD"), 6 číslic ----------
+   Celý kalendářní den (Europe/Prague) stejný, takže si ho lékař najde i v PéčeDoma; telefon ho ověří offline
+   stejným výpočtem (WebCrypto) a kolem půlnoci přijme i kód předchozího dne. */
+export const dnesPraha = (cas = Date.now()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Prague', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(cas));
+export function kodDne(tajemstviHex, datum = dnesPraha()) {
+  const h = createHmac('sha256', Buffer.from(tajemstviHex, 'hex')).update('kod-dne:' + datum).digest();
+  const n = ((h[0] & 0x7f) << 24) | (h[1] << 16) | (h[2] << 8) | h[3];
   return String(n % 1000000).padStart(6, '0');
+}
+/** Konec dnešního dne v Praze (ISO) – do kdy kód dne platí. */
+export function konecDnePraha(cas = Date.now()) {
+  const d = dnesPraha(cas);
+  // půlnoc následujícího dne: zkusíme obě možnosti posunu (letní/zimní čas)
+  for (const posun of ['+02:00', '+01:00']) { const t = new Date(`${d}T24:00:00${posun}`); if (dnesPraha(t.getTime() - 1000) === d && dnesPraha(t.getTime()) !== d) return t.toISOString(); }
+  return new Date(`${d}T23:59:59+01:00`).toISOString();
 }

@@ -5,7 +5,7 @@
  *   /karta/     karta pacienta na zapůjčeném telefonu (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
  *   /pacient/   Můj průkaz – pacient ve vlastním telefonu (PWA): data od lékaře jen ke čtení, vlastní přání a léky jen v telefonu
  *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
- * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/health
+ * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/partner/* (PéčeDoma: kód lékaře dne), /api/health
  */
 import express from 'express';
 import path from 'node:path';
@@ -17,6 +17,7 @@ import { admin } from './routes/admin.js';
 import { central } from './routes/central.js';
 import { device } from './routes/device.js';
 import { napoveda } from './routes/napoveda.js';
+import { partner } from './routes/partner.js';
 
 const koren = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = express();
@@ -42,6 +43,7 @@ app.use('/api/admin', admin);
 app.use('/api/c', central);
 app.use('/api/d', device);
 app.use('/api/napoveda', napoveda);
+app.use('/api/partner', partner);
 app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznámý endpoint' }));
 
 // ostrá verze: lokální prototyp už není

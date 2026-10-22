@@ -41,7 +41,9 @@ export const config = {
     tajemstvi: tw('TWILIO_API_KEY_SECRET', 'TWILIO_API_SECRET'),
     from: tw('TWILIO_SMS_FROM', 'TWILIO_FROM') || '+420736354150',   // odesílací číslo jako v jhn-apps
   },
-  verze: '0.5.0',
+  // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
+  partnerKlic: env('KP_PARTNER_KLIC'),
+  verze: '0.6.0',
 };
 
 export function zkontrolujKonfiguraci() {
