@@ -82,8 +82,8 @@ const pdNast = { odkaz: 'https://web-pecedoma.netlify.app/?iv=ukazka&data=ukazka
 const pdSync = { sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti', 'Midazolam 5 mg s.c. – při neklidu'], medikace: ['MST Continus 30 mg – 1-0-1', 'Furosemid 40 mg – 1-0-0', 'Lactulosa 15 ml – 1-0-1'],
   pristiNavsteva: den(2) + ' 09:30', pristiKdo: 'lékař MUDr. Petra Ukázková, sestra Lucie Příkladná', pristiPozn: 'Návštěva lékaře · Plánováno · Zlín', aktualizovano: cas(0, '08:05'), chyba: null };
 const pdKlienti = [
-  { id: 'a1b2c3d4-0000-4000-8000-000000000001', jmeno: 'Anna', prijmeni: 'Vzorová', rc: '505512/1234', narozen: '1950-05-12', mesto: 'Zlín', telefon: '777 000 456', posledni_aktivita: den(-5) },
-  { id: 'a1b2c3d4-0000-4000-8000-000000000002', jmeno: 'Josef', prijmeni: 'Vzorek', rc: '480508/1111', narozen: '1948-05-08', mesto: 'Otrokovice', telefon: '', posledni_aktivita: den(-12) },
+  { id: 'a1b2c3d4-0000-4000-8000-000000000001', jmeno: 'Anna', prijmeni: 'Vzorová', rc: '505512/1234', narozen: '1950-05-12', mesto: 'Zlín', telefon: '777 000 456', posledni_aktivita: den(-5), hospic: true, t720: true, lpp: true },
+  { id: 'a1b2c3d4-0000-4000-8000-000000000002', jmeno: 'Josef', prijmeni: 'Vzorek', rc: '480508/1111', narozen: '1948-05-08', mesto: 'Otrokovice', telefon: '', posledni_aktivita: den(-12), hospic: false, t720: true, lpp: false },
 ];
 const detail = {
   pacient, plan,
@@ -155,7 +155,7 @@ app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.uk
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
-app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(); return { klienti: pdKlienti.filter((k) => !q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q)) }; }));
+app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(), f = String(req.query.filtr || '').split(',').filter(Boolean); return { klienti: pdKlienti.filter((k) => (!f.length || f.some((x) => k[x])) && (!q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q))), skupiny: { hospic: 1, t720: 2, lpp: 1, chyba: null } }; }));
 app.get('/api/c/pecedoma/klient/:id', j((req) => ({ karta: pecedomaJson, klientId: req.params.id })));
 app.post('/api/c/pacient/:id/pecedoma', j({ sync: pdSync }));
 app.post('/api/c/pacient/:id/pecedoma/sync', j({ sync: pdSync }));
@@ -220,7 +220,7 @@ await p.goto(`${URL}/centrala/`); await p.waitForSelector('tr[data-id]');
 await foto(p, 'c-pacienti');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' });
 await foto(p, 'c-novy-1');
-await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await p.fill('#pdq', 'vzor'); await klik(p, '#pdh'); await p.waitForSelector('tr[data-k]');
+await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]');
 await foto(p, 'c-novy-pecedoma');
 await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });

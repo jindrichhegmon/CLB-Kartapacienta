@@ -64,11 +64,11 @@ Menu **+ Nový pacient** (jen lékař). Průvodce má dva kroky.
 
 ![Nový pacient – načtení z PéčeDoma nebo z propouštěcí zprávy](/napoveda/img/c-novy-1.png)
 
-![Výběr klienta z PéčeDoma – hledání podle jména nebo rodného čísla](/napoveda/img/c-novy-pecedoma.png)
+![Výběr klienta z PéčeDoma – skupiny hospic / 720 / LPP a hledání](/napoveda/img/c-novy-pecedoma.png)
 
 Tři možnosti:
 
-1. **Načíst klienta z PéčeDoma** (nejrychlejší): když správce nastavil propojení s PéčeDoma (kapitola 12), klikněte na **Vybrat klienta z PéčeDoma**, napište část jména nebo rodné číslo, stiskněte **Hledat** a klienta vyberte – údaje, diagnózy, léky, funkční stav a kontakty se načtou rovnou. Pacient zůstane s klientem PéčeDoma **propojený** (léky a návštěvy se pak přebírají dál, kapitola 9). Bez propojení: v portálu PéčeDoma v Datech klienta uložte **Export pro Kartu pacienta** (soubor JSON) a tady ho načtěte tlačítkem **Načíst soubor JSON**. Vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty; číslo telefonu s kartou se předvyplní telefonem klienta.
+1. **Načíst klienta z PéčeDoma** (nejrychlejší): když správce nastavil propojení s PéčeDoma (kapitola 12), klikněte na **Vybrat klienta z PéčeDoma**, napište část jména nebo rodné číslo, stiskněte **Hledat** a klienta vyberte. Nad seznamem jsou stejná tlačítka skupin jako v PéčeDoma v Klientech – **🏥 Pacienti hospic (926)**, **🩺 Pacienti odbornost 720** a **📞 Linka paliativní podpory** (u tlačítka je počet klientů ve skupině); zapnuté tlačítko omezí seznam na skupinu, víc tlačítek najednou ukáže kohokoli z nich a klient má štítky skupin i v seznamu – údaje, diagnózy, léky, funkční stav a kontakty se načtou rovnou. Pacient zůstane s klientem PéčeDoma **propojený** (léky a návštěvy se pak přebírají dál, kapitola 9). Bez propojení: v portálu PéčeDoma v Datech klienta uložte **Export pro Kartu pacienta** (soubor JSON) a tady ho načtěte tlačítkem **Načíst soubor JSON**. Vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty; číslo telefonu s kartou se předvyplní telefonem klienta.
 2. **Propouštěcí zpráva**: vložte text, nahrajte textový soubor nebo vyfoťte zprávu (fotka se převede na text přímo v prohlížeči) a klikněte na **Anonymní rozbor zprávy**. Text projde anonymizační bránou – jména, rodná čísla, data, adresy a telefony se nahradí značkami – a teprve pak ho rozebere AI. Když by v textu zůstal identifikátor, dotaz se neodešle.
 3. **Vyplnit ručně bez zprávy**.
 

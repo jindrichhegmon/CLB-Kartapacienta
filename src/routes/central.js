@@ -478,9 +478,10 @@ central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
 /* ---------------- PéčeDoma: výběr klienta, propojení pacienta, synchronizace ---------------- */
 central.get('/pecedoma/klienti', sUzivatelem(async (q, s, req) => {
   const nast = await nastaveniPd(q);
-  const r = await pdVolej(nast, 'klienti', { q: text(req.query.q, 100) });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: hledání klienta', detail: text(req.query.q, 100) || null, ip: s.ip });
-  return { klienti: Array.isArray(r.klienti) ? r.klienti : [] };
+  const filtr = String(req.query.filtr || '').split(',').map((x) => x.trim()).filter((x) => ['hospic', 't720', 'lpp'].includes(x)).join(',');
+  const r = await pdVolej(nast, 'klienti', { q: text(req.query.q, 100), filtr });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: hledání klienta', detail: [text(req.query.q, 100), filtr].filter(Boolean).join(' · ') || null, ip: s.ip });
+  return { klienti: Array.isArray(r.klienti) ? r.klienti : [], skupiny: r.skupiny || null };
 }, { lekar: true }));
 
 central.get('/pecedoma/klient/:id', sUzivatelem(async (q, s, req) => {
