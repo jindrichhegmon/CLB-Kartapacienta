@@ -70,7 +70,7 @@ function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.
 async function render() {
   if (!S.session) return renderLogin();
   if (!S.ja) {
-    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; } catch (e) { return; }
+    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; } catch (e) { return; }
     try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
   }
   hlavicka();
@@ -187,6 +187,7 @@ function tabKarta(d) {
       <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button></div>
       <div class="note"><b>Toto vidí posádka ZZS bez přihlášení</b> na telefonu u pacienta. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad a telefon na lékaře.</div>
       ${d.plan ? `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${d.plan.verze}</span></div><dl class="kv" style="padding:12px 14px"><dt>Stanovil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd><dt>Platnost</dt><dd>${fmtD(d.plan.platnostDo)}</dd><dt>Diagnózy</dt><dd>${esc(d.plan.data.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(d.plan.data.funkce || '—')}</dd></dl></div>` : ''}
+      ${pdPanel(d, { jen: 'navsteva' })}
       ${odPacientaHTML(d)}
       ${d.zarizeni.filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
     </div></div>`;
@@ -221,6 +222,7 @@ function tabPlan(d) {
       ${ro ? '' : '<div class="field" style="margin-top:12px"><label>Poznámka ke změně</label><input id="f_poz"></div><div class="quick" style="margin-top:12px"><button class="btn primary" id="ulozPlan">Uložit jako novou verzi</button></div>'}
     </div></div>
     <div style="display:grid;gap:12px;align-content:start">
+      ${pdPanel(d, { jen: 'leky' })}
       <div class="note">Každá změna vytvoří <b>novou verzi</b> s podpisem lékaře; starší verze zůstávají. Telefon u pacienta plán jen zobrazuje – nikdy ho nepřepíše. Sestra ani rodina cíl péče a limitace vyplnit nemohou.</div>
       <div class="panel"><div class="panel-h"><h2>Verze plánu</h2></div><div class="tblwrap"><table class="tbl hover"><tbody>${d.verze.map((v) => `<tr data-v="${v.verze}"><td class="mono">v${v.verze}</td><td>${esc(v.typ === 'ZALOZENI' ? 'založení' : v.typ === 'REVIZE' ? 'revize' : 'změna')}<div class="lbl">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))}${v.poznamka ? ' · ' + esc(v.poznamka) : ''}</div></td><td>do ${fmtD(v.platnostDo)}</td></tr>`).join('')}</tbody></table></div></div>
     </div></div>`;
@@ -310,6 +312,7 @@ function tabUdaje(d) {
   return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Identifikace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : ''}</div><div class="form ${ro ? 'locked' : ''}" style="padding:14px">${udajeForm(p, 'u')}${ro ? '' : '<button class="btn primary" id="u_ok">Uložit údaje</button>'}</div></div>
     <div style="display:grid;gap:12px;align-content:start"><div class="note">Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci. Telefon dostane jméno a rok narození, AI nedostane nic z toho – rozbor zpráv běží přes anonymizační bránu.</div>
       <dl class="kv panel" style="padding:12px 14px"><dt>Průkaz</dt><dd class="mono">${esc(p.kod)}</dd><dt>Založen</dt><dd>${esc(fmtDT(p.zalozeno))}</dd><dt>Informace pacientovi</dt><dd>${p.souhlas ? esc(p.souhlas) : (d.op.lekar ? '<button class="btn sm" id="souhlas">Potvrdit podpis</button>' : '<span class="chip warn">nepotvrzeno</span>')}</dd>${p.stav === 'UZAVRENY' ? `<dt>Uzavřeno</dt><dd>${esc(fmtDT(p.uzavreno))} · ${esc(p.duvodUzavreni || '')}</dd>` : ''}</dl>
+      ${pdPanel(d)}
       ${d.op.garant ? '<div class="panel"><div class="panel-h"><h2>Ukončení</h2></div><div style="padding:12px 14px"><button class="btn crit" id="uzavrit">Uzavřít průkaz</button></div></div>' : ''}</div></div>`;
 }
 function udajeForm(p, pref) {
@@ -336,6 +339,16 @@ function tabPristupy(d) {
 function bindTab() {
   const d = S.pac;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('pd_sync', async () => { try { toast('Synchronizuji s PéčeDoma…'); await akce('/pecedoma/sync', {}, 'Synchronizováno s PéčeDoma'); } catch (e) { /* hláška v akce() */ } });
+  on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Plán péče zůstává.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
+  on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
+  on('pd_prevzit', () => {
+    const sy = (d.pecedoma && d.pecedoma.sync) || {};
+    if ($('f_sos')) $('f_sos').value = (sy.sos || []).join('\n');
+    if ($('f_med')) $('f_med').value = (sy.medikace || []).join('\n');
+    if ($('f_poz')) $('f_poz').value = 'léky převzaty z PéčeDoma ' + fmtDT(sy.aktualizovano);
+    toast('Léky vloženy do formuláře – zkontrolujte a uložte jako novou verzi'); window.scrollTo(0, 0);
+  });
   on('revize', revize);
   on('tisk', () => window.print());
   on('naTelefon', () => { S.tab = 'telefon'; kresliDetail(); });
@@ -501,6 +514,38 @@ function zPeceDoma(j) {
   };
 }
 
+/* okno výběru klienta z PéčeDoma (server jhn-apps, aplikace pecedoma-karta) – hledá se po stisku, bez diakritiky */
+function vyberKlientaPd(vybrano) {
+  modal(`<h2>Vybrat klienta z PéčeDoma</h2><div class="form"><div class="row"><input id="pdq" placeholder="jméno, rodné číslo nebo město" style="flex:1"><button class="btn primary" id="pdh">Hledat</button></div>
+    <div id="pdl" class="tblwrap" style="max-height:60vh;overflow:auto"><div class="hint">Zadejte část jména nebo rodné číslo a stiskněte Hledat. Prázdné hledání vypíše všechny klienty.</div></div></div>`, (m) => {
+    $('pdq').focus();
+    const hledej = async () => {
+      $('pdl').innerHTML = '<div class="hint">Hledám v PéčeDoma…</div>';
+      try {
+        const r = await C('/pecedoma/klienti?q=' + encodeURIComponent($('pdq').value.trim()));
+        $('pdl').innerHTML = r.klienti.length ? `<table class="tbl hover"><tbody>${r.klienti.map((k) => `<tr data-k="${esc(k.id)}" style="cursor:pointer"><td><b>${esc(k.prijmeni)} ${esc(k.jmeno)}</b><div class="lbl">${esc(k.rc || '')}${k.narozen ? ' · ' + esc(fmtD(k.narozen)) : ''}${k.mesto ? ' · ' + esc(k.mesto) : ''}${k.posledni_aktivita ? ' · poslední aktivita ' + esc(fmtD(k.posledni_aktivita)) : ''}</div></td><td class="mono">${esc(k.telefon || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="hint">Nikdo nenalezen.</div>';
+        m.querySelectorAll('tr[data-k]').forEach((tr) => (tr.onclick = () => { const k = r.klienti.find((x) => x.id === tr.dataset.k); closeModal(); vybrano(k); }));
+      } catch (e) { $('pdl').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; }
+    };
+    $('pdh').onclick = hledej; $('pdq').onkeydown = (e) => { if (e.key === 'Enter') hledej(); };
+  });
+}
+/* panel PéčeDoma u pacienta: nejbližší návštěva, léky, stav synchronizace */
+function pdPanel(d, { jen = 'vse' } = {}) {
+  const pd = d.pecedoma || {}, sy = pd.sync || {};
+  const navsteva = pd.klientId ? (sy.pristiNavsteva ? `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip acc">PéčeDoma</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(sy.pristiNavsteva))}</b></dd>${sy.pristiKdo ? `<dt>Kdo</dt><dd>${esc(sy.pristiKdo)}</dd>` : ''}${sy.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(sy.pristiPozn)}</dd>` : ''}</dl></div>` : (sy.aktualizovano ? '<div class="note">PéčeDoma: žádná naplánovaná návštěva v kalendáři FK.</div>' : '')) : '';
+  if (jen === 'navsteva') return navsteva;
+  const leky = pd.klientId && sy.aktualizovano ? `<div class="panel"><div class="panel-h"><h2>Léky podle PéčeDoma</h2><span class="chip acc">aktualizováno ${esc(fmtDT(sy.aktualizovano))}</span></div><div style="padding:12px 14px">
+      <div class="lbl">SOS léky</div><ul style="margin:4px 0 10px;padding-left:18px">${(sy.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul>
+      <div class="lbl">Pravidelná medikace</div><ul style="margin:4px 0 0;padding-left:18px">${(sy.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádná</li>'}</ul>
+      ${d.op.lekar ? '<div class="quick" style="margin-top:10px"><button class="btn sm" id="pd_prevzit">Převzít léky do formuláře plánu</button></div><div class="hint">Vloží léky do polí SOS a Pravidelná medikace; plán se změní až tlačítkem Uložit jako novou verzi.</div>' : '<div class="hint">Do plánu péče léky převezme lékař (nová verze plánu).</div>'}</div></div>` : '';
+  if (jen === 'leky') return leky;
+  const stav = `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2>${pd.klientId ? '<span class="chip ok">propojeno</span>' : '<span class="chip">nepropojeno</span>'}</div><div style="padding:12px 14px;display:grid;gap:8px">
+      ${pd.klientId ? `<div class="lbl">Klient PéčeDoma ${esc(pd.klientId.slice(0, 8))}…${pd.portalKlientId ? ' · portál #' + esc(pd.portalKlientId) : ''}${sy.aktualizovano ? ' · synchronizováno ' + esc(fmtDT(sy.aktualizovano)) : ' · zatím nesynchronizováno'}${pd.autoSync ? ' · automaticky každých 30 min' : ' · jen ručně'}</div>${sy.chyba ? `<div class="banner warn">${esc(sy.chyba)}</div>` : ''}` : '<div class="lbl">Pacient není propojený s klientem PéčeDoma – léky a návštěvy se nepřebírají.</div>'}
+      <div class="quick">${pd.odkaz ? `<a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a>` : ''}${pd.klientId && d.op.zapis && pd.nastaveno ? '<button class="btn sm" id="pd_sync">Synchronizovat teď</button>' : ''}${(d.op.lekar || d.op.garant) && pd.nastaveno && d.op.aktivni ? (pd.klientId ? '<button class="btn sm" id="pd_odpojit">Odpojit</button>' : '<button class="btn sm primary" id="pd_propojit">Propojit s klientem PéčeDoma</button>') : ''}</div>
+      ${pd.nastaveno ? '' : '<div class="hint">Propojení s PéčeDoma nastaví správce v Správa organizace → Nastavení.</div>'}</div></div>`;
+  return stav + navsteva + leky;
+}
 function renderNovy() {
   if (!S.wiz) S.wiz = { krok: 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', limity: ['KPR'] }, kontakty: [] } };
   const w = S.wiz;
@@ -509,18 +554,21 @@ function renderNovy() {
     $('work').innerHTML = `${nav()}<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
       <div class="panel"><div class="panel-h"><h2>Načíst klienta z PéčeDoma</h2><span class="chip acc">nejrychlejší</span></div><div class="form" style="padding:14px">
         <div class="muted" style="font-size:13.5px">V portálu PéčeDoma (Data klienta → <b>Export pro Kartu pacienta</b>) uložte soubor JSON a tady ho načtěte – vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty. Cíl péče, limitace a číslo telefonu s kartou pak zkontroluje a doplní lékař.</div>
-        <div class="row"><label class="btn primary">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div></div></div>
+        <div class="row">${S.pecedoma && S.pecedoma.nastaveno ? '<button class="btn primary" id="w_pd">Vybrat klienta z PéčeDoma</button>' : ''}<label class="btn ${S.pecedoma && S.pecedoma.nastaveno ? '' : 'primary'}">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div>
+        ${S.pecedoma && S.pecedoma.nastaveno ? '' : '<div class="hint">Přímý výběr klienta z PéčeDoma zapne správce v Správa organizace → Nastavení → Propojení s PéčeDoma.</div>'}</div></div>
       <div class="panel"><div class="panel-h"><h2>1. Propouštěcí zpráva (volitelně)</h2></div><div class="form" style="padding:14px">
       <div class="field"><label>Text zprávy</label><textarea id="w_t" style="min-height:280px" placeholder="Vložte text propouštěcí zprávy…">${esc(w.text)}</textarea></div>
       <div class="row"><label class="btn sm">Fotka / sken zprávy<input type="file" id="w_img" accept="image/*" capture="environment" hidden></label><label class="btn sm">Textový soubor<input type="file" id="w_txt" accept=".txt,text/plain" hidden></label><span class="muted" id="w_ocr" style="font-size:13px"></span></div>
       <div class="quick"><button class="btn primary" id="w_ai">Anonymní rozbor zprávy</button><button class="btn" id="w_skip">Vyplnit ručně bez zprávy</button></div></div></div></div>
       <div style="display:grid;gap:12px;align-content:start"><div class="ai"><h3><span class="spark">AI</span>Rozbor je vždy anonymní</h3><div class="muted" style="font-size:13.5px">Než text odejde k AI, anonymizační brána na serveru odstraní jméno, rodné číslo, data, adresu, telefony, e-maily a jména příbuzných i lékařů a nahradí je značkami ([PACIENT], [OSOBA_1]…). Pokud by v textu cokoli z toho zůstalo, dotaz se neodešle. Fotka se převádí na text přímo v tomto prohlížeči. Výsledek se k pacientovi přiřadí zpět až na serveru. AI nic nerozhoduje – jen předvyplní formulář, potvrzuje lékař.${S.ai ? '' : ' <b>Na serveru není nastaven klíč AI – použije se lokální rozbor.</b>'}</div></div></div></div>`;
     bindNav();
+    const prevezmi = (j, klientId) => { const r = zPeceDoma(j); w.ai = null; w.import = r.info; w.d = r.d; w.pecedoma = { klientId: klientId || (j.puvod && j.puvod.famicuraKlientId) || '', portalKlientId: (j.puvod && j.puvod.portalKlientId) || null }; w.krok = 2; renderNovy(); toast('Načteno z PéčeDoma – zkontrolujte a doplňte údaje'); };
     $('w_json').onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      try { const r = zPeceDoma(JSON.parse(await f.text())); w.ai = null; w.import = r.info; w.d = r.d; w.krok = 2; renderNovy(); toast('Načteno z PéčeDoma – zkontrolujte a doplňte údaje'); }
+      try { prevezmi(JSON.parse(await f.text())); }
       catch (err) { toast(err.message || 'Soubor se nepodařilo přečíst'); }
     };
+    if ($('w_pd')) $('w_pd').onclick = () => vyberKlientaPd(async (k) => { try { toast('Načítám klienta z PéčeDoma…'); const r = await C('/pecedoma/klient/' + k.id); prevezmi(r.karta, r.klientId); } catch (e) { toast(e.message); } });
     $('w_txt').onchange = async (e) => { const f = e.target.files[0]; if (f) $('w_t').value = await f.text(); };
     $('w_img').onchange = (e) => ocr(e.target.files[0]);
     $('w_skip').onclick = () => { w.text = $('w_t').value; w.krok = 2; renderNovy(); };
@@ -573,7 +621,7 @@ function renderNovy() {
     ulozVse();
     $('n_ok').disabled = true;
     try {
-      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, garantPoskytovatelId: Number($('n_g').value), tym: [...$('n_t').selectedOptions].map((o) => Number(o.value)), aiPouzito: !!w.ai } });
+      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: Number($('n_g').value), tym: [...$('n_t').selectedOptions].map((o) => Number(o.value)), aiPouzito: !!w.ai } });
       toast(`Průkaz ${r.kod} založen`); S.wiz = null; otevri(r.id, 'telefon');
     } catch (e) { toast(e.message); $('n_ok').disabled = false; }
   };
@@ -835,8 +883,22 @@ async function spravaNast() {
     <div class="field"><label>Název sítě (hlavička aplikace)</label><input id="ns_n" value="${esc(S.nazevSite || '')}"></div>
     <div class="field"><label>Výchozí interval revize plánu (měsíce)</label><input id="ns_i" type="number" min="1" max="12" value="${esc(S.interval || 3)}"></div>
     <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
-    <button class="btn primary" id="ns_ok">Uložit</button></div></div>`;
+    <button class="btn primary" id="ns_ok">Uložit</button></div></div>
+    ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
+    <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Údaje) – otevře PéčeDoma, kde je klient.</span></div>
+    <div class="field"><label>Server PéčeDoma (jhn-apps)</label><input id="pd_a" value="${esc(pd.api || pd.apiVychozi || '')}"></div>
+    <div class="field"><label>Token aplikace PéčeDoma${pd.tokenNastaven ? ' (vyplněn – nechte prázdné, nebo zadejte nový)' : ''}</label><input id="pd_t" type="password" autocomplete="off" placeholder="${pd.tokenNastaven ? '••••••••' : 'FAMICURA_REPORTY_TOKEN z nastavení serveru PéčeDoma'}"><span class="hint">Stejný token, kterým portál PéčeDoma volá svůj server. Do prohlížeče se zpět neposílá.</span></div>
+    <label class="lbl" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pd_s" ${pd.sync ? 'checked' : ''}> Synchronizovat automaticky (léky a nejbližší návštěva propojených pacientů, každých 30 minut)</label>
+    ${pd.partnerKlic ? '' : '<div class="banner warn">Na serveru chybí KP_PARTNER_KLIC – spusťte nasazení deploy/vps-deploy.sh.</div>'}
+    <button class="btn primary" id="pd_ok">Uložit propojení</button>
+    <div class="note">Co se přebírá z PéčeDoma: při založení pacienta údaje, diagnózy, léky, funkční stav a kontakty (výběr klienta v průvodci Nový pacient); u propojeného pacienta pak průběžně <b>aktivní léky</b> a <b>nejbližší plánovaná návštěva</b> (kalendář FK). Plán péče se tím nemění – léky lékař převezme do nové verze plánu v záložce Plán péče.</div></div></div>`; })()}`;
   $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };
+  $('pd_ok').onclick = async () => {
+    try {
+      await C('/nastaveni', { method: 'POST', body: { pdOdkaz: $('pd_o').value, pdApi: $('pd_a').value, pdToken: $('pd_t').value, pdSync: $('pd_s').checked } });
+      const d = await C('/ja'); S.pecedoma = d.pecedoma || {}; toast('Propojení uloženo'); spravaNast();
+    } catch (e) { toast(e.message); }
+  };
 }
 
 render();

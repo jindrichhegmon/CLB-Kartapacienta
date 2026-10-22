@@ -77,12 +77,21 @@ const pdTym = [
 const garance = [{ id: 1, poskytovatelId: 1, nazev: 'Hospic Ukázka', stav: 'PLATNA', lekar: 'MUDr. Petra Ukázková', navrhl: null, navrzeno: null, od: cas(-21, '09:10'), do: null, poznamka: null }];
 const pacient = { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rc: '415203/1234', datumNarozeni: '1941-02-03', rok: 1941, pohlavi: 'žena', pojistovna: '111',
   adresa: 'Lipová 12, Zlín', pobyt: 'doma', telefonKarty: '+420 777 000 123', stav: 'AKTIVNI', souhlas: `potvrzeno ${den(-21)} · MUDr. Petra Ukázková`, zalozeno: cas(-21, '09:10'), uzavreno: null, duvodUzavreni: null };
+// propojení s PéčeDoma (0.7.0): nastavení tenanta, stav synchronizace pacienta, seznam klientů pro výběr
+const pdNast = { odkaz: 'https://web-pecedoma.netlify.app/?iv=ukazka&data=ukazka&tag=hospic', api: 'https://95-216-201-2.sslip.io', apiVychozi: 'https://95-216-201-2.sslip.io', tokenNastaven: true, sync: true, nastaveno: true, partnerKlic: true };
+const pdSync = { sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti', 'Midazolam 5 mg s.c. – při neklidu'], medikace: ['MST Continus 30 mg – 1-0-1', 'Furosemid 40 mg – 1-0-0', 'Lactulosa 15 ml – 1-0-1'],
+  pristiNavsteva: den(2) + ' 09:30', pristiKdo: 'lékař MUDr. Petra Ukázková, sestra Lucie Příkladná', pristiPozn: 'Návštěva lékaře · Plánováno · Zlín', aktualizovano: cas(0, '08:05'), chyba: null };
+const pdKlienti = [
+  { id: 'a1b2c3d4-0000-4000-8000-000000000001', jmeno: 'Anna', prijmeni: 'Vzorová', rc: '505512/1234', narozen: '1950-05-12', mesto: 'Zlín', telefon: '777 000 456', posledni_aktivita: den(-5) },
+  { id: 'a1b2c3d4-0000-4000-8000-000000000002', jmeno: 'Josef', prijmeni: 'Vzorek', rc: '480508/1111', narozen: '1948-05-08', mesto: 'Otrokovice', telefon: '', posledni_aktivita: den(-12) },
+];
 const detail = {
   pacient, plan,
   verze: [{ verze: 3, typ: 'ZMENA', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-7, '10:24'), platnostDo: den(70), poznamka: 'úprava SOS medikace' },
     { verze: 2, typ: 'REVIZE', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-14, '11:00'), platnostDo: den(60), poznamka: null },
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
   kontakty, tym, garance,
+  pecedoma: { klientId: 'a1b2c3d4-0000-4000-8000-000000000001', portalKlientId: 12, odkaz: pdNast.odkaz, nastaveno: true, autoSync: true, sync: pdSync },
   zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT' },
     { id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123', rezim: 'ZAPUJCENY' }],
   odPacienta: [{ id: 1, cas: cas(-1, '19:30'), polozky: [
@@ -119,6 +128,7 @@ const balik = {
   tym: tym.map((t) => ({ nazev: t.nazev, typ: t.typ, role: t.role, tel: t.telefon24 })),
   piny: [{ id: 'o2', jmeno: 'Sestra Lucie Příkladná', role: 'hospic', salt, hash: pbkdf2Sync('123456', Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex'), iterace: 120000 }],
   denik, serverCas: new Date().toISOString(),
+  pecedoma: { sos: pdSync.sos, medikace: pdSync.medikace, pristiNavsteva: pdSync.pristiNavsteva, pristiKdo: pdSync.pristiKdo, pristiPozn: pdSync.pristiPozn, aktualizovano: pdSync.aktualizovano },
 };
 // vlastní telefon pacienta: bez PINů týmu a bez deníku (src/kp.js balikProZarizeni, rezim PACIENT)
 const balikPacient = { ...balik, piny: [], denik: [], rezim: 'PACIENT' };
@@ -141,10 +151,14 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.5.0', ai: true }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.7.0', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
+app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(); return { klienti: pdKlienti.filter((k) => !q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q)) }; }));
+app.get('/api/c/pecedoma/klient/:id', j((req) => ({ karta: pecedomaJson, klientId: req.params.id })));
+app.post('/api/c/pacient/:id/pecedoma', j({ sync: pdSync }));
+app.post('/api/c/pacient/:id/pecedoma/sync', j({ sync: pdSync }));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
@@ -206,6 +220,9 @@ await p.goto(`${URL}/centrala/`); await p.waitForSelector('tr[data-id]');
 await foto(p, 'c-pacienti');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' });
 await foto(p, 'c-novy-1');
+await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await p.fill('#pdq', 'vzor'); await klik(p, '#pdh'); await p.waitForSelector('tr[data-k]');
+await foto(p, 'c-novy-pecedoma');
+await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });
 await p.waitForSelector('#n_tk', { timeout: 8000 }).catch(async (e) => { console.error('toast:', await p.textContent('#toast').catch(() => '')); throw e; }); await p.waitForTimeout(3500); // toast zmizí
 await foto(p, 'c-novy-2', { vyska: 1100 });
@@ -238,6 +255,9 @@ await klik(p, '.nav button[data-v="sprava"]'); await p.waitForSelector('#p_new')
 await foto(p, 'c-pracoviste');
 await klik(p, '[data-st="uziv"]'); await p.waitForSelector('#u_new');
 await foto(p, 'c-uzivatele');
+await klik(p, '[data-st="nast"]'); await p.waitForSelector('#pd_ok');
+await p.evaluate(() => document.querySelector('#pd_o').scrollIntoView({ block: 'center' }));
+await foto(p, 'c-nastaveni-pecedoma', { vyska: 1000 });
 await klik(p, '.nav button[data-v="lide"]'); await p.waitForSelector('tr[data-oid]');
 await p.selectOption('#lf', ''); await p.waitForSelector('tr[data-oid="9"]');
 await foto(p, 'c-lide', { vyska: 1150 });
@@ -290,6 +310,9 @@ await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await klik(p, '#unCarer'); await p.fill('#pin', '123456'); await klik(p, '#pinOk');
 await p.waitForSelector('.tile[data-tab]', { timeout: 15000 }); await p.waitForTimeout(3500);
 await foto(p, 'k-odemceno');
+await p.evaluate(() => { const el = [...document.querySelectorAll('.panel-h h2')].find((h) => h.textContent === 'Nejbližší návštěva'); if (el) el.closest('.panel').scrollIntoView(); });
+await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'k-navsteva.png') }); console.log('  ✓ k-navsteva');
+await p.evaluate(() => window.scrollTo(0, 0));
 await klik(p, '.tile[data-tab="denik"]'); await p.waitForSelector('#d_txt'); await p.fill('#d_txt', 'Odpoledne klidná, napila se, bolest 2/10.');
 await foto(p, 'k-denik');
 await klik(p, '.tile[data-tab="zhorseni"]'); await p.waitForSelector('#btnZ');

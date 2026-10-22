@@ -120,3 +120,16 @@ test('doklad k limitacím: DVP s poučením a ověřeným podpisem, DVP z přije
   assert.equal(normalizujPlan({ doklad: { dvp: true, prijeti: 'Nemocnice Zlín, interna' } }).doklad.prijeti, 'Nemocnice Zlín, interna');
   assert.equal(normalizujPlan({}).doklad.dvp, false);
 });
+
+test('PéčeDoma: odpověď sync → řádek A_KP_PdSync (léky, nejbližší návštěva, chyba kalendáře)', async () => {
+  const { normalizujSync } = await import('../src/pecedoma.js');
+  const v = normalizujSync({ leky: { sos: ['Morphin 10 mg s.c. – při bolesti', ' ', 'Midazolam 5 mg'], medikace: ['MST Continus 30 mg – 1-0-1'], vPeceDoma: true },
+    pristiNavsteva: { kdy: '2026-10-24T09:30', lekar: 'MUDr. Malý', sestra: 'Jana Veselá', sluzba: 'Návštěva sestry', stav: 'Plánováno', misto: 'Zlín' }, klient: { portalKlientId: '12' } });
+  assert.deepEqual(v.sos, ['Morphin 10 mg s.c. – při bolesti', 'Midazolam 5 mg']);
+  assert.equal(v.pristiNavsteva, '2026-10-24 09:30');
+  assert.equal(v.pristiKdo, 'lékař MUDr. Malý, sestra Jana Veselá');
+  assert.equal(v.pristiPozn, 'Návštěva sestry · Plánováno · Zlín');
+  assert.equal(v.portalKlientId, 12);
+  const bez = normalizujSync({ leky: {}, pristiNavsteva: null, kalendarChyba: 'Kalendář FK neodpovídá' });
+  assert.deepEqual([bez.sos, bez.medikace, bez.pristiNavsteva, bez.pristiKdo, bez.kalendarChyba], [[], [], null, null, 'Kalendář FK neodpovídá']);
+});

@@ -4,6 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { chyba } from './http.js';
+import { stavSync } from './pecedoma.js';
 
 export const ROLE_UZIVATELE = ['admin', 'lekar', 'sestra', 'ctenar'];
 export const TYPY_POSKYTOVATELE = { NEMOCNICE: 'Nemocnice', HOSPIC: 'Mobilní hospic', AMBULANCE: 'Paliativní ambulance', PL: 'Praktický lékař', DOMOV: 'Domov / pobytová služba', ZZS: 'Záchranná služba', JINY: 'Jiný' };
@@ -106,6 +107,8 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 AND o.Hash IS NOT NULL`, { p: pacientId });
   piny.push(...lide);
   const pacientuv = rezim === 'PACIENT';
+  // z PéčeDoma (je-li pacient propojený): aktivní léky a nejbližší plánovaná návštěva – jen k zobrazení vedle plánu
+  const pd = await stavSync(q, pacientId);
   const denik = pacientuv ? [] : await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
   return {
@@ -116,6 +119,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
     kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(),
     rezim,
+    pecedoma: pd ? { sos: pd.sos, medikace: pd.medikace, pristiNavsteva: pd.pristiNavsteva, pristiKdo: pd.pristiKdo, pristiPozn: pd.pristiPozn, aktualizovano: pd.aktualizovano } : null,
     serverCas: new Date().toISOString(),
   };
 }

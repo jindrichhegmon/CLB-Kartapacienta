@@ -18,6 +18,7 @@ import { central } from './routes/central.js';
 import { device } from './routes/device.js';
 import { napoveda } from './routes/napoveda.js';
 import { partner } from './routes/partner.js';
+import { spustSynchronizaci } from './pecedoma.js';
 
 const koren = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = express();
@@ -58,3 +59,5 @@ app.use(express.static(path.join(koren, 'public'), {
 const chyby = zkontrolujKonfiguraci();
 if (chyby.length) console.warn('POZOR – v .env chybí:', chyby.join(', '));
 app.listen(config.port, config.host, () => console.log(`clb-kartapacienta ${config.verze} na http://${config.host}:${config.port}`));
+// propojení s PéčeDoma: léky a nejbližší návštěva propojených pacientů (tenanti s PD_SYNC = 1), po startu a každých 30 minut
+if (process.env.KP_PECEDOMA_SYNC !== '0') spustSynchronizaci();

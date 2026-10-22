@@ -11,11 +11,13 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
+import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, PD_API_VYCHOZI } from '../pecedoma.js';
 
 export const central = Router();
 
 const TTL = 12 * 3600;
 const tenantRe = /^[A-Z0-9]{16}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Přihlášený uživatel v kontextu tenanta: fn(q, s, req). */
 function sUzivatelem(fn, { admin = false, lekar = false } = {}) {
@@ -64,7 +66,10 @@ central.post('/login', h(async (req) => {
 central.get('/ja', sUzivatelem(async (q, s) => {
   const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni`);
   const nast = Object.fromEntries(n.map((x) => [x.Klic, x.Hodnota]));
-  return { ja: s, nazevSite: nast.NAZEV_SITE || '', nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
+  const pd = await nastaveniPd(q);
+  return { ja: s, nazevSite: nast.NAZEV_SITE || '', nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) },
+    // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
+    pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
 
 central.post('/heslo', sUzivatelem(async (q, s, req) => {
@@ -176,6 +181,12 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
   }
   await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: kod, ip: s.ip });
+  // pacient z PéčeDoma (výběr klienta nebo soubor Export pro Kartu pacienta): zapamatovat klienta a rovnou stáhnout léky a návštěvu
+  const pdId = String((b.pecedoma || {}).klientId || '').toLowerCase();
+  if (UUID_RE.test(pdId)) {
+    await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = @pk WHERE PacientID = @p`, { k: pdId, pk: cislo((b.pecedoma || {}).portalKlientId) || null, p: id });
+    try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, id, pdId); } catch { /* bez synchronizace – doplní se automaticky nebo tlačítkem */ }
+  }
   return { id, kod };
 }, { lekar: true }));
 
@@ -185,6 +196,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const op = await opravneni(q, s, id);
   const pacient = await q.one(`SELECT PacientID AS id, KodPrukazu AS kod, Jmeno AS jmeno, Prijmeni AS prijmeni, RodneCislo AS rc, CONVERT(char(10), DatumNarozeni, 23) AS datumNarozeni,
       RokNarozeni AS rok, Pohlavi AS pohlavi, Pojistovna AS pojistovna, Adresa AS adresa, Pobyt AS pobyt, TelefonKarty AS telefonKarty, Stav AS stav, Souhlas AS souhlas,
+      LOWER(CONVERT(char(36), PdKlientID)) AS pdKlientId, PdPortalKlientID AS pdPortalKlientId,
       CONVERT(char(16), Zalozeno, 120) AS zalozeno, CONVERT(char(16), Uzavreno, 120) AS uzavreno, DuvodUzavreni AS duvodUzavreni
     FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
   const plan = await planAktualni(q, id);
@@ -216,7 +228,9 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
     .map((x) => ({ ...x, polozky: (() => { try { return JSON.parse(x.polozky); } catch { return []; } })() }));
   const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení průkazu', ip: s.ip });
-  return { pacient, plan, verze, kontakty, tym, garance, zarizeni, piny, lide, denik, dokumenty, odPacienta, pristupy, op, smsDostupne: smsDostupne() };
+  const pdNast = await nastaveniPd(q);
+  const pecedoma = { klientId: pacient.pdKlientId, portalKlientId: pacient.pdPortalKlientId, odkaz: pdNast.odkaz, nastaveno: pdNast.nastaveno, autoSync: pdNast.sync, sync: pacient.pdKlientId ? await stavSync(q, id) : null };
+  return { pacient, plan, verze, kontakty, tym, garance, zarizeni, piny, lide, denik, dokumenty, odPacienta, pristupy, pecedoma, op, smsDostupne: smsDostupne() };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {
@@ -459,6 +473,57 @@ central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
   // kód dne: celý kalendářní den stejný (najde ho i lékař v PéčeDoma – /api/partner/kod-dne)
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: z.ZarizeniID, akce: 'kód lékaře vydán', ip: s.ip });
   return { kod: kodDne(t), platiDo: konecDnePraha(), lekar: s.jmeno };
+}));
+
+/* ---------------- PéčeDoma: výběr klienta, propojení pacienta, synchronizace ---------------- */
+central.get('/pecedoma/klienti', sUzivatelem(async (q, s, req) => {
+  const nast = await nastaveniPd(q);
+  const r = await pdVolej(nast, 'klienti', { q: text(req.query.q, 100) });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: hledání klienta', detail: text(req.query.q, 100) || null, ip: s.ip });
+  return { klienti: Array.isArray(r.klienti) ? r.klienti : [] };
+}, { lekar: true }));
+
+central.get('/pecedoma/klient/:id', sUzivatelem(async (q, s, req) => {
+  const kid = String(req.params.id || '').toLowerCase();
+  if (!UUID_RE.test(kid)) throw chyba('Neplatný klient');
+  const nast = await nastaveniPd(q);
+  const r = await pdVolej(nast, 'klient', { klientId: kid });
+  if (!r.karta) throw chyba('PéčeDoma nevrátilo údaje klienta', 502);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: načtení klienta', detail: kid, ip: s.ip });
+  return { karta: r.karta, klientId: kid };
+}, { lekar: true }));
+
+/* propojit / odpojit existujícího pacienta s klientem PéčeDoma (lékař nebo garant) */
+central.post('/pacient/:id/pecedoma', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant) throw chyba('Propojení s PéčeDoma mění lékař nebo garant', 403);
+  const kid = String(req.body.klientId || '').toLowerCase();
+  if (req.body.odpojit) {
+    await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = NULL, PdPortalKlientID = NULL WHERE PacientID = @p`, { p: id });
+    await q.exec(`DELETE FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: id });
+    await zapisDenik(q, { pacientId: id, typ: 'Systém', text: 'Propojení s klientem PéčeDoma zrušeno.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: odpojení', ip: s.ip });
+    return {};
+  }
+  if (!UUID_RE.test(kid)) throw chyba('Vyberte klienta PéčeDoma');
+  await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = NULL WHERE PacientID = @p`, { k: kid, p: id });
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: 'Pacient propojen s klientem PéčeDoma – léky a plánované návštěvy se přebírají z PéčeDoma.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: propojení', detail: kid, ip: s.ip });
+  const nast = await nastaveniPd(q);
+  let sync = null, chybaSync = null;
+  try { await synchronizujPacienta(q, nast, id, kid); sync = await stavSync(q, id); } catch (e) { chybaSync = e.message; }
+  return { sync, chyba: chybaSync };
+}));
+
+central.post('/pacient/:id/pecedoma/sync', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Synchronizaci spouští tým kolem pacienta', 403);
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) throw chyba('Pacient není propojený s klientem PéčeDoma');
+  const nast = await nastaveniPd(q);
+  const v = await synchronizujPacienta(q, nast, id, p.pd);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: synchronizace', detail: `${v.medikace.length + v.sos.length} léků${v.pristiNavsteva ? ', návštěva ' + v.pristiNavsteva : ''}`, ip: s.ip });
+  return { sync: await stavSync(q, id) };
 }));
 
 /* ---------------- dokumenty ---------------- */
@@ -726,6 +791,12 @@ central.post('/nastaveni', sUzivatelem(async (q, s, req) => {
   const zmeny = [];
   if (b.nazevSite != null) zmeny.push(['NAZEV_SITE', text(b.nazevSite, 200)]);
   if (b.intervalRevize != null) zmeny.push(['INTERVAL_REVIZE', String(Math.min(12, Math.max(1, Number(b.intervalRevize) || 3)))]);
+  // propojení s PéčeDoma: odkaz na portál organizace, server jhn-apps, token aplikace (prázdný = nechat), automatická synchronizace
+  if (b.pdOdkaz != null) { const v = text(b.pdOdkaz, 500); if (v && !/^https?:\/\//i.test(v)) throw chyba('Odkaz na PéčeDoma musí začínat https://'); zmeny.push(['PD_ODKAZ', v]); }
+  if (b.pdApi != null) { const v = text(b.pdApi, 300).replace(/\/+$/, ''); if (v && !/^https?:\/\//i.test(v)) throw chyba('Adresa serveru PéčeDoma musí začínat https://'); zmeny.push(['PD_API', v]); }
+  if (b.pdToken != null && text(b.pdToken, 200)) zmeny.push(['PD_TOKEN', text(b.pdToken, 200)]);
+  if (b.pdTokenSmazat) zmeny.push(['PD_TOKEN', '']);
+  if (b.pdSync != null) zmeny.push(['PD_SYNC', b.pdSync === true || b.pdSync === '1' || b.pdSync === 1 ? '1' : '0']);
   for (const [k, v] of zmeny) {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
       WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });

@@ -64,9 +64,11 @@ Menu **+ Nový pacient** (jen lékař). Průvodce má dva kroky.
 
 ![Nový pacient – načtení z PéčeDoma nebo z propouštěcí zprávy](/napoveda/img/c-novy-1.png)
 
+![Výběr klienta z PéčeDoma – hledání podle jména nebo rodného čísla](/napoveda/img/c-novy-pecedoma.png)
+
 Tři možnosti:
 
-1. **Načíst klienta z PéčeDoma** (nejrychlejší): v portálu PéčeDoma v Datech klienta uložte **Export pro Kartu pacienta** (soubor JSON) a tady ho načtěte tlačítkem **Načíst soubor JSON**. Vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty; číslo telefonu s kartou se předvyplní telefonem klienta.
+1. **Načíst klienta z PéčeDoma** (nejrychlejší): když správce nastavil propojení s PéčeDoma (kapitola 12), klikněte na **Vybrat klienta z PéčeDoma**, napište část jména nebo rodné číslo, stiskněte **Hledat** a klienta vyberte – údaje, diagnózy, léky, funkční stav a kontakty se načtou rovnou. Pacient zůstane s klientem PéčeDoma **propojený** (léky a návštěvy se pak přebírají dál, kapitola 9). Bez propojení: v portálu PéčeDoma v Datech klienta uložte **Export pro Kartu pacienta** (soubor JSON) a tady ho načtěte tlačítkem **Načíst soubor JSON**. Vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty; číslo telefonu s kartou se předvyplní telefonem klienta.
 2. **Propouštěcí zpráva**: vložte text, nahrajte textový soubor nebo vyfoťte zprávu (fotka se převede na text přímo v prohlížeči) a klikněte na **Anonymní rozbor zprávy**. Text projde anonymizační bránou – jména, rodná čísla, data, adresy a telefony se nahradí značkami – a teprve pak ho rozebere AI. Když by v textu zůstal identifikátor, dotaz se neodešle.
 3. **Vyplnit ručně bez zprávy**.
 
@@ -91,6 +93,8 @@ Tlačítkem **Založit průkaz** vznikne pacient s kódem `P-xxxx` a první verz
 Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telefonu bez přihlášení: cíl péče, limitace s dokladem, SOS léky, alergie, telefon na garanta a lékaře, kontakty. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad.
 
 Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (text celého průkazu pro zdravotnickou dokumentaci, ke zkopírování nebo stažení), **Tisk karty**. Panel **Telefon u pacienta** ukáže, jestli má telefon aktuální verzi plánu.
+
+Panel **Nejbližší návštěva** (PéčeDoma) ukazuje u propojeného pacienta nejbližší plánovanou návštěvu z kalendáře FK – kdy a kdo (lékař, sestra). Totéž vidí telefon u pacienta i Můj průkaz.
 
 Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám pošle své údaje – hodnoty a přání, léky, které skutečně užívá, poznámky a otázky. U každé položky je původ (např. „jak si pamatuji rozhovor se zdravotníkem“) a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam ani dříve vyslovené přání; v deníku je o tom zápis **Sdíleno pacientem**.
 
@@ -219,6 +223,7 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 
 - **Údaje**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
+- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Léky se ukazují v záložce Plán péče jako **Léky podle PéčeDoma** – lékař je tlačítkem **Převzít léky do formuláře plánu** vloží do polí a uloží jako novou verzi plánu (plán se sám nikdy nemění).
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
 
 ![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
@@ -294,6 +299,9 @@ Menu **Správa organizace** (jen správce) má záložky:
 - **Telefony**: všechny telefony u pacientů – stav, poslední spojení, baterie, verze aplikace a plánu. Klik otevře pacienta.
 - **Log přístupů a AI**: neměnný záznam, kdo co zobrazil a změnil, a dotazy na AI (jen délka a počet anonymizovaných údajů, bez obsahu).
 - **Nastavení**: **Název sítě** (zobrazuje se v hlavičce), výchozí **interval revize plánu** v měsících a **odkaz pro přihlášení** uživatelů, který rozešlete.
+- **Propojení s PéčeDoma** (v Nastavení): **odkaz na portál PéčeDoma** vaší organizace (zobrazí se u pacienta), **server PéčeDoma** (jhn-apps), **token aplikace** (stejný, kterým portál PéčeDoma volá svůj server – do prohlížeče se zpět neposílá) a zatržítko **Synchronizovat automaticky**. Po uložení se v průvodci Nový pacient objeví **Vybrat klienta z PéčeDoma** a u pacientů panel PéčeDoma (kapitola 9).
+
+![Správa organizace – Nastavení – Propojení s PéčeDoma](/napoveda/img/c-nastaveni-pecedoma.png)
 
 ## 13. Karta na telefonu – instalace a spárování
 
@@ -335,7 +343,9 @@ Pod krizovou kartou jsou tři tlačítka podle toho, kdo kartu otevírá:
 
 ![Telefon – odemčená karta pro pečující](/napoveda/img/k-odemceno.png)
 
-Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**:
+![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
+
+Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**. U pacienta propojeného s PéčeDoma je na Kartě panel **Nejbližší návštěva** (kdy a kdo přijde) a v Plánu **Léky podle PéčeDoma** – aktuální seznam léků z PéčeDoma vedle léků z plánu; závazný je plán péče, rozdíly řeší lékař.
 
 - **Deník** – vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
 

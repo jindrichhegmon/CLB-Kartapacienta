@@ -36,6 +36,20 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Propojení s PéčeDoma (0.7.0)
+
+- **Nastavení** (Správa organizace → Nastavení → Propojení s PéčeDoma, `A_KP_Nastaveni`): `PD_ODKAZ` (adresa portálu organizace – ukazuje se
+  u pacienta), `PD_API` (server jhn-apps, výchozí `https://95-216-201-2.sslip.io`), `PD_TOKEN` (x-app-token aplikace, do prohlížeče se nevrací),
+  `PD_SYNC` (automatická synchronizace). Server se PéčeDoma prokazuje navíc `KP_PARTNER_KLIC` (`klic` v těle) – `src/pecedoma.js`.
+- **Výběr klienta** v průvodci Nový pacient (`GET /api/c/pecedoma/klienti?q=`, `GET /api/c/pecedoma/klient/:id` → stejný JSON jako soubor
+  Export pro Kartu pacienta); pacient si pamatuje `A_KP_Pacient.PdKlientID` (i při načtení ze souboru – `puvod.famicuraKlientId`).
+- **Synchronizace** propojených pacientů (`A_KP_PdSync`): aktivní léky (SOS, pravidelné) a nejbližší plánovaná návštěva z kalendáře FK
+  (kdy, lékař/sestra, služba · stav · místo). Automaticky po startu a každých 30 min (tenanti s `PD_SYNC=1`, `KP_PECEDOMA_SYNC=0` vypne),
+  ručně tlačítkem u pacienta (Údaje → PéčeDoma), při založení a propojení. **Plán péče se nemění** – léky z PéčeDoma se ukazují vedle plánu
+  (centrála, telefon, Můj průkaz) a lékař je tlačítkem převezme do formuláře nové verze. Návštěva je v Krizové kartě a na telefonu.
+- Druhá strana: jhn-apps `pecedoma-karta` (akce `klienti`, `klient`, `sync` s partnerským klíčem), `pecedoma-famicura` exportuje `sestavKartu`.
+- Migrace `sql/01d_kp_pecedoma.sql`.
+
 ## Dva režimy telefonu a doklad k limitacím (0.5.0)
 
 - **Zapůjčený telefon** (`/karta/`, `A_KP_Zarizeni.Rezim = 'ZAPUJCENY'`) – beze změny: telefon garanta jen s kartou, ZZS bez PINu, tým osobními PINy.
