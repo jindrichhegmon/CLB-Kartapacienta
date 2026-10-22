@@ -120,7 +120,7 @@ DDL: `sql/01_kp_tabulky.sql`, `sql/02_kp_rls.sql` (idempotentní, `npm run migra
 - Kód lékaře = **kód dne** (od 0.6.0): HMAC-SHA256(tajemství telefonu, `kod-dne:RRRR-MM-DD` v Europe/Prague), 6 číslic, celý kalendářní
   den stejný → telefon ho ověří offline (přijme i včerejší kvůli půlnoci); zobrazení se loguje. Stejný kód vrací partnerské API
   `GET /api/partner/kod-dne?tenant=&rc=&kdo=` (hlavička `x-partner-klic` = `KP_PARTNER_KLIC`) – používá ho PéčeDoma (jhn-apps
-  `pecedoma-karta`, `.env`: `KARTA_URL`, `KARTA_PARTNER_KLIC`, `KARTA_TENANT`; doplní `deploy/vps-deploy.sh`) v Profilu klienta.
+  `pecedoma-karta`, `.env`: `KARTA_URL`, `KARTA_PARTNER_KLIC`, `KARTA_TENANT`; doplní `deploy/vps-deploy.sh`) v Datech klienta.
 - Tlačítka na zamčené kartě (0.6.0): **Přístup rodina** (PIN od garanta), **Přístup tým** (osobní PIN: sestra DPS, hospic, PL, lékař),
   **Lékař bez PINu** (kód dne); ZZS nic nezadává.
 - **AI jen anonymně** (`src/anonym.js`): e-maily, známé identifikátory pacienta (jméno ve všech pádech, RČ, datum narození,
