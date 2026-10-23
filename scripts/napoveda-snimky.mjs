@@ -151,7 +151,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.8.4', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.8.5', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -185,6 +185,7 @@ const dnesLokalne = () => { const d = new Date(); const p = (n) => String(n).pad
 app.get('/api/c/pacient/:id/kod-lekare', j({ kod: kodDne(dnesLokalne()), platiDo: den(1) + 'T00:00:00+02:00', lekar: 'MUDr. Petra Ukázková' }));
 app.get('/api/c/zarizeni', j({ zarizeni: [] }));
 app.get('/api/c/audit', j({ audit: [], ai: [] }));
+app.get('/api/d/parovaci-info', j((req) => ({ rezim: 'PACIENT', telefon: '+420 604 000 777' })));
 app.post('/api/d/parovat', j((req) => (req.body.rezim === 'PACIENT'
   ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient }
   : { token: `${TENANT}.7.ukazka`, tajemstvi: TAJEMSTVI, zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
@@ -341,7 +342,7 @@ await p.close();
 console.log('Můj průkaz (telefon pacienta)');
 p = await stranka({ mobil: true });
 await p.goto(`${URL}/pacient/#p=${TENANT}.MPK4R7ZD`); await p.waitForSelector('#p_tel');
-await p.fill('#p_tel', '+420 604 000 777');
+await p.waitForFunction(() => (document.querySelector('#p_tel') || {}).value === '+420 604 000 777', null, { timeout: 8000 });   // číslo předvyplněné ze serveru
 await foto(p, 'p-propojeni');
 await klik(p, '#p_ok'); await p.waitForSelector('#np1');
 await p.fill('#np1', '258147'); await p.fill('#np2', '258147');

@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.8.4';
+const APP_VERZE = 'pacient-0.8.5';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -498,12 +498,21 @@ async function zamekHTML() {
     $('zp_smaz').onclick = async () => { await IDB.clear(); closeModal(); start(); toast('Smazáno – zadejte nový kód od lékaře'); };
   });
 }
+/* číslo telefonu k načtenému kódu se předvyplní ze serveru (kód byl vydán právě pro ně) – pacient jen potvrdí */
+async function predvyplnTelefon(predvyplnit, popisTlacitka) {
+  try {
+    const r = await KP.api(`/api/d/parovaci-info?tenant=${encodeURIComponent(String(predvyplnit.tenant || '').toUpperCase())}&kod=${encodeURIComponent(String(predvyplnit.kod || '').toUpperCase())}`);
+    const t = $('p_tel'), i = $('p_info'), b = $('p_ok');
+    if (r.telefon && t && !t.value) { t.value = r.telefon; if (i) i.textContent = `Kód od lékaře načten. Vaše číslo ${r.telefon} je předvyplněné – stačí potvrdit.`; if (b) b.textContent = popisTlacitka; setTimeout(() => b && b.focus(), 50); }
+    else if (i) i.textContent = 'Kód načten – zadejte číslo svého telefonu.';
+  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo svého telefonu.'; if (e.status === 404) i.className = 'banner warn'; } }
+}
 function propojeniHTML(predvyplnit = {}) {
   hlavicka();
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Propojit s průkazem</h2></div><div class="form" style="padding:14px">
     <div class="note">Kód vám dá lékař – přijde SMS s odkazem, nebo vám v ordinaci ukáže QR kód. Kód platí jen pro vaše číslo telefonu.</div>
     ${jeIosProhlizec() ? '<div class="banner warn">Chcete Můj průkaz jako aplikaci na ploše? Nejdřív ho přidejte na plochu (Sdílet → Přidat na plochu), otevřete ho z plochy a propojte až tam. Co se propojí tady v Safari, na ploše nebude.</div>' : ''}
-    ${predvyplnit.kod ? `<div class="banner ok">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zadejte číslo svého telefonu.</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
+    ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy od lékaře:</div>
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters"></div>
@@ -514,6 +523,7 @@ function propojeniHTML(predvyplnit = {}) {
     <div class="footer">${APP_VERZE}</div>`;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   $('p_ok').onclick = () => propojit($('p_t').value, $('p_k').value, $('p_tel').value);
+  if (predvyplnit.kod) predvyplnTelefon(predvyplnit, 'Potvrdit a propojit');
   if ($('p_qr')) $('p_qr').onclick = () => nactiQr();
   setTimeout(() => { const t = $('p_tel'); if (t && predvyplnit.kod) t.focus(); }, 50);
 }

@@ -36,6 +36,22 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const REZIM_NAZ = { ZAPUJCENY: 'Karta pacienta (zapůjčený telefon)', PACIENT: 'Můj průkaz (vlastní telefon pacienta)' };
 
+/* Předvyplnění čísla při párování (od 0.8.5): k platnému kódu vrátí číslo, pro které byl vydán – odkaz z SMS přišel právě na něj,
+   takže držitel ho zná; proti hádání kódů je limit na IP. Při samotném párování se číslo stále ověřuje. */
+device.get('/parovaci-info', h(async (req) => {
+  const tenant = String(req.query.tenant || '').toUpperCase().trim();
+  const kod = String(req.query.kod || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!tenantRe.test(tenant) || kod.length !== 8) throw chyba('Neplatný párovací kód');
+  omez('pinfo:' + ip(req), 30, 3600e3);
+  return vTenantu(tenant, async (q) => {
+    const z = await q.one(`SELECT z.Rezim, z.Telefon, p.TelefonKarty FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+      WHERE z.ParovaciKod = @k AND z.Stav = 'CEKA' AND z.ParovaciPlatnost > SYSDATETIME()`, { k: kod });
+    if (!z) throw chyba('Kód je neplatný nebo vypršel – vygenerujte v centrální aplikaci nový', 404);
+    const t = normTel(z.Rezim === 'PACIENT' ? z.Telefon : z.TelefonKarty);
+    return { rezim: z.Rezim, telefon: t ? hezkyTel(t) : '' };
+  });
+}));
+
 device.post('/parovat', h(async (req) => {
   const rezim = req.body.rezim === 'PACIENT' ? 'PACIENT' : 'ZAPUJCENY';
   const tenant = String(req.body.tenant || '').toUpperCase().trim();

@@ -313,7 +313,7 @@ Menu **Správa organizace** (jen správce) má záložky:
 
 1. Na telefonu u pacienta otevřete adresu karty (`…/karta/`) nebo odkaz z SMS.
 2. **iPhone**: chcete-li kartu jako aplikaci na ploše, nejdřív ji přidejte na plochu (Sdílet → **Přidat na plochu**), otevřete ji z plochy a **spárujte až tam**. Aplikace na ploše má vlastní úložiště – co se spáruje v Safari, na ploše nebude. **Android**: v Chromu menu ⋮ → Přidat na plochu / Nainstalovat aplikaci, nebo klepněte na tlačítko **Přidat kartu na plochu telefonu** na obrazovce párování (ukáže se, když to prohlížeč nabízí).
-3. Klepněte na **Načíst QR kód fotoaparátem** a namiřte na QR kód v okně Spárovat telefon v centrální aplikaci (nebo kódy opište ručně, nebo otevřete odkaz z SMS – kódy se vyplní samy).
+3. Klepněte na **Načíst QR kód fotoaparátem** a namiřte na QR kód v okně Spárovat telefon v centrální aplikaci (nebo kódy opište ručně, nebo otevřete odkaz z SMS – kódy se vyplní samy). Po načtení kódu se předvyplní i číslo telefonu, pro které byl kód vydán – stačí ho potvrdit tlačítkem **Potvrdit a spárovat** (jiné číslo lze přepsat).
 4. Zadejte **číslo tohoto telefonu** a klepněte na **Spárovat**. Karta se nahraje jen tehdy, když číslo odpovídá číslu u pacienta.
 
 ![Telefon – načtení QR kódu fotoaparátem](/napoveda/img/k-qr.png)
@@ -450,7 +450,7 @@ Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří c
 ### Propojení
 
 1. Lékař průkaz zpřístupní (kapitola 8) – přijde SMS s odkazem, nebo lékař ukáže QR kód.
-2. Otevřete odkaz v telefonu (nebo `/pacient/` → **Načíst QR kód fotoaparátem**), zadejte **číslo svého telefonu** a **Propojit**.
+2. Otevřete odkaz v telefonu (nebo `/pacient/` → **Načíst QR kód fotoaparátem**). Číslo vašeho telefonu je po načtení kódu předvyplněné – stačí klepnout na **Potvrdit a propojit** (kód byl vydán právě pro vaše číslo; jiné číslo lze přepsat).
 3. Nastavte si **PIN** (6–12 číslic, dvakrát). Tímto PINem budete Můj průkaz otevírat a jím jsou data v telefonu zašifrovaná.
 
 ![Propojení s průkazem](/napoveda/img/p-propojeni.png)
