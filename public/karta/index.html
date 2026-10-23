@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.8.1';
+const APP_VERZE = 'karta-0.8.2';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -208,9 +208,10 @@ function navstevaHTML(b) {
 function chatPd() {
   if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
   const kdo = [ROLE_NAZ[U.role] || U.role || '', U.jmeno || ''].filter(Boolean).join(' ');
+  const hlidej = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { if (e.status === 401 || e.status === 403) setTimeout(() => sync(), 400); throw e; } };
   KP.chatOkno({ titulek: 'Chat s týmem PéčeDoma', mojeSmer: 'OD_PACIENTA', popis: `Píšete jako <b>${esc(kdo)}</b>. Zprávy vidí tým PéčeDoma v portálu u klienta a klient ve své aplikaci PéčeDoma.`,
-    nacti: () => KP.api('/api/d/pecedoma/zpravy?kdo=' + encodeURIComponent(kdo), { token: D.token, typ: 'Device' }),
-    posli: (text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text, role: U.role, kdo: U.jmeno || '' } }) });
+    nacti: hlidej(() => KP.api('/api/d/pecedoma/zpravy?kdo=' + encodeURIComponent(kdo), { token: D.token, typ: 'Device' })),
+    posli: hlidej((text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text, role: U.role, kdo: U.jmeno || '' } })) });
 }
 function lekyPdHTML(b) {
   const pd = b.pecedoma; if (!pd || !pd.aktualizovano) return '';

@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.8.1';
+const APP_VERZE = 'pacient-0.8.2';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -395,9 +395,10 @@ function nastaveniHTML() {
 
 function chatPd() {
   if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
+  const hlidej = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { if (e.status === 401 || e.status === 403) setTimeout(() => sync(), 400); throw e; } };
   KP.chatOkno({ titulek: 'Zprávy pro a od lékaře', mojeSmer: 'OD_PACIENTA', nazvy: { OD_TYMU: 'Lékař a tým', OD_PACIENTA: 'Vy' }, popis: 'Stejné zprávy jako v aplikaci PéčeDoma. Lékař a sestry je vidí u vás v portálu a odpoví sem.',
-    nacti: () => KP.api('/api/d/pecedoma/zpravy?kdo=pacient', { token: D.token, typ: 'Device' }),
-    posli: (text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text } }) });
+    nacti: hlidej(() => KP.api('/api/d/pecedoma/zpravy?kdo=pacient', { token: D.token, typ: 'Device' })),
+    posli: hlidej((text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text } })) });
 }
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };

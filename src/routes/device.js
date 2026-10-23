@@ -132,7 +132,13 @@ const DRUHY_SDILENI = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které u
 /* chat PéčeDoma z telefonu (od 0.8.0): zapůjčený telefon (rodina, tým u pacienta) i Můj průkaz píší „za stranu pacienta“ (OD_PACIENTA)
    se značkou [Karta · kdo]; čtení i psaní jde přes server Karty s partnerským klíčem, telefon token PéčeDoma nikdy nedostane. */
 const ROLE_CHAT = { lekar: 'lékař', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař' };
+function overAktivni(z) {
+  if (z.Stav === 'SPAROVANO') return;
+  throw chyba(z.Rezim === 'PACIENT' ? 'Lékař ukončil přístup k průkazu v tomto telefonu – zprávy nelze číst ani posílat. Pokud jde o omyl, požádejte o nový kód.'
+    : 'Tento telefon byl v centrální aplikaci zablokován – zprávy nelze číst ani posílat.', 403);
+}
 async function chatKontext(q, z) {
+  overAktivni(z);
   const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd, Stav FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: z.PacientID });
   if (!p || !p.pd) throw chyba('Pacient není propojený s PéčeDoma', 400);
   const nast = await nastaveniPd(q);
@@ -156,7 +162,6 @@ device.post('/pecedoma/zprava', h(async (req) => {
   const b = req.body || {};
   return vTenantu(tenant, async (q) => {
     const z = await overZarizeni(q, zid, raw);
-    if (z.Stav !== 'SPAROVANO') throw chyba('Telefon není spárovaný', 401);
     const { nast, pd, stav } = await chatKontext(q, z);
     if (stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený', 403);
     const kdo = z.Rezim === 'PACIENT' ? 'pacient' : [ROLE_CHAT[String(b.role || '').toLowerCase()] || '', text(b.kdo, 80)].filter(Boolean).join(' ') || 'telefon u pacienta';
