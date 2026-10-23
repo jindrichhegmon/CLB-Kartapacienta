@@ -454,7 +454,9 @@ Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří c
 
 > Na iPhonu nejdřív přidejte Můj průkaz na plochu (Sdílet → Přidat na plochu) a propojte ho až v aplikaci na ploše.
 
-Je-li pacient propojený s PéčeDoma, je v Kontaktech panel **PéčeDoma** s tlačítkem **💬 Napsat týmu PéčeDoma** – stejné zprávy jako v aplikaci PéčeDoma; tým je vidí u klienta v portálu a odpoví sem. Nejbližší návštěva od týmu je přímo v krizové kartě.
+Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod krizovou kartou (pod oddílem Příští návštěva) panel **Zprávy pro a od lékaře** – stejné zprávy jako v aplikaci PéčeDoma; lékař a sestry je vidí u klienta v portálu a odpoví sem. Ve vlákně je pacient označený „Vy“, druhá strana „Lékař a tým“.
+
+![Můj průkaz – Zprávy pro a od lékaře](/napoveda/img/p-zpravy-chat.png)
 
 ### Co v aplikaci najdete
 
