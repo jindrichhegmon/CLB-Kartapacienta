@@ -71,6 +71,20 @@ export async function synchronizujPacienta(q, nast, pacientId, pdKlientId) {
   return v;
 }
 
+/** Chat PéčeDoma s klientem (od 0.8.0): zprávy A_MSPPP_Zprava přes pecedoma-karta. Zprávy z Karty nesou značku „[Karta · kdo]“. */
+export async function zpravyPd(nast, pdKlientId) {
+  if (!UUID.test(String(pdKlientId || ''))) throw chyba('Pacient není propojený s klientem PéčeDoma', 400);
+  const r = await pdVolej(nast, 'zpravy', { klientId: String(pdKlientId).toLowerCase() });
+  return { zpravy: Array.isArray(r.zpravy) ? r.zpravy : [], portalKlientId: r.portalKlientId || null };
+}
+export async function posliZpravuPd(nast, pdKlientId, { text, smer, kdo }) {
+  if (!UUID.test(String(pdKlientId || ''))) throw chyba('Pacient není propojený s klientem PéčeDoma', 400);
+  const t = String(text || '').trim().slice(0, 4000);
+  if (!t) throw chyba('Napište text zprávy', 400);
+  const r = await pdVolej(nast, 'zprava', { klientId: String(pdKlientId).toLowerCase(), text: t, smer: smer === 'OD_PACIENTA' ? 'OD_PACIENTA' : 'OD_TYMU', kdo: String(kdo || '').slice(0, 100) });
+  return { zpravy: Array.isArray(r.zpravy) ? r.zpravy : [], portalKlientId: r.portalKlientId || null };
+}
+
 /** Stav synchronizace pacienta pro detail a balík telefonu. */
 export async function stavSync(q, pacientId) {
   const r = await q.one(`SELECT Sos, Medikace, CONVERT(char(16), PristiNavsteva, 120) AS pristiNavsteva, PristiKdo AS pristiKdo, PristiPozn AS pristiPozn,

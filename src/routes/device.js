@@ -18,6 +18,7 @@ import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
 import { normTel, hezkyTel } from '../telefon.js';
+import { nastaveniPd, zpravyPd, posliZpravuPd } from '../pecedoma.js';
 
 export const device = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -128,6 +129,43 @@ device.post('/sync', h(async (req) => {
 }));
 
 const DRUHY_SDILENI = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', POZNAMKA: 'Poznámka pacienta', OTAZKY: 'Otázky pro lékaře' };
+/* chat PéčeDoma z telefonu (od 0.8.0): zapůjčený telefon (rodina, tým u pacienta) i Můj průkaz píší „za stranu pacienta“ (OD_PACIENTA)
+   se značkou [Karta · kdo]; čtení i psaní jde přes server Karty s partnerským klíčem, telefon token PéčeDoma nikdy nedostane. */
+const ROLE_CHAT = { lekar: 'lékař', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař' };
+async function chatKontext(q, z) {
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd, Stav FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: z.PacientID });
+  if (!p || !p.pd) throw chyba('Pacient není propojený s PéčeDoma', 400);
+  const nast = await nastaveniPd(q);
+  if (!nast.nastaveno) throw chyba('Propojení s PéčeDoma není nastavené', 400);
+  return { nast, pd: p.pd, stav: p.Stav };
+}
+device.get('/pecedoma/zpravy', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('pdchat:' + zid, 120, 3600e3);
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    const { nast, pd } = await chatKontext(q, z);
+    const r = await zpravyPd(nast, pd);
+    await audit(q, { zarizeniId: zid, kdo: z.Rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: 'PéčeDoma: chat zobrazen', detail: text(req.query.kdo, 100) || null, ip: ip(req) });
+    return { zpravy: r.zpravy };
+  });
+}));
+device.post('/pecedoma/zprava', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('pdzprava:' + zid, 60, 3600e3);
+  const b = req.body || {};
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    if (z.Stav !== 'SPAROVANO') throw chyba('Telefon není spárovaný', 401);
+    const { nast, pd, stav } = await chatKontext(q, z);
+    if (stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený', 403);
+    const kdo = z.Rezim === 'PACIENT' ? 'pacient' : [ROLE_CHAT[String(b.role || '').toLowerCase()] || '', text(b.kdo, 80)].filter(Boolean).join(' ') || 'telefon u pacienta';
+    const r = await posliZpravuPd(nast, pd, { text: text(b.text, 4000), smer: 'OD_PACIENTA', kdo });
+    await audit(q, { zarizeniId: zid, kdo: z.Rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: 'PéčeDoma: zpráva odeslána', detail: kdo, ip: ip(req) });
+    return { zpravy: r.zpravy };
+  });
+}));
+
 device.post('/sdilet', h(async (req) => {
   const { tenant, zid, raw } = tokenZarizeni(req);
   omez('sdilet:' + zid, 30, 3600e3);

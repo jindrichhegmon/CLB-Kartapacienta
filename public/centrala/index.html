@@ -145,7 +145,7 @@ function balikZDetailu(d) {
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const gp = g && S.posk.find((p) => p.id === g.poskytovatelId);
   return { pacient: { kod: d.pacient.kod, jmeno: d.pacient.jmeno, prijmeni: d.pacient.prijmeni, rok: d.pacient.rok }, plan: d.plan, garant: g ? { poskytovatel: g.nazev, lekar: g.lekar, telefon24: gp && gp.telefon24 } : null,
-    kontakty: d.kontakty.map((k) => ({ ...k, skupina: k.skupina.toLowerCase() })), denik: d.denikAsc };
+    kontakty: d.kontakty.map((k) => ({ ...k, skupina: k.skupina.toLowerCase() })), denik: d.denikAsc, pecedoma: d.pecedoma && d.pecedoma.klientId ? d.pecedoma.sync : null };
 }
 function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
@@ -339,6 +339,7 @@ function tabPristupy(d) {
 function bindTab() {
   const d = S.pac;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('pd_chat', () => chatPd(d));
   on('pd_sync', async () => { try { toast('Synchronizuji s PéčeDoma…'); await akce('/pecedoma/sync', {}, 'Synchronizováno s PéčeDoma'); } catch (e) { /* hláška v akce() */ } });
   on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Plán péče zůstává.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
   on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
@@ -541,11 +542,20 @@ function vyberKlientaPd(vybrano) {
     $('pdh').onclick = hledej; $('pdq').onkeydown = (e) => { if (e.key === 'Enter') hledej(); };
   });
 }
+/* chat PéčeDoma s klientem: zprávy portálu (Data klienta → Zprávy) – tým píše jako „Tým PéčeDoma“ se značkou [Karta · jméno] */
+function chatPd(d) {
+  KP.chatOkno({ titulek: 'Chat PéčeDoma s klientem', mojeSmer: 'OD_TYMU',
+    popis: `Stejné vlákno jako v PéčeDoma (Data klienta → Zprávy) – klient ho vidí ve své aplikaci PéčeDoma, rodina a tým v telefonu s kartou. Píšete jako <b>${esc(S.ja.jmeno)}</b>; zprávy označené SMS odešly i textovou zprávou z PéčeDoma.`,
+    nacti: () => C('/pacient/' + d.pacient.id + '/pecedoma/zpravy'),
+    posli: (text) => C('/pacient/' + d.pacient.id + '/pecedoma/zprava', { method: 'POST', body: { text } }) });
+}
 /* panel PéčeDoma u pacienta: nejbližší návštěva, léky, stav synchronizace */
 function pdPanel(d, { jen = 'vse' } = {}) {
   const pd = d.pecedoma || {}, sy = pd.sync || {};
   const navsteva = pd.klientId ? (sy.pristiNavsteva ? `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip acc">PéčeDoma</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(sy.pristiNavsteva))}</b></dd>${sy.pristiKdo ? `<dt>Kdo</dt><dd>${esc(sy.pristiKdo)}</dd>` : ''}${sy.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(sy.pristiPozn)}</dd>` : ''}</dl></div>` : (sy.aktualizovano ? '<div class="note">PéčeDoma: žádná naplánovaná návštěva v kalendáři FK.</div>' : '')) : '';
-  if (jen === 'navsteva') return navsteva;
+  const chat = pd.klientId && pd.nastaveno && d.op.zapis ? '<button class="btn sm primary" id="pd_chat">💬 Chat PéčeDoma s klientem</button>' : '';
+  if (jen === 'navsteva') return pd.klientId ? `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip ok">propojeno</span></div><div style="padding:12px 14px"><div class="muted" style="font-size:13px">Nejbližší návštěva z PéčeDoma je přímo v kartě${sy.aktualizovano ? ' · synchronizováno ' + esc(fmtDT(sy.aktualizovano)) : ''}${sy.chyba ? ' · <span class="chip warn">' + esc(sy.chyba) + '</span>' : ''}.</div>
+      ${chat || pd.odkaz ? `<div class="quick" style="margin-top:8px">${chat}${pd.odkaz ? `<a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a>` : ''}</div>` : ''}</div></div>` : '';
   const leky = pd.klientId && sy.aktualizovano ? `<div class="panel"><div class="panel-h"><h2>Léky podle PéčeDoma</h2><span class="chip acc">aktualizováno ${esc(fmtDT(sy.aktualizovano))}</span></div><div style="padding:12px 14px">
       <div class="lbl">SOS léky</div><ul style="margin:4px 0 10px;padding-left:18px">${(sy.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul>
       <div class="lbl">Pravidelná medikace</div><ul style="margin:4px 0 0;padding-left:18px">${(sy.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádná</li>'}</ul>
@@ -553,7 +563,7 @@ function pdPanel(d, { jen = 'vse' } = {}) {
   if (jen === 'leky') return leky;
   const stav = `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2>${pd.klientId ? '<span class="chip ok">propojeno</span>' : '<span class="chip">nepropojeno</span>'}</div><div style="padding:12px 14px;display:grid;gap:8px">
       ${pd.klientId ? `<div class="lbl">Klient PéčeDoma ${esc(pd.klientId.slice(0, 8))}…${pd.portalKlientId ? ' · portál #' + esc(pd.portalKlientId) : ''}${sy.aktualizovano ? ' · synchronizováno ' + esc(fmtDT(sy.aktualizovano)) : ' · zatím nesynchronizováno'}${pd.autoSync ? ' · automaticky každých 30 min' : ' · jen ručně'}</div>${sy.chyba ? `<div class="banner warn">${esc(sy.chyba)}</div>` : ''}` : '<div class="lbl">Pacient není propojený s klientem PéčeDoma – léky a návštěvy se nepřebírají.</div>'}
-      <div class="quick">${pd.odkaz ? `<a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a>` : ''}${pd.klientId && d.op.zapis && pd.nastaveno ? '<button class="btn sm" id="pd_sync">Synchronizovat teď</button>' : ''}${(d.op.lekar || d.op.garant) && pd.nastaveno && d.op.aktivni ? (pd.klientId ? '<button class="btn sm" id="pd_odpojit">Odpojit</button>' : '<button class="btn sm primary" id="pd_propojit">Propojit s klientem PéčeDoma</button>') : ''}</div>
+      <div class="quick">${chat}${pd.odkaz ? `<a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a>` : ''}${pd.klientId && d.op.zapis && pd.nastaveno ? '<button class="btn sm" id="pd_sync">Synchronizovat teď</button>' : ''}${(d.op.lekar || d.op.garant) && pd.nastaveno && d.op.aktivni ? (pd.klientId ? '<button class="btn sm" id="pd_odpojit">Odpojit</button>' : '<button class="btn sm primary" id="pd_propojit">Propojit s klientem PéčeDoma</button>') : ''}</div>
       ${pd.nastaveno ? '' : '<div class="hint">Propojení s PéčeDoma nastaví správce v Správa organizace → Nastavení.</div>'}</div></div>`;
   return stav + navsteva + leky;
 }

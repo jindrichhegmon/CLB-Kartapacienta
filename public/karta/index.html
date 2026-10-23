@@ -31,11 +31,13 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.7.0';
+const APP_VERZE = 'karta-0.8.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
 let U = { role: null, jmeno: '', posledni: 0 };   // odemčení (jen v paměti)
+let instalace = null;   // Android/Chrome: nabídka „Přidat na plochu“ (beforeinstallprompt); iPhone má v Safari vlastní návod
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); instalace = e; const b = $('p_inst'); if (b) b.style.display = ''; });
 let tab = 'karta', syncBezi = false, chybaSync = '';
 const TAB_NAZ = { karta: 'Karta', plan: 'Plán', denik: 'Deník', zhorseni: 'Zhoršení', kontakty: 'Kontakty', udaje: 'Tým' };
 KP.napoveda.nastav({ aplikace: 'karta', auth: () => (D ? { token: D.token, typ: 'Device' } : null), kapitola: () => (D ? 14 : 13),
@@ -198,9 +200,17 @@ function kresli() {
   bind();
 }
 /* z PéčeDoma (propojený pacient): nejbližší plánovaná návštěva a aktivní léky – jen k zobrazení, plán péče je ze serveru */
+/* chat PéčeDoma: po odemknutí může rodina i tým u pacienta napsat týmu PéčeDoma (zprávy jdou přes server Karty) */
 function navstevaHTML(b) {
-  const pd = b.pecedoma; if (!pd || !pd.pristiNavsteva) return '';
-  return `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip acc">PéčeDoma</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(pd.pristiNavsteva))}</b></dd>${pd.pristiKdo ? `<dt>Kdo</dt><dd>${esc(pd.pristiKdo)}</dd>` : ''}${pd.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(pd.pristiPozn)}</dd>` : ''}</dl></div>`;
+  const pd = b.pecedoma; if (!pd || !pd.chat || !U.role || U.role === 'zzs') return '';
+  return `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip acc">chat</span></div><div style="padding:12px 14px"><div class="muted" style="font-size:13px">Napište týmu PéčeDoma (sestry, lékař) – zprávu uvidí v portálu u klienta a odpoví sem.</div><div class="quick" style="margin-top:8px"><button class="btn primary" id="pdChat">💬 Napsat týmu PéčeDoma</button></div></div></div>`;
+}
+function chatPd() {
+  if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
+  const kdo = [ROLE_NAZ[U.role] || U.role || '', U.jmeno || ''].filter(Boolean).join(' ');
+  KP.chatOkno({ titulek: 'Chat s týmem PéčeDoma', mojeSmer: 'OD_PACIENTA', popis: `Píšete jako <b>${esc(kdo)}</b>. Zprávy vidí tým PéčeDoma v portálu u klienta a klient ve své aplikaci PéčeDoma.`,
+    nacti: () => KP.api('/api/d/pecedoma/zpravy?kdo=' + encodeURIComponent(kdo), { token: D.token, typ: 'Device' }),
+    posli: (text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text, role: U.role, kdo: U.jmeno || '' } }) });
 }
 function lekyPdHTML(b) {
   const pd = b.pecedoma; if (!pd || !pd.aktualizovano) return '';
@@ -252,6 +262,8 @@ function tymHTML(b) {
 
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('pdChat', chatPd);
+  on('p_inst', async () => { if (!instalace) return; instalace.prompt(); try { await instalace.userChoice; } catch { /* */ } instalace = null; const b = $('p_inst'); if (b) b.style.display = 'none'; });
   document.querySelectorAll('.tile[data-tab]').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; kresli(); scrollTo(0, 0); }));
   /* oba PINy ověřuje stejný seznam (rodina = PIN vydaný u pacienta, tým = osobní PINy přiřazených lidí) – tlačítka se liší jen tím, komu jsou určená */
   const pinOkno = (titulek, popis, poznamka) => modal(`<h2>${titulek}</h2><p class="muted" style="margin:0;font-size:13.5px">${popis}</p><div class="field"><label>PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div><button class="btn primary block" id="pinOk">Odemknout</button><div class="note">${poznamka} Ověří se i bez signálu.</div>`, () => {
@@ -288,6 +300,7 @@ function kresliParovani(predvyplnit = {}) {
     ${jeIosProhlizec() ? '<div class="banner warn">Chcete kartu jako aplikaci na ploše? Nejdřív ji přidejte na plochu (Sdílet → Přidat na plochu), otevřete ji z plochy a spárujte až tam tlačítkem <b>Načíst QR kód</b>. Aplikace na ploše má vlastní úložiště – co se spáruje tady v Safari, na ploše nebude.</div>' : ''}
     ${predvyplnit.kod ? `<div class="banner ok">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zadejte číslo tohoto telefonu.</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
+    <button class="btn" id="p_inst" style="display:${instalace ? '' : 'none'}">Přidat kartu na plochu telefonu</button>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy z obrazovky centrální aplikace:</div>
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters" value="${esc(predvyplnit.tenant || '')}"></div>
     <div class="field"><label>Párovací kód (8 znaků)</label><input id="p_k" autocapitalize="characters" value="${esc(predvyplnit.kod || '')}" style="font-size:22px;letter-spacing:.2em"></div>`}

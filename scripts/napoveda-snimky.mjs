@@ -128,7 +128,7 @@ const balik = {
   tym: tym.map((t) => ({ nazev: t.nazev, typ: t.typ, role: t.role, tel: t.telefon24 })),
   piny: [{ id: 'o2', jmeno: 'Sestra Lucie Příkladná', role: 'hospic', salt, hash: pbkdf2Sync('123456', Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex'), iterace: 120000 }],
   denik, serverCas: new Date().toISOString(),
-  pecedoma: { sos: pdSync.sos, medikace: pdSync.medikace, pristiNavsteva: pdSync.pristiNavsteva, pristiKdo: pdSync.pristiKdo, pristiPozn: pdSync.pristiPozn, aktualizovano: pdSync.aktualizovano },
+  pecedoma: { sos: pdSync.sos, medikace: pdSync.medikace, pristiNavsteva: pdSync.pristiNavsteva, pristiKdo: pdSync.pristiKdo, pristiPozn: pdSync.pristiPozn, aktualizovano: pdSync.aktualizovano, chat: true },
 };
 // vlastní telefon pacienta: bez PINů týmu a bez deníku (src/kp.js balikProZarizeni, rezim PACIENT)
 const balikPacient = { ...balik, piny: [], denik: [], rezim: 'PACIENT' };
@@ -151,7 +151,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.7.0', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.8.0', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -159,6 +159,17 @@ app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || 
 app.get('/api/c/pecedoma/klient/:id', j((req) => ({ karta: pecedomaJson, klientId: req.params.id })));
 app.post('/api/c/pacient/:id/pecedoma', j({ sync: pdSync }));
 app.post('/api/c/pacient/:id/pecedoma/sync', j({ sync: pdSync }));
+// chat PéčeDoma (A_MSPPP_Zprava) – stejné vlákno pro centrálu, telefon i Můj průkaz
+const pdZpravy = [
+  { id: '1', smer: 'OD_TYMU', cas: cas(-2, '09:12'), text: 'Dobrý den, zítra přijede sestra Lucie kolem deváté, vezme nové náplasti.', sms: true, kdo: '' },
+  { id: '2', smer: 'OD_PACIENTA', cas: cas(-2, '10:40'), text: 'Děkujeme, budeme doma. Maminka dnes v noci špatně spala, bolest v zádech.', sms: false, kdo: 'rodina Jana Zkušební' },
+  { id: '3', smer: 'OD_TYMU', cas: cas(-2, '11:05'), text: 'Rozumím, dejte prosím Morphin 10 mg s.c. podle plánu a napište, jak zabral. Zítra to s lékařkou probereme.', sms: false, kdo: 'MUDr. Petra Ukázková' },
+];
+const chatOdpoved = (smer) => (req) => { if (req.method === 'POST' && req.body && req.body.text) pdZpravy.push({ id: String(pdZpravy.length + 1), smer, cas: new Date().toISOString().slice(0, 16).replace('T', ' '), text: req.body.text, sms: false, kdo: req.body.kdo || 'MUDr. Petra Ukázková' }); return { zpravy: pdZpravy, portalKlientId: 12 }; };
+app.get('/api/c/pacient/:id/pecedoma/zpravy', j(chatOdpoved('OD_TYMU')));
+app.post('/api/c/pacient/:id/pecedoma/zprava', j(chatOdpoved('OD_TYMU')));
+app.get('/api/d/pecedoma/zpravy', j(chatOdpoved('OD_PACIENTA')));
+app.post('/api/d/pecedoma/zprava', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
@@ -229,6 +240,9 @@ await foto(p, 'c-novy-2', { vyska: 1100 });
 await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t]');
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('karta', 'c-karta', { vyska: 1000 });
+await klik(p, '#pd_chat'); await p.waitForSelector('#chat_l .msg');
+await foto(p, 'c-chat-pecedoma', { vyska: 900 });
+await p.evaluate(() => KP.closeModal());
 await zalozka('plan', 'c-plan', { vyska: 1050 });
 await zalozka('denik', 'c-denik');
 await zalozka('kontakty', 'c-kontakty');
@@ -310,8 +324,12 @@ await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await klik(p, '#unCarer'); await p.fill('#pin', '123456'); await klik(p, '#pinOk');
 await p.waitForSelector('.tile[data-tab]', { timeout: 15000 }); await p.waitForTimeout(3500);
 await foto(p, 'k-odemceno');
-await p.evaluate(() => { const el = [...document.querySelectorAll('.panel-h h2')].find((h) => h.textContent === 'Nejbližší návštěva'); if (el) el.closest('.panel').scrollIntoView(); });
+await p.evaluate(() => { const el = document.querySelector('.sec.green'); if (el) el.scrollIntoView({ block: 'center' }); });
 await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'k-navsteva.png') }); console.log('  ✓ k-navsteva');
+await p.evaluate(() => { const el = document.querySelector('#pdChat'); if (el) el.scrollIntoView({ block: 'center' }); });
+await klik(p, '#pdChat'); await p.waitForSelector('#chat_l .msg'); await p.waitForTimeout(300);
+await p.screenshot({ path: path.join(VYSTUP, 'k-chat.png') }); console.log('  ✓ k-chat');
+await p.evaluate(() => KP.closeModal());
 await p.evaluate(() => window.scrollTo(0, 0));
 await klik(p, '.tile[data-tab="denik"]'); await p.waitForSelector('#d_txt'); await p.fill('#d_txt', 'Odpoledne klidná, napila se, bolest 2/10.');
 await foto(p, 'k-denik');

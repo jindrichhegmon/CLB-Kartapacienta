@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.7.0';
+const APP_VERZE = 'pacient-0.8.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -225,7 +225,7 @@ function lekarHTML(b) {
 function kontaktyHTML(b) {
   const g = b.garant || {};
   const pd = b.pecedoma || {};
-  return `${pd.pristiNavsteva ? `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip lek">od lékaře</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(pd.pristiNavsteva))}</b></dd>${pd.pristiKdo ? `<dt>Kdo</dt><dd>${esc(pd.pristiKdo)}</dd>` : ''}${pd.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(pd.pristiPozn)}</dd>` : ''}</dl></div>` : ''}<div class="panel"><div class="panel-h"><h2>Na koho se obrátit</h2><span class="chip lek">od lékaře</span></div><div class="tblwrap"><table class="tbl"><tbody>
+  return `${pd.chat ? `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip lek">chat s týmem</span></div><div style="padding:12px 14px"><div class="muted" style="font-size:13px">Napište svému týmu PéčeDoma (sestry, lékař) – zprávu uvidí v portálu a odpoví sem.</div><div class="quick" style="margin-top:8px"><button class="btn primary" id="pdChat">💬 Napsat týmu PéčeDoma</button></div></div></div>` : ''}${pd.pristiNavsteva ? `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip lek">od lékaře</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(pd.pristiNavsteva))}</b></dd>${pd.pristiKdo ? `<dt>Kdo</dt><dd>${esc(pd.pristiKdo)}</dd>` : ''}${pd.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(pd.pristiPozn)}</dd>` : ''}</dl></div>` : ''}<div class="panel"><div class="panel-h"><h2>Na koho se obrátit</h2><span class="chip lek">od lékaře</span></div><div class="tblwrap"><table class="tbl"><tbody>
       ${g.poskytovatel ? `<tr><td><b>${esc(g.poskytovatel)}</b><div class="lbl">garant průkazu${g.lekar ? ' · ' + esc(g.lekar) : ''}</div></td><td>${g.telefon24 ? `<a class="btn sm" href="tel:${esc(String(g.telefon24).replace(/\s/g, ''))}">${esc(g.telefon24)}</a>` : ''}</td></tr>` : ''}
       ${(b.kontakty || []).map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc({ rozhoduje: 'rozhoduje za mě', informovat: 'informovat', pecuje: 'pečuje' }[x.skupina] || x.skupina)}${x.pozn ? ' · ' + esc(x.pozn) : ''}</div></td><td><a class="btn sm" href="tel:${esc(String(x.tel).replace(/\s/g, ''))}">${esc(x.tel)}</a></td></tr>`).join('')}
       ${(b.tym || []).map((t) => `<tr><td><b>${esc(t.nazev)}</b><div class="lbl">tým kolem mě</div></td><td class="mono">${t.tel ? `<a class="btn sm" href="tel:${esc(String(t.tel).replace(/\s/g, ''))}">${esc(t.tel)}</a>` : ''}</td></tr>`).join('')}
@@ -392,8 +392,15 @@ function nastaveniHTML() {
     <div class="note"><b>Kdo co vidí:</b> údaje od lékaře vede váš tým v centrální aplikaci. Vaše přání, léky a poznámky vidíte jen vy – tým je uvidí, až když je v oddílu Sdílet sami pošlete. Provozovatel aplikace k nim přístup nemá.</div>`;
 }
 
+function chatPd() {
+  if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
+  KP.chatOkno({ titulek: 'Chat s týmem PéčeDoma', mojeSmer: 'OD_PACIENTA', popis: 'Stejné zprávy jako v aplikaci PéčeDoma. Tým je vidí u vás v portálu a odpoví sem.',
+    nacti: () => KP.api('/api/d/pecedoma/zpravy?kdo=pacient', { token: D.token, typ: 'Device' }),
+    posli: (text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text } }) });
+}
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('pdChat', chatPd);
   document.querySelectorAll('.tile[data-tab]').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; kresli(); scrollTo(0, 0); }));
   if ($('pr_puvod')) $('pr_puvod').onchange = () => { $('pr_rozh').style.display = $('pr_puvod').value === 'vlastni' ? 'none' : ''; };
   on('pr_ok', async () => {

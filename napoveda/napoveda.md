@@ -94,7 +94,9 @@ Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telef
 
 Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (text celého průkazu pro zdravotnickou dokumentaci, ke zkopírování nebo stažení), **Tisk karty**. Panel **Telefon u pacienta** ukáže, jestli má telefon aktuální verzi plánu.
 
-Panel **Nejbližší návštěva** (PéčeDoma) ukazuje u propojeného pacienta nejbližší plánovanou návštěvu z kalendáře FK – kdy a kdo (lékař, sestra). Totéž vidí telefon u pacienta i Můj průkaz.
+U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** – nejbližší plánovaná návštěva z kalendáře FK (kdy a kdo: lékař, sestra). Je přímo v kartě, takže ji vidí i telefon u pacienta (včetně záchranky), Můj průkaz a tisk karty; když v kalendáři nic není, karta to napíše. Vedle karty je panel **PéčeDoma** s tlačítkem **💬 Chat PéčeDoma s klientem**: stejné vlákno zpráv jako v PéčeDoma (Data klienta → Zprávy) – klient ho vidí ve své aplikaci PéčeDoma, rodina a tým v telefonu s kartou. Píšete jako Tým PéčeDoma se značkou [Karta · vaše jméno]; zprávy označené SMS odešly z PéčeDoma i textovou zprávou.
+
+![Chat PéčeDoma s klientem z Karty pacienta](/napoveda/img/c-chat-pecedoma.png)
 
 Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám pošle své údaje – hodnoty a přání, léky, které skutečně užívá, poznámky a otázky. U každé položky je původ (např. „jak si pamatuji rozhovor se zdravotníkem“) a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam ani dříve vyslovené přání; v deníku je o tom zápis **Sdíleno pacientem**.
 
@@ -223,7 +225,7 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 
 - **Údaje**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
-- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Léky se ukazují v záložce Plán péče jako **Léky podle PéčeDoma** – lékař je tlačítkem **Převzít léky do formuláře plánu** vloží do polí a uloží jako novou verzi plánu (plán se sám nikdy nemění).
+- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Léky se ukazují v záložce Plán péče jako **Léky podle PéčeDoma** – lékař je tlačítkem **Převzít léky do formuláře plánu** vloží do polí a uloží jako novou verzi plánu (plán se sám nikdy nemění). Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5).
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
 
 ![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
@@ -308,7 +310,7 @@ Menu **Správa organizace** (jen správce) má záložky:
 ![Telefon – spárování karty](/napoveda/img/k-parovani.png)
 
 1. Na telefonu u pacienta otevřete adresu karty (`…/karta/`) nebo odkaz z SMS.
-2. **iPhone**: chcete-li kartu jako aplikaci na ploše, nejdřív ji přidejte na plochu (Sdílet → **Přidat na plochu**), otevřete ji z plochy a **spárujte až tam**. Aplikace na ploše má vlastní úložiště – co se spáruje v Safari, na ploše nebude. **Android**: v Chromu menu ⋮ → Přidat na plochu / Nainstalovat aplikaci.
+2. **iPhone**: chcete-li kartu jako aplikaci na ploše, nejdřív ji přidejte na plochu (Sdílet → **Přidat na plochu**), otevřete ji z plochy a **spárujte až tam**. Aplikace na ploše má vlastní úložiště – co se spáruje v Safari, na ploše nebude. **Android**: v Chromu menu ⋮ → Přidat na plochu / Nainstalovat aplikaci, nebo klepněte na tlačítko **Přidat kartu na plochu telefonu** na obrazovce párování (ukáže se, když to prohlížeč nabízí).
 3. Klepněte na **Načíst QR kód fotoaparátem** a namiřte na QR kód v okně Spárovat telefon v centrální aplikaci (nebo kódy opište ručně, nebo otevřete odkaz z SMS – kódy se vyplní samy).
 4. Zadejte **číslo tohoto telefonu** a klepněte na **Spárovat**. Karta se nahraje jen tehdy, když číslo odpovídá číslu u pacienta.
 
@@ -345,7 +347,9 @@ Pod krizovou kartou jsou tři tlačítka podle toho, kdo kartu otevírá:
 
 ![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
 
-Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**. U pacienta propojeného s PéčeDoma je na Kartě panel **Nejbližší návštěva** (kdy a kdo přijde) a v Plánu **Léky podle PéčeDoma** – aktuální seznam léků z PéčeDoma vedle léků z plánu; závazný je plán péče, rozdíly řeší lékař.
+Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**. U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a v Plánu je **Léky podle PéčeDoma** – aktuální seznam léků z PéčeDoma vedle léků z plánu; závazný je plán péče, rozdíly řeší lékař. Po odemknutí je na Kartě i panel **PéčeDoma** s tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
+
+![Telefon – chat s týmem PéčeDoma](/napoveda/img/k-chat.png)
 
 - **Deník** – vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
 
@@ -449,6 +453,8 @@ Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří c
 ![Nastavení PINu](/napoveda/img/p-pin.png)
 
 > Na iPhonu nejdřív přidejte Můj průkaz na plochu (Sdílet → Přidat na plochu) a propojte ho až v aplikaci na ploše.
+
+Je-li pacient propojený s PéčeDoma, je v Kontaktech panel **PéčeDoma** s tlačítkem **💬 Napsat týmu PéčeDoma** – stejné zprávy jako v aplikaci PéčeDoma; tým je vidí u klienta v portálu a odpoví sem. Nejbližší návštěva od týmu je přímo v krizové kartě.
 
 ### Co v aplikaci najdete
 

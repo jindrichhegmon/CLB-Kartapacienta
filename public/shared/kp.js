@@ -66,6 +66,24 @@
     if (d.pouceni && d.overenyPodpis) return `${zaklad} <span class="chip ok">poučení lékařem a ověřený podpis</span>`;
     return `${zaklad} <span class="chip warn">poučení / ověření podpisu neuvedeno – ověřte u originálu</span>`;
   };
+  /* chat PéčeDoma s klientem (od 0.8.0) – jedno okno pro centrálu, telefon i Můj průkaz.
+     nacti() → { zpravy }, posli(text) → { zpravy }; mojeSmer = 'OD_TYMU' (centrála) nebo 'OD_PACIENTA' (telefony) */
+  KP.chatHTML = (zpravy, mojeSmer) => (zpravy || []).length
+    ? zpravy.map((z) => `<div class="msg ${z.smer === mojeSmer ? 'out' : 'in'}${z.sms ? ' sms' : ''}"><div class="who">${KP.esc(z.smer === 'OD_TYMU' ? 'Tým PéčeDoma' : 'Klient')}${z.kdo ? ' · ' + KP.esc(z.kdo) : ''} · ${KP.esc(KP.fmtDT(z.cas))}${z.sms ? ' · SMS' : ''}</div>${KP.esc(z.text)}</div>`).join('')
+    : '<div class="muted" style="font-size:13px">Zatím žádné zprávy – napište první.</div>';
+  KP.chatOkno = ({ titulek = 'Chat PéčeDoma', popis = '', mojeSmer, nacti, posli }) => {
+    KP.modal(`<h2>${KP.esc(titulek)}</h2>${popis ? `<div class="muted" style="font-size:13px">${popis}</div>` : ''}<div id="chat_l" class="chatl"><div class="muted" style="font-size:13px">Načítám zprávy…</div></div>
+      <div class="row" style="gap:8px"><input id="chat_t" placeholder="Napište zprávu…" style="flex:1" maxlength="4000" autocomplete="off"><button class="btn primary" id="chat_s">Odeslat</button></div>
+      <div class="quick"><button class="btn" data-close>Zavřít</button></div>`, (m) => {
+      const l = m.querySelector('#chat_l'), t = m.querySelector('#chat_t'), s = m.querySelector('#chat_s');
+      const ukaz = (zpravy) => { l.innerHTML = KP.chatHTML(zpravy, mojeSmer); l.scrollTop = l.scrollHeight; };
+      const chybaUkaz = (e) => { l.innerHTML = `<div class="banner crit">${KP.esc(e.message || String(e))}</div>`; };
+      nacti().then((r) => ukaz(r.zpravy)).catch(chybaUkaz);
+      const odesli = async () => { const text = t.value.trim(); if (!text) return; s.disabled = true; try { const r = await posli(text); t.value = ''; ukaz(r.zpravy); KP.toast('Zpráva odeslána do PéčeDoma'); } catch (e) { KP.toast(e.message); } s.disabled = false; t.focus(); };
+      s.onclick = odesli; t.onkeydown = (e) => { if (e.key === 'Enter') odesli(); };
+      setTimeout(() => t.focus(), 50);
+    });
+  };
   KP.kartaHTML = (b, { tlacitka = '' } = {}) => {
     const p = b.pacient || {}; const plan = (b.plan && b.plan.data) || {}; const platnost = b.plan && b.plan.platnostDo;
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));
@@ -80,6 +98,7 @@
     const exp = !b.plan || KP.prosly(platnost);
     const lekarJm = (b.plan && b.plan.podepsal) || g.lekar || '—';
     const lekarTel = g.lekarTelefon || g.telefon24 || '';
+    const pd = b.pecedoma || null;   // propojení s PéčeDoma: nejbližší plánovaná návštěva patří do karty (vidí ji i ZZS a tisk)
     const e = KP.esc;
     return `<div class="card">
       <div class="hdr"><div class="row" style="justify-content:space-between"><span>KRIZOVÝ PLÁN PÉČE · ${e(p.kod || '')}</span><span class="valid ${exp ? 'exp' : ''}">${!b.plan ? 'BEZ PLÁNU' : exp ? 'ČEKÁ NA REVIZI' : 'platí do ' + KP.fmtD(platnost)}</span></div>
@@ -101,6 +120,8 @@
           <div class="callrow"><span><span class="lbl" style="margin:0">Lékař plánu${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</span><br>${e(lekarJm)}</span>${lekarTel ? `<a class="num" href="tel:${e(lekarTel.replace(/\s/g, ''))}">${e(lekarTel)}</a>` : ''}</div>
           ${rozh.map((r) => `<div class="callrow"><span><span class="lbl" style="margin:0">Rozhoduje</span><br>${e(r.jmeno)}</span><a class="num" href="tel:${e(String(r.tel).replace(/\s/g, ''))}">${e(r.tel)}</a></div>`).join('')}
         </section>
+        ${pd && pd.pristiNavsteva ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="val"><b>${e(KP.fmtDT(pd.pristiNavsteva))}</b></div>${pd.pristiKdo ? `<div class="val">${e(pd.pristiKdo)}</div>` : ''}${pd.pristiPozn ? `<div class="lbl">${e(pd.pristiPozn)}</div>` : ''}</section>`
+          : pd && pd.aktualizovano ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="lbl">V kalendáři PéčeDoma zatím není naplánovaná návštěva (stav ${e(KP.fmtDT(pd.aktualizovano))}).</div></section>` : ''}
         ${last ? `<section class="sec violet"><h3>${zh ? 'AKTUÁLNÍ ZHORŠENÍ' : 'POSLEDNÍ ZÁPIS'} · ${e(KP.fmtDT(last.cas))} · ${e(last.autor)}</h3><div class="val">${e(last.text)}</div></section>` : ''}
       </div>
       ${tlacitka ? `<div class="foot">${tlacitka}</div>` : ''}

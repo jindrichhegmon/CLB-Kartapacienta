@@ -4,7 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { chyba } from './http.js';
-import { stavSync } from './pecedoma.js';
+import { stavSync, nastaveniPd } from './pecedoma.js';
 
 export const ROLE_UZIVATELE = ['admin', 'lekar', 'sestra', 'ctenar'];
 export const TYPY_POSKYTOVATELE = { NEMOCNICE: 'Nemocnice', HOSPIC: 'Mobilní hospic', AMBULANCE: 'Paliativní ambulance', PL: 'Praktický lékař', DOMOV: 'Domov / pobytová služba', ZZS: 'Záchranná služba', JINY: 'Jiný' };
@@ -90,7 +90,7 @@ export async function opravneni(q, s, pacientId) {
 
 /** Balík dat pro telefon (vše, co průkaz zobrazuje offline). */
 export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {}) {
-  const p = await q.one(`SELECT PacientID, KodPrukazu, Jmeno, Prijmeni, RokNarozeni, CONVERT(char(10), DatumNarozeni, 23) AS DatumNarozeni, Pohlavi, Pobyt, Stav
+  const p = await q.one(`SELECT PacientID, KodPrukazu, Jmeno, Prijmeni, RokNarozeni, CONVERT(char(10), DatumNarozeni, 23) AS DatumNarozeni, Pohlavi, Pobyt, Stav, PdKlientID
     FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacientId });
   if (!p) return null;
   const plan = await planAktualni(q, pacientId);
@@ -109,6 +109,8 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
   const pacientuv = rezim === 'PACIENT';
   // z PéčeDoma (je-li pacient propojený): aktivní léky a nejbližší plánovaná návštěva – jen k zobrazení vedle plánu
   const pd = await stavSync(q, pacientId);
+  // chat PéčeDoma: telefon smí psát týmu, když je pacient propojený a propojení nastavené (zprávy jdou přes server Karty, nikdy přímo)
+  const chat = !!p.PdKlientID && (await nastaveniPd(q)).nastaveno;
   const denik = pacientuv ? [] : await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
   return {
@@ -119,7 +121,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
     kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(),
     rezim,
-    pecedoma: pd ? { sos: pd.sos, medikace: pd.medikace, pristiNavsteva: pd.pristiNavsteva, pristiKdo: pd.pristiKdo, pristiPozn: pd.pristiPozn, aktualizovano: pd.aktualizovano } : null,
+    pecedoma: pd || chat ? { sos: pd ? pd.sos : [], medikace: pd ? pd.medikace : [], pristiNavsteva: pd ? pd.pristiNavsteva : null, pristiKdo: pd ? pd.pristiKdo : null, pristiPozn: pd ? pd.pristiPozn : null, aktualizovano: pd ? pd.aktualizovano : null, chat } : null,
     serverCas: new Date().toISOString(),
   };
 }

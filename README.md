@@ -36,6 +36,17 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Chat PéčeDoma a návštěva v kartě (0.8.0)
+
+- **Nejbližší návštěva** z PéčeDoma je oddíl krizové karty (`KP.kartaHTML`, `.sec.green`) – centrála, telefon (i zamčený pro ZZS), Můj průkaz, tisk.
+  `balikZDetailu` i `balikProZarizeni` předávají `pecedoma` (sync + `chat`).
+- **Chat PéčeDoma s klientem** = vlákno `A_MSPPP_Zprava` portálu (Data klienta → Zprávy) přes jhn-apps `pecedoma-karta` akce `zpravy` / `zprava`
+  (partnerský klíč; text dostane značku `[Karta · kdo]`, portál a aplikace klienta ji vidí). Centrála: `GET /api/c/pacient/:id/pecedoma/zpravy`,
+  `POST …/pecedoma/zprava` (tým kolem pacienta, OD_TYMU, kdo = jméno uživatele). Telefony: `GET /api/d/pecedoma/zpravy`, `POST /api/d/pecedoma/zprava`
+  (token zařízení; OD_PACIENTA; zapůjčený telefon píše pod rolí a jménem odemknutí, Můj průkaz jako „pacient“). Telefon token PéčeDoma nikdy nedostane,
+  vše jde přes server Karty, každé zobrazení a odeslání je v auditu. Společné okno `KP.chatOkno` v `public/shared/kp.js`.
+- Telefon: tlačítko **Přidat kartu na plochu telefonu** na obrazovce párování (Android/Chrome, `beforeinstallprompt`).
+
 ## Propojení s PéčeDoma (0.7.0)
 
 - **Nastavení** (Správa organizace → Nastavení → Propojení s PéčeDoma, `A_KP_Nastaveni`): `PD_ODKAZ` (adresa portálu organizace – ukazuje se

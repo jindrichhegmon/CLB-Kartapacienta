@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, PD_API_VYCHOZI } from '../pecedoma.js';
+import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, PD_API_VYCHOZI } from '../pecedoma.js';
 
 export const central = Router();
 
@@ -514,6 +514,28 @@ central.post('/pacient/:id/pecedoma', sUzivatelem(async (q, s, req) => {
   let sync = null, chybaSync = null;
   try { await synchronizujPacienta(q, nast, id, kid); sync = await stavSync(q, id); } catch (e) { chybaSync = e.message; }
   return { sync, chyba: chybaSync };
+}));
+
+/* chat PéčeDoma s klientem (od 0.8.0): zprávy A_MSPPP_Zprava portálu – tým kolem pacienta čte a píše jako „Tým“ se značkou [Karta · jméno] */
+async function pdKlientPacienta(q, id) {
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) throw chyba('Pacient není propojený s klientem PéčeDoma');
+  return p.pd;
+}
+central.get('/pacient/:id/pecedoma/zpravy', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Chat PéčeDoma vidí tým kolem pacienta', 403);
+  const r = await zpravyPd(await nastaveniPd(q), await pdKlientPacienta(q, id));
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: chat zobrazen', detail: `${r.zpravy.length} zpráv`, ip: s.ip });
+  return r;
+}));
+central.post('/pacient/:id/pecedoma/zprava', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis || !op.aktivni) throw chyba('Zprávu do PéčeDoma píše tým kolem pacienta u aktivního průkazu', 403);
+  omez('pdchat:' + s.uzivatelId, 60, 3600e3);
+  const r = await posliZpravuPd(await nastaveniPd(q), await pdKlientPacienta(q, id), { text: text(req.body.text, 4000), smer: 'OD_TYMU', kdo: s.jmeno });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: zpráva odeslána', ip: s.ip });
+  return r;
 }));
 
 central.post('/pacient/:id/pecedoma/sync', sUzivatelem(async (q, s, req) => {
