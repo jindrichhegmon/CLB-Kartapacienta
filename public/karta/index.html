@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.8.5';
+const APP_VERZE = 'karta-0.8.6';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -334,13 +334,16 @@ function kresliParovani(predvyplnit = {}) {
   setTimeout(() => { const t = $('p_tel'); if (t && predvyplnit.kod) t.focus(); }, 50);
 }
 /* číslo telefonu k načtenému kódu se předvyplní ze serveru – uživatel ho jen potvrdí (může ho i přepsat) */
+const hezkeCislo = (t) => { const d = String(t || '').replace(/\D/g, ''); return d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}` : d ? '+' + d : ''; };
 async function predvyplnTelefon(predvyplnit, popisTlacitka) {
+  const dosad = (tel, zprava) => { const t = $('p_tel'), i = $('p_info'), b = $('p_ok'); if (t && !t.value) t.value = tel; if (i) i.textContent = zprava; if (b) { b.textContent = popisTlacitka; setTimeout(() => b.focus(), 50); } };
+  if (predvyplnit.telefon) return dosad(hezkeCislo(predvyplnit.telefon), `Kód načten. Číslo telefonu ${hezkeCislo(predvyplnit.telefon)} je předvyplněné – stačí potvrdit.`);
   try {
     const r = await KP.api(`/api/d/parovaci-info?tenant=${encodeURIComponent(String(predvyplnit.tenant || '').toUpperCase())}&kod=${encodeURIComponent(String(predvyplnit.kod || '').toUpperCase())}`);
     const t = $('p_tel'), i = $('p_info'), b = $('p_ok');
     if (r.telefon && t && !t.value) { t.value = r.telefon; if (i) i.textContent = `Kód načten. Číslo telefonu ${r.telefon} je předvyplněné – stačí potvrdit.`; if (b) b.textContent = popisTlacitka; setTimeout(() => b && b.focus(), 50); }
     else if (i) i.textContent = 'Kód načten – zadejte číslo tohoto telefonu.';
-  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo tohoto telefonu.'; if (e.status === 404) i.className = 'banner warn'; } }
+  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo tohoto telefonu (' + (e.message || 'číslo se nepodařilo zjistit') + ').'; if (e.status === 404) i.className = 'banner warn'; } }
 }
 /* iPhone/iPad v Safari (ne z plochy): aplikace přidaná na plochu má oddělené úložiště, takže párovat až v ní */
 function jeIosProhlizec() {
@@ -380,8 +383,8 @@ async function nactiQr() {
         }
       } catch { /* další snímek */ }
     }
-    const h = text.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i);
-    if (h) { stop(); closeModal(); if (navigator.vibrate) navigator.vibrate(80); kresliParovani({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase() }); return; }
+    const h = text.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
+    if (h) { stop(); closeModal(); if (navigator.vibrate) navigator.vibrate(80); kresliParovani({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); return; }
     if (text) toast('To není QR kód karty pacienta');
     setTimeout(krok, 250);
   };
@@ -400,8 +403,8 @@ async function parovat(tenant, kod, telefon) {
 /* ---------------- start ---------------- */
 (async function start() {
   D = await nacti();
-  const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i);
-  if (h && !D) { kresli(); kresliParovani({ tenant: h[1], kod: h[2] }); }   // odkaz z SMS / QR předvyplní kódy, telefon potvrdí své číslo
+  const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
+  if (h && !D) { kresli(); kresliParovani({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); }   // odkaz z SMS / QR předvyplní kódy, telefon potvrdí své číslo
   else if (h && D) { history.replaceState(null, '', location.pathname); kresli(); modal('<h2>Telefon už má průkaz</h2><p>Tento telefon už je spárován. Pokud má převzít jiný průkaz, nejdřív ho v centrální aplikaci zablokujte (data se smažou) a pak kód naskenujte znovu.</p><div class="quick"><button class="btn" data-close>Rozumím</button></div>'); }
   else kresli();
   if (D) sync();

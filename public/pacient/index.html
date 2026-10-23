@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.8.5';
+const APP_VERZE = 'pacient-0.8.6';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -489,8 +489,8 @@ async function zamekHTML() {
     D = d; D.moje = { prani: {}, leky: [], poznamky: [], sdileno: [], ...(D.moje || {}) };
     posledniAkce = Date.now(); tab = 'prehled';
     // nový kód od lékaře (odkaz z SMS / QR) – propojí znovu a vlastní záznamy zůstanou
-    const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i);
-    if (h) return propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase() });
+    const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
+    if (h) return propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' });
     kresli(); sync();
   };
   $('pinOk').onclick = go; $('pin').onkeydown = (e) => { if (e.key === 'Enter') go(); };
@@ -499,13 +499,16 @@ async function zamekHTML() {
   });
 }
 /* číslo telefonu k načtenému kódu se předvyplní ze serveru (kód byl vydán právě pro ně) – pacient jen potvrdí */
+const hezkeCislo = (t) => { const d = String(t || '').replace(/\D/g, ''); return d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}` : d ? '+' + d : ''; };
 async function predvyplnTelefon(predvyplnit, popisTlacitka) {
+  const dosad = (tel, zprava) => { const t = $('p_tel'), i = $('p_info'), b = $('p_ok'); if (t && !t.value) t.value = tel; if (i) i.textContent = zprava; if (b) { b.textContent = popisTlacitka; setTimeout(() => b.focus(), 50); } };
+  if (predvyplnit.telefon) return dosad(hezkeCislo(predvyplnit.telefon), `Kód načten. Číslo telefonu ${hezkeCislo(predvyplnit.telefon)} je předvyplněné – stačí potvrdit.`);
   try {
     const r = await KP.api(`/api/d/parovaci-info?tenant=${encodeURIComponent(String(predvyplnit.tenant || '').toUpperCase())}&kod=${encodeURIComponent(String(predvyplnit.kod || '').toUpperCase())}`);
     const t = $('p_tel'), i = $('p_info'), b = $('p_ok');
     if (r.telefon && t && !t.value) { t.value = r.telefon; if (i) i.textContent = `Kód od lékaře načten. Vaše číslo ${r.telefon} je předvyplněné – stačí potvrdit.`; if (b) b.textContent = popisTlacitka; setTimeout(() => b && b.focus(), 50); }
     else if (i) i.textContent = 'Kód načten – zadejte číslo svého telefonu.';
-  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo svého telefonu.'; if (e.status === 404) i.className = 'banner warn'; } }
+  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo svého telefonu (' + (e.message || 'číslo se nepodařilo zjistit') + ').'; if (e.status === 404) i.className = 'banner warn'; } }
 }
 function propojeniHTML(predvyplnit = {}) {
   hlavicka();
@@ -558,8 +561,8 @@ async function nactiQr() {
         else { const w = Math.min(v.videoWidth, 720), h = Math.round(v.videoHeight * w / v.videoWidth); cv.width = w; cv.height = h; ctx.drawImage(v, 0, 0, w, h); const r = window.jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' }); text = r ? r.data : ''; }
       } catch { /* další snímek */ }
     }
-    const h = text.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i);
-    if (h) { stop(); closeModal(); if (navigator.vibrate) navigator.vibrate(80); propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase() }); return; }
+    const h = text.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
+    if (h) { stop(); closeModal(); if (navigator.vibrate) navigator.vibrate(80); propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); return; }
     if (text) toast('To není QR kód průkazu');
     setTimeout(krok, 250);
   };
@@ -584,8 +587,8 @@ async function propojit(tenant, kod, telefon) {
 async function start() {
   let ulozeno = false;
   try { ulozeno = !!(await IDB.get('data')); } catch { /* prohlížeč bez úložiště */ }
-  const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i);
-  if (h && !ulozeno) return propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase() });
+  const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
+  if (h && !ulozeno) return propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' });
   if (h && ulozeno) {
     await zamekHTML();
     modal('<h2>Telefon už Můj průkaz má</h2><p>Odemkněte ho svým PINem. Pokud vám lékař poslal nový kód (například po ukončení přístupu), otevřete po odemčení odkaz z SMS znovu – vaše záznamy zůstanou.</p><div class="quick"><button class="btn" data-close>Rozumím</button></div>');
@@ -597,7 +600,7 @@ async function start() {
 (async function init() {
   await start();
   addEventListener('online', () => sync());
-  addEventListener('hashchange', () => { const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})/i); if (h && D) propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase() }); });
+  addEventListener('hashchange', () => { const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i); if (h && D) propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); });
   setInterval(() => { if (D && document.visibilityState === 'visible') sync(); }, 5 * 60 * 1000);
   setInterval(kresliSyncBar, 30000);
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/pacient/sw.js', { scope: '/pacient/' }).catch(() => {});

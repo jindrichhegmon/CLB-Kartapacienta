@@ -46,6 +46,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   (token zařízení; OD_PACIENTA; zapůjčený telefon píše pod rolí a jménem odemknutí, Můj průkaz jako „pacient“). Telefon token PéčeDoma nikdy nedostane,
   vše jde přes server Karty, každé zobrazení a odeslání je v auditu. Společné okno `KP.chatOkno` v `public/shared/kp.js`.
 - Telefon: tlačítko **Přidat kartu na plochu telefonu** na obrazovce párování (Android/Chrome, `beforeinstallprompt`).
+- 0.8.6: odkaz v SMS i QR nese číslo (`#p=TENANT.KOD.T420…`), telefon ho předvyplní okamžitě i bez spojení; serverové dohledání z 0.8.5 zůstává pro starší odkazy a ručně opsaný kód.
 - 0.8.5: `GET /api/d/parovaci-info?tenant&kod` vrátí k platnému kódu číslo, pro které byl vydán (limit 30/h na IP); telefon i Můj průkaz ho po načtení kódu předvyplní a uživatel jen potvrdí (`Potvrdit a spárovat/propojit`); párování číslo dál ověřuje.
 - 0.8.4: poslední dvě zprávy chatu jsou vidět rovnou v panelu (`KP.chatNahled`; telefon a Můj průkaz je drží v `D.zpravy`, načítají nejvýš jednou za 5 min; centrála načte při vykreslení záložky), `KP.chatOkno` volá `poZmene(zpravy)`.
 - 0.8.3: minimum textů na obrazovce – `KP.sbalVysvetlivky(root)` přesune `.note` a `.rolehelp` (bez třídy `keep`) na konec do sbaleného bloku `<details class="vysv">` „Vysvětlivky“; telefon, Můj průkaz (všechny obrazovky) i detail pacienta v centrále; tisk blok skrývá.

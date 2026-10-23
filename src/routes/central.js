@@ -391,7 +391,7 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   if (z) { zid = z.ZarizeniID; await q.exec(`UPDATE dbo.A_KP_Zarizeni SET ParovaciKod = @k, ParovaciPlatnost = @pl, Stitek = ISNULL(@st, Stitek) WHERE ZarizeniID = @z`, { k: kod, pl: platnost, st: text(req.body.stitek, 60) || null, z: zid }); }
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost) OUTPUT inserted.ZarizeniID VALUES (@p, @st, @k, @pl)`, { p: id, st: text(req.body.stitek, 60) || null, k: kod, pl: platnost })).ZarizeniID;
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací kód vydán', ip: s.ip });
-  const odkaz = `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}`;
+  const odkaz = `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}.T${telKarty.replace(/\D/g, '')}`;   // .T<číslo> = předvyplnění čísla v telefonu
   let sms = null;
   if (req.body.sms) {   // odkaz SMS na číslo s kartou – dostane ho jen tento telefon
     try { await posliSms(telKarty, `Karta pacienta: otevřete odkaz v tomto telefonu a potvrďte jeho číslo. ${odkaz} (platí 15 minut)`); sms = { ok: true };
@@ -416,7 +416,7 @@ central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost, Telefon, Rezim) OUTPUT inserted.ZarizeniID VALUES (@p, N'telefon pacienta', @k, @pl, @t, 'PACIENT')`,
     { p: id, k: kod, pl: platnost, t: tel })).ZarizeniID;
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'kód pro vlastní telefon pacienta vydán', detail: hezkyTel(tel), ip: s.ip });
-  const odkaz = `${config.verejnaAdresa}/pacient/#p=${s.tenant}.${kod}`;
+  const odkaz = `${config.verejnaAdresa}/pacient/#p=${s.tenant}.${kod}.T${tel.replace(/\D/g, '')}`;   // .T<číslo> = pacient číslo jen potvrdí
   let sms = null;
   if (req.body.sms) {
     try { await posliSms(tel, `Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: ${odkaz} (platí 3 dny)`); sms = { ok: true };
