@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.8.3';
+const APP_VERZE = 'pacient-0.8.4';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -196,13 +196,14 @@ function kresli() {
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   kresliSyncBar();
   bind();
+  if (tab === 'prehled') nactiNahledChatu();
 }
 function prehledHTML(b) {
   const m = D.moje;
   return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b>, <b>Léky</b> a <b>Poznámky</b> vedete své vlastní záznamy – zůstávají jen ve vašem telefonu, dokud je sami nepošlete.</div></div>
     <div class="puvod" style="padding:4px 2px 0"><span class="chip lek">od lékaře</span> ${puvodLekar(b)}</div>
     ${KP.kartaHTML({ ...b, denik: [] })}
-    ${b.pecedoma && b.pecedoma.chat ? `<div class="panel"><div class="panel-h"><h2>Zprávy pro a od lékaře</h2><span class="chip lek">PéčeDoma</span></div><div style="padding:12px 14px"><div class="quick"><button class="btn primary" id="pdChat">💬 Zprávy pro a od lékaře</button></div></div></div><div class="note"><b>Zprávy pro a od lékaře:</b> napište svému lékaři a sestrám, nebo si přečtěte, co vám poslali. Zprávy jsou stejné jako v aplikaci PéčeDoma.</div>` : ''}
+    ${b.pecedoma && b.pecedoma.chat ? `<div class="panel"><div class="panel-h"><h2>Zprávy pro a od lékaře</h2><span class="chip lek">PéčeDoma</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY) : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat lékaři'}</button></div></div></div><div class="note"><b>Zprávy pro a od lékaře:</b> napište svému lékaři a sestrám, nebo si přečtěte, co vám poslali. Zprávy jsou stejné jako v aplikaci PéčeDoma.</div>` : ''}
     <div class="panel"><div class="panel-h"><h2>Moje záznamy</h2><span class="chip pac">jen v tomto telefonu</span></div><dl class="kv" style="padding:12px 14px">
       <dt>Hodnoty a přání</dt><dd>${m.prani.aktualizovano ? 'aktualizováno ' + esc(fmtDT(m.prani.aktualizovano)) : '<span class="muted">zatím nevyplněno</span>'}</dd>
       <dt>Léky, které užívám</dt><dd>${m.leky.length ? m.leky.length + ' položek' : '<span class="muted">zatím žádné</span>'}</dd>
@@ -394,10 +395,26 @@ function nastaveniHTML() {
     <div class="note"><b>Kdo co vidí:</b> údaje od lékaře vede váš tým v centrální aplikaci. Vaše přání, léky a poznámky vidíte jen vy – tým je uvidí, až když je v oddílu Sdílet sami pošlete. Provozovatel aplikace k nim přístup nemá.</div>`;
 }
 
+const CHAT_NAZVY = { OD_TYMU: 'Lékař a tým', OD_PACIENTA: 'Vy' };
+/* poslední zprávy jsou vidět rovnou v panelu; načítají se na pozadí nejvýš jednou za 5 minut a pamatují se v telefonu (šifrovaně s ostatními daty) */
+let zpravyBezi = false;
+async function nactiNahledChatu(vynutit = false) {
+  if (!D || !D.token || !navigator.onLine || zpravyBezi || !$('pdNahled')) return;
+  if (!vynutit && D.zpravyCas && Date.now() - D.zpravyCas < 5 * 60e3) return;
+  zpravyBezi = true;
+  try { const r = await KP.api('/api/d/pecedoma/zpravy?kdo=pacient', { token: D.token, typ: 'Device' }); ulozZpravy(r.zpravy); }
+  catch (e) { const el = $('pdNahled'); if (el && !D.zpravy) el.innerHTML = `<div class="muted" style="font-size:13px;padding:0 0 6px">${esc(e.message)}</div>`; }
+  zpravyBezi = false;
+}
+function ulozZpravy(zpravy) {
+  D.zpravy = (zpravy || []).slice(-20); D.zpravyCas = Date.now(); uloz();
+  const el = $('pdNahled'); if (el) el.innerHTML = KP.chatNahled(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY);
+  const b = $('pdChat'); if (b) b.textContent = '💬 ' + (D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat lékaři');
+}
 function chatPd() {
   if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
   const hlidej = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { if (e.status === 401 || e.status === 403) setTimeout(() => sync(), 400); throw e; } };
-  KP.chatOkno({ titulek: 'Zprávy pro a od lékaře', mojeSmer: 'OD_PACIENTA', nazvy: { OD_TYMU: 'Lékař a tým', OD_PACIENTA: 'Vy' }, popis: 'Stejné zprávy jako v aplikaci PéčeDoma. Lékař a sestry je vidí u vás v portálu a odpoví sem.',
+  KP.chatOkno({ titulek: 'Zprávy pro a od lékaře', mojeSmer: 'OD_PACIENTA', nazvy: CHAT_NAZVY, poZmene: ulozZpravy, popis: 'Stejné zprávy jako v aplikaci PéčeDoma. Lékař a sestry je vidí u vás v portálu a odpoví sem.',
     nacti: hlidej(() => KP.api('/api/d/pecedoma/zpravy?kdo=pacient', { token: D.token, typ: 'Device' })),
     posli: hlidej((text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text } })) });
 }

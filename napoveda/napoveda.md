@@ -96,7 +96,7 @@ Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telef
 
 Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (text celého průkazu pro zdravotnickou dokumentaci, ke zkopírování nebo stažení), **Tisk karty**. Panel **Telefon u pacienta** ukáže, jestli má telefon aktuální verzi plánu.
 
-U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** – nejbližší plánovaná návštěva z kalendáře FK (kdy a kdo: lékař, sestra). Je přímo v kartě, takže ji vidí i telefon u pacienta (včetně záchranky), Můj průkaz a tisk karty; když v kalendáři nic není, karta to napíše. Vedle karty je panel **PéčeDoma** s tlačítkem **💬 Chat PéčeDoma s klientem**: stejné vlákno zpráv jako v PéčeDoma (Data klienta → Zprávy) – klient ho vidí ve své aplikaci PéčeDoma, rodina a tým v telefonu s kartou. Píšete jako Tým PéčeDoma se značkou [Karta · vaše jméno]; zprávy označené SMS odešly z PéčeDoma i textovou zprávou.
+U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** – nejbližší plánovaná návštěva z kalendáře FK (kdy a kdo: lékař, sestra). Je přímo v kartě, takže ji vidí i telefon u pacienta (včetně záchranky), Můj průkaz a tisk karty; když v kalendáři nic není, karta to napíše. Vedle karty je panel **PéčeDoma** s posledními dvěma zprávami a tlačítkem **💬 Chat PéčeDoma s klientem**: stejné vlákno zpráv jako v PéčeDoma (Data klienta → Zprávy) – klient ho vidí ve své aplikaci PéčeDoma, rodina a tým v telefonu s kartou. Píšete jako Tým PéčeDoma se značkou [Karta · vaše jméno]; zprávy označené SMS odešly z PéčeDoma i textovou zprávou.
 
 ![Chat PéčeDoma s klientem z Karty pacienta](/napoveda/img/c-chat-pecedoma.png)
 
@@ -351,7 +351,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 
 ![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
 
-Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**. U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a v Plánu je **Léky podle PéčeDoma** – aktuální seznam léků z PéčeDoma vedle léků z plánu; závazný je plán péče, rozdíly řeší lékař. Po odemknutí je na Kartě i panel **PéčeDoma** s tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
+Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**. U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a v Plánu je **Léky podle PéčeDoma** – aktuální seznam léků z PéčeDoma vedle léků z plánu; závazný je plán péče, rozdíly řeší lékař. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
 
 ![Telefon – chat s týmem PéčeDoma](/napoveda/img/k-chat.png)
 
@@ -458,7 +458,7 @@ Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří c
 
 > Na iPhonu nejdřív přidejte Můj průkaz na plochu (Sdílet → Přidat na plochu) a propojte ho až v aplikaci na ploše.
 
-Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod krizovou kartou (pod oddílem Příští návštěva) panel **Zprávy pro a od lékaře** – stejné zprávy jako v aplikaci PéčeDoma; lékař a sestry je vidí u klienta v portálu a odpoví sem. Ve vlákně je pacient označený „Vy“, druhá strana „Lékař a tým“.
+Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod krizovou kartou (pod oddílem Příští návštěva) panel **Zprávy pro a od lékaře** – poslední dvě zprávy jsou vidět rovnou bez rozklikávání (načítají se na pozadí, naposledy načtené zůstanou i bez připojení), tlačítko otevře celé vlákno a odpověď; stejné zprávy jako v aplikaci PéčeDoma; lékař a sestry je vidí u klienta v portálu a odpoví sem. Ve vlákně je pacient označený „Vy“, druhá strana „Lékař a tým“.
 
 ![Můj průkaz – Zprávy pro a od lékaře](/napoveda/img/p-zpravy-chat.png)
 

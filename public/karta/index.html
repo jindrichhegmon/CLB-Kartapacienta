@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.8.3';
+const APP_VERZE = 'karta-0.8.4';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -199,18 +199,35 @@ function kresli() {
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   kresliSyncBar();
   bind();
+  if (tab === 'karta') nactiNahledChatu();
 }
 /* z PéčeDoma (propojený pacient): nejbližší plánovaná návštěva a aktivní léky – jen k zobrazení, plán péče je ze serveru */
 /* chat PéčeDoma: po odemknutí může rodina i tým u pacienta napsat týmu PéčeDoma (zprávy jdou přes server Karty) */
 function navstevaHTML(b) {
   const pd = b.pecedoma; if (!pd || !pd.chat || !U.role || U.role === 'zzs') return '';
-  return `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip acc">chat</span></div><div style="padding:12px 14px"><div class="quick"><button class="btn primary" id="pdChat">💬 Napsat týmu PéčeDoma</button></div></div></div><div class="note"><b>Chat PéčeDoma:</b> zprávu uvidí tým PéčeDoma (sestry, lékař) v portálu u klienta a odpoví sem; stejné vlákno vidí klient ve své aplikaci PéčeDoma.</div>`;
+  return `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip acc">chat</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA') : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat týmu PéčeDoma'}</button></div></div></div><div class="note"><b>Chat PéčeDoma:</b> zprávu uvidí tým PéčeDoma (sestry, lékař) v portálu u klienta a odpoví sem; stejné vlákno vidí klient ve své aplikaci PéčeDoma.</div>`;
+}
+/* poslední zprávy rovnou v panelu (po odemknutí); načtení na pozadí nejvýš jednou za 5 minut, cache v telefonu */
+let zpravyBezi = false;
+async function nactiNahledChatu() {
+  if (!D || !D.token || !U.role || !navigator.onLine || zpravyBezi || !$('pdNahled')) return;
+  if (D.zpravyCas && Date.now() - D.zpravyCas < 5 * 60e3) return;
+  zpravyBezi = true;
+  const kdo = [ROLE_NAZ[U.role] || U.role || '', U.jmeno || ''].filter(Boolean).join(' ');
+  try { const r = await KP.api('/api/d/pecedoma/zpravy?kdo=' + encodeURIComponent(kdo), { token: D.token, typ: 'Device' }); ulozZpravy(r.zpravy); }
+  catch (e) { const el = $('pdNahled'); if (el && !D.zpravy) el.innerHTML = `<div class="muted" style="font-size:13px;padding:0 0 6px">${esc(e.message)}</div>`; }
+  zpravyBezi = false;
+}
+function ulozZpravy(zpravy) {
+  D.zpravy = (zpravy || []).slice(-20); D.zpravyCas = Date.now(); uloz();
+  const el = $('pdNahled'); if (el) el.innerHTML = KP.chatNahled(D.zpravy, 'OD_PACIENTA');
+  const b = $('pdChat'); if (b) b.textContent = '💬 ' + (D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat týmu PéčeDoma');
 }
 function chatPd() {
   if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
   const kdo = [ROLE_NAZ[U.role] || U.role || '', U.jmeno || ''].filter(Boolean).join(' ');
   const hlidej = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { if (e.status === 401 || e.status === 403) setTimeout(() => sync(), 400); throw e; } };
-  KP.chatOkno({ titulek: 'Chat s týmem PéčeDoma', mojeSmer: 'OD_PACIENTA', popis: `Píšete jako <b>${esc(kdo)}</b>. Zprávy vidí tým PéčeDoma v portálu u klienta a klient ve své aplikaci PéčeDoma.`,
+  KP.chatOkno({ titulek: 'Chat s týmem PéčeDoma', mojeSmer: 'OD_PACIENTA', poZmene: ulozZpravy, popis: `Píšete jako <b>${esc(kdo)}</b>. Zprávy vidí tým PéčeDoma v portálu u klienta a klient ve své aplikaci PéčeDoma.`,
     nacti: hlidej(() => KP.api('/api/d/pecedoma/zpravy?kdo=' + encodeURIComponent(kdo), { token: D.token, typ: 'Device' })),
     posli: hlidej((text) => KP.api('/api/d/pecedoma/zprava', { method: 'POST', token: D.token, typ: 'Device', body: { text, role: U.role, kdo: U.jmeno || '' } })) });
 }

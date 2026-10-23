@@ -71,12 +71,16 @@
   KP.chatHTML = (zpravy, mojeSmer, nazvy = {}) => (zpravy || []).length
     ? zpravy.map((z) => `<div class="msg ${z.smer === mojeSmer ? 'out' : 'in'}${z.sms ? ' sms' : ''}"><div class="who">${KP.esc(nazvy[z.smer] || (z.smer === 'OD_TYMU' ? 'Tým PéčeDoma' : 'Klient'))}${z.kdo ? ' · ' + KP.esc(z.kdo) : ''} · ${KP.esc(KP.fmtDT(z.cas))}${z.sms ? ' · SMS' : ''}</div>${KP.esc(z.text)}</div>`).join('')
     : '<div class="muted" style="font-size:13px">Zatím žádné zprávy – napište první.</div>';
-  KP.chatOkno = ({ titulek = 'Chat PéčeDoma', popis = '', mojeSmer, nazvy = {}, nacti, posli }) => {
+  /* náhled posledních zpráv bez rozklikávání (od 0.8.4): n posledních zpráv, prázdné vlákno = krátký text */
+  KP.chatNahled = (zpravy, mojeSmer, nazvy = {}, n = 2) => (zpravy || []).length
+    ? `<div class="chatl" style="max-height:none;min-height:0;padding:0 0 4px">${KP.chatHTML(zpravy.slice(-n), mojeSmer, nazvy)}</div>`
+    : '<div class="muted" style="font-size:13px;padding:0 0 6px">Zatím žádné zprávy.</div>';
+  KP.chatOkno = ({ titulek = 'Chat PéčeDoma', popis = '', mojeSmer, nazvy = {}, nacti, posli, poZmene = null }) => {
     KP.modal(`<h2>${KP.esc(titulek)}</h2>${popis ? `<div class="muted" style="font-size:13px">${popis}</div>` : ''}<div id="chat_l" class="chatl"><div class="muted" style="font-size:13px">Načítám zprávy…</div></div>
       <div class="row" style="gap:8px"><input id="chat_t" placeholder="Napište zprávu…" style="flex:1" maxlength="4000" autocomplete="off"><button class="btn primary" id="chat_s">Odeslat</button></div>
       <div class="quick"><button class="btn" data-close>Zavřít</button></div>`, (m) => {
       const l = m.querySelector('#chat_l'), t = m.querySelector('#chat_t'), s = m.querySelector('#chat_s');
-      const ukaz = (zpravy) => { l.innerHTML = KP.chatHTML(zpravy, mojeSmer, nazvy); l.scrollTop = l.scrollHeight; };
+      const ukaz = (zpravy) => { l.innerHTML = KP.chatHTML(zpravy, mojeSmer, nazvy); l.scrollTop = l.scrollHeight; if (poZmene) { try { poZmene(zpravy); } catch { /* */ } } };
       const chybaUkaz = (e) => { l.innerHTML = `<div class="banner crit">${KP.esc(e.message || String(e))}</div>`; };
       nacti().then((r) => ukaz(r.zpravy)).catch(chybaUkaz);
       const odesli = async () => { const text = t.value.trim(); if (!text) return; s.disabled = true; try { const r = await posli(text); t.value = ''; ukaz(r.zpravy); KP.toast('Zpráva odeslána do PéčeDoma'); } catch (e) { KP.toast(e.message); } s.disabled = false; t.focus(); };
