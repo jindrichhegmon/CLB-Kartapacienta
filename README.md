@@ -46,6 +46,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   (token zařízení; OD_PACIENTA; zapůjčený telefon píše pod rolí a jménem odemknutí, Můj průkaz jako „pacient“). Telefon token PéčeDoma nikdy nedostane,
   vše jde přes server Karty, každé zobrazení a odeslání je v auditu. Společné okno `KP.chatOkno` v `public/shared/kp.js`.
 - Telefon: tlačítko **Přidat kartu na plochu telefonu** na obrazovce párování (Android/Chrome, `beforeinstallprompt`).
+- 0.8.3: minimum textů na obrazovce – `KP.sbalVysvetlivky(root)` přesune `.note` a `.rolehelp` (bez třídy `keep`) na konec do sbaleného bloku `<details class="vysv">` „Vysvětlivky“; telefon, Můj průkaz (všechny obrazovky) i detail pacienta v centrále; tisk blok skrývá.
 - 0.8.2: chat na zablokovaném či odpojeném telefonu vrací 403 se srozumitelnou hláškou (GET i POST) a telefon hned spustí sync, aby ukázal obrazovku „Lékař ukončil přístup“.
 - 0.8.1: v Mém průkazu je chat na hlavní stránce pod krizovou kartou jako **Zprávy pro a od lékaře** (`KP.chatOkno` bere `nazvy` stran: „Vy“ / „Lékař a tým“).
 

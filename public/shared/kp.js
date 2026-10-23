@@ -84,6 +84,20 @@
       setTimeout(() => t.focus(), 50);
     });
   };
+  /* Vysvětlivky na klik (od 0.8.3): vysvětlující texty (.note, .rolehelp bez třídy keep) se po vykreslení přesunou na konec
+     obrazovky do sbaleného bloku „Vysvětlivky“, aby obrazovka ukazovala jen důležité informace. Prázdný obal (panel) se odstraní. */
+  KP.sbalVysvetlivky = (root, { pred = null, titulek = 'Vysvětlivky' } = {}) => {
+    if (!root) return;
+    const els = [...root.querySelectorAll('.note:not(.keep), .rolehelp:not(.keep)')].filter((e) => !e.closest('.vysv') && !e.closest('#modal') && e.textContent.trim());
+    if (!els.length) return;
+    const d = document.createElement('details'); d.className = 'vysv';
+    d.innerHTML = `<summary>${KP.esc(titulek)} <span class="chip">${els.length}</span></summary><div class="vysv-b"></div>`;
+    const b = d.querySelector('.vysv-b');
+    els.forEach((e) => { const par = e.parentElement; e.classList.remove('rolehelp'); e.classList.add('note'); e.style.margin = ''; b.appendChild(e);
+      if (par && par !== root && !par.children.length && !par.textContent.trim()) par.remove(); });
+    const kam = pred ? root.querySelector(pred) : null;
+    if (kam) root.insertBefore(d, kam); else root.appendChild(d);
+  };
   KP.kartaHTML = (b, { tlacitka = '' } = {}) => {
     const p = b.pacient || {}; const plan = (b.plan && b.plan.data) || {}; const platnost = b.plan && b.plan.platnostDo;
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));

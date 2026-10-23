@@ -88,6 +88,8 @@ Tlačítkem **Založit průkaz** vznikne pacient s kódem `P-xxxx` a první verz
 
 ### Krizová karta
 
+V detailu pacienta jsou vysvětlující poznámky sbalené na konci každé záložky v bloku **ⓘ Vysvětlivky** (rozbalí se klepnutím), aby záložky ukazovaly jen údaje a tlačítka.
+
 ![Detail pacienta – krizová karta](/napoveda/img/c-karta.png)
 
 Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telefonu bez přihlášení: cíl péče, limitace s dokladem, SOS léky, alergie, telefon na garanta a lékaře, kontakty. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad.
@@ -343,6 +345,8 @@ Pod krizovou kartou jsou tři tlačítka podle toho, kdo kartu otevírá:
 - Po odemknutí je nahoře vidět, kdo je přihlášený a co jeho role smí (kapitola 10).
 - Karta se sama zamkne po 2 minutách bez dotyku; ručně tlačítkem s rolí vpravo nahoře.
 
+Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité informace a tlačítka, všechny vysvětlivky jsou až dole v bloku **ⓘ Vysvětlivky**, který se rozbalí klepnutím.
+
 ![Telefon – odemčená karta pro pečující](/napoveda/img/k-odemceno.png)
 
 ![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
@@ -459,6 +463,8 @@ Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod k
 ![Můj průkaz – Zprávy pro a od lékaře](/napoveda/img/p-zpravy-chat.png)
 
 ### Co v aplikaci najdete
+
+Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité informace a tlačítka, všechny vysvětlivky jsou až dole v bloku **ⓘ Vysvětlivky**, který se rozbalí klepnutím.
 
 ![Můj průkaz – přehled s krizovou kartou](/napoveda/img/p-prehled.png)
 

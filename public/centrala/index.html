@@ -160,6 +160,7 @@ function kresliDetail() {
     ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
     <div class="tabs noprint">${tabs.map(([k, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div id="tabbody">${body(d)}</div>`;
+  KP.sbalVysvetlivky($('tabbody'));
   bindNav();
   $('zpet').onclick = () => { S.view = 'pacienti'; render(); };
   document.querySelectorAll('.tabs [data-t]').forEach((b) => (b.onclick = () => { S.tab = b.dataset.t; kresliDetail(); }));
