@@ -86,6 +86,20 @@ Tlačítkem **Založit průkaz** vznikne pacient s kódem `P-xxxx` a první verz
 
 ## 5. Krizová karta a plán péče
 
+### Diagnóza – první záložka
+
+Detail pacienta se otevře na záložce **Diagnóza**: diagnózy, obvyklý funkční stav a alergie – to, co tým potřebuje vidět jako první. Lékař je vpravo může upravit (**Uložit** vytvoří novou verzi plánu péče s jeho podpisem).
+
+![Detail pacienta – Diagnóza](/napoveda/img/c-dg.png)
+
+### Léky – jedna agenda
+
+Záložka **Léky** je jediné místo, kde se léky vedou. U pacienta **propojeného s PéčeDoma** jsou léky jedny pro portál i Kartu: Karta je čte přímo z PéčeDoma (Data klienta → Léky) a tým je tady může i měnit – **Přidat lék**, **Upravit**, **Vyřadit** (lék se v PéčeDoma zneaktivní, historie zůstává). Totéž hned vidí sestry v PéčeDoma, krizová karta, telefon u pacienta i Můj průkaz (telefony při nejbližší synchronizaci). U pacienta bez propojení jsou léky součástí plánu péče a mění je lékař (**Uložit** = nová verze plánu).
+
+![Léky – jedna agenda s PéčeDoma](/napoveda/img/c-leky.png)
+
+![Přidání léku z Karty do PéčeDoma](/napoveda/img/c-leky-pridat.png)
+
 ### Krizová karta
 
 V detailu pacienta jsou vysvětlující poznámky sbalené na konci každé záložky v bloku **ⓘ Vysvětlivky** (rozbalí se klepnutím), aby záložky ukazovaly jen údaje a tlačítka.
@@ -108,7 +122,7 @@ Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám po�
 
 ![Plán péče s verzemi](/napoveda/img/c-plan.png)
 
-- Plán upravuje jen **lékař** pracoviště, které je garant nebo lékař v týmu. Ostatní ho vidí jen ke čtení.
+- Plán upravuje jen **lékař** pracoviště, které je garant nebo lékař v týmu. Ostatní ho vidí jen ke čtení. Plán péče obsahuje cíl péče, limitace a doklad; diagnózy a léky mají vlastní záložky (**Diagnóza**, **Léky**), i když jsou technicky součástí verze plánu.
 - **Uložit jako novou verzi** – každá změna je nová verze s podpisem lékaře, starší verze zůstávají (seznam **Verze plánu** vpravo, klik zobrazí starou verzi).
 - **Platnost plánu do** – po datu platnosti se v přehledu i u pacienta objeví upozornění a lékař udělá **revizi**: potvrdí, že plán platí beze změny, a nastaví novou platnost. Výchozí interval revize nastavuje správce (kapitola 12).
 - Sestra ani rodina cíl péče a limitace vyplnit nemohou.
@@ -120,6 +134,8 @@ Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám po�
 - Bez DVP karta uvádí **rozhodnutí lékaře** a odkaz na zprávu nebo zápis o rozhovoru.
 
 ## 6. Deník a kontakty
+
+Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémové záznamy (spárování telefonu, propojení s PéčeDoma, změna čísla…) jsou sbalené na konci v bloku **Systémové záznamy** a rozbalí se klepnutím – v centrále i na telefonu.
 
 ### Deník
 
@@ -227,7 +243,7 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 
 - **Údaje**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
-- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Léky se ukazují v záložce Plán péče jako **Léky podle PéčeDoma** – lékař je tlačítkem **Převzít léky do formuláře plánu** vloží do polí a uloží jako novou verzi plánu (plán se sám nikdy nemění). Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5).
+- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** (záložka Léky – jedna agenda pro portál i Kartu) a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5).
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
 
 ![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
@@ -351,7 +367,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 
 ![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
 
-Po odemknutí jsou dlaždice **Karta, Plán, Deník, Zhoršení, Kontakty, Tým**. U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a v Plánu je **Léky podle PéčeDoma** – aktuální seznam léků z PéčeDoma vedle léků z plánu; závazný je plán péče, rozdíly řeší lékař. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
+Po odemknutí se otevře **Diagnóza** (diagnózy, funkční stav, alergie) a dlaždice jsou **Diagnóza, Karta, Léky, Plán, Deník, Zhoršení, Kontakty, Tým**. **Léky** jsou jedny: u pacienta propojeného s PéčeDoma přímo z PéčeDoma (tam je mění tým nebo centrála Karty), jinak z plánu péče. U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a SOS léky v kartě jsou ty z PéčeDoma. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
 
 ![Telefon – chat s týmem PéčeDoma](/napoveda/img/k-chat.png)
 

@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.8.6';
+const APP_VERZE = 'pacient-0.9.0';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -220,8 +220,8 @@ function lekarHTML(b) {
       <dt>Doklad</dt><dd>${KP.dokladHTML(dk)}${dk.dvp && dk.original ? '<br>originál: ' + esc(dk.original) : ''}</dd>
       <dt>Diagnózy</dt><dd>${esc(p.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(p.funkce || '—')}</dd><dt>Alergie</dt><dd>${esc(p.alergie || '—')}</dd>
       <dt>Platnost</dt><dd>${KP.prosly(b.plan.platnostDo) ? '<span class="chip warn">čeká na revizi lékařem</span>' : 'do ' + fmtD(b.plan.platnostDo)}</dd></dl></div>
-    <div class="panel"><div class="panel-h"><h2>SOS léky</h2>${lek}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedeny</li>'}</ul></div>
-    <div class="panel"><div class="panel-h"><h2>Léky podle lékaře</h2>${lek}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedeny</li>'}</ul><div class="puvod">Pokud berete léky jinak, zapište to v oddílu <b>Léky</b> – lékař zde uvedené léky nezmění, dokud mu to nepošlete.</div></div>
+    <div class="panel"><div class="panel-h"><h2>SOS léky</h2>${lek}</div><ul style="margin:0;padding:12px 14px 12px 30px">${KP.leky(b).sos.map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedeny</li>'}</ul></div>
+    <div class="panel"><div class="panel-h"><h2>Léky podle lékaře</h2>${lek}</div><ul style="margin:0;padding:12px 14px 12px 30px">${KP.leky(b).medikace.map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedeny</li>'}</ul><div class="puvod">Pokud berete léky jinak, zapište to v oddílu <b>Léky</b> – lékař zde uvedené léky nezmění, dokud mu to nepošlete.</div></div>
     ${kontaktyHTML(b)}
     <div class="note">Plán péče mění jen lékař. Když s něčím nesouhlasíte nebo se něco změnilo, zapište si otázku do Poznámek a pošlete ji v oddílu Sdílet, nebo zavolejte.</div>`;
 }
@@ -254,7 +254,7 @@ function praniHTML() {
     <div class="banner warn" style="display:block"><b>Toto není dříve vyslovené přání podle zákona.</b> Je to váš osobní záznam pro rozhovor s lékařem a pro blízké. Platné dříve vyslovené přání se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.</div>`;
 }
 function lekyHTML(b) {
-  const m = D.moje.leky, odLekare = (b.plan && b.plan.data.medikace) || [];
+  const m = D.moje.leky, odLekare = KP.leky(b).medikace;
   return `<div class="panel"><div class="panel-h"><h2>Léky, které skutečně užívám</h2><span class="chip pac">údaj pacienta</span></div>
       ${m.map((l) => `<div class="lek-row"><div><b>${esc(l.nazev)}</b>${l.davka ? ' – ' + esc(l.davka) : ''}${l.pozn ? `<div class="lbl">${esc(l.pozn)}</div>` : ''}<div class="lbl">aktualizováno ${esc(fmtDT(l.aktualizovano))}</div></div><div class="quick" style="margin:0"><button class="btn sm" data-lu="${l.id}">Upravit</button><button class="btn sm" data-ls="${l.id}">Smazat</button></div></div>`).join('') || '<div class="rolehelp muted">Zatím žádné léky. Zapište, co opravdu berete a jak – i když se to liší od zprávy lékaře.</div>'}
       <div style="padding:12px 14px"><button class="btn primary" id="lk_novy">Přidat lék</button></div></div>

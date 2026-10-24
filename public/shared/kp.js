@@ -40,6 +40,8 @@
     karta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h6"/></svg>',
     plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l2 2 4-4"/><rect x="4" y="3" width="16" height="18" rx="3"/></svg>',
     denik: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h12a3 3 0 013 3v11H7a3 3 0 00-3 3z"/><path d="M8 9h7M8 13h7"/></svg>',
+    dg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v6a6 6 0 0012 0V3"/><path d="M12 15v3a3 3 0 006 0v-2"/><circle cx="18" cy="14" r="2"/></svg>',
+    leky: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="9" width="18" height="7" rx="3.5" transform="rotate(-45 12 12.5)"/><path d="M8.5 16L15.5 9"/></svg>',
     zhorseni: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 17H3z"/><path d="M12 10v4M12 17h.01"/></svg>',
     kontakty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg>',
     udaje: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>',
@@ -102,6 +104,12 @@
     const kam = pred ? root.querySelector(pred) : null;
     if (kam) root.insertBefore(d, kam); else root.appendChild(d);
   };
+  /* Léky – jeden zdroj (od 0.9.0): u pacienta propojeného s PéčeDoma jsou léky z PéčeDoma (a tam se i mění), jinak z plánu péče */
+  KP.leky = (b) => {
+    const pd = b && b.pecedoma, p = (b && b.plan && b.plan.data) || {};
+    if (pd && pd.propojeno && pd.aktualizovano) return { sos: pd.sos || [], medikace: pd.medikace || [], zdroj: 'pecedoma', aktualizovano: pd.aktualizovano };
+    return { sos: p.sos || [], medikace: p.medikace || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };
+  };
   KP.kartaHTML = (b, { tlacitka = '' } = {}) => {
     const p = b.pacient || {}; const plan = (b.plan && b.plan.data) || {}; const platnost = b.plan && b.plan.platnostDo;
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));
@@ -117,6 +125,7 @@
     const lekarJm = (b.plan && b.plan.podepsal) || g.lekar || '—';
     const lekarTel = g.lekarTelefon || g.telefon24 || '';
     const pd = b.pecedoma || null;   // propojení s PéčeDoma: nejbližší plánovaná návštěva patří do karty (vidí ji i ZZS a tisk)
+    const leky = KP.leky(b);
     const e = KP.esc;
     return `<div class="card">
       <div class="hdr"><div class="row" style="justify-content:space-between"><span>KRIZOVÝ PLÁN PÉČE · ${e(p.kod || '')}</span><span class="valid ${exp ? 'exp' : ''}">${!b.plan ? 'BEZ PLÁNU' : exp ? 'ČEKÁ NA REVIZI' : 'platí do ' + KP.fmtD(platnost)}</span></div>
@@ -131,7 +140,7 @@
         </section>
         <section class="sec amber"><h3>ALERGIE A SOS LÉKY</h3>
           <div class="val"><b>Alergie:</b> ${e(plan.alergie || 'neuvedeno')}</div>
-          <div class="lbl">SOS léky</div>${(plan.sos || []).map((s) => `<div class="val">${e(s)}</div>`).join('') || '<div class="val">neuvedeny</div>'}
+          <div class="lbl">SOS léky${leky.zdroj === 'pecedoma' ? ' · PéčeDoma' : ''}</div>${leky.sos.map((s) => `<div class="val">${e(s)}</div>`).join('') || '<div class="val">neuvedeny</div>'}
         </section>
         <section class="sec blue"><h3>KOHO VOLAT</h3>
           ${first ? `<a class="callrow first" href="tel:${e(String(first.tel).replace(/\s/g, ''))}" style="color:inherit;text-decoration:none"><span>Nejdřív: ${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</span><span class="num">${e(first.tel)}</span></a>` : ''}
@@ -147,7 +156,13 @@
   };
 
   KP.ROLE = { lekar: 'lékař', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', system: 'systém', pacient: 'pacient' };
-  KP.denikHTML = (denik, { role = true } = {}) => `<ul class="diary">${[...(denik || [])].reverse().map((e) => `<li><div class="when">${KP.esc(KP.fmtDT(e.cas))} · <span class="who">${KP.esc(e.autor)}${role && e.role ? ' · ' + KP.esc(KP.ROLE[e.role] || e.role) : ''}${e.overeno === false || e.overeno === 0 ? ' · <span class="chip warn">neověřeno</span>' : ''}${e.cekaNaOdeslani ? ' · <span class="chip">čeká na odeslání</span>' : ''}</span></div><div><span class="chip ${/SOS/.test(e.typ) ? 'warn' : /Zhoršení|ZZS/.test(e.typ) ? 'crit' : /Založení|Revize|Ukončení|Předání/.test(e.typ) ? 'acc' : /Úprava|Systém/.test(e.typ) ? 'vio' : ''}">${KP.esc(e.typ)}</span><div style="margin-top:4px;white-space:pre-wrap">${KP.esc(e.text)}</div></div></li>`).join('') || '<li class="muted">Zatím žádné zápisy.</li>'}</ul>`;
+  /* deník: primárně jen zápisy o pacientovi; systémové (párování, propojení, změna čísla…) jsou sbalené na konci */
+  KP.denikHTML = (denik, { role = true, system = true } = {}) => {
+    if (!system) return KP.denikSeznam(denik, { role });
+    const vse = denik || [], sys = vse.filter((e) => e.typ === 'Systém'), pac = vse.filter((e) => e.typ !== 'Systém');
+    return KP.denikSeznam(pac, { role }) + (sys.length ? `<details class="vysv"><summary>Systémové záznamy <span class="chip">${sys.length}</span></summary><div class="vysv-b">${KP.denikSeznam(sys, { role })}</div></details>` : '');
+  };
+  KP.denikSeznam = (denik, { role = true } = {}) => `<ul class="diary">${[...(denik || [])].reverse().map((e) => `<li><div class="when">${KP.esc(KP.fmtDT(e.cas))} · <span class="who">${KP.esc(e.autor)}${role && e.role ? ' · ' + KP.esc(KP.ROLE[e.role] || e.role) : ''}${e.overeno === false || e.overeno === 0 ? ' · <span class="chip warn">neověřeno</span>' : ''}${e.cekaNaOdeslani ? ' · <span class="chip">čeká na odeslání</span>' : ''}</span></div><div><span class="chip ${/SOS/.test(e.typ) ? 'warn' : /Zhoršení|ZZS/.test(e.typ) ? 'crit' : /Založení|Revize|Ukončení|Předání/.test(e.typ) ? 'acc' : /Úprava|Systém/.test(e.typ) ? 'vio' : ''}">${KP.esc(e.typ)}</span><div style="margin-top:4px;white-space:pre-wrap">${KP.esc(e.text)}</div></div></li>`).join('') || '<li class="muted">Zatím žádné zápisy.</li>'}</ul>`;
 
   window.KP = KP;
 })();

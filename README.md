@@ -36,6 +36,16 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Diagnóza první, jedny léky, deník o pacientovi (0.9.0)
+
+- Detail pacienta i telefon po odemknutí začínají záložkou **Diagnóza** (dg, funkční stav, alergie; lékař upraví = nová verze plánu).
+- **Léky – jedna agenda** (`KP.leky(b)`): u pacienta s `PdKlientID` jsou léky z PéčeDoma (`A_KP_PdSync`, zdroj `A_MSPPP_Medikace`) a Karta je
+  tam i mění: `GET/POST /api/c/pacient/:id/leky`, `POST …/leky/smaz` → jhn-apps `pecedoma-karta` akce `leky` / `lek-uloz` / `lek-smaz`
+  (zneaktivnění), pak okamžitá synchronizace, deník `Úprava léků`, audit. Bez propojení jsou léky v plánu (nová verze přes `/plan`).
+  Krizová karta, výpis, telefon i Můj průkaz berou léky z `KP.leky`; formulář plánu léky nemá (jen průvodce Nový pacient).
+  Balík telefonu nese `pecedoma.propojeno`.
+- **Deník**: `KP.denikHTML` ukazuje zápisy o pacientovi, typ `Systém` sbalený v „Systémové záznamy“; počet v záložce bez systémových.
+
 ## Chat PéčeDoma a návštěva v kartě (0.8.0)
 
 - **Nejbližší návštěva** z PéčeDoma je oddíl krizové karty (`KP.kartaHTML`, `.sec.green`) – centrála, telefon (i zamčený pro ZZS), Můj průkaz, tisk.

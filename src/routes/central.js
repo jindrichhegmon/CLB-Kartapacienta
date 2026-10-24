@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, PD_API_VYCHOZI } from '../pecedoma.js';
+import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, PD_API_VYCHOZI } from '../pecedoma.js';
 
 export const central = Router();
 
@@ -537,6 +537,41 @@ central.post('/pacient/:id/pecedoma/zprava', sUzivatelem(async (q, s, req) => {
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: zpráva odeslána', ip: s.ip });
   return r;
 }));
+
+/* Léky – jedna agenda (od 0.9.0). Propojený pacient: léky jsou v PéčeDoma (A_MSPPP_Medikace) a Karta je tam čte i mění, pak hned
+   synchronizuje (A_KP_PdSync → karta, telefon, Můj průkaz). Nepropojený pacient: léky jsou součást plánu (nová verze přes /plan). */
+central.get('/pacient/:id/leky', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); await opravneni(q, s, id);
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) return { zdroj: 'plan' };
+  const r = await lekyPd(await nastaveniPd(q), p.pd);
+  return { zdroj: 'pecedoma', leky: r.leky };
+}));
+async function lekPd(q, s, req, akce) {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis || !op.aktivni) throw chyba('Léky upravuje tým kolem pacienta u aktivního průkazu', 403);
+  const pd = await pdKlientPacienta(q, id);
+  const nast = await nastaveniPd(q);
+  const b = req.body || {};
+  let r, detail;
+  if (akce === 'uloz') {
+    const lek = { id: b.id ? String(b.id) : undefined, typ: text(b.typ, 15), nazev: text(b.nazev, 200), davka: text(b.davka, 200), instr: text(b.instr, 500), popis: text(b.popis, 300) };
+    if (!lek.nazev) throw chyba('Vyplňte název léku');
+    r = await ulozLekPd(nast, pd, lek, s.jmeno);
+    detail = `${lek.id ? 'upraven' : 'přidán'} ${lek.typ === 'ZACHRANNA' ? 'SOS lék' : 'lék'} ${lek.nazev}${lek.davka ? ' ' + lek.davka : ''}`;
+  } else {
+    if (!b.id) throw chyba('Chybí lék');
+    r = await smazLekPd(nast, pd, b.id, s.jmeno);
+    detail = `vyřazen lék ${text(b.nazev, 200) || '#' + b.id}`;
+  }
+  let sync = null;
+  try { await synchronizujPacienta(q, nast, id, pd); sync = await stavSync(q, id); } catch (e) { /* léky jsou uložené v PéčeDoma, synchronizace doběhne automaticky */ }
+  await zapisDenik(q, { pacientId: id, typ: 'Úprava léků', text: `Léky (PéčeDoma): ${detail}.`, autor: s.jmeno, role: 'tym', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: úprava léků', detail, ip: s.ip });
+  return { leky: r.leky, sync };
+}
+central.post('/pacient/:id/leky', sUzivatelem((q, s, req) => lekPd(q, s, req, 'uloz')));
+central.post('/pacient/:id/leky/smaz', sUzivatelem((q, s, req) => lekPd(q, s, req, 'smaz')));
 
 central.post('/pacient/:id/pecedoma/sync', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
