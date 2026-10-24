@@ -107,13 +107,14 @@
   /* Léky – jeden zdroj (od 0.9.0): u pacienta propojeného s PéčeDoma jsou léky z PéčeDoma (a tam se i mění), jinak z plánu péče */
   KP.leky = (b) => {
     const pd = b && b.pecedoma, p = (b && b.plan && b.plan.data) || {};
-    if (pd && pd.propojeno && pd.aktualizovano) return { sos: pd.sos || [], medikace: pd.medikace || [], zdroj: 'pecedoma', aktualizovano: pd.aktualizovano };
-    return { sos: p.sos || [], medikace: p.medikace || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };
+    if (pd && pd.propojeno && pd.aktualizovano) return { sos: pd.sos || [], opioidy: pd.opioidy || [], medikace: pd.medikace || [], zdroj: 'pecedoma', aktualizovano: pd.aktualizovano };
+    return { sos: p.sos || [], opioidy: p.opioidy || [], medikace: p.medikace || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };
   };
   /* Léky z PéčeDoma – seznam s tlačítky a okno pro přidání / úpravu (centrála i telefon lékaře) */
-  KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', PRAVIDELNA: 'pravidelně', PARENTERALNI: 'parenterálně' };
+  KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'pravidelně', PARENTERALNI: 'parenterálně' };
+  KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Pravidelná medikace', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
   KP.lekyRadky = (leky, muze) => {
-    const e = KP.esc, sk = [['ZACHRANNA', 'SOS léky', 'warn'], ['PRAVIDELNA', 'Pravidelná medikace', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
+    const e = KP.esc, sk = KP.SKUPINY_LEKU;
     return sk.map(([t, n, c]) => { const r = (leky || []).filter((l) => l.typ === t); return `<div class="lbl" style="padding:8px 14px 2px">${n} <span class="chip ${c}">${r.length}</span></div>
       ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${e(l.nazev)}</b>${l.davka ? ' – ' + e(l.davka) : ''}${l.instr ? `<div class="lbl">${e(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${e(l.popis)}</div>` : ''}</td>
         <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${e(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${e(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted" style="padding:0 14px 8px;font-size:13px">žádné</div>'}`; }).join('');
@@ -167,6 +168,7 @@
         <section class="sec amber"><h3>ALERGIE A SOS LÉKY</h3>
           <div class="val"><b>Alergie:</b> ${e(plan.alergie || 'neuvedeno')}</div>
           <div class="lbl">SOS léky${leky.zdroj === 'pecedoma' ? ' · PéčeDoma' : ''}</div>${leky.sos.map((s) => `<div class="val">${e(s)}</div>`).join('') || '<div class="val">neuvedeny</div>'}
+          ${leky.opioidy.length ? `<div class="lbl">Opioidy</div>${leky.opioidy.map((s) => `<div class="val">${e(s)}</div>`).join('')}` : ''}
         </section>
         <section class="sec blue"><h3>KOHO VOLAT</h3>
           ${first ? `<a class="callrow first" href="tel:${e(String(first.tel).replace(/\s/g, ''))}" style="color:inherit;text-decoration:none"><span>Nejdřív: ${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</span><span class="num">${e(first.tel)}</span></a>` : ''}

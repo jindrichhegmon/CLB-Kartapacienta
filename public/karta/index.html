@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.9.2';
+const APP_VERZE = 'karta-0.9.3';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -243,9 +243,13 @@ function dgHTML(b, { kompakt = false } = {}) {
 function lekyHTML(b) {
   const lk = KP.leky(b);
   const chip = lk.zdroj === 'pecedoma' ? `<span class="chip acc">PéčeDoma · ${esc(fmtDT(lk.aktualizovano))}</span>` : b.plan ? `<span class="chip acc">plán v${b.plan.verze}</span>` : '';
-  return `<div class="panel"><div class="panel-h"><h2>SOS léky</h2>${chip}</div><ul style="margin:0;padding:12px 14px 12px 30px">${lk.sos.map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedeny</li>'}</ul></div>
-    <div class="panel"><div class="panel-h"><h2>Pravidelná medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${lk.medikace.map((s) => `<li>${esc(s)}</li>`).join('') || '<li>neuvedena</li>'}</ul></div>
-    ${lk.zdroj === 'pecedoma' && lekarNaTelefonu() ? `<div class="panel"><div class="panel-h"><h2>Upravit léky</h2><span class="chip acc">zapisuje se do PéčeDoma</span></div><div id="lk_seznam"><div class="muted" style="padding:10px 14px;font-size:13px">${navigator.onLine ? 'Načítám léky z PéčeDoma…' : 'Úprava léků potřebuje připojení k internetu.'}</div></div><div class="quick" style="padding:0 14px 14px"><button class="btn primary sm" id="lk_novy">Přidat lék</button></div></div>` : ''}
+  // lékař u propojeného pacienta: jen jeden aktivní seznam (přidat / upravit / vyřadit), bez zdvojeného výpisu
+  if (lk.zdroj === 'pecedoma' && lekarNaTelefonu()) return `<div class="panel"><div class="panel-h"><h2>Léky</h2>${chip}</div><div id="lk_seznam"><div class="muted" style="padding:10px 14px;font-size:13px">${navigator.onLine ? 'Načítám léky z PéčeDoma…' : 'Úprava léků potřebuje připojení k internetu.'}</div></div><div class="quick" style="padding:0 14px 14px"><button class="btn primary sm" id="lk_novy">Přidat lék</button></div></div>
+    <div class="note">Léky jsou jedny pro PéčeDoma i Kartu – co tu změníte, vidí hned tým v PéčeDoma, centrální aplikace i Můj průkaz pacienta.</div>`;
+  const seznam = (r, prazdne) => `<ul style="margin:0;padding:12px 14px 12px 30px">${r.map((s) => `<li>${esc(s)}</li>`).join('') || `<li>${prazdne}</li>`}</ul>`;
+  return `<div class="panel"><div class="panel-h"><h2>SOS léky</h2>${chip}</div>${seznam(lk.sos, 'neuvedeny')}</div>
+    <div class="panel"><div class="panel-h"><h2>Opioidy</h2></div>${seznam(lk.opioidy, 'žádné')}</div>
+    <div class="panel"><div class="panel-h"><h2>Pravidelná medikace</h2></div>${seznam(lk.medikace, 'neuvedena')}</div>
     <div class="note">${lk.zdroj === 'pecedoma' ? 'Léky jsou jedny pro PéčeDoma i Kartu – mění je lékař tady na telefonu, v centrální aplikaci nebo tým v PéčeDoma; telefon je převezme při synchronizaci.' : 'Léky jsou součástí plánu péče a mění je lékař v centrální aplikaci.'}</div>`;
 }
 const lekarNaTelefonu = () => U.role === 'lekar' || U.role === 'pl';

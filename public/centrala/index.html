@@ -227,11 +227,13 @@ function tabLeky(d) {
   const ro = !d.op.lekar;
   return `<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
       <div class="panel"><div class="panel-h"><h2>SOS léky</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : ''}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedeny</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>Opioidy</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.opioidy || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul></div>
       <div class="panel"><div class="panel-h"><h2>Pravidelná medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit léky</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">
         <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="lk_sos" style="font-family:var(--font);min-height:80px">${esc((p.sos || []).join('\n'))}</textarea></div>
+        <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="lk_opi" style="font-family:var(--font);min-height:60px">${esc((p.opioidy || []).join('\n'))}</textarea></div>
         <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="lk_med" style="font-family:var(--font);min-height:90px">${esc((p.medikace || []).join('\n'))}</textarea></div>
         <button class="btn primary" id="lk_ok">Uložit</button></div></div>`}
       <div class="note">Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.</div>
@@ -269,6 +271,7 @@ function planForm(data, platnost, ro, pref = 'f', { leky = false } = {}) {
     <div class="field"><label>Obvyklý funkční stav</label><textarea id="${pref}_fun" style="font-family:var(--font);min-height:60px">${esc(data.funkce || '')}</textarea></div>
     <div class="frow"><div class="field"><label>Alergie</label><input id="${pref}_al" value="${esc(data.alergie || '')}"></div><div class="field"><label>Platnost plánu do</label><input type="date" id="${pref}_plat" value="${esc(platnost || '')}"></div></div>
     ${leky ? `<div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="${pref}_sos" style="font-family:var(--font);min-height:80px">${esc((data.sos || []).join('\n'))}</textarea></div>
+    <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="${pref}_opi" style="font-family:var(--font);min-height:60px">${esc((data.opioidy || []).join('\n'))}</textarea></div>
     <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="${pref}_med" style="font-family:var(--font);min-height:90px">${esc((data.medikace || []).join('\n'))}</textarea></div>` : ''}
   </div>`;
 }
@@ -276,7 +279,7 @@ function ctiPlan(pref = 'f', base = {}) {
   const v = (id) => ($(`${pref}_${id}`) || {}).value || '';
   const radky = (id, puvodni) => ($(`${pref}_${id}`) ? v(id).split('\n').map((x) => x.trim()).filter(Boolean) : (puvodni || []));
   return { data: { cil: v('cil'), limity: [...document.querySelectorAll(`input[name=${pref}_lim]:checked`)].map((i) => i.value), doklad: { dvp: v('dvp') === '1', datum: v('dvpd'), original: v('orig'), zprava: v('zpr'), pouceni: v('pou') === '1', overenyPodpis: v('ovp') === '1', prijeti: v('prij').trim() },
-    dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), medikace: radky('med', base.medikace) }, platnostDo: v('plat') };
+    dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), opioidy: radky('opi', base.opioidy), medikace: radky('med', base.medikace) }, platnostDo: v('plat') };
 }
 function tabPlan(d) {
   const ro = !d.op.lekar;
@@ -407,7 +410,7 @@ function bindTab() {
   on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Plán péče zůstává.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
   on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
   on('dg_ok', async () => { const base = (d.plan && d.plan.data) || {}; await akce('/plan', { data: { ...base, dg: $('dg_dg').value, funkce: $('dg_fun').value, alergie: $('dg_al').value }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava diagnózy / funkčního stavu' }, 'Uloženo jako nová verze plánu'); });
-  on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), medikace: r('lk_med') }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
+  on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med') }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
   on('lk_novy', () => lekOkno(d));
   if ($('lk_seznam')) nactiLeky(d);
   on('revize', revize);
@@ -529,6 +532,8 @@ Alergie: ${pl.alergie || '—'}
 Funkční stav: ${pl.funkce || '—'}
 SOS medikace${lk.zdroj === 'pecedoma' ? ' (PéčeDoma, stav ' + fmtDT(lk.aktualizovano) + ')' : ''}:
 ${lk.sos.map((s) => ' - ' + s).join('\n') || ' - žádná'}
+Opioidy:
+${lk.opioidy.map((s) => ' - ' + s).join('\n') || ' - žádné'}
 Pravidelná medikace:
 ${lk.medikace.map((s) => ' - ' + s).join('\n') || ' - neuvedena'}
 
@@ -567,7 +572,7 @@ function zPeceDoma(j) {
       pacient: { jmeno: t(p.jmeno, 80), prijmeni: t(p.prijmeni, 80), rc: t(p.rc, 11), datumNarozeni: /^\d{4}-\d{2}-\d{2}$/.test(p.datumNarozeni || '') ? p.datumNarozeni : '', rok: p.rok || '',
         pohlavi: p.pohlavi === 'žena' ? 'žena' : 'muž', pojistovna: t(p.pojistovna, 3), adresa: t(p.adresa, 300), pobyt: t(p.pobyt, 200), telefonKarty: t(p.telefonKarty || p.telefon, 20) },
       plan: { cil: CILE[pl.cil] ? pl.cil : 'symptom', limity: limity.length ? limity : ['KPR'], doklad: { dvp: !!dk.dvp, datum: t(dk.datum, 10), original: t(dk.original, 200), zprava: t(dk.zprava, 200), pouceni: !!dk.pouceni, overenyPodpis: !!dk.overenyPodpis, prijeti: t(dk.prijeti, 200) },
-        dg: t(pl.dg, 2000), funkce: t(pl.funkce, 1000), alergie: t(pl.alergie, 300), sos: seznam(pl.sos), medikace: seznam(pl.medikace) },
+        dg: t(pl.dg, 2000), funkce: t(pl.funkce, 1000), alergie: t(pl.alergie, 300), sos: seznam(pl.sos), opioidy: seznam(pl.opioidy), medikace: seznam(pl.medikace) },
       kontakty: (Array.isArray(j.kontakty) ? j.kontakty : []).slice(0, 30).map((k) => ({ jmeno: [t(k.jmeno, 100), t(k.pozn, 60)].filter(Boolean).join(' – '), tel: t(k.tel, 40),
         skupina: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(k.skupina) ? k.skupina : 'INFORMOVAT', pozn: '' })).filter((k) => k.jmeno),
     },
@@ -624,8 +629,9 @@ function pdPanel(d, { jen = 'vse' } = {}) {
       ${chat || pd.odkaz ? `<div class="quick" style="margin-top:8px">${chat}${pd.odkaz ? `<a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a>` : ''}</div>` : ''}</div></div>` : '';
   const leky = pd.klientId && sy.aktualizovano ? `<div class="panel"><div class="panel-h"><h2>Léky podle PéčeDoma</h2><span class="chip acc">aktualizováno ${esc(fmtDT(sy.aktualizovano))}</span></div><div style="padding:12px 14px">
       <div class="lbl">SOS léky</div><ul style="margin:4px 0 10px;padding-left:18px">${(sy.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul>
+      <div class="lbl">Opioidy</div><ul style="margin:4px 0 10px;padding-left:18px">${(sy.opioidy || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul>
       <div class="lbl">Pravidelná medikace</div><ul style="margin:4px 0 0;padding-left:18px">${(sy.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádná</li>'}</ul>
-      ${d.op.lekar ? '<div class="quick" style="margin-top:10px"><button class="btn sm" id="pd_prevzit">Převzít léky do formuláře plánu</button></div><div class="hint">Vloží léky do polí SOS a Pravidelná medikace; plán se změní až tlačítkem Uložit jako novou verzi.</div>' : '<div class="hint">Do plánu péče léky převezme lékař (nová verze plánu).</div>'}</div></div>` : '';
+      ${d.op.lekar ? '<div class="quick" style="margin-top:10px"><button class="btn sm" id="pd_prevzit">Převzít léky do formuláře plánu</button></div><div class="hint">Vloží léky do polí SOS, Opioidy a Pravidelná medikace; plán se změní až tlačítkem Uložit jako novou verzi.</div>' : '<div class="hint">Do plánu péče léky převezme lékař (nová verze plánu).</div>'}</div></div>` : '';
   if (jen === 'leky') return leky;
   const stav = `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2>${pd.klientId ? '<span class="chip ok">propojeno</span>' : '<span class="chip">nepropojeno</span>'}</div><div style="padding:12px 14px;display:grid;gap:8px">
       ${pd.klientId ? `<div class="lbl">Klient PéčeDoma ${esc(pd.klientId.slice(0, 8))}…${pd.portalKlientId ? ' · portál #' + esc(pd.portalKlientId) : ''}${sy.aktualizovano ? ' · synchronizováno ' + esc(fmtDT(sy.aktualizovano)) : ' · zatím nesynchronizováno'}${pd.autoSync ? ' · automaticky každých 30 min' : ' · jen ručně'}</div>${sy.chyba ? `<div class="banner warn">${esc(sy.chyba)}</div>` : ''}` : '<div class="lbl">Pacient není propojený s klientem PéčeDoma – léky a návštěvy se nepřebírají.</div>'}
@@ -668,7 +674,7 @@ function renderNovy() {
         w.ai = r; w.import = null; const v = r.vysledek;
         const [prijmeni, ...jm] = String(v.jmenoCele || '').split(/\s+/).reverse();
         w.d.pacient = { ...w.d.pacient, prijmeni: w.d.pacient.prijmeni || (prijmeni || ''), jmeno: w.d.pacient.jmeno || jm.reverse().join(' '), rok: w.d.pacient.rok || v.rok || '', pobyt: v.pobyt || '' };
-        w.d.plan = { cil: v.cil, limity: v.limity || [], doklad: v.doklad || {}, dg: v.dg, funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], medikace: v.medikace || [] };
+        w.d.plan = { cil: v.cil, limity: v.limity || [], doklad: v.doklad || {}, dg: v.dg, funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [] };
         w.d.kontakty = (v.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: '' }));
         w.krok = 2; renderNovy();
       } catch (e) { toast(e.message); } finally { if ($('w_ai')) { $('w_ai').disabled = false; $('w_ai').textContent = 'Anonymní rozbor zprávy'; } }

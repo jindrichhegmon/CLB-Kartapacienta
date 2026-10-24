@@ -96,6 +96,8 @@ Záložky detailu jdou v pořadí **Krizová karta, Diagnóza, Plán péče, Lé
 
 Záložka **Léky** je jediné místo, kde se léky vedou. U pacienta **propojeného s PéčeDoma** jsou léky jedny pro portál i Kartu: Karta je čte přímo z PéčeDoma (Data klienta → Léky) a tým je tady může i měnit – **Přidat lék**, **Upravit**, **Vyřadit** (lék se v PéčeDoma zneaktivní, historie zůstává). Totéž hned vidí sestry v PéčeDoma, krizová karta, telefon u pacienta i Můj průkaz (telefony při nejbližší synchronizaci). U pacienta bez propojení jsou léky součástí plánu péče a mění je lékař (**Uložit** = nová verze plánu).
 
+Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (záchranné), **Opioidy** (silná analgetika podávaná pravidelně – morfin, fentanyl, buprenorfin, oxykodon…), **Pravidelná medikace** (ostatní léky) a **Parenterálně** (injekce a infuze sestry). Skupinu vybíráte v poli **Typ** při přidání nebo úpravě léku; opioidy jsou v krizové kartě zvlášť pod SOS léky, aby je posádka ZZS i lékař viděli na první pohled.
+
 ![Léky – jedna agenda s PéčeDoma](/napoveda/img/c-leky.png)
 
 ![Přidání léku z Karty do PéčeDoma](/napoveda/img/c-leky-pridat.png)
@@ -367,7 +369,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 
 ![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
 
-Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršení, Kontakty, Tým**; diagnóza je prvním oddílem krizové karty, takže je vidět už na zamčené první stránce. **Léky** jsou jedny: u pacienta propojeného s PéčeDoma přímo z PéčeDoma, jinak z plánu péče. **Lékař** (odemčení kódem lékaře nebo PINem lékaře) může léky propojeného pacienta upravit přímo na telefonu – **Přidat lék**, **Upravit**, **Vyřadit** – stejně jako v PéčeDoma; zápis jde do PéčeDoma a potřebuje připojení.
+Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršení, Kontakty, Tým**; diagnóza je prvním oddílem krizové karty, takže je vidět už na zamčené první stránce. **Léky** jsou jedny: u pacienta propojeného s PéčeDoma přímo z PéčeDoma, jinak z plánu péče. **Lékař** (odemčení kódem lékaře nebo PINem lékaře) vidí na dlaždici Léky u propojeného pacienta rovnou jeden upravitelný seznam po skupinách (SOS léky, Opioidy, Pravidelná medikace, Parenterálně) s tlačítky **Upravit**, **Vyřadit** a **Přidat lék** – stejně jako v PéčeDoma; zápis jde do PéčeDoma a potřebuje připojení. Ostatní role vidí léky jen ke čtení (SOS léky, Opioidy, Pravidelná medikace).
 
 ![Telefon – lékař upravuje léky](/napoveda/img/k-leky-lekar.png) U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a SOS léky v kartě jsou ty z PéčeDoma. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
 
@@ -381,7 +383,7 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršen�
 
 ![Telefon – průvodce zhoršením stavu](/napoveda/img/k-zhorseni.png)
 
-- **Plán** – cíl péče, limitace, doklad, SOS léky a pravidelná medikace, kdo plán stanovil a do kdy platí. Plán mění jen lékař v centrální aplikaci.
+- **Plán** – cíl péče, limitace, doklad, kdo plán stanovil a do kdy platí (léky jsou na dlaždici **Léky**: SOS léky, Opioidy, Pravidelná medikace). Plán mění jen lékař v centrální aplikaci.
 - **Kontakty** a **Tým** – kontakty po skupinách, garant, tým a údaje o tomto telefonu (kdy byl spárován, poslední spojení, co čeká na odeslání).
 
 Při ohrožení života volejte **155** – karta nenahrazuje záchrannou službu.

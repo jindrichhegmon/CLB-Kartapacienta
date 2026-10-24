@@ -121,7 +121,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
     kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(),
     rezim,
-    pecedoma: pd || chat ? { sos: pd ? pd.sos : [], medikace: pd ? pd.medikace : [], pristiNavsteva: pd ? pd.pristiNavsteva : null, pristiKdo: pd ? pd.pristiKdo : null, pristiPozn: pd ? pd.pristiPozn : null, aktualizovano: pd ? pd.aktualizovano : null, chat, propojeno: !!p.PdKlientID } : null,
+    pecedoma: pd || chat ? { sos: pd ? pd.sos : [], opioidy: pd ? pd.opioidy : [], medikace: pd ? pd.medikace : [], pristiNavsteva: pd ? pd.pristiNavsteva : null, pristiKdo: pd ? pd.pristiKdo : null, pristiPozn: pd ? pd.pristiPozn : null, aktualizovano: pd ? pd.aktualizovano : null, chat, propojeno: !!p.PdKlientID } : null,
     serverCas: new Date().toISOString(),
   };
 }
@@ -157,6 +157,7 @@ export function normalizujPlan(d = {}) {
     funkce: String(d.funkce || '').slice(0, 1000),
     alergie: String(d.alergie || 'žádné známé').slice(0, 300),
     sos: pole(d.sos),
+    opioidy: pole(d.opioidy),
     medikace: pole(d.medikace),
   };
 }

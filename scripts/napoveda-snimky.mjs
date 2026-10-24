@@ -32,7 +32,8 @@ const planData = {
   dg: 'C50 karcinom prsu s metastázami do kostí a jater; chronické srdeční selhání', funkce: 'PPS 40 % – většinu dne na lůžku, s pomocí do křesla',
   alergie: 'penicilin',
   sos: ['Morphin 10 mg s.c. při bolesti nebo dušnosti, nejvýš po 4 h', 'Midazolam 5 mg s.c. při neklidu', 'Paracetamol 1 g p.o. při horečce'],
-  medikace: ['MST Continus 30 mg 1-0-1', 'Furosemid 40 mg 1-0-0', 'Pantoprazol 20 mg 1-0-0', 'Lactulosa 15 ml večer'],
+  opioidy: ['MST Continus 30 mg 1-0-1'],
+  medikace: ['Furosemid 40 mg 1-0-0', 'Pantoprazol 20 mg 1-0-0', 'Lactulosa 15 ml večer'],
 };
 const plan = { verze: 3, data: planData, platnostDo: den(70), podepsal: 'MUDr. Petra Ukázková', podepsalId: 1, typ: 'ZMENA', vytvoreno: cas(-7, '10:24') };
 const kontakty = [
@@ -79,7 +80,7 @@ const pacient = { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', 
   adresa: 'Lipová 12, Zlín', pobyt: 'doma', telefonKarty: '+420 777 000 123', stav: 'AKTIVNI', souhlas: `potvrzeno ${den(-21)} · MUDr. Petra Ukázková`, zalozeno: cas(-21, '09:10'), uzavreno: null, duvodUzavreni: null };
 // propojení s PéčeDoma (0.7.0): nastavení tenanta, stav synchronizace pacienta, seznam klientů pro výběr
 const pdNast = { odkaz: 'https://web-pecedoma.netlify.app/?iv=ukazka&data=ukazka&tag=hospic', api: 'https://95-216-201-2.sslip.io', apiVychozi: 'https://95-216-201-2.sslip.io', tokenNastaven: true, sync: true, nastaveno: true, partnerKlic: true };
-const pdSync = { sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti', 'Midazolam 5 mg s.c. – při neklidu'], medikace: ['MST Continus 30 mg – 1-0-1', 'Furosemid 40 mg – 1-0-0', 'Lactulosa 15 ml – 1-0-1'],
+const pdSync = { sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti', 'Midazolam 5 mg s.c. – při neklidu'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Furosemid 40 mg – 1-0-0', 'Lactulosa 15 ml – 1-0-1'],
   pristiNavsteva: den(2) + ' 09:30', pristiKdo: 'lékař MUDr. Petra Ukázková, sestra Lucie Příkladná', pristiPozn: 'Návštěva lékaře · Plánováno · Zlín', aktualizovano: cas(0, '08:05'), chyba: null };
 const pdKlienti = [
   { id: 'a1b2c3d4-0000-4000-8000-000000000001', jmeno: 'Anna', prijmeni: 'Vzorová', rc: '505512/1234', narozen: '1950-05-12', mesto: 'Zlín', telefon: '777 000 456', posledni_aktivita: den(-5), hospic: true, t720: true, lpp: true },
@@ -128,7 +129,7 @@ const balik = {
   tym: tym.map((t) => ({ nazev: t.nazev, typ: t.typ, role: t.role, tel: t.telefon24 })),
   piny: [{ id: 'o2', jmeno: 'Sestra Lucie Příkladná', role: 'hospic', salt, hash: pbkdf2Sync('123456', Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex'), iterace: 120000 }],
   denik, serverCas: new Date().toISOString(),
-  pecedoma: { sos: pdSync.sos, medikace: pdSync.medikace, pristiNavsteva: pdSync.pristiNavsteva, pristiKdo: pdSync.pristiKdo, pristiPozn: pdSync.pristiPozn, aktualizovano: pdSync.aktualizovano, chat: true, propojeno: true },
+  pecedoma: { sos: pdSync.sos, opioidy: pdSync.opioidy, medikace: pdSync.medikace, pristiNavsteva: pdSync.pristiNavsteva, pristiKdo: pdSync.pristiKdo, pristiPozn: pdSync.pristiPozn, aktualizovano: pdSync.aktualizovano, chat: true, propojeno: true },
 };
 // vlastní telefon pacienta: bez PINů týmu a bez deníku (src/kp.js balikProZarizeni, rezim PACIENT)
 const balikPacient = { ...balik, piny: [], denik: [], rezim: 'PACIENT' };
@@ -151,7 +152,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.2', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.3', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -159,7 +160,7 @@ app.get('/api/c/pacient/:id', j(detail));
 let pdLeky = [
   { id: '1', typ: 'ZACHRANNA', nazev: 'Morphin', davka: '10 mg s.c.', instr: 'při bolesti nebo dušnosti, nejvýš po 4 h', popis: '' },
   { id: '2', typ: 'ZACHRANNA', nazev: 'Midazolam', davka: '5 mg s.c.', instr: 'při neklidu', popis: '' },
-  { id: '3', typ: 'PRAVIDELNA', nazev: 'MST Continus', davka: '30 mg 1-0-1', instr: '', popis: 'tableta proti bolesti ráno a večer' },
+  { id: '3', typ: 'OPIOID', nazev: 'MST Continus', davka: '30 mg 1-0-1', instr: '', popis: 'tableta proti bolesti ráno a večer' },
   { id: '4', typ: 'PRAVIDELNA', nazev: 'Furosemid', davka: '40 mg 1-0-0', instr: '', popis: '' },
   { id: '5', typ: 'PRAVIDELNA', nazev: 'Lactulosa', davka: '15 ml 1-0-1', instr: '', popis: '' },
 ];

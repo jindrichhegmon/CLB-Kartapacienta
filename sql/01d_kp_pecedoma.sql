@@ -16,7 +16,8 @@ CREATE TABLE dbo.A_KP_PdSync (
   IDTENANT char(16) NOT NULL CONSTRAINT DF_A_KP_PdSync_T DEFAULT (CAST(SESSION_CONTEXT(N'IDTENANT') AS char(16))),
   PacientID int NOT NULL,
   Sos nvarchar(MAX) NULL,                  -- JSON: ["Morphin 10 mg s.c. – při bolesti", …]
-  Medikace nvarchar(MAX) NULL,             -- JSON: ["MST Continus 30 mg – 1-0-1", …]
+  Medikace nvarchar(MAX) NULL,             -- JSON: ["Furosemid 40 mg – 1-0-0", …]  pravidelná medikace bez opioidů
+  Opioidy nvarchar(MAX) NULL,              -- JSON: ["MST Continus 30 mg – 1-0-1", …]  (od 0.9.3 zvlášť)
   PristiNavsteva datetime2(0) NULL,
   PristiKdo nvarchar(200) NULL,            -- lékař / sestra z kalendáře FK
   PristiPozn nvarchar(300) NULL,           -- služba · stav · místo
@@ -26,3 +27,7 @@ CREATE TABLE dbo.A_KP_PdSync (
   CONSTRAINT FK_A_KP_PdSync_Pac FOREIGN KEY (PacientID) REFERENCES dbo.A_KP_Pacient(PacientID),
   CONSTRAINT FK_A_KP_PdSync_Tenant FOREIGN KEY (IDTENANT) REFERENCES dbo.Tenants(IDTENANT)
 );
+
+-- 0.9.3: opioidy zvlášť od pravidelné medikace (PéčeDoma typ léku OPIOID)
+IF COL_LENGTH('dbo.A_KP_PdSync', 'Opioidy') IS NULL
+  ALTER TABLE dbo.A_KP_PdSync ADD Opioidy nvarchar(MAX) NULL;
