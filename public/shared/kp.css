@@ -126,8 +126,8 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .callrow{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:4px}
 .callrow .num{font-family:var(--mono);font-weight:500;color:var(--accent-ink);white-space:nowrap;font-size:14px}
 .callrow.first{background:var(--surface);border:1.5px solid var(--accent);border-radius:10px;padding:8px 10px;font-weight:700}
-.card .foot{display:flex;gap:10px;padding:4px 10px 14px}
-.card .foot .btn{flex:1}
+.card .foot{display:flex;flex-wrap:wrap;gap:8px;padding:4px 10px 14px}
+.card .foot .btn{flex:1 1 calc(50% - 4px);white-space:normal;text-align:center;min-height:46px}
 .note{background:var(--surface-2);border-radius:12px;padding:11px 13px;font-size:13.5px;color:var(--muted)}
 .vysv{border:1px dashed var(--line);border-radius:12px;padding:0 4px}
 .vysv summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:10px 10px;font-size:13px;color:var(--muted);font-weight:600}

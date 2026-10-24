@@ -132,7 +132,7 @@ async function renderPacienti() {
   document.querySelectorAll('tr[data-id],.alert[data-p]').forEach((r) => (r.onclick = () => otevri(Number(r.dataset.id || r.dataset.p))));
   document.querySelectorAll('.seg [data-s]').forEach((b) => (b.onclick = () => { S.stav = b.dataset.s; renderPacienti(); }));
 }
-function otevri(id, tab) { S.view = 'detail'; S.pacId = id; S.tab = tab || 'dg'; render(); window.scrollTo(0, 0); }
+function otevri(id, tab) { S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
 
 /* ================= detail pacienta ================= */
 async function nactiDetail() { const d = await C('/pacient/' + S.pacId); d.denikAsc = [...d.denik].reverse(); S.pac = d; return d; }
@@ -151,7 +151,7 @@ function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const navrh = d.garance.find((x) => x.stav === 'NAVRZENO');
-  const tabs = [['dg', 'Diagnóza'], ['leky', 'Léky'], ['karta', 'Krizová karta'], ['plan', 'Plán péče'], ['denik', `Deník (${d.denik.filter((e) => e.typ !== 'Systém').length})`], ['kontakty', 'Kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Údaje'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
+  const tabs = [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => e.typ !== 'Systém').length})`], ['kontakty', 'Kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Údaje'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
   const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
@@ -211,7 +211,6 @@ function tabDg(d) {
     </div></div>`;
 }
 /* ---- léky – jedna agenda ---- */
-const TYP_LEKU = { ZACHRANNA: 'SOS lék', PRAVIDELNA: 'pravidelně', PARENTERALNI: 'parenterálně' };
 function tabLeky(d) {
   const pd = d.pecedoma || {}, p = (d.plan && d.plan.data) || {};
   if (pd.klientId) {
@@ -238,12 +237,6 @@ function tabLeky(d) {
       <div class="note">Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.</div>
     </div></div>`;
 }
-function lekyRadky(leky, muze) {
-  const sk = [['ZACHRANNA', 'SOS léky', 'warn'], ['PRAVIDELNA', 'Pravidelná medikace', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
-  return sk.map(([t, n, c]) => { const r = leky.filter((l) => l.typ === t); return `<div class="lbl" style="padding:8px 14px 2px">${n} <span class="chip ${c}">${r.length}</span></div>
-    ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${esc(l.nazev)}</b>${l.davka ? ' – ' + esc(l.davka) : ''}${l.instr ? `<div class="lbl">${esc(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${esc(l.popis)}</div>` : ''}</td>
-      <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${esc(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${esc(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted" style="padding:0 14px 8px;font-size:13px">žádné</div>'}`; }).join('');
-}
 async function nactiLeky(d) {
   const el = $('lk_seznam'); if (!el) return;
   try { const r = await C('/pacient/' + d.pacient.id + '/leky'); S.leky = r.leky || []; ukazLeky(d); }
@@ -252,26 +245,14 @@ async function nactiLeky(d) {
 function ukazLeky(d) {
   const el = $('lk_seznam'); if (!el) return;
   const muze = d.op.zapis && d.op.aktivni;
-  el.innerHTML = lekyRadky(S.leky || [], muze);
+  el.innerHTML = KP.lekyRadky(S.leky || [], muze);
   el.querySelectorAll('[data-lk-edit]').forEach((b) => (b.onclick = () => lekOkno(d, (S.leky || []).find((l) => l.id === b.dataset.lkEdit))));
   el.querySelectorAll('[data-lk-del]').forEach((b) => (b.onclick = async () => { const l = (S.leky || []).find((x) => x.id === b.dataset.lkDel); if (!l) return;
     if (await KP.confirm('Vyřadit lék', `${l.nazev}${l.davka ? ' – ' + l.davka : ''} se v PéčeDoma zneaktivní a zmizí z karty i telefonu.`, 'Vyřadit', true)) {
       try { const r = await C('/pacient/' + d.pacient.id + '/leky/smaz', { method: 'POST', body: { id: l.id, nazev: l.nazev } }); S.leky = r.leky || []; ukazLeky(d); toast('Lék vyřazen'); await nactiDetail(); } catch (e) { toast(e.message); } } }));
 }
 function lekOkno(d, l = null) {
-  modal(`<h2>${l ? 'Upravit lék' : 'Přidat lék'}</h2><div class="form">
-    <div class="field"><label>Typ</label><select id="lk_t">${Object.entries(TYP_LEKU).map(([k, n]) => `<option value="${k}" ${l && l.typ === k ? 'selected' : (!l && k === 'PRAVIDELNA' ? 'selected' : '')}>${n}</option>`).join('')}</select></div>
-    <div class="field"><label>Název léku *</label><input id="lk_n" value="${esc(l ? l.nazev : '')}" placeholder="např. Morphin 10 mg"></div>
-    <div class="field"><label>Dávkování</label><input id="lk_d" value="${esc(l ? l.davka : '')}" placeholder="např. 1-0-1, nebo 10 mg s.c."></div>
-    <div class="field"><label>Instrukce (u SOS léku: kdy podat, nejvýš jak často)</label><input id="lk_i" value="${esc(l ? l.instr : '')}" placeholder="např. při bolesti nebo dušnosti, nejvýš po 4 h"></div>
-    <div class="field"><label>Popis pro pacienta (volitelně)</label><input id="lk_p" value="${esc(l ? l.popis : '')}"></div>
-    <div class="quick"><button class="btn primary" id="lk_save">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
-    $('lk_save').onclick = async () => {
-      const b = { id: l ? l.id : undefined, typ: $('lk_t').value, nazev: $('lk_n').value.trim(), davka: $('lk_d').value.trim(), instr: $('lk_i').value.trim(), popis: $('lk_p').value.trim() };
-      if (!b.nazev) return toast('Vyplňte název léku');
-      try { const r = await C('/pacient/' + d.pacient.id + '/leky', { method: 'POST', body: b }); closeModal(); S.leky = r.leky || []; ukazLeky(d); toast(l ? 'Lék upraven' : 'Lék přidán'); await nactiDetail(); } catch (e) { toast(e.message); }
-    };
-  });
+  KP.lekOkno(l, async (b) => { const r = await C('/pacient/' + d.pacient.id + '/leky', { method: 'POST', body: b }); S.leky = r.leky || []; ukazLeky(d); toast(l ? 'Lék upraven' : 'Lék přidán'); await nactiDetail(); });
 }
 /* ---- plán ---- */
 function planForm(data, platnost, ro, pref = 'f', { leky = false } = {}) {

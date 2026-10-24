@@ -38,12 +38,13 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Diagnóza první, jedny léky, deník o pacientovi (0.9.0)
 
-- Detail pacienta i telefon po odemknutí začínají záložkou **Diagnóza** (dg, funkční stav, alergie; lékař upraví = nová verze plánu).
+- Záložky v pořadí Krizová karta, Diagnóza, Plán péče, Léky, … (centrála i telefon); telefon ukazuje Diagnózu i na zamčené první stránce. Záložka **Diagnóza** = dg, funkční stav, alergie (lékař upraví = nová verze plánu).
 - **Léky – jedna agenda** (`KP.leky(b)`): u pacienta s `PdKlientID` jsou léky z PéčeDoma (`A_KP_PdSync`, zdroj `A_MSPPP_Medikace`) a Karta je
   tam i mění: `GET/POST /api/c/pacient/:id/leky`, `POST …/leky/smaz` → jhn-apps `pecedoma-karta` akce `leky` / `lek-uloz` / `lek-smaz`
   (zneaktivnění), pak okamžitá synchronizace, deník `Úprava léků`, audit. Bez propojení jsou léky v plánu (nová verze přes `/plan`).
   Krizová karta, výpis, telefon i Můj průkaz berou léky z `KP.leky`; formulář plánu léky nemá (jen průvodce Nový pacient).
   Balík telefonu nese `pecedoma.propojeno`.
+- 0.9.1: Diagnóza i na zamčené první stránce telefonu; lékař (role lekar / pl) upravuje léky propojeného pacienta z telefonu (`GET/POST /api/d/leky`, `/leky/smaz`, deník neověřený zápis, audit); sdílené `KP.lekyRadky` / `KP.lekOkno`; tlačítka v patičce karty se zalamují.
 - **Deník**: `KP.denikHTML` ukazuje zápisy o pacientovi, typ `Systém` sbalený v „Systémové záznamy“; počet v záložce bez systémových.
 
 ## Chat PéčeDoma a návštěva v kartě (0.8.0)

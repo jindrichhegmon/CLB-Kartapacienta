@@ -151,7 +151,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.0', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.1', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -166,6 +166,9 @@ let pdLeky = [
 app.get('/api/c/pacient/:id/leky', j({ zdroj: 'pecedoma', leky: pdLeky }));
 app.post('/api/c/pacient/:id/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky, sync: pdSync }; }));
 app.post('/api/c/pacient/:id/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky, sync: pdSync }; }));
+app.get('/api/d/leky', j({ leky: pdLeky }));
+app.post('/api/d/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky }; }));
+app.post('/api/d/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky }; }));
 app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(), f = String(req.query.filtr || '').split(',').filter(Boolean); return { klienti: pdKlienti.filter((k) => (!f.length || f.some((x) => k[x])) && (!q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q))), skupiny: { hospic: 1, t720: 2, lpp: 1, chyba: null } }; }));
 app.get('/api/c/pecedoma/klient/:id', j((req) => ({ karta: pecedomaJson, klientId: req.params.id })));
 app.post('/api/c/pacient/:id/pecedoma', j({ sync: pdSync }));
@@ -249,7 +252,7 @@ await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });
 await p.waitForSelector('#n_tk', { timeout: 8000 }).catch(async (e) => { console.error('toast:', await p.textContent('#toast').catch(() => '')); throw e; }); await p.waitForTimeout(3500); // toast zmizí
 await foto(p, 'c-novy-2', { vyska: 1100 });
-await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="dg"].on');
+await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('dg', 'c-dg', { vyska: 900 });
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });
@@ -336,10 +339,12 @@ await klik(p, '#unDoc'); await p.fill('#kod', '000000'); await p.fill('#kodJ', '
 if (await p.$('.tile[data-tab]')) chyby.push('špatný kód lékaře odemkl kartu');
 await p.fill('#kod', kodDne(dnesLokalne())); await klik(p, '#kodOk'); await p.waitForSelector('.tile[data-tab]', { timeout: 15000 });
 if (!/MUDr\. Test/.test(await p.textContent('#work'))) chyby.push('kód dne neodemkl kartu jako lékaře');
+await klik(p, '.tile[data-tab="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'k-leky-lekar', { vyska: 1300 });
+await p.evaluate(() => window.scrollTo(0, 0));
 await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await klik(p, '#unCarer'); await p.fill('#pin', '123456'); await klik(p, '#pinOk');
 await p.waitForSelector('.tile[data-tab]', { timeout: 15000 }); await p.waitForTimeout(3500);
-await foto(p, 'k-diagnoza');
+await klik(p, '.tile[data-tab="dg"]'); await p.waitForTimeout(200); await foto(p, 'k-diagnoza');
 await klik(p, '.tile[data-tab="leky"]'); await p.waitForTimeout(200); await foto(p, 'k-leky');
 await klik(p, '.tile[data-tab="karta"]'); await p.waitForTimeout(300);
 await foto(p, 'k-odemceno');

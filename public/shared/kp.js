@@ -110,6 +110,31 @@
     if (pd && pd.propojeno && pd.aktualizovano) return { sos: pd.sos || [], medikace: pd.medikace || [], zdroj: 'pecedoma', aktualizovano: pd.aktualizovano };
     return { sos: p.sos || [], medikace: p.medikace || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };
   };
+  /* Léky z PéčeDoma – seznam s tlačítky a okno pro přidání / úpravu (centrála i telefon lékaře) */
+  KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', PRAVIDELNA: 'pravidelně', PARENTERALNI: 'parenterálně' };
+  KP.lekyRadky = (leky, muze) => {
+    const e = KP.esc, sk = [['ZACHRANNA', 'SOS léky', 'warn'], ['PRAVIDELNA', 'Pravidelná medikace', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
+    return sk.map(([t, n, c]) => { const r = (leky || []).filter((l) => l.typ === t); return `<div class="lbl" style="padding:8px 14px 2px">${n} <span class="chip ${c}">${r.length}</span></div>
+      ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${e(l.nazev)}</b>${l.davka ? ' – ' + e(l.davka) : ''}${l.instr ? `<div class="lbl">${e(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${e(l.popis)}</div>` : ''}</td>
+        <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${e(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${e(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted" style="padding:0 14px 8px;font-size:13px">žádné</div>'}`; }).join('');
+  };
+  KP.lekOkno = (l, ulozit) => {
+    const e = KP.esc, $ = (id) => document.getElementById(id);
+    KP.modal(`<h2>${l ? 'Upravit lék' : 'Přidat lék'}</h2><div class="form">
+      <div class="field"><label>Typ</label><select id="lk_t">${Object.entries(KP.TYP_LEKU).map(([k, n]) => `<option value="${k}" ${l ? (l.typ === k ? 'selected' : '') : (k === 'PRAVIDELNA' ? 'selected' : '')}>${n}</option>`).join('')}</select></div>
+      <div class="field"><label>Název léku *</label><input id="lk_n" value="${e(l ? l.nazev : '')}" placeholder="např. Morphin 10 mg"></div>
+      <div class="field"><label>Dávkování</label><input id="lk_d" value="${e(l ? l.davka : '')}" placeholder="např. 1-0-1, nebo 10 mg s.c."></div>
+      <div class="field"><label>Instrukce (u SOS léku: kdy podat, nejvýš jak často)</label><input id="lk_i" value="${e(l ? l.instr : '')}" placeholder="např. při bolesti nebo dušnosti, nejvýš po 4 h"></div>
+      <div class="field"><label>Popis pro pacienta (volitelně)</label><input id="lk_p" value="${e(l ? l.popis : '')}"></div>
+      <div class="quick"><button class="btn primary" id="lk_save">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
+      $('lk_save').onclick = async () => {
+        const b = { id: l ? l.id : undefined, nazev_puv: l ? l.nazev : '', typ: $('lk_t').value, nazev: $('lk_n').value.trim(), davka: $('lk_d').value.trim(), instr: $('lk_i').value.trim(), popis: $('lk_p').value.trim() };
+        if (!b.nazev) return KP.toast('Vyplňte název léku');
+        $('lk_save').disabled = true;
+        try { await ulozit(b); KP.closeModal(); } catch (err) { KP.toast(err.message); $('lk_save').disabled = false; }
+      };
+    });
+  };
   KP.kartaHTML = (b, { tlacitka = '' } = {}) => {
     const p = b.pacient || {}; const plan = (b.plan && b.plan.data) || {}; const platnost = b.plan && b.plan.platnostDo;
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));

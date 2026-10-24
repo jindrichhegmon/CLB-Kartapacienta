@@ -18,7 +18,7 @@ import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
 import { normTel, hezkyTel } from '../telefon.js';
-import { nastaveniPd, zpravyPd, posliZpravuPd } from '../pecedoma.js';
+import { nastaveniPd, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
 
 export const device = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -161,6 +161,54 @@ async function chatKontext(q, z) {
   if (!nast.nastaveno) throw chyba('Propojení s PéčeDoma není nastavené', 400);
   return { nast, pd: p.pd, stav: p.Stav };
 }
+/* Léky z telefonu u pacienta (od 0.9.1): lékař (role lekar / pl po odemknutí) upravuje léky propojeného pacienta stejně jako v PéčeDoma –
+   zápis jde do A_MSPPP_Medikace přes server Karty, pak hned synchronizace. Role je deklarovaná telefonem jako u deníku (PIN se ověřuje offline). */
+const ROLE_LEKY = { lekar: 'lékař', pl: 'praktický lékař' };
+async function lekyKontext(q, z, b) {
+  if (z.Rezim !== 'ZAPUJCENY') throw chyba('Léky z vlastního telefonu pacienta měnit nejde', 403);
+  const role = String((b && b.role) || '').toLowerCase();
+  if (!ROLE_LEKY[role]) throw chyba('Léky na telefonu upravuje lékař (odemčení kódem lékaře nebo PINem lékaře)', 403);
+  const { nast, pd, stav } = await chatKontext(q, z);
+  if (stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený', 403);
+  return { nast, pd, kdo: [ROLE_LEKY[role], text(b.kdo, 80)].filter(Boolean).join(' '), role };
+}
+device.get('/leky', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('leky:' + zid, 120, 3600e3);
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    const { nast, pd } = await lekyKontext(q, z, req.query);
+    return { leky: (await lekyPd(nast, pd)).leky };
+  });
+}));
+const lekZTelefonu = (akce) => h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('lekyz:' + zid, 60, 3600e3);
+  const b = req.body || {};
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    if (z.Stav !== 'SPAROVANO') throw chyba('Telefon není spárovaný', 401);
+    const { nast, pd, kdo, role } = await lekyKontext(q, z, b);
+    let r, detail;
+    if (akce === 'uloz') {
+      const lek = { id: b.id ? String(b.id) : undefined, typ: text(b.typ, 15), nazev: text(b.nazev, 200), davka: text(b.davka, 200), instr: text(b.instr, 500), popis: text(b.popis, 300) };
+      if (!lek.nazev) throw chyba('Vyplňte název léku');
+      r = await ulozLekPd(nast, pd, lek, kdo);
+      detail = `${lek.id ? 'upraven' : 'přidán'} ${lek.typ === 'ZACHRANNA' ? 'SOS lék' : 'lék'} ${lek.nazev}${lek.davka ? ' ' + lek.davka : ''}`;
+    } else {
+      if (!b.id) throw chyba('Chybí lék');
+      r = await smazLekPd(nast, pd, b.id, kdo);
+      detail = `vyřazen lék ${text(b.nazev, 200) || '#' + b.id}`;
+    }
+    try { await synchronizujPacienta(q, nast, z.PacientID, pd); } catch (e) { /* doběhne automaticky */ }
+    await zapisDenik(q, { pacientId: z.PacientID, typ: 'Úprava léků', text: `Léky (PéčeDoma, z telefonu): ${detail}.`, autor: text(b.kdo, 150) || kdo, role, zarizeniId: zid, overeno: false });
+    await audit(q, { zarizeniId: zid, kdo: 'telefon', pacientId: z.PacientID, akce: 'PéčeDoma: úprava léků z telefonu', detail: `${kdo}: ${detail}`, ip: ip(req) });
+    return { leky: r.leky };
+  });
+});
+device.post('/leky', lekZTelefonu('uloz'));
+device.post('/leky/smaz', lekZTelefonu('smaz'));
+
 device.get('/pecedoma/zpravy', h(async (req) => {
   const { tenant, zid, raw } = tokenZarizeni(req);
   omez('pdchat:' + zid, 120, 3600e3);
