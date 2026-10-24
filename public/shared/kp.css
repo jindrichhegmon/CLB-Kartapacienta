@@ -113,6 +113,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .sec.blue{--c:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
 .sec.violet{--c:var(--violet);background:var(--violet-soft);border-color:var(--violet)}
 .sec.green{--c:var(--ok);background:var(--ok-soft);border-color:var(--ok)}
+.sec.navy{--c:var(--accent-ink);background:var(--surface-2);border-color:var(--accent-ink)}
 .chatl{max-height:50vh;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px 0}
 .msg{max-width:88%;padding:8px 11px;border-radius:14px;font-size:14px;line-height:1.35;background:var(--panel-2,var(--accent-soft));border:1px solid var(--border,transparent);white-space:pre-wrap;word-break:break-word}
 .msg.out{align-self:flex-end;background:var(--accent-soft);border-color:transparent}

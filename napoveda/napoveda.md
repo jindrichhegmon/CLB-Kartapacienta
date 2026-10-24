@@ -106,7 +106,7 @@ V detailu pacienta jsou vysvětlující poznámky sbalené na konci každé zál
 
 ![Detail pacienta – krizová karta](/napoveda/img/c-karta.png)
 
-Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telefonu bez přihlášení: cíl péče, limitace s dokladem, SOS léky, alergie, telefon na garanta a lékaře, kontakty. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad.
+Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telefonu bez přihlášení: nahoře **diagnózu** a funkční stav, pak cíl péče, limitace s dokladem, SOS léky, alergie, telefon na garanta a lékaře, kontakty. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad.
 
 Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (text celého průkazu pro zdravotnickou dokumentaci, ke zkopírování nebo stažení), **Tisk karty**. Panel **Telefon u pacienta** ukáže, jestli má telefon aktuální verzi plánu.
 
@@ -135,7 +135,7 @@ Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám po�
 
 ## 6. Deník a kontakty
 
-Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémové záznamy (spárování telefonu, propojení s PéčeDoma, změna čísla…) jsou sbalené na konci v bloku **Systémové záznamy** a rozbalí se klepnutím – v centrále i na telefonu.
+Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémové záznamy (spárování telefonu, propojení s PéčeDoma, změna čísla, úprava identifikačních údajů…) jsou sbalené na konci v bloku **Systémové záznamy** a rozbalí se klepnutím – v centrále i na telefonu.
 
 ### Deník
 
@@ -344,7 +344,7 @@ Menu **Správa organizace** (jen správce) má záložky:
 
 ![Telefon – zamčená krizová karta](/napoveda/img/k-zamceno.png)
 
-Bez přihlášení je na první stránce **Diagnóza** (diagnózy, funkční stav, alergie) a pod ní **krizová karta**: cíl péče, limitace s dokladem, SOS léky, alergie, kontakty a telefon na garanta. **Záchranná služba** nepotřebuje PIN ani žádný seznam lidí: bez přihlášení zapíše **výjezd** – výsledek zásahu, **své jméno a posádku** (povinné) a poznámku. V deníku je výjezd označený jako neověřený.
+Bez přihlášení je vidět **krizová karta**, která začíná oddílem **DIAGNÓZA** (diagnózy a funkční stav): cíl péče, limitace s dokladem, SOS léky, alergie, kontakty a telefon na garanta. **Záchranná služba** nepotřebuje PIN ani žádný seznam lidí: bez přihlášení zapíše **výjezd** – výsledek zásahu, **své jméno a posádku** (povinné) a poznámku. V deníku je výjezd označený jako neověřený.
 
 ![Telefon – zápis výjezdu záchranné služby](/napoveda/img/k-zzs.png)
 
@@ -367,7 +367,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 
 ![Telefon – nejbližší návštěva z PéčeDoma na Kartě](/napoveda/img/k-navsteva.png)
 
-Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršení, Kontakty, Tým**; Diagnóza je vidět už na zamčené první stránce. **Léky** jsou jedny: u pacienta propojeného s PéčeDoma přímo z PéčeDoma, jinak z plánu péče. **Lékař** (odemčení kódem lékaře nebo PINem lékaře) může léky propojeného pacienta upravit přímo na telefonu – **Přidat lék**, **Upravit**, **Vyřadit** – stejně jako v PéčeDoma; zápis jde do PéčeDoma a potřebuje připojení.
+Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršení, Kontakty, Tým**; diagnóza je prvním oddílem krizové karty, takže je vidět už na zamčené první stránce. **Léky** jsou jedny: u pacienta propojeného s PéčeDoma přímo z PéčeDoma, jinak z plánu péče. **Lékař** (odemčení kódem lékaře nebo PINem lékaře) může léky propojeného pacienta upravit přímo na telefonu – **Přidat lék**, **Upravit**, **Vyřadit** – stejně jako v PéčeDoma; zápis jde do PéčeDoma a potřebuje připojení.
 
 ![Telefon – lékař upravuje léky](/napoveda/img/k-leky-lekar.png) U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde) a SOS léky v kartě jsou ty z PéčeDoma. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
 

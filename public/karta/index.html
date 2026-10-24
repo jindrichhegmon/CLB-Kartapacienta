@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.9.1';
+const APP_VERZE = 'karta-0.9.2';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }
@@ -176,8 +176,7 @@ function kresli() {
   let html = `<div class="syncbar" id="syncbar"></div>${stare ? `<div class="banner crit">Data jsou starší než 24 h (${esc(textStari())}). Připojte telefon k síti – mohou chybět změny plánu.</div>` : ''}`;
   if (b.pacient.stav === 'UZAVRENY') html += '<div class="banner warn">Průkaz byl uzavřen.</div>';
   if (!U.role) {
-    html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – diagnóza a krizová karta</div>
-      ${dgHTML(b, { kompakt: true })}
+    html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – krizová karta</div>
       ${KP.kartaHTML(bb, { tlacitka: '<button class="btn primary" id="unRodina">Přístup rodina</button><button class="btn primary" id="unCarer">Přístup tým</button><button class="btn" id="unDoc">Lékař bez PINu</button>' })}
       <div class="note" style="margin-top:-4px"><b>Přístup rodina</b> – PIN, který rodině vydal garant. <b>Přístup tým</b> – osobní PIN: sestra domova, hospic, praktický lékař, lékař. <b>Lékař bez PINu</b> – kód lékaře pro dnešní den (z centrální aplikace nebo z PéčeDoma). <b>Záchranná služba</b> – krizovou kartu vidí bez odemykání, zápis výjezdu je níže.</div>
       <div class="panel"><div class="panel-h"><h2>Záchranná služba – zápis výjezdu</h2></div><div class="form" style="padding:14px">

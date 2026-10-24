@@ -44,6 +44,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   (zneaktivnění), pak okamžitá synchronizace, deník `Úprava léků`, audit. Bez propojení jsou léky v plánu (nová verze přes `/plan`).
   Krizová karta, výpis, telefon i Můj průkaz berou léky z `KP.leky`; formulář plánu léky nemá (jen průvodce Nový pacient).
   Balík telefonu nese `pecedoma.propojeno`.
+- 0.9.2: **DIAGNÓZA je první oddíl krizové karty** (`KP.kartaHTML`, `.sec.navy`: dg + funkční stav) – centrála, telefon i zamčený, Můj průkaz, tisk; `KP.SYSTEM_TYPY` (Systém, Úprava údajů) mimo hlavní deník i „poslední zápis“ v kartě.
 - 0.9.1: Diagnóza i na zamčené první stránce telefonu; lékař (role lekar / pl) upravuje léky propojeného pacienta z telefonu (`GET/POST /api/d/leky`, `/leky/smaz`, deník neověřený zápis, audit); sdílené `KP.lekyRadky` / `KP.lekOkno`; tlačítka v patičce karty se zalamují.
 - **Deník**: `KP.denikHTML` ukazuje zápisy o pacientovi, typ `Systém` sbalený v „Systémové záznamy“; počet v záložce bez systémových.
 
