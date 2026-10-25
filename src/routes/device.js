@@ -144,7 +144,7 @@ device.post('/sync', h(async (req) => {
   });
 }));
 
-const DRUHY_SDILENI = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', POZNAMKA: 'Poznámka pacienta', OTAZKY: 'Otázky pro lékaře' };
+const DRUHY_SDILENI = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', PODANI: 'Podání léků', POZNAMKA: 'Poznámka pacienta', OTAZKY: 'Otázky pro lékaře' };
 /* chat PéčeDoma z telefonu (od 0.8.0): zapůjčený telefon (rodina, tým u pacienta) i Můj průkaz píší „za stranu pacienta“ (OD_PACIENTA)
    se značkou [Karta · kdo]; čtení i psaní jde přes server Karty s partnerským klíčem, telefon token PéčeDoma nikdy nedostane. */
 const ROLE_CHAT = { lekar: 'lékař', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař' };

@@ -174,7 +174,7 @@ async function akce(cesta, body, hlaska, tab) {
 }
 
 /* ---- karta ---- */
-const DRUH_OD_PACIENTA = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', POZNAMKA: 'Poznámka', OTAZKY: 'Otázky pro lékaře' };
+const DRUH_OD_PACIENTA = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', PODANI: 'Podání léků', POZNAMKA: 'Poznámka', OTAZKY: 'Otázky pro lékaře' };
 function odPacientaHTML(d) {
   if (!(d.odPacienta || []).length) return '';
   return `<div class="panel"><div class="panel-h"><h2>Od pacienta</h2><span class="chip vio">údaje pacienta</span></div>

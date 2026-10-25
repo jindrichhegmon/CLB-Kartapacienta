@@ -516,14 +516,14 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 - **Průkaz** – krizová karta tak, jak ji vede váš lékař, a přehled vašich záznamů.
 - **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
 - **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
-- **Léky** – léky, které **skutečně** užíváte, s dávkou a datem aktualizace. Pro srovnání pod nimi léky podle lékaře.
+- **Léky** – nahoře **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat. Pod tím **Léky, které skutečně užívám** – vaše vlastní léky s dávkou, i u nich jde zaznamenat podání.
 - **Poznámky** – otázky pro lékaře a poznámky, jak se máte.
 - **Sdílet** – souhrn k tisku nebo k předání (níže).
 - **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.
 - **Nastavení** – změna PINu, smazání všeho z telefonu.
 
 ![Moje hodnoty a přání](/napoveda/img/p-prani.png)
-![Léky, které skutečně užívám](/napoveda/img/p-leky.png)
+![Předepsané léky s denním záznamem podání](/napoveda/img/p-leky.png)
 
 > **Přání v aplikaci není dříve vyslovené přání podle zákona.** Platné DVP se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.
 

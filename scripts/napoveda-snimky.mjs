@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.8', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.9', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -470,8 +470,14 @@ await klik(p, '#pr_ok'); await p.waitForTimeout(3500);
 await foto(p, 'p-prani', { vyska: 1500 });
 await klik(p, '.tile[data-tab="leky"]'); await klik(p, '#lk_novy'); await p.fill('#lk_n', 'MST Continus'); await p.fill('#lk_d', '30 mg ráno a večer'); await klik(p, '#lk_ok');
 await klik(p, '#lk_novy'); await p.fill('#lk_n', 'Furosemid'); await p.fill('#lk_d', '40 mg'); await p.fill('#lk_p', 'jen ob den – otoky menší'); await klik(p, '#lk_ok');
+if (!(await p.textContent('#work')).includes('Předepsané léky')) chyby.push('Můj průkaz: chybí panel Předepsané léky');
+if ((await p.$$('.lkskup')).length !== 3) chyby.push('Můj průkaz: předepsané léky nejsou ve 3 skupinách');
+await klik(p, '.lkskup.crit [data-pod]');                                   // opioid: Podán
+await p.waitForSelector('.lkskup.crit .lbl b');
+if (!(await p.textContent('.lkskup.crit')).includes('dnes')) chyby.push('Můj průkaz: záznam podání se nezapsal do řádku léku');
+await klik(p, '#pod_hist'); await p.waitForSelector('.modal .chip.ok'); await p.evaluate(() => KP.closeModal());
 await p.waitForTimeout(3500);
-await foto(p, 'p-leky', { vyska: 1300 });
+await foto(p, 'p-leky', { vyska: 1700 });
 await klik(p, '.tile[data-tab="poznamky"]'); await p.fill('#pz_t', 'Můžu brát Morphin i přes den, když bolí víc?'); await klik(p, '#pz_ok'); await p.waitForTimeout(300);
 await klik(p, '.tile[data-tab="sdilet"]'); await p.waitForSelector('#sd_nahled');
 await p.check('.vyber input[value="KARTA"]'); await p.waitForTimeout(3300);   // toast „Uloženo“ zmizí
@@ -479,7 +485,7 @@ await foto(p, 'p-sdilet', { vyska: 1200 });
 await klik(p, '#sd_nahled'); await p.waitForSelector('#sd_tym');
 await foto(p, 'p-nahled');
 await klik(p, '#sd_tym'); await klik(p, '#kpOk'); await p.waitForTimeout(500);
-if (sdileno.length !== 1 || sdileno[0].polozky.some((x) => !['PRANI', 'LEKY', 'OTAZKY', 'POZNAMKA'].includes(x.druh))) chyby.push('sdílení týmu poslalo něco jiného než údaje pacienta');
+if (sdileno.length !== 1 || sdileno[0].polozky.some((x) => !['PRANI', 'LEKY', 'PODANI', 'OTAZKY', 'POZNAMKA'].includes(x.druh))) chyby.push('sdílení týmu poslalo něco jiného než údaje pacienta');
 await klik(p, '.tile[data-tab="nouze"]'); await p.waitForSelector('#nz_kop'); await p.waitForTimeout(3300);
 await foto(p, 'p-nouze', { vyska: 1400 });
 // zamknutí a znovu odemknutí PINem (data jsou šifrovaná PINem)
