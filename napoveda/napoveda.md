@@ -248,6 +248,8 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 
 ## 9. Údaje, dokumenty a uzavření průkazu
 
+V záložce **Údaje** jsou identifikační údaje pacienta: jméno, rodné číslo, datum narození, pojišťovna, adresa, kde pobývá, **telefon s kartou** a od verze 0.11.4 i **e-mail pacienta** (informativní údaj, do telefonu u lůžka se neposílá; při založení z PéčeDoma se převezme).
+
 ![Údaje pacienta](/napoveda/img/c-udaje.png)
 
 - **Údaje**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.

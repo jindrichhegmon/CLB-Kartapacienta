@@ -92,7 +92,7 @@ const pdTym = [
 ];
 const garance = [{ id: 1, poskytovatelId: 1, nazev: 'Hospic Ukázka', stav: 'PLATNA', lekar: 'MUDr. Petra Ukázková', navrhl: null, navrzeno: null, od: cas(-21, '09:10'), do: null, poznamka: null }];
 const pacient = { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rc: '415203/1234', datumNarozeni: '1941-02-03', rok: 1941, pohlavi: 'žena', pojistovna: '111',
-  adresa: 'Lipová 12, Zlín', pobyt: 'doma', telefonKarty: '+420 777 000 123', stav: 'AKTIVNI', souhlas: `potvrzeno ${den(-21)} · MUDr. Petra Ukázková`, zalozeno: cas(-21, '09:10'), uzavreno: null, duvodUzavreni: null };
+  adresa: 'Lipová 12, Zlín', pobyt: 'doma', telefonKarty: '+420 777 000 123', email: 'marie.zkusebni@example.cz', stav: 'AKTIVNI', souhlas: `potvrzeno ${den(-21)} · MUDr. Petra Ukázková`, zalozeno: cas(-21, '09:10'), uzavreno: null, duvodUzavreni: null };
 // propojení s PéčeDoma (0.7.0): nastavení tenanta, stav synchronizace pacienta, seznam klientů pro výběr
 const pdNast = { odkaz: 'https://web-pecedoma.netlify.app/?iv=ukazka&data=ukazka&tag=hospic', api: 'https://95-216-201-2.sslip.io', apiVychozi: 'https://95-216-201-2.sslip.io', tokenNastaven: true, sync: true, nastaveno: true, partnerKlic: true };
 const pdSync = { sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti', 'Midazolam 5 mg s.c. – při neklidu'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Furosemid 40 mg – 1-0-0', 'Lactulosa 15 ml – 1-0-1'],
@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.3', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.4', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
