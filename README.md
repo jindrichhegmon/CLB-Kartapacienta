@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.5: uživatelé PéčeDoma pro Lidé a týmy přes partnerské API (`uzivatelePd` → pecedoma-karta akce `uzivatele`, CLB1 s telefony); kopie `A_MSPPP_UzivatelSestra` v PeceDomaPlus telefony nemá a použije se jen bez nastaveného propojení (`zdroj: 'db'`, centrála upozorní).
 - 0.11.4: `A_KP_Pacient.Email` (`sql/03b_kp_pacient_email.sql`) – pole E-mail pacienta v Údajích a průvodci (z exportu PéčeDoma `pacient.email`), `POST /pacient` a `/udaje` ho ukládají; do balíku telefonu nejde.
 - 0.11.3: **Aktualizovat z PéčeDoma** (`POST /lide/pecedoma/aktualizovat { poskytovatelId | osobaId }`): telefon a `ExterniID` podle `A_MSPPP_UzivatelSestra` (párování `pd:<UzivatelID>`, jinak jméno); portál e-mail nevede. Tlačítko v liště Lidé a týmy a v okně člověka; `GET /lide` vrací `externiId`.
 - 0.11.2: **Smazat tým** v okně týmu (`POST /tym-lidi/:id/smazat`): zneaktivní, synchronizuje členy u pacientů (přepis na jiný tým / vyřazení), vynuluje `A_KP_PacientOsoba.TymLidiID`, smaže `A_KP_PacientTym`, `A_KP_TymClen` a hlavičku; audit.

@@ -846,6 +846,7 @@ async function aktualizovatZPd(telo) {
       ${r.zmeny.length ? `<div class="banner ok">Změněno: ${r.zmeny.length}</div><ul style="margin:0;padding-left:20px">${r.zmeny.map((z) => `<li><b>${esc(z.jmeno)}</b> – ${esc(z.co)}</li>`).join('')}</ul>` : `<div class="banner">Nic ke změně – telefony odpovídají PéčeDoma (${r.celkem} lidí).</div>`}
       ${r.bezTelefonu.length ? `<div class="note"><b>V PéčeDoma nemají telefon:</b> ${r.bezTelefonu.map(esc).join(', ')}. Doplňte ho v portálu PéčeDoma (Uživatelé) a spusťte aktualizaci znovu, nebo přímo tady u člověka.</div>` : ''}
       ${r.neparovani.length ? `<div class="note"><b>V PéčeDoma nenalezeni</b> (jiné jméno, nebo nejsou uživateli portálu): ${r.neparovani.map(esc).join(', ')}.</div>` : ''}
+      ${r.zdroj === 'db' ? '<div class="banner warn">Propojení s PéčeDoma není nastavené (Správa organizace → Nastavení), použila se jen kopie tabulky uživatelů bez telefonů.</div>' : ''}
       <div class="note">PéčeDoma vede jméno, roli a telefon; e-mail ne – ten vyplníte u člověka ručně. Osobní PIN se aktualizací nemění, platí dál u všech pacientů, kde je člověk v týmu.</div>
       <div class="quick"><button class="btn" data-close>Zavřít</button></div>`);
   } catch (e) { toast(e.message); }

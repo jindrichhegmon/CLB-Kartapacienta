@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, PD_API_VYCHOZI } from '../pecedoma.js';
+import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI } from '../pecedoma.js';
 
 export const central = Router();
 
@@ -886,12 +886,17 @@ central.post('/lide/import', sUzivatelem(async (q, s, req) => {
   return out;
 }));
 
-/** tým z PéčeDoma / PéčeDoma Plus – tabulka uživatelů portálu ve stejné databázi a stejném tenantu */
-central.get('/lide/pecedoma', sUzivatelem(async (q) => {
-  let rows;
+/** uživatelé portálu PéčeDoma: přes partnerské API (akce uzivatele – jediný zdroj s telefony), když propojení není nastavené, kopie tabulky ve stejné databázi */
+async function uzivatelePortalu(q) {
+  const nast = await nastaveniPd(q);
+  if (nast.nastaveno) { try { return { rows: await uzivatelePd(nast), zdroj: 'api' }; } catch (e) { throw chyba('Uživatele z PéčeDoma se nepodařilo načíst: ' + e.message, 502); } }
   try {
-    rows = await q.all(`SELECT UzivatelID AS id, Jmeno AS jmeno, Role AS role, Telefon AS telefon, Login AS login FROM dbo.A_MSPPP_UzivatelSestra WHERE Aktivni = 1 ORDER BY Jmeno`);
+    return { rows: await q.all(`SELECT UzivatelID AS id, Jmeno AS jmeno, ISNULL(Role, N'') AS role, ISNULL(Telefon, N'') AS telefon, ISNULL(Login, N'') AS login FROM dbo.A_MSPPP_UzivatelSestra WHERE Aktivni = 1 ORDER BY Jmeno`), zdroj: 'db' };
   } catch (e) { throw chyba('Tým z PéčeDoma se nepodařilo načíst (' + String(e.message).slice(0, 120) + ') – použijte soubor CSV', 502); }
+}
+/** tým z PéčeDoma – uživatelé portálu i s telefony */
+central.get('/lide/pecedoma', sUzivatelem(async (q) => {
+  const { rows } = await uzivatelePortalu(q);
   const nactene = new Set((await q.all(`SELECT ExterniID FROM dbo.A_KP_Osoba WHERE ExterniID LIKE 'pd:%'`)).map((x) => x.ExterniID));
   return { lide: rows.map((r) => ({ ...r, externiId: 'pd:' + r.id, nacteno: nactene.has('pd:' + r.id) })) };
 }));
@@ -909,9 +914,7 @@ central.post('/lide/pecedoma/aktualizovat', sUzivatelem(async (q, s, req) => {
     const ps = await pracoviste(q, s, b.poskytovatelId);
     lide = await q.all(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, ExterniID FROM dbo.A_KP_Osoba WHERE PoskytovatelID = @ps AND Aktivni = 1`, { ps: ps.PoskytovatelID });
   }
-  let pd;
-  try { pd = await q.all(`SELECT UzivatelID AS id, Jmeno AS jmeno, Telefon AS telefon FROM dbo.A_MSPPP_UzivatelSestra WHERE Aktivni = 1`); }
-  catch (e) { throw chyba('PéčeDoma se nepodařilo načíst (' + String(e.message).slice(0, 120) + ')', 502); }
+  const { rows: pd, zdroj } = await uzivatelePortalu(q);
   const norm = (x) => String(x || '').trim().toLowerCase();
   const zmeny = [], bezTelefonu = [], neparovani = [];
   for (const o of lide) {
@@ -927,7 +930,7 @@ central.post('/lide/pecedoma/aktualizovat', sUzivatelem(async (q, s, req) => {
     zmeny.push({ jmeno: o.Jmeno, co: co.join(', ') });
   }
   if (zmeny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'aktualizace lidí z PéčeDoma', detail: zmeny.map((z) => `${z.jmeno}: ${z.co}`).join('; ').slice(0, 400), ip: s.ip });
-  return { zmeny, bezTelefonu, neparovani, celkem: lide.length };
+  return { zmeny, bezTelefonu, neparovani, celkem: lide.length, zdroj };
 }));
 
 /** týmy lidí u pacienta (0.10.0): { pridatTymId } | { odebratTymId } | { tymId, osobaId, aktivni } – lidé se přidávají jen po týmech z agendy Lidé a týmy,

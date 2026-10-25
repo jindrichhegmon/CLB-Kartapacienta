@@ -86,6 +86,11 @@ export async function posliZpravuPd(nast, pdKlientId, { text, smer, kdo }) {
 }
 
 /** Léky klienta v PéčeDoma (od 0.9.0) – jedna agenda: Karta je čte i mění přímo v A_MSPPP_Medikace přes pecedoma-karta. */
+/** Uživatelé portálu PéčeDoma i s telefony (akce uzivatele) – telefony vede jen portál (CLB1), kopie tabulky v PeceDomaPlus je bez nich. */
+export async function uzivatelePd(nast) {
+  const r = await pdVolej(nast, 'uzivatele', {});
+  return (Array.isArray(r.uzivatele) ? r.uzivatele : []).map((u) => ({ id: Number(u.id), jmeno: String(u.jmeno || ''), role: String(u.role || ''), telefon: String(u.telefon || ''), login: String(u.login || '') }));
+}
 export async function lekyPd(nast, pdKlientId) {
   if (!UUID.test(String(pdKlientId || ''))) throw chyba('Pacient není propojený s klientem PéčeDoma', 400);
   const r = await pdVolej(nast, 'leky', { klientId: String(pdKlientId).toLowerCase() });
