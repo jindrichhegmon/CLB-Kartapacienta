@@ -169,7 +169,14 @@ textarea{height:auto;min-height:110px;resize:vertical;font-family:var(--font);fo
 body:has(.app:not(.wide)) input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),body:has(.app:not(.wide)) select{font-size:16px;height:42px;min-height:42px}
 body:has(.app:not(.wide)) textarea{font-size:16px}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--stin);outline:none}
-.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* dvě políčka vedle sebe: popisky, políčka i nápovědy v jedné úrovni, i když je popisek na dva řádky (od 0.11.13) –
+   .field se rozpustí do mřížky řádku (display:contents) a každá část má svůj řádek: 1 popisek, 2 políčko, 3 nápověda */
+.frow{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;grid-auto-flow:column;column-gap:10px;row-gap:5px}
+.frow>.field{display:contents}
+.frow>.field>label{grid-row:1;align-self:end}
+.frow>.field>:not(label):not(.hint){grid-row:2}
+.frow>.field>.hint{grid-row:3}
+.frow>.field>label:empty{display:block}
 .checks{display:flex;flex-wrap:wrap;gap:8px}
 .checks label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;padding:0 12px;cursor:pointer;font-size:12.5px;font-weight:600;height:34px;min-height:34px;background:var(--surface)}
 .checks label:has(input:checked){background:var(--crit-soft);border-color:var(--crit);color:var(--crit);font-weight:600}

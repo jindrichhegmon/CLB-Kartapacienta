@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.13: políčka vedle sebe (`.frow`) v jedné úrovni: `.field` uvnitř řádku je `display:contents`, popisek / políčko / nápověda mají každý svůj řádek mřížky (popisek zarovnaný dolů), takže dvouřádkový popisek ani nápověda pod políčkem souseda neposunou. Snímkový skript hlídá, že horní hrany políček v jednom řádku jsou stejné.
 - 0.11.12: záložka **Údaje** v detailu pacienta přejmenována na **Detail pacienta** (TAB_NAZ, tabs, nápověda kap. 9).
 - 0.11.11: pruh pod hlavičkou v obou telefonních aplikacích (`.rezim` v `kp.css`): **Karta týmu · telefon u pacienta** (po odemknutí i role a jméno) × **Karta pacienta a rodiny · vlastní telefon pacienta**. Můj průkaz už nemá vlastní seznam léků ani Přidat lék – léky mění jen lékař; pacient a rodina jen zaznamenávají podání (sdílení: položka `LEKY` z telefonu pacienta odpadá, server ji dál přijme).
 - 0.11.10: párovací kód (`POST /api/d/parovat`, `GET /api/d/parovaci-info`) platí po celou dobu platnosti i po spárování (`Stav IN ('CEKA','SPAROVANO')`, `ParovaciKod` se po spárování nenuluje) – stejné číslo telefonu ho smí použít znovu (aplikace na ploše iPhonu má vlastní úložiště), předchozí kopie dostane 401 a odebere se; audit „telefon spárován znovu stejným kódem“. Platnost kódu karty 15 → 30 minut. Texty v párování, nápověda (kap. 8, 18, 19).
