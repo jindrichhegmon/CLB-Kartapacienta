@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.10', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.11', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -404,6 +404,7 @@ await klik(p, '#qr_zpet');
 await p.goto(`${URL}/karta/#p=${TENANT}.TYJRRRQH`); await p.waitForSelector('#p_tel');
 await p.fill('#p_tel', '+420 777 000 123'); await klik(p, '#p_ok');
 await p.waitForSelector('#unCarer'); await p.waitForTimeout(3500);
+if (!(await p.textContent('#rezim')).includes('Karta týmu')) chyby.push('Karta: chybí pruh Karta týmu');
 await foto(p, 'k-zamceno');
 // více průkazů v jednom telefonu (0.11.0): druhý průkaz jen v paměti stránky → obrazovka výběru pacienta, pak zpět k paní Zkušební
 await p.evaluate(() => { const k2 = JSON.parse(JSON.stringify(KARTY[0])); k2.zarizeniId = 8; k2.balik.pacient = { ...k2.balik.pacient, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12' }; k2.balik.denik = []; k2.fronta = []; KARTY.push(k2); D = null; kresli(); });
@@ -468,8 +469,9 @@ await p.fill('#pr_kdo', 'dcera Jana, 777 000 321');
 await p.selectOption('#pr_puvod', 'rozhovor'); await p.fill('#pr_rk', 'MUDr. Ukázková, hospic');
 await klik(p, '#pr_ok'); await p.waitForTimeout(3500);
 await foto(p, 'p-prani', { vyska: 1500 });
-await klik(p, '.tile[data-tab="leky"]'); await klik(p, '#lk_novy'); await p.fill('#lk_n', 'MST Continus'); await p.fill('#lk_d', '30 mg ráno a večer'); await klik(p, '#lk_ok');
-await klik(p, '#lk_novy'); await p.fill('#lk_n', 'Furosemid'); await p.fill('#lk_d', '40 mg'); await p.fill('#lk_p', 'jen ob den – otoky menší'); await klik(p, '#lk_ok');
+await klik(p, '.tile[data-tab="leky"]'); await p.waitForSelector('.lkskup');
+if (await p.$('#lk_novy')) chyby.push('Můj průkaz: pacient nesmí mít tlačítko Přidat lék');
+if (!(await p.textContent('#rezim')).includes('Karta pacienta a rodiny')) chyby.push('Můj průkaz: chybí pruh Karta pacienta a rodiny');
 if (!(await p.textContent('#work')).includes('Předepsané léky')) chyby.push('Můj průkaz: chybí panel Předepsané léky');
 if ((await p.$$('.lkskup')).length !== 3) chyby.push('Můj průkaz: předepsané léky nejsou ve 3 skupinách');
 await klik(p, '.lkskup.crit [data-pod]');                                   // opioid: Podán

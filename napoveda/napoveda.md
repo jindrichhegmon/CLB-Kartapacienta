@@ -10,7 +10,7 @@ Aplikace má čtyři části, všechny na jedné adrese:
 |---|---|---|
 | Centrální aplikace | `/centrala/` | garant a tým kolem pacienta – lékaři, sestry, správce organizace |
 | Karta na telefonu | `/karta/` | zapůjčený telefon u lůžka pacienta (jen karta) – pečující (rodina, sestry), lékař na místě, posádka ZZS |
-| Můj průkaz | `/pacient/` | vlastní telefon soběstačného pacienta – plán od lékaře a vlastní přání, léky a poznámky (kapitola 19) |
+| Můj průkaz | `/pacient/` | vlastní telefon pacienta a rodiny – plán od lékaře, záznam podání léků, vlastní přání a poznámky (kapitola 19) |
 | Správa tenantů | `/tenanti/` | provozovatel platformy – zakládá organizace |
 
 Jak to funguje v kostce:
@@ -346,6 +346,8 @@ Menu **Správa organizace** (jen správce) má záložky:
 
 ## 13. Karta na telefonu – instalace a spárování
 
+Pod hlavičkou je v každém telefonu tmavomodrý pruh **KARTA TÝMU · telefon u pacienta** – tenhle telefon odemyká tým a rodina PINem a lékař v něm mění léky. Fialový pruh **KARTA PACIENTA A RODINY · vlastní telefon pacienta** má aplikace Můj průkaz (kapitola 19), kde léky nikdo nepřidává – pacient a rodina jen zaznamenávají podání. Po odemknutí ukazuje pruh karty týmu i roli a jméno, kdo ji odemkl.
+
 ![Telefon – spárování karty](/napoveda/img/k-parovani.png)
 
 1. Na telefonu u pacienta otevřete adresu karty (`…/karta/`) nebo odkaz z SMS.
@@ -452,7 +454,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 - Prohlížeč neposílá do databáze žádné příkazy – vše jde přes server a je vázané na přihlášeného uživatele. Každá organizace vidí jen svá data.
 - Pacienta vidí jen pracoviště v týmu kolem pacienta a správce organizace. Každé zobrazení a změna se zapisuje do neměnného logu přístupů.
 - Telefon: data v telefonu jsou šifrovaná klíčem, který nejde z telefonu vyexportovat; v databázi je jen otisk tokenu telefonu. Zablokovaný nebo uzavřený průkaz se ze zapůjčeného telefonu při připojení vymaže.
-- **Můj průkaz** (vlastní telefon pacienta): data jsou šifrovaná dvakrát – PINem pacienta a klíčem telefonu. Vlastní přání, léky a poznámky pacienta jsou jen v jeho telefonu; provozovatel ani tým je nevidí, dokud je pacient sám nepošle (výběr → náhled → potvrzení).
+- **Můj průkaz** (vlastní telefon pacienta): data jsou šifrovaná dvakrát – PINem pacienta a klíčem telefonu. Vlastní přání, poznámky a záznamy podání léků jsou jen v jeho telefonu; provozovatel ani tým je nevidí, dokud je pacient sám nepošle (výběr → náhled → potvrzení).
 - **AI jen anonymně**: rozbor propouštěcí zprávy i chat nápovědy dostávají text až po anonymizaci (jména, rodná čísla, data, adresy, telefony, e-maily → značky). Když v textu zůstane něco jako identifikátor, dotaz se neodešle.
 - Deník, historie garance, verze plánu a log přístupů nejde mazat ani přepisovat.
 
@@ -516,7 +518,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 - **Průkaz** – krizová karta tak, jak ji vede váš lékař, a přehled vašich záznamů.
 - **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
 - **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
-- **Léky** – nahoře **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat. Pod tím **Léky, které skutečně užívám** – vaše vlastní léky s dávkou, i u nich jde zaznamenat podání.
+- **Léky** – **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. Léky předepisuje a mění jen lékař, v telefonu je nejde přidat ani upravit. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat; týmu je pošlete v oddílu Sdílet.
 - **Poznámky** – otázky pro lékaře a poznámky, jak se máte.
 - **Sdílet** – souhrn k tisku nebo k předání (níže).
 - **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.

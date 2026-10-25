@@ -19,6 +19,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
 <body>
 <div class="app">
   <header class="top" id="top"></header>
+  <div class="rezim tym" id="rezim">Karta týmu <span class="chip">telefon u pacienta</span></div>
   <main class="content" id="work"></main>
 </div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
@@ -31,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.10';
+const APP_VERZE = 'karta-0.11.11';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -177,6 +178,7 @@ function hlavicka() {
   $('top').innerHTML = `${tab !== 'karta' && U.role ? `<button class="back" id="btnBack" aria-label="Zpět">${KP.ICON.back}</button>` : KARTY.length > 1 && !U.role ? `<button class="back" id="btnVyber" aria-label="Jiný pacient" title="Jiný pacient">${KP.ICON.back}</button>` : '<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt="">'}
     <div class="ttl"><h1>${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h1><div class="meta">${esc(p.kod)} · ${esc(p.pobyt || '')}${D.telefon ? ' · telefon ' + esc(D.telefon) : ''}</div></div>
     ${KP.tlacitkaHlavicky({ vzhled: false })}${U.role ? `<button class="rolebtn" id="btnZamek" style="--c:var(--ok)"><span class="dot"></span>${esc(ROLE_NAZ[U.role] || U.role)} · zamknout</button>` : `<span class="rolebtn" style="--c:var(--crit)">${KP.ICON.zamek}</span>`}`;
+  $('rezim').innerHTML = `Karta týmu <span class="chip">telefon u pacienta</span>${U.role ? `<span class="chip" style="margin-left:auto;background:rgba(255,255,255,.9);color:var(--accent-ink)">odemčeno: ${esc(ROLE_NAZ[U.role] || U.role)}${U.jmeno ? ' · ' + esc(U.jmeno) : ''}</span>` : ''}`;
   if ($('btnBack')) $('btnBack').onclick = () => { tab = 'karta'; kresli(); };
   if ($('btnVyber')) $('btnVyber').onclick = () => { D = null; U = { role: null }; kresli(); };
   if ($('btnZamek')) $('btnZamek').onclick = zamkni;

@@ -44,6 +44,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
 <body>
 <div class="app">
   <header class="top" id="top"></header>
+  <div class="rezim rodina" id="rezim">Karta pacienta a rodiny <span class="chip">vlastní telefon pacienta</span></div>
   <main class="content" id="work"></main>
 </div>
 <div id="tisk"></div>
@@ -59,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.10';
+const APP_VERZE = 'pacient-0.11.11';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -204,13 +205,12 @@ function kresli() {
 }
 function prehledHTML(b) {
   const m = D.moje;
-  return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b>, <b>Léky</b> a <b>Poznámky</b> vedete své vlastní záznamy – zůstávají jen ve vašem telefonu, dokud je sami nepošlete.</div></div>
+  return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b> a <b>Poznámky</b> vedete své vlastní záznamy a v <b>Lécích</b> zaznamenáváte podání předepsaných léků – zůstává to jen ve vašem telefonu, dokud to sami nepošlete.</div></div>
     <div class="puvod" style="padding:4px 2px 0"><span class="chip lek">od lékaře</span> ${puvodLekar(b)}</div>
     ${KP.kartaHTML({ ...b, denik: [] })}
     ${b.pecedoma && b.pecedoma.chat ? `<div class="panel"><div class="panel-h"><h2>Zprávy pro a od lékaře</h2><span class="chip lek">PéčeDoma</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY) : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat lékaři'}</button></div></div></div><div class="note"><b>Zprávy pro a od lékaře:</b> napište svému lékaři a sestrám, nebo si přečtěte, co vám poslali. Zprávy jsou stejné jako v aplikaci PéčeDoma.</div>` : ''}
     <div class="panel"><div class="panel-h"><h2>Moje záznamy</h2><span class="chip pac">jen v tomto telefonu</span></div><dl class="kv" style="padding:12px 14px">
       <dt>Hodnoty a přání</dt><dd>${m.prani.aktualizovano ? 'aktualizováno ' + esc(fmtDT(m.prani.aktualizovano)) : '<span class="muted">zatím nevyplněno</span>'}</dd>
-      <dt>Léky, které užívám</dt><dd>${m.leky.length ? m.leky.length + ' položek' : '<span class="muted">zatím žádné</span>'}</dd>
       <dt>Podání léků</dt><dd>${(m.podani || []).length ? `${(m.podani || []).length} záznamů, poslední ${esc(fmtDT((m.podani || []).map((z) => z.cas).sort().pop()))}` : '<span class="muted">zatím nezaznamenáno</span>'}</dd>
       <dt>Poznámky a otázky</dt><dd>${m.poznamky.length || '<span class="muted">žádné</span>'}</dd>
       <dt>Naposledy sdíleno</dt><dd>${m.sdileno.length ? esc(fmtDT(m.sdileno[m.sdileno.length - 1].cas)) : '<span class="muted">zatím nic</span>'}</dd></dl></div>
@@ -279,33 +279,14 @@ function historiePodani(klic, nazev) {
     <div class="quick"><button class="btn" data-close>Zavřít</button></div>`);
 }
 function lekyHTML(b) {
-  const m = D.moje.leky, lk = KP.leky(b);
+  const lk = KP.leky(b);
   const skupiny = { ZACHRANNA: lk.sos, OPIOID: lk.opioidy, PRAVIDELNA: lk.medikace };
   const bloky = KP.SKUPINY_LEKU.filter(([t]) => skupiny[t]).map(([t, n, c]) => { const r = skupiny[t] || []; return `<section class="lkskup ${c}${r.length ? '' : ' prazdna'}"><div class="lkskup-h"><span>${n}</span><span class="chip ${c}">${r.length}</span></div>
       ${r.length ? r.map((s) => `<div class="pod-row"><b>${esc(s)}</b>${podaniRadek(lekKlic(s), s)}</div>`).join('') : '<div class="muted lkskup-p">žádné</div>'}</section>`; }).join('');
   return `<div class="panel"><div class="panel-h"><h2>Předepsané léky</h2><span class="chip lek">od lékaře</span></div>${bloky}
       <div class="puvod" style="padding-top:10px">${puvodLekar(b)}</div>
       <div class="quick" style="padding:0 14px 14px"><button class="btn" id="pod_hist">Historie podání</button></div>
-      <div class="rolehelp"><b>Předepsané léky</b> jsou rozdělené jako u lékaře: SOS léky, opioidy a pravidelná medikace. U každého léku klepněte na <b>Podán</b>, když ho vezmete (u SOS léků klidně vícekrát za den), nebo na <b>Nepodán</b>, když jste ho vynechali. Hned vidíte, kdy byl lék použit naposled a co bylo dnes; <b>Historie</b> ukáže všechny dny. Záznamy zůstávají ve vašem telefonu a nejde je měnit ani mazat.</div></div>
-    <div class="panel"><div class="panel-h"><h2>Léky, které skutečně užívám</h2><span class="chip pac">údaj pacienta</span></div>
-      ${m.map((l) => `<div class="lek-row"><div><b>${esc(l.nazev)}</b>${l.davka ? ' – ' + esc(l.davka) : ''}${l.pozn ? `<div class="lbl">${esc(l.pozn)}</div>` : ''}<div class="lbl">aktualizováno ${esc(fmtDT(l.aktualizovano))}</div>${podaniRadek(l.id, l.nazev)}</div><div class="quick" style="margin:0;flex-direction:column"><button class="btn sm" data-lu="${l.id}">Upravit</button><button class="btn sm" data-ls="${l.id}">Smazat</button></div></div>`).join('') || '<div class="rolehelp muted">Sem zapište léky, které berete jinak než podle lékaře, nebo navíc – i u nich jde zaznamenat podání.</div>'}
-      <div style="padding:12px 14px"><button class="btn primary" id="lk_novy">Přidat lék</button></div></div>`;
-}
-function lekOkno(l = {}) {
-  modal(`<h2>${l.id ? 'Upravit lék' : 'Přidat lék'}</h2><div class="form">
-    <div class="field"><label>Název léku</label><input id="lk_n" value="${esc(l.nazev || '')}" placeholder="např. Morphin"></div>
-    <div class="field"><label>Jak ho beru (dávka)</label><input id="lk_d" value="${esc(l.davka || '')}" placeholder="např. 10 mg ráno a večer"></div>
-    <div class="field"><label>Poznámka</label><input id="lk_p" value="${esc(l.pozn || '')}" placeholder="např. jen při bolesti, od 3. 10. jinak než ve zprávě"></div>
-    <div class="quick"><button class="btn primary ulozit" id="lk_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
-    $('lk_n').focus();
-    $('lk_ok').onclick = async () => {
-      const nazev = $('lk_n').value.trim(); if (!nazev) return toast('Vyplňte název léku');
-      const v = { id: l.id || KP.uuid(), nazev, davka: $('lk_d').value.trim(), pozn: $('lk_p').value.trim(), aktualizovano: KP.casLokalni() };
-      const i = D.moje.leky.findIndex((x) => x.id === v.id);
-      if (i >= 0) D.moje.leky[i] = v; else D.moje.leky.push(v);
-      await uloz(); closeModal(); kresli(); toast('Uloženo do telefonu');
-    };
-  });
+      <div class="rolehelp"><b>Předepsané léky</b> jsou rozdělené jako u lékaře: SOS léky, opioidy a pravidelná medikace. Léky předepisuje a mění jen lékař – tady je nejde přidat ani upravit. U každého léku klepněte na <b>Podán</b>, když ho vezmete (u SOS léků klidně vícekrát za den), nebo na <b>Nepodán</b>, když jste ho vynechali. Hned vidíte, kdy byl lék použit naposled a co bylo dnes; <b>Historie</b> ukáže všechny dny. Záznamy zůstávají ve vašem telefonu a nejde je měnit ani mazat.</div></div>`;
 }
 function poznamkyHTML() {
   const m = [...D.moje.poznamky].reverse();
@@ -333,8 +314,6 @@ function polozkySouhrnu(b) {
       obsah: (b.kontakty || []).map((k) => `${k.jmeno} (${k.skupina}): ${k.tel}`).join('\n') },
     { id: 'PRANI', druh: 'PRANI', nazev: 'Moje hodnoty a přání', puvod: puvodPrani(p), aktualizovano: p.aktualizovano,
       obsah: [['Co je pro mě důležité', p.dulezite], ['Čeho se obávám', p.obavy], ['Co chci, aby lékaři zohlednili', p.rozhodovani], ['Koho chci mít u rozhodování', p.kdo]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n') },
-    { id: 'LEKY', druh: 'LEKY', nazev: 'Léky, které užívám', puvod: 'údaj pacienta', aktualizovano: m.leky.map((l) => l.aktualizovano).sort().pop(),
-      obsah: m.leky.map((l) => `${l.nazev}${l.davka ? ' – ' + l.davka : ''}${l.pozn ? ' (' + l.pozn + ')' : ''} · aktualizováno ${fmtD(l.aktualizovano)}`).join('\n') },
     { id: 'PODANI', druh: 'PODANI', nazev: 'Podání léků (posledních 30 dní)', puvod: 'údaj pacienta', aktualizovano: (m.podani || []).map((z) => z.cas).sort().pop(),
       obsah: (m.podani || []).filter((z) => z.cas.slice(0, 10) >= KP.casLokalni(-30)).sort((a, b) => (a.cas < b.cas ? 1 : -1)).map((z) => `${fmtDT(z.cas)}: ${z.nazev} – ${z.stav === 'PODAN' ? 'podán' : 'nepodán'}`).join('\n') },
     { id: 'OTAZKY', druh: 'OTAZKY', nazev: 'Otázky pro lékaře', puvod: 'údaj pacienta', aktualizovano: m.poznamky.filter((x) => x.druh === 'OTAZKY').map((x) => x.cas).sort().pop(),
@@ -461,12 +440,9 @@ function bind() {
     D.moje.prani = { dulezite: v('dulezite'), obavy: v('obavy'), rozhodovani: v('rozhodovani'), kdo: v('kdo'), puvod: $('pr_puvod').value, rozhovorKdo: v('rk'), rozhovorDatum: $('pr_rd').value, aktualizovano: KP.casLokalni() };
     await uloz(); kresli(); toast('Uloženo do telefonu');
   });
-  on('lk_novy', () => lekOkno());
   document.querySelectorAll('[data-pod]').forEach((b) => (b.onclick = async () => { const z = JSON.parse(b.dataset.pod); D.moje.podani = D.moje.podani || []; D.moje.podani.push({ id: KP.uuid(), klic: z.klic, nazev: z.nazev, stav: z.stav, cas: KP.casLokalni() }); await uloz(); kresli(); toast(z.stav === 'PODAN' ? `Zaznamenáno: ${z.nazev} podán` : `Zaznamenáno: ${z.nazev} nepodán`); }));
   document.querySelectorAll('[data-podh]').forEach((b) => (b.onclick = () => { const z = JSON.parse(b.dataset.podh); historiePodani(z.klic, z.nazev); }));
   on('pod_hist', () => historiePodani());
-  document.querySelectorAll('[data-lu]').forEach((b) => (b.onclick = () => lekOkno(D.moje.leky.find((x) => x.id === b.dataset.lu))));
-  document.querySelectorAll('[data-ls]').forEach((b) => (b.onclick = async () => { if (!(await KP.confirm('Smazat lék', 'Lék se smaže z vašeho seznamu v telefonu.', 'Smazat', true))) return; D.moje.leky = D.moje.leky.filter((x) => x.id !== b.dataset.ls); await uloz(); kresli(); }));
   on('pz_ok', async () => { const t = $('pz_t').value.trim(); if (!t) return toast('Napište text'); D.moje.poznamky.push({ id: KP.uuid(), druh: $('pz_d').value, text: t, cas: KP.casLokalni() }); await uloz(); kresli(); toast('Uloženo do telefonu'); });
   document.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = async () => { if (!(await KP.confirm('Smazat poznámku', 'Poznámka se smaže z telefonu. Co už jste poslali týmu, zůstane u týmu.', 'Smazat', true))) return; D.moje.poznamky = D.moje.poznamky.filter((x) => x.id !== b.dataset.ps); await uloz(); kresli(); }));
   on('sd_nahled', nahled);
