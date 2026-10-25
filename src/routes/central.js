@@ -225,7 +225,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   for (const t of tymyLidi) {
     t.clenove = await q.all(`SELECT o.OsobaID AS osobaId, o.Jmeno AS jmeno, o.Role AS role, ps.Nazev AS poskytovatel, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, ISNULL(x.Aktivni, 0) AS aktivni
       FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
-      OUTER APPLY (SELECT TOP 1 po.Aktivni FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.OsobaID = o.OsobaID AND po.TymLidiID = @t ORDER BY po.Aktivni DESC, po.PacientOsobaID DESC) x
+      OUTER APPLY (SELECT TOP 1 po.Aktivni FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.OsobaID = o.OsobaID ORDER BY po.Aktivni DESC, po.PacientOsobaID DESC) x
       WHERE c.TymLidiID = @t AND o.Aktivni = 1 ORDER BY ps.Nazev, o.Jmeno`, { p: id, t: t.tymId });
   }
   const vTymuPs = new Set(tym.map((t) => t.poskytovatelId));
@@ -723,14 +723,23 @@ async function synchronizujTymUPacientu(q, tymId, uzivatelId = null) {
     SELECT DISTINCT pt.PacientID, o.PoskytovatelID, 'PECE' FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_TymClen c ON c.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID
     WHERE pt.TymLidiID = @t AND pt.Aktivni = 1 AND @akt = 1 AND o.Aktivni = 1
       AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_Tym x WHERE x.PacientID = pt.PacientID AND x.PoskytovatelID = o.PoskytovatelID AND x.Aktivni = 1)`, prm);
+  // člověk je u pacienta aktivní nejvýš jednou (UX_A_KP_PacientOsoba_Aktivni), i když je ve více týmech u téhož pacienta:
+  // nový člen se přidá, jen když u pacienta ještě není aktivní (přes jiný tým nebo jednotlivě) a z tohoto týmu nebyl deaktivován
   await q.exec(`INSERT INTO dbo.A_KP_PacientOsoba (PacientID, OsobaID, TymLidiID, PridalUzivatelID)
     SELECT pt.PacientID, o.OsobaID, @t, @u FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_TymClen c ON c.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID
     WHERE pt.TymLidiID = @t AND pt.Aktivni = 1 AND @akt = 1 AND o.Aktivni = 1
-      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = pt.PacientID AND po.OsobaID = o.OsobaID AND po.TymLidiID = @t)`, prm);
-  await q.exec(`UPDATE po SET Aktivni = 0, Do = SYSDATETIME() FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
-    WHERE po.TymLidiID = @t AND po.Aktivni = 1 AND (@akt = 0 OR o.Aktivni = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = pt.PacientID AND po.OsobaID = o.OsobaID AND po.TymLidiID = @t)
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = pt.PacientID AND po.OsobaID = o.OsobaID AND po.Aktivni = 1)`, prm);
+  // kdo z tohoto týmu odchází (tým skončil, člověk vyřazen nebo z týmu odebrán), ale u pacienta zůstává přes jiný aktivní tým → jen přepsat původ
+  const JINY_TYM = `SELECT TOP 1 pt2.TymLidiID FROM dbo.A_KP_PacientTym pt2 JOIN dbo.A_KP_TymLidi t2 ON t2.TymLidiID = pt2.TymLidiID JOIN dbo.A_KP_TymClen c2 ON c2.TymLidiID = pt2.TymLidiID
+      WHERE pt2.PacientID = po.PacientID AND pt2.Aktivni = 1 AND t2.Aktivni = 1 AND pt2.TymLidiID <> @t AND c2.OsobaID = po.OsobaID ORDER BY pt2.TymLidiID`;
+  const ODCHAZI = `po.TymLidiID = @t AND po.Aktivni = 1 AND (@akt = 0 OR o.Aktivni = 0
       OR NOT EXISTS (SELECT 1 FROM dbo.A_KP_TymClen c WHERE c.TymLidiID = @t AND c.OsobaID = o.OsobaID)
-      OR NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = po.PacientID AND pt.TymLidiID = @t AND pt.Aktivni = 1))`, prm);
+      OR NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = po.PacientID AND pt.TymLidiID = @t AND pt.Aktivni = 1))`;
+  await q.exec(`UPDATE po SET TymLidiID = (${JINY_TYM}) FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
+    WHERE ${ODCHAZI} AND o.Aktivni = 1 AND EXISTS (${JINY_TYM})`, prm);
+  await q.exec(`UPDATE po SET Aktivni = 0, Do = SYSDATETIME() FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
+    WHERE ${ODCHAZI}`, prm);
 }
 async function pridejClena(q, tymId, osobaId, uzivatelId = null) {
   if (!tymId || !osobaId) return;
@@ -893,7 +902,9 @@ central.post('/pacient/:id/tym-lidi', sUzivatelem(async (q, s, req) => {
     if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: s.uzivatelId });
     else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID) VALUES (@p, @t, @u)`, { p: id, t: t.TymLidiID, u: s.uzivatelId });
     // dřív deaktivovaní členové se po novém přidání týmu vrátí – tým se přidává celý
-    await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 1, Do = NULL WHERE PacientID = @p AND TymLidiID = @t AND Aktivni = 0`, { p: id, t: t.TymLidiID });
+    await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba x WHERE x.PacientID = po.PacientID AND x.OsobaID = po.OsobaID AND x.Aktivni = 1)
+      AND po.PacientOsobaID = (SELECT MAX(y.PacientOsobaID) FROM dbo.A_KP_PacientOsoba y WHERE y.PacientID = po.PacientID AND y.OsobaID = po.OsobaID AND y.TymLidiID = @t)`, { p: id, t: t.TymLidiID });
     await synchronizujTymUPacientu(q, t.TymLidiID, s.uzivatelId);
     await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `K pacientovi přiřazen tým ${t.Nazev} (${t.Pracoviste}).`, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
     await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'přístup ke kartě (tým)', detail: `+ ${t.Nazev} (${t.Pracoviste})${vTymu ? '' : ' · do týmu kolem pacienta přidáno (péče): ' + mimo.map((x) => x.nazev).join(', ')}`, ip: s.ip });
@@ -913,9 +924,11 @@ central.post('/pacient/:id/tym-lidi', sUzivatelem(async (q, s, req) => {
   const maTym = await q.one(`SELECT 1 AS x FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t AND Aktivni = 1`, { p: id, t: t.TymLidiID });
   if (!maTym) throw chyba('Tým u pacienta není', 404);
   const aktivni = b.aktivni !== false;
-  const radek = await q.one(`SELECT TOP 1 PacientOsobaID FROM dbo.A_KP_PacientOsoba WHERE PacientID = @p AND OsobaID = @o AND TymLidiID = @t ORDER BY Aktivni DESC, PacientOsobaID DESC`, { p: id, o: oid, t: t.TymLidiID });
-  if (radek) await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = @a, Do = CASE WHEN @a = 1 THEN NULL ELSE SYSDATETIME() END WHERE PacientOsobaID = @i`, { a: aktivni, i: radek.PacientOsobaID });
-  else if (aktivni) await q.exec(`INSERT INTO dbo.A_KP_PacientOsoba (PacientID, OsobaID, TymLidiID, PridalUzivatelID) VALUES (@p, @o, @t, @u)`, { p: id, o: oid, t: t.TymLidiID, u: s.uzivatelId });
+  // deaktivace platí pro člověka u pacienta (ať je v kolika týmech), aktivace vrátí poslední záznam nebo založí nový z tohoto týmu
+  const radek = await q.one(`SELECT TOP 1 PacientOsobaID, Aktivni FROM dbo.A_KP_PacientOsoba WHERE PacientID = @p AND OsobaID = @o ORDER BY Aktivni DESC, PacientOsobaID DESC`, { p: id, o: oid });
+  if (!aktivni) { if (radek && radek.Aktivni) await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 0, Do = SYSDATETIME() WHERE PacientID = @p AND OsobaID = @o AND Aktivni = 1`, { p: id, o: oid }); }
+  else if (radek && !radek.Aktivni) await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 1, Do = NULL, TymLidiID = ISNULL(TymLidiID, @t) WHERE PacientOsobaID = @i`, { i: radek.PacientOsobaID, t: t.TymLidiID });
+  else if (!radek) await q.exec(`INSERT INTO dbo.A_KP_PacientOsoba (PacientID, OsobaID, TymLidiID, PridalUzivatelID) VALUES (@p, @o, @t, @u)`, { p: id, o: oid, t: t.TymLidiID, u: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'přístup ke kartě (člen týmu)', detail: `${aktivni ? '+' : '−'}${o.Jmeno} (${t.Nazev})`, ip: s.ip });
   return {};
 }));

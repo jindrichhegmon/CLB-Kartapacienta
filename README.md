@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.1: `synchronizujTymUPacientu` respektuje `UX_A_KP_PacientOsoba_Aktivni` (člověk u pacienta aktivní nejvýš jednou): člen ve dvou týmech téhož pacienta nebo přiřazený dřív jednotlivě se znovu nevkládá; při odchodu z jednoho týmu se řádek jen přepíše na jiný aktivní tým; deaktivace / aktivace člena platí pro člověka u pacienta, stav členů v detailu podle kteréhokoli jeho řádku.
 - 0.10.2: **členství v týmu explicitně** (`A_KP_TymClen`, `sql/01f_kp_tym_clenove.sql` převezme stávající `A_KP_Osoba.Tym`): tým patří pracovišti, které ho založilo (garant), členem může být kdokoli z organizace (i jiná pracoviště), člověk ve více týmech. `GET /lide` vrací `clenstvi`; `POST /tym-lidi { clenove }` zapisuje `A_KP_TymClen`; `synchronizujTymUPacientu` přidá pracoviště členů do `A_KP_Tym` (péče) u pacientů s týmem; nabídka týmů u pacienta nese `mimoTym` (pracoviště, která se přidají). Textový `A_KP_Osoba.Tym` se už nepoužívá, formulář člověka tým neukazuje (týmy jen v okně týmu).
 - 0.10.1: krizová karta (`KP.kartaHTML`, oddíl KOHO VOLAT) ukazuje po řádcích Nejdřív a Lékař plánu **všechny důležité kontakty** v pořadí ze záložky (Rozhoduje první, pak Informovat a Pečuje) se štítkem skupiny a poznámkou; dřív byla vidět jen skupina rozhoduje.
 - Agenda **Lidé a týmy** spravuje i týmy: `A_KP_TymLidi` (hlavička týmu v pracovišti: název, popis, aktivní; `sql/01e_kp_tymy.sql` ji založí i pro týmy,
