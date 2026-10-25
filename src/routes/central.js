@@ -786,6 +786,30 @@ central.post('/tym-lidi', sUzivatelem(async (q, s, req) => {
   return { id };
 }));
 
+/** kartičky s PINem pro celý tým (0.11.7): vrátí platné PINy všech aktivních členů (i z jiných pracovišť – tým a kartičky rozdává garant).
+ *  Členům, jejichž PIN je jen v otisku (vydán před 0.11.6), se s `noveChybejicim: true` vydá nový; bez toho jsou vráceni v `bezPinu`. Audit. */
+central.post('/tym-lidi/:id/piny', sUzivatelem(async (q, s, req) => {
+  const t = await q.one(`SELECT TymLidiID, PoskytovatelID, Nazev FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: cislo(req.params.id) });
+  if (!t) throw chyba('Tým nenalezen', 404);
+  if (!smiSpravovatLidi(s, t.PoskytovatelID)) throw chyba('Kartičky týmu tiskne pracoviště, které tým založilo, nebo správce organizace', 403);
+  const clenove = await q.all(`SELECT o.OsobaID, o.Jmeno, ISNULL(o.Role, '') AS Role, ps.Nazev AS Pracoviste, o.PinSifrovany FROM dbo.A_KP_TymClen c
+    JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID AND o.Aktivni = 1 JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
+    WHERE c.TymLidiID = @t ORDER BY ps.Nazev, o.Jmeno`, { t: t.TymLidiID });
+  const noveChybejicim = !!(req.body && req.body.noveChybejicim);
+  const piny = [], bezPinu = []; let novych = 0;
+  for (const o of clenove) {
+    let pin = desifruj(o.PinSifrovany), novy = false;
+    if (!pin) {
+      if (!noveChybejicim) { bezPinu.push(o.Jmeno); continue; }
+      const n = await novyPinAsync(); pin = n.pin; novy = true; novych++;
+      await q.exec(`UPDATE dbo.A_KP_Osoba SET Salt = @sa, Hash = @h, Iterace = @i, PinVydan = SYSDATETIME(), PinSifrovany = @psf WHERE OsobaID = @o`, { sa: n.salt, h: n.hash, i: n.iterace, psf: zasifruj(pin), o: o.OsobaID });
+    }
+    piny.push({ id: o.OsobaID, jmeno: o.Jmeno, role: o.Role, pracoviste: o.Pracoviste, tym: t.Nazev, pin, novy });
+  }
+  if (piny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'kartičky s PINem pro tým', detail: `${t.Nazev}: ${piny.length} členů${novych ? `, ${novych} nových PINů` : ''}`, ip: s.ip });
+  return { tym: t.Nazev, piny, bezPinu };
+}));
+
 /** smazání týmu (0.11.2): u pacientů ztratí členové přístup získaný tímto týmem (přes jiný tým zůstanou), tým zmizí z nabídky i přehledu */
 central.post('/tym-lidi/:id/smazat', sUzivatelem(async (q, s, req) => {
   const t = await q.one(`SELECT t.TymLidiID, t.PoskytovatelID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.TymLidiID = @t`, { t: cislo(req.params.id) });

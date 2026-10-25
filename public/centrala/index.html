@@ -877,9 +877,20 @@ function tymOkno(t) {
     <div class="field"><label>Popis (volitelně)</label><input id="tm_pop" value="${esc(t.popis || '')}" placeholder="např. Zlín a okolí, služba po–pá"></div>
     ${t.id ? `<label class="row"><input type="checkbox" id="tm_a" ${t.aktivni ? 'checked' : ''}> aktivní (zrušený tým už nejde k pacientovi přidat a jeho členové u pacientů kartu neodemknou)</label>` : ''}
     <div class="field"><label>Členové týmu – lidé kteréhokoli pracoviště organizace</label><div id="tm_clenove" style="display:grid;gap:2px;max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:6px 10px">${clenHTML()}</div><span class="hint">Do týmu patří i lidé třetích stran – sestra domova, praktický lékař. Člověk může být ve více týmech. Změna členů se promítne ke všem pacientům, kteří tým mají; pracoviště členů se u nich přidá do týmu kolem pacienta.</span></div>
-    <div class="quick"><button class="btn primary ulozit" id="tm_ok">Uložit</button>${t.id ? '<button class="btn crit" id="tm_del">Smazat tým</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
+    <div class="quick"><button class="btn primary ulozit" id="tm_ok">Uložit</button>${t.id ? '<button class="btn" id="tm_piny" title="Platné osobní PINy všech členů týmu na kartičky k tisku (zapíše se do logu přístupů)">Vytisknout kartičky s PINem</button><button class="btn crit" id="tm_del">Smazat tým</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
     ${t.id ? '<div class="note">Smazat tým: tým zmizí z přehledu i z nabídky u pacientů; u pacientů, kde byl přidělený, ztratí jeho členové přístup (kdo je u pacienta i přes jiný tým, zůstane). Lidé samotní zůstávají zapsaní. Pak jde založit znovu a k pacientovi přidat.</div>' : ''}</div>`, (m) => {
     m.querySelector('.box').style.maxWidth = '640px';
+    if ($('tm_piny')) $('tm_piny').onclick = async () => {
+      try {
+        let r = await C(`/tym-lidi/${t.id}/piny`, { method: 'POST', body: {} });
+        if (r.bezPinu.length) {
+          const vydat = await KP.confirm('Starší PINy', `${r.bezPinu.length === 1 ? 'Člen' : r.bezPinu.length + ' členů'} má PIN vydaný před verzí 0.11.6, ten se znovu zobrazit nedá:<br><b>${esc(r.bezPinu.join(', '))}</b>.<br><br>Vydat ${r.bezPinu.length === 1 ? 'mu' : 'jim'} nový PIN (dosavadní přestane platit) a vytisknout kartičky celému týmu?`, 'Vydat nové a tisknout');
+          if (!vydat) { if (!r.piny.length) return; } else r = await C(`/tym-lidi/${t.id}/piny`, { method: 'POST', body: { noveChybejicim: true } });
+        }
+        if (!r.piny.length) return toast('Tým nemá žádné aktivní členy');
+        pinyOkno(r.piny, `Kartičky s PINem – ${t.nazev}`);
+      } catch (e) { toast(e.message); }
+    };
     if ($('tm_del')) $('tm_del').onclick = async () => {
       if (!(await KP.confirm('Smazat tým', `Tým <b>${esc(t.nazev)}</b> se smaže${t.pacientu ? ` a u <b>${t.pacientu}</b> pacientů se odebere` : ''}. Lidé zůstanou zapsaní v agendě.`, 'Smazat', true))) return;
       try { const r = await C(`/tym-lidi/${t.id}/smazat`, { method: 'POST', body: {} }); closeModal(); toast(r.pacientu ? `Tým smazán a odebrán u ${r.pacientu} pacientů` : 'Tým smazán'); await renderLide(); } catch (e) { toast(e.message); }
@@ -892,16 +903,16 @@ function tymOkno(t) {
     };
   });
 }
-function pinyOkno(piny) {
+function pinyOkno(piny, nadpis) {
   if (!piny || !piny.length) return;
-  modal(`<h2>Osobní PIN${piny.length > 1 ? 'y' : ''}</h2><p class="muted" style="margin:0">PIN se zobrazuje jen teď. Předejte ho – vytištěnou kartičkou nebo SMS. Na telefony pacientů se dostane při nejbližší synchronizaci.</p>
-    <div class="tblwrap"><table class="tbl"><tbody>${piny.map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc(ROLE_OS[x.role] || x.role || '')}${x.tym ? ' · ' + esc(x.tym) : ''}${x.sms ? (x.sms.ok ? ' · SMS odeslána' : ' · SMS neodešla: ' + esc(x.sms.chyba)) : ''}</div></td><td class="mono" style="font-size:20px;letter-spacing:.15em">${esc(x.pin)}</td></tr>`).join('')}</tbody></table></div>
+  modal(`<h2>${esc(nadpis || `Osobní PIN${piny.length > 1 ? 'y' : ''}`)}</h2><p class="muted" style="margin:0">Předejte PIN vytištěnou kartičkou nebo SMS; znovu ho zobrazíte tlačítkem Zobrazit PIN u člena. Na telefony pacientů se nový PIN dostane při nejbližší synchronizaci.</p>
+    <div class="tblwrap"><table class="tbl"><tbody>${piny.map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc(ROLE_OS[x.role] || x.role || '')}${x.pracoviste ? ' · ' + esc(x.pracoviste) : ''}${x.tym ? ' · ' + esc(x.tym) : ''}${x.novy ? ' · <b>nový PIN</b>' : ''}${x.sms ? (x.sms.ok ? ' · SMS odeslána' : ' · SMS neodešla: ' + esc(x.sms.chyba)) : ''}</div></td><td class="mono" style="font-size:20px;letter-spacing:.15em">${esc(x.pin)}</td></tr>`).join('')}</tbody></table></div>
     <div class="quick"><button class="btn primary" id="pn_tisk">Vytisknout kartičky</button><button class="btn" data-close>Hotovo</button></div>`, () => {
     $('pn_tisk').onclick = () => {
       const w = window.open('', '_blank'); if (!w) return toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
       w.document.write(`<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Osobní PINy – Karta pacienta</title><style>body{font-family:system-ui,sans-serif;margin:12mm}.k{display:inline-block;width:84mm;height:50mm;border:1px dashed #999;border-radius:4mm;padding:5mm;margin:0 3mm 3mm 0;box-sizing:border-box;vertical-align:top;page-break-inside:avoid}
         .k small{color:#555;font-size:9pt}.k b{display:block;font-size:12pt;margin:2mm 0}.k .p{font:700 22pt ui-monospace,monospace;letter-spacing:3pt;margin:2mm 0}</style></head><body>
-        ${piny.map((x) => `<div class="k"><small>Karta pacienta – osobní PIN</small><b>${esc(x.jmeno)}</b><small>${esc(ROLE_OS[x.role] || '')}${x.tym ? ' · ' + esc(x.tym) : ''}</small><div class="p">${esc(x.pin)}</div><small>Odemknete jím kartu na telefonu u pacientů, ke kterým jste přiřazen(a). Nikomu ho nesdělujte.</small></div>`).join('')}
+        ${piny.map((x) => `<div class="k"><small>Karta pacienta – osobní PIN</small><b>${esc(x.jmeno)}</b><small>${esc(ROLE_OS[x.role] || '')}${x.pracoviste ? ' · ' + esc(x.pracoviste) : ''}${x.tym ? ' · ' + esc(x.tym) : ''}</small><div class="p">${esc(x.pin)}</div><small>Odemknete jím kartu na telefonu u pacientů, ke kterým jste přiřazen(a). Nikomu ho nesdělujte.</small></div>`).join('')}
         <script>print()<\/script></body></html>`);
       w.document.close();
     };

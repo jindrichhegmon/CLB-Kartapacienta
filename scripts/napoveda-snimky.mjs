@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.6', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.7', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -217,6 +217,8 @@ app.post('/api/c/lide/import', j((req) => ({ pridano: req.body.radky.length, akt
 app.post('/api/c/pacient/:id/lide', j({ zmeny: 1 }));
 app.post('/api/c/tym-lidi', j({ id: 9 }));
 app.post('/api/c/tym-lidi/:id/smazat', j({ pacientu: 0 }));
+app.post('/api/c/tym-lidi/:id/piny', j((req) => { const t = tymy.find((x) => x.id === Number(req.params.id)); const cl = clenstvi.filter((c) => c.tymId === t.id).map((c) => clen(c.osobaId)); const stary = !req.body.noveChybejicim && cl.length > 1 ? [cl[cl.length - 1].jmeno] : [];
+  return { tym: t.nazev, bezPinu: stary, piny: cl.filter((c) => !stary.includes(c.jmeno)).map((c, i) => ({ id: c.osobaId, jmeno: c.jmeno, role: c.role, pracoviste: c.poskytovatel, tym: t.nazev, pin: String(214807 + i * 137731).slice(0, 6), novy: !!req.body.noveChybejicim && i === cl.length - 1 })) }; }));
 app.post('/api/c/lide/pecedoma/aktualizovat', j({ zmeny: [{ jmeno: 'Bc. Tereza Vzorná', co: 'telefon — → +420 777 100 203' }], bezTelefonu: [], neparovani: ['MUDr. Eva Vzorová'], celkem: 5 }));
 app.post('/api/c/pacient/:id/tym-lidi', j((req) => { const b = req.body || {};
   if (b.pridatTymId) { const t = tymy.find((x) => x.id === Number(b.pridatTymId)); tymyLidi.push({ id: 10 + t.id, tymId: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, od: den(0), clenove: clenstvi.filter((c) => c.tymId === t.id).map((c) => clen(c.osobaId)) }); return { pracovistePridano: false }; }
@@ -353,6 +355,10 @@ await foto(p, 'c-lide', { vyska: 1300 });
 await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok');
 if ((await p.$$('[data-tcl]:checked')).length !== 5) chyby.push('okno týmu nemá zaškrtnuté členy týmu');
 await foto(p, 'c-tym-okno');
+await klik(p, '#tm_piny'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForSelector('#pn_tisk');
+if ((await p.$$('.modal .tbl tbody tr')).length !== 5) chyby.push('kartičky týmu: čekáno 5 PINů, je ' + (await p.$$('.modal .tbl tbody tr')).length);
+if (!(await p.textContent('.modal')).includes('nový PIN')) chyby.push('kartičky týmu: chybí označení nového PINu');
+await foto(p, 'c-tym-piny');
 await p.evaluate(() => KP.closeModal());
 await klik(p, '#l_pd'); await p.waitForSelector('#im_ok');
 await p.setViewportSize({ width: 1200, height: 900 }); await foto(p, 'c-lide-import');

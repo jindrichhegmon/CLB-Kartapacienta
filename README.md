@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.7: **Vytisknout kartičky s PINem** v okně týmu (`POST /tym-lidi/:id/piny`): platné PINy všech aktivních členů (i jiných pracovišť), `bezPinu` = členové s PINem jen v otisku, `noveChybejicim: true` jim vydá nový; `pinyOkno(piny, nadpis)` s pracovištěm a označením nového PINu; audit.
 - 0.11.6: **Zobrazit PIN** v okně člena týmu (`POST /osoba/:id/pin/zobrazit`, audit): PIN se při vydání ukládá i šifrovaně klíčem serveru (`A_KP_Osoba.PinSifrovany`, `sql/01h_kp_osoba_pin.sql`, `zasifruj`/`desifruj`); telefon ověřuje dál jen Salt/Hash. Starší PINy bez šifrované kopie → 409 a nabídka nového PINu. Okno přejmenováno na „Upravit – člen týmu“, tlačítko „+ Člen týmu“.
 - 0.11.5: uživatelé PéčeDoma pro Lidé a týmy přes partnerské API (`uzivatelePd` → pecedoma-karta akce `uzivatele`, CLB1 s telefony); kopie `A_MSPPP_UzivatelSestra` v PeceDomaPlus telefony nemá a použije se jen bez nastaveného propojení (`zdroj: 'db'`, centrála upozorní).
 - 0.11.4: `A_KP_Pacient.Email` (`sql/03b_kp_pacient_email.sql`) – pole E-mail pacienta v Údajích a průvodci (z exportu PéčeDoma `pacient.email`), `POST /pacient` a `/udaje` ho ukládají; do balíku telefonu nejde.

@@ -87,7 +87,7 @@ test('nápověda: kapitoly, obrázky a lokální odpověď bez AI', async () => 
     assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), `chybí obrázek ${src}`);
   }
   const o = lokalne('Jak vydám PIN pro pečující?');
-  assert.match(o, /Kapitola: 8\. Telefon a PINy/);
+  assert.match(o, /Kapitola: 11\. Lidé a týmy/);   // PIN se vydává v Lidé a týmy (Nový PIN, Zobrazit PIN, kartičky týmu)
 });
 
 test('role na kartě: typy zápisů v telefonu povoluje i server', async () => {
