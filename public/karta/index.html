@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.10.0';
+const APP_VERZE = 'karta-0.10.1';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;                 // { tenant, token, tajemstvi, zarizeniId, balik, fronta[], posledniSync, parovano }

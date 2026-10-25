@@ -143,7 +143,9 @@
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));
     const g = b.garant || {};
     const first = kontakty.find((k) => /hospic/i.test(k.jmeno) && k.skupina === 'pecuje') || kontakty.find((k) => k.skupina === 'pecuje') || (g.telefon24 ? { jmeno: g.poskytovatel, tel: g.telefon24 } : null);
-    const rozh = kontakty.filter((k) => k.skupina === 'rozhoduje');
+    // od 0.10.1 v kartě všechny důležité kontakty v pořadí ze záložky (rozhoduje první), ne jen skupina „rozhoduje“ – rodina (informovat) byla v kartě neviditelná
+    const SKUP_NAZ = { rozhoduje: 'Rozhoduje', informovat: 'Informovat', pecuje: 'Pečuje' };
+    const dalsiKontakty = [...kontakty.filter((k) => k.skupina === 'rozhoduje'), ...kontakty.filter((k) => k.skupina !== 'rozhoduje')].filter((k) => k !== first);
     const limity = plan.limity || []; const kpr = limity.includes('KPR');
     const dalsi = limity.filter((l) => l !== 'KPR');
     const doklad = plan.doklad || {};
@@ -175,7 +177,7 @@
         <section class="sec blue"><h3>KOHO VOLAT</h3>
           ${first ? `<a class="callrow first" href="tel:${e(String(first.tel).replace(/\s/g, ''))}" style="color:inherit;text-decoration:none"><span>Nejdřív: ${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</span><span class="num">${e(first.tel)}</span></a>` : ''}
           <div class="callrow"><span><span class="lbl" style="margin:0">Lékař plánu${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</span><br>${e(lekarJm)}</span>${lekarTel ? `<a class="num" href="tel:${e(lekarTel.replace(/\s/g, ''))}">${e(lekarTel)}</a>` : ''}</div>
-          ${rozh.map((r) => `<div class="callrow"><span><span class="lbl" style="margin:0">Rozhoduje</span><br>${e(r.jmeno)}</span><a class="num" href="tel:${e(String(r.tel).replace(/\s/g, ''))}">${e(r.tel)}</a></div>`).join('')}
+          ${dalsiKontakty.map((r) => `<div class="callrow"><span><span class="lbl" style="margin:0">${SKUP_NAZ[r.skupina] || e(r.skupina)}${r.pozn ? ' · ' + e(r.pozn) : ''}</span><br>${e(r.jmeno)}</span><a class="num" href="tel:${e(String(r.tel).replace(/\s/g, ''))}">${e(r.tel)}</a></div>`).join('')}
         </section>
         ${pd && pd.pristiNavsteva ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="val"><b>${e(KP.fmtDT(pd.pristiNavsteva))}</b></div>${pd.pristiKdo ? `<div class="val">${e(pd.pristiKdo)}</div>` : ''}${pd.pristiPozn ? `<div class="lbl">${e(pd.pristiPozn)}</div>` : ''}</section>`
           : pd && pd.aktualizovano ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="lbl">V kalendáři PéčeDoma zatím není naplánovaná návštěva (stav ${e(KP.fmtDT(pd.aktualizovano))}).</div></section>` : ''}

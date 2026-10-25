@@ -38,6 +38,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.10.1: krizová karta (`KP.kartaHTML`, oddíl KOHO VOLAT) ukazuje po řádcích Nejdřív a Lékař plánu **všechny důležité kontakty** v pořadí ze záložky (Rozhoduje první, pak Informovat a Pečuje) se štítkem skupiny a poznámkou; dřív byla vidět jen skupina rozhoduje.
 - Agenda **Lidé a týmy** spravuje i týmy: `A_KP_TymLidi` (hlavička týmu v pracovišti: název, popis, aktivní; `sql/01e_kp_tymy.sql` ji založí i pro týmy,
   které už lidé měli v `A_KP_Osoba.Tym`). Členství zůstává `A_KP_Osoba.Tym` = název týmu (člověk nejvýš v jednom týmu). `POST /api/c/tym-lidi`
   (založení / úprava / členové), `GET /lide` vrací `tymy`. Formulář člověka vybírá tým ze seznamu; CSV a PéčeDoma import týmy zakládá sám.
