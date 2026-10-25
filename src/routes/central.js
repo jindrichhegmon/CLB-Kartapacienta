@@ -429,7 +429,10 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
       await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací odkaz poslán SMS', detail: hezkyTel(telKarty), ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }
-  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms };
+  // jeden telefon pro více pacientů (domov seniorů, 0.11.0): průkazy ostatních pacientů na stejném čísle v telefonu zůstanou, nový se přidá
+  const dalsi = await q.all(`SELECT DISTINCT p.Prijmeni + ' ' + p.Jmeno AS jmeno FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+    WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.PacientID <> @p AND p.Stav = 'AKTIVNI' AND z.Telefon = @tel ORDER BY jmeno`, { p: id, tel: telKarty });
+  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, dalsiNaTelefonu: dalsi.map((x) => x.jmeno) };
 }));
 
 /* vlastní telefon pacienta („Můj průkaz“): kód jen pro číslo pacienta, SMS na něj, nebo QR v ordinaci; platí 3 dny */

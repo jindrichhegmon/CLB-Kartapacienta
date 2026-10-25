@@ -530,11 +530,12 @@ async function parovat(sms) {
     modal(`<h2>Spárovat telefon u pacienta</h2>
       <div class="banner ${smsOk ? 'ok' : 'warn'}" style="margin-bottom:10px">${smsOk ? `Odkaz na spárování byl odeslán SMS na <b>${esc(r.telefonKarty)}</b>. Na tom telefonu ho otevřete a potvrďte číslo.` : `Karta jde nahrát jen do telefonu s číslem <b>${esc(r.telefonKarty)}</b> – telefon při spárování zadá své číslo.`}</div>
       ${r.sms && !r.sms.ok ? `<div class="banner crit" style="margin-bottom:10px">${esc(r.sms.chyba)}</div>` : ''}
+      ${(r.dalsiNaTelefonu || []).length ? `<div class="banner ok" style="margin-bottom:10px">Na tomto čísle už je průkaz: <b>${r.dalsiNaTelefonu.map(esc).join(', ')}</b>. Nový průkaz se v telefonu přidá vedle, po spuštění se vybírá pacient (jeden telefon pro více pacientů, např. v domově).</div>` : ''}
       <div class="quick" style="margin-bottom:8px"><button class="btn ${smsOk ? '' : 'primary'}" id="pr_sms"${r.smsDostupne ? '' : ' disabled'}>${smsOk ? 'Poslat SMS znovu' : 'Poslat odkaz SMS na ' + esc(r.telefonKarty)}</button>${r.smsDostupne ? '' : `<span class="muted" style="font-size:13px">SMS teď nejde – ${esc(r.smsDuvod || 'není nastavená')}</span>`}</div>
       <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
       <p>Na telefonu u pacienta otevřete odkaz z SMS nebo naskenujte QR kód fotoaparátem, případně otevřete <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
       <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Párovací kód</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
-      <p class="muted">Kód platí 15 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}) a jen jednou. Po spárování se případný předchozí telefon pacienta zablokuje.</p>
+      <p class="muted">Kód platí 15 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}) a jen jednou. Po spárování se případný předchozí telefon tohoto pacienta zablokuje; průkazy jiných pacientů v témže telefonu zůstávají.</p>
       <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; $('pr_sms').onclick = () => { closeModal(); parovat(true); }; });
   } catch (e) { toast(e.message); }
 }

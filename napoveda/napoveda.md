@@ -203,7 +203,7 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ### Spárování telefonu
 
-Karta je jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telefon s kartou** v Údajích). Párovat smí garant nebo lékař v týmu.
+Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telefon s kartou** v Údajích). Jeden telefon ale může nést průkazy **více pacientů** (typicky domov seniorů s jedním telefonem na oddělení): u každého pacienta uvedete stejné číslo a telefon spárujete pro každého zvlášť; okno Spárovat telefon ukáže, čí průkazy už na tom čísle jsou. Párovat smí garant nebo lékař v týmu.
 
 1. Klikněte na **Poslat odkaz SMS na +420…** – pacientovi přijde SMS s odkazem, nebo na **Spárovat telefon** – otevře se okno s QR kódem a kódy.
 2. Na telefonu otevřete odkaz z SMS, nebo v aplikaci karty klepněte na **Načíst QR kód fotoaparátem** a namiřte na obrazovku (kapitola 13).
@@ -352,7 +352,13 @@ Menu **Správa organizace** (jen správce) má záložky:
 ![Telefon – načtení QR kódu fotoaparátem](/napoveda/img/k-qr.png)
 
 - Telefon poprvé požádá o přístup k fotoaparátu – povolte ho. Když ho omylem zakážete, povolte ho v nastavení telefonu, nebo kódy opište.
-- Data jsou v telefonu **šifrovaná**; telefon používejte jen pro tento průkaz.
+- Data jsou v telefonu **šifrovaná**. Telefon může nést průkazy více pacientů – každý má vlastní kartu, deník a PINy.
+
+### Více pacientů v jednom telefonu
+
+![Telefon – výběr pacienta při více průkazech](/napoveda/img/k-vyber.png)
+
+Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení domova), ukáže se po spuštění a po každém zamknutí **výběr pacienta**: jméno, kód průkazu, pobyt a upozornění (probíhá zhoršení, zápisy čekající na odeslání, stará data). Klepnutím na pacienta se otevře jeho zamčená krizová karta a dál vše funguje jako s jedním průkazem; šipka zpět v hlavičce vrátí na výběr. **Přidat další průkaz do tohoto telefonu** otevře spárování – stávající průkazy zůstanou. Všechny průkazy se synchronizují samy; průkaz z telefonu odebere centrální aplikace (zablokování telefonu u pacienta nebo uzavření průkazu), ostatní zůstanou.
 - Hláška „Karta tohoto pacienta je určená pro jiné číslo telefonu“ znamená, že číslo neodpovídá – zkontrolujte ho v centrální aplikaci (Údaje → Telefon s kartou).
 
 ## 14. Karta na telefonu – každodenní používání

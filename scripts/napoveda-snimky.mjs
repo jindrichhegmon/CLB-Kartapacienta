@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.10.2', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.0', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -389,6 +389,14 @@ await p.goto(`${URL}/karta/#p=${TENANT}.TYJRRRQH`); await p.waitForSelector('#p_
 await p.fill('#p_tel', '+420 777 000 123'); await klik(p, '#p_ok');
 await p.waitForSelector('#unCarer'); await p.waitForTimeout(3500);
 await foto(p, 'k-zamceno');
+// více průkazů v jednom telefonu (0.11.0): druhý průkaz jen v paměti stránky → obrazovka výběru pacienta, pak zpět k paní Zkušební
+await p.evaluate(() => { const k2 = JSON.parse(JSON.stringify(KARTY[0])); k2.zarizeniId = 8; k2.balik.pacient = { ...k2.balik.pacient, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12' }; k2.balik.denik = []; k2.fronta = []; KARTY.push(k2); D = null; kresli(); });
+await p.waitForSelector('[data-karta]'); await foto(p, 'k-vyber', { vyska: 900 });
+if ((await p.$$('[data-karta]')).length !== 2) chyby.push('výběr pacienta neukazuje oba průkazy');
+await klik(p, '[data-karta="7"]'); await p.waitForSelector('#unCarer');
+if (!/Zkušební/.test(await p.textContent('#top'))) chyby.push('výběr pacienta neotevřel správný průkaz');
+await p.evaluate(() => { KARTY.splice(1); kresli(); });   // dál s jedním průkazem jako dřív
+await p.waitForSelector('#unCarer');
 await p.fill('#zzs_p', 'Jan Rychlý, RZP Zlín 12'); await p.evaluate(() => document.querySelector('#zzs_p').scrollIntoView({ block: 'center' }));
 await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'k-zzs.png') }); console.log('  ✓ k-zzs');
 // lékař bez PINu: kód dne (dnešní i včerejší projde, jiný ne), pak zamknout a odemknout PINem týmu
