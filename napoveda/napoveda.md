@@ -187,6 +187,16 @@ Záložka **Důležité kontakty** ukazuje jeden seznam **v pořadí, jak se kon
 
 **Historie garance** ukazuje všechny garanty se stavem navrženo / platná / ukončená / odmítnuto. Historie nejde mazat.
 
+### Týmy u pacienta
+
+Panel **Týmy u pacienta** (nahoře v záložce Tým a garance) říká, **kdo z lidí** kartu u tohoto pacienta odemkne. Lidé se k pacientovi nepřidávají jednotlivě – vybere se **celý tým** založený v agendě Lidé a týmy (kapitola 11):
+
+1. V poli **Přidat tým** vyberte tým (u názvu je pracoviště a počet členů) a klikněte na **Přidat tým**. Pokud pracoviště týmu ještě není v týmu kolem pacienta, garant ho tím zároveň přidá s rolí péče.
+2. Členové týmu se vypíší pod názvem týmu. Kdo z nich u tohoto pacienta kartu odemykat nemá, toho **deaktivujete** (řádek zešedne, stav „deaktivován u pacienta“); **Aktivovat** ho vrátí. Nikoho tu přidat nejde – nového člověka zapíšete do týmu v agendě Lidé a týmy a u všech pacientů s tímto týmem dostane přístup sám.
+3. **Odebrat tým** – členové týmu už kartu neodemknou (při nejbližší synchronizaci telefonu).
+
+Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště; ostatní členové týmu jen týmy svého pracoviště.
+
 ## 8. Telefon a PINy
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
@@ -213,16 +223,7 @@ Tlačítko **Kód lékaře na dnešek** (jen lékař, když je telefon spárovan
 
 ### Lidé, kteří odemknou kartu
 
-Lékaři, sestry, pečovatelé hospice i domova se **nezapisují ke každému pacientovi znovu**. Jsou jednou zapsaní v agendě **Lidé a týmy** (kapitola 11) a mají osobní PIN. U pacienta je jen přiřadíte:
-
-1. Klikněte na **+ Přiřadit lidi z týmů**.
-2. Nabídnou se lidé pracovišť, která jsou v týmu kolem pacienta (záložka Tým a garance), rozdělení podle týmů. Zaškrtněte **celý tým** nebo jednotlivé lidi.
-3. **Přiřadit vybrané** – při nejbližší synchronizaci telefonu odemknou kartu svým osobním PINem. Co uvidí a zapíší, určuje jejich role (kapitola 10).
-
-![Přiřazení lidí z týmů pracovišť k pacientovi](/napoveda/img/c-prirazeni.png)
-
-- Garant a lékař v týmu přiřazují lidi všech pracovišť v týmu. Partner (např. domov s rolí péče) přiřazuje své vlastní lidi.
-- **Odebrat** – člověk kartu tohoto pacienta už neodemkne. Když pracoviště odejde z týmu, jeho lidé se odeberou sami.
+Lékaři, sestry, pečovatelé hospice i domova se **nezapisují ke každému pacientovi znovu**. Jsou jednou zapsaní v agendě **Lidé a týmy** (kapitola 11), rozdělení do týmů a mají osobní PIN. U pacienta se vybírá **celý tým** v záložce **Tým a garance → Týmy u pacienta** (kapitola 7); panel **Lidé, kteří odemknou kartu** v záložce Telefon a PINy je jen přehled – ukazuje členy vybraných týmů, kteří nejsou u pacienta deaktivovaní. Co uvidí a zapíší, určuje jejich role (kapitola 10). Když pracoviště odejde z týmu kolem pacienta, jeho týmy a lidé ztratí přístup sami.
 
 ### Rodina a jednorázové PINy
 
@@ -283,9 +284,17 @@ Menu **Lidé a týmy** (všichni kromě role jen čtení). Každé pracoviště 
 
 ![Lidé a týmy – lidé pracovišť po týmech](/napoveda/img/c-lide.png)
 
+### Týmy
+
+Nahoře je přehled **Týmů** po pracovištích: název, popis, počet členů a u kolika aktivních pacientů tým je. **+ Tým** založí nový tým: pracoviště, název (např. „Tým Zlín“, „Oddělení A“), popis a **členové** – zaškrtnete lidi pracoviště. Člověk je nejvýš v jednom týmu, zaškrtnutím ho z jiného týmu přesunete. **Upravit** u týmu mění název, popis, členy a zaškrtnutí **aktivní**; zrušený tým už k pacientovi nejde přidat a jeho členové u pacientů kartu neodemknou.
+
+![Tým a jeho členové](/napoveda/img/c-tym-okno.png)
+
+Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapitola 7, Týmy u pacienta): nový člen dostane přístup, odebraný ho ztratí. Koho u konkrétního pacienta lékař deaktivoval, ten se změnou týmu nevrátí.
+
 ### Přidání člověka
 
-**+ Člověk**: pracoviště, tým (volitelně, např. „Tým Zlín“ nebo „Oddělení A“), jméno, **role na kartě** (lékař, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
+**+ Člověk**: pracoviště, tým (výběr z týmů pracoviště, nebo bez týmu), jméno, **role na kartě** (lékař, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
 
 ![Úprava člověka – role na kartě a nový PIN](/napoveda/img/c-osoba.png)
 

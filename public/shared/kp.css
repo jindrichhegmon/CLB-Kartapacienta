@@ -157,6 +157,7 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .field{display:grid;gap:5px}
 .field label{font-size:11px;font-weight:600;color:var(--muted)}
 .field input,.field select,.field textarea{border:1px solid var(--line);border-radius:7px;padding:7px 10px;background:var(--surface);width:100%;min-width:0;font-size:13px;height:38px;min-height:38px}
+.field input[type=checkbox],.field input[type=radio],.row input[type=checkbox]{width:16px;height:16px;min-height:0;padding:0;margin:0;accent-color:var(--accent)}
 .field textarea{height:auto;min-height:110px;resize:vertical;font-family:var(--font);font-size:13px;line-height:1.45}
 .app:not(.wide) .field input,.app:not(.wide) .field select{font-size:16px;height:42px;min-height:42px}
 .app:not(.wide) .field textarea{font-size:16px}

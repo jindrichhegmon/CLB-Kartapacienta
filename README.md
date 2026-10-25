@@ -36,6 +36,18 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
   karta to v Safari připomene.
 - Migrace `sql/03_kp_telefon_karty.sql` (idempotentní) přidá sloupce `TelefonKarty` a `Telefon`.
 
+## Týmy lidí (0.10.0)
+
+- Agenda **Lidé a týmy** spravuje i týmy: `A_KP_TymLidi` (hlavička týmu v pracovišti: název, popis, aktivní; `sql/01e_kp_tymy.sql` ji založí i pro týmy,
+  které už lidé měli v `A_KP_Osoba.Tym`). Členství zůstává `A_KP_Osoba.Tym` = název týmu (člověk nejvýš v jednom týmu). `POST /api/c/tym-lidi`
+  (založení / úprava / členové), `GET /lide` vrací `tymy`. Formulář člověka vybírá tým ze seznamu; CSV a PéčeDoma import týmy zakládá sám.
+- **U pacienta se vybírá celý tým** (`A_KP_PacientTym`, panel Týmy u pacienta v záložce Tým a garance, `POST /pacient/:id/tym-lidi`
+  `{ pridatTymId | odebratTymId | tymId+osobaId+aktivni }`); členové se materializují do `A_KP_PacientOsoba` se sloupcem `TymLidiID`,
+  takže telefon (`balikProZarizeni`) i deník přístupů čtou totéž co dřív. U pacienta jde člena jen **deaktivovat / aktivovat**; jednotlivé
+  přidávání (`POST /pacient/:id/lide { pridat }`) je vypnuté, `odebrat` zůstává pro záznamy bez týmu. `synchronizujTymUPacientu` po každé změně
+  týmu nebo člověka doplní nové členy ke všem pacientům s týmem a odebere ty, kdo v týmu nejsou (deaktivovaný člen se sám nevrací).
+  Přidání týmu pracoviště mimo tým kolem pacienta ho garantovi přidá s rolí péče. Odebrání pracoviště z týmu vyřadí i jeho týmy u pacienta.
+
 ## Diagnóza první, jedny léky, deník o pacientovi (0.9.0)
 
 - Záložky v pořadí Krizová karta, Diagnóza, Plán péče, Léky, … (centrála i telefon); telefon ukazuje Diagnózu i na zamčené první stránce. Záložka **Diagnóza** = dg, funkční stav, alergie (lékař upraví = nová verze plánu).

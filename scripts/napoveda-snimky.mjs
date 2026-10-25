@@ -67,7 +67,20 @@ const lide = [
   os(8, 3, 'Domov Pohoda', 'DOMOV', 'Oddělení A', 'Pavla Dobrá, pečovatelka', 'SESTRA', '577 222 302', 'CSV', 5),
   os(9, 3, 'Domov Pohoda', 'DOMOV', 'Oddělení B', 'Sestra Hana Klidná', 'SESTRA', '577 222 303', 'CSV', 3),
 ];
-const prirazeni = [1, 2, 6, 7, 8].map((oid) => { const o = lide.find((x) => x.id === oid); return { id: 100 + oid, osobaId: oid, jmeno: o.jmeno, role: o.role, tym: o.tym, poskytovatelId: o.poskytovatelId, poskytovatel: o.poskytovatel, od: den(-20), maPin: 1 }; });
+// týmy lidí (0.10.0): hlavičky týmů, týmy u pacienta s členy (člen 3 u pacienta deaktivován), nabídka dalších týmů
+const tymy = [
+  { id: 1, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Zlín', popis: 'Zlín a okolí', aktivni: 1, clenu: 3, pacientu: 3 },
+  { id: 2, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Otrokovice', popis: '', aktivni: 1, clenu: 2, pacientu: 1 },
+  { id: 3, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení A', popis: 'přízemí', aktivni: 1, clenu: 2, pacientu: 5 },
+  { id: 4, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení B', popis: '', aktivni: 1, clenu: 1, pacientu: 3 },
+];
+const clen = (oid, aktivni = 1) => { const o = lide.find((x) => x.id === oid); return { osobaId: oid, jmeno: o.jmeno, role: o.role, maPin: 1, aktivni }; };
+const tymyLidi = [
+  { id: 1, tymId: 1, nazev: 'Tým Zlín', popis: 'Zlín a okolí', poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', od: den(-21), clenove: [clen(1), clen(2), clen(3, 0)] },
+  { id: 2, tymId: 3, nazev: 'Oddělení A', popis: 'přízemí', poskytovatelId: 3, poskytovatel: 'Domov Pohoda', od: den(-10), clenove: [clen(7), clen(8)] },
+];
+const tymyNabidka = () => tymy.filter((t) => !tymyLidi.some((x) => x.tymId === t.id)).map((t) => ({ id: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, clenu: t.clenu, vTymu: t.poskytovatelId !== 4 }));
+const prirazeni = [6].map((oid) => { const o = lide.find((x) => x.id === oid); return { id: 100 + oid, osobaId: oid, jmeno: o.jmeno, role: o.role, tym: o.tym, poskytovatelId: o.poskytovatelId, poskytovatel: o.poskytovatel, od: den(-20), maPin: 1 }; });
 const pdTym = [
   { id: 11, jmeno: 'Bc. Tereza Vzorná', role: 'sestra', telefon: '777 100 203', login: 'tereza', externiId: 'pd:11', nacteno: true },
   { id: 12, jmeno: 'MUDr. Petra Ukázková', role: 'lekar,casemanager', telefon: '777 100 201', login: 'petra', externiId: 'pd:12', nacteno: true },
@@ -98,7 +111,7 @@ const detail = {
   odPacienta: [{ id: 1, cas: cas(-1, '19:30'), polozky: [
     { druh: 'PRANI', nazev: 'Moje hodnoty a přání', obsah: 'Co je pro mě důležité: zůstat doma s dcerou a vnoučaty, nemít bolesti.\nČeho se obávám: dušení a převozu do nemocnice v noci.\nCo chci, aby lékaři zohlednili: raději úleva než léčba za každou cenu.', puvod: 'údaj pacienta – jak si pamatuji rozhovor se zdravotníkem (MUDr. Ukázková, ' + den(-30).split('-').reverse().map(Number).join('. ') + ')', aktualizovano: cas(-1, '19:20') },
     { druh: 'LEKY', nazev: 'Léky, které užívám', obsah: 'MST Continus 30 mg – ráno a večer · aktualizováno ' + den(-1).split('-').reverse().map(Number).join('. ') + '\nFurosemid 40 mg – jen ob den (otoky menší)', puvod: 'údaj pacienta', aktualizovano: cas(-1, '19:25') }] }],
-  piny: [{ id: 1, jmeno: 'Jana Zkušební (dcera)', role: 'RODINA', vytvoreno: den(-21) }], lide: prirazeni,
+  piny: [{ id: 1, jmeno: 'Jana Zkušební (dcera)', role: 'RODINA', vytvoreno: den(-21) }], lide: prirazeni, tymyLidi, get tymyNabidka() { return tymyNabidka(); },
   denik: [...denik].reverse(), dokumenty: [{ id: 1, typ: 'DVP', nazev: 'Dříve vyslovené přání', kdeOriginal: 'u dcery', mime: 'application/pdf', velikost: 120000, vytvoreno: cas(-21, '09:20'), datum: den(-40), pracoviste: 'Hospic Ukázka' },
     { id: 2, typ: 'ZPRAVA', nazev: 'Propouštěcí zpráva – interna', kdeOriginal: '', mime: 'application/pdf', velikost: 230000, vytvoreno: cas(-22, '15:00'), datum: den(-23), pracoviste: 'Krajská nemocnice – interna' }],
   pristupy: [{ cas: cas(0, '08:15'), kdo: 'MUDr. Petra Ukázková', akce: 'zobrazení průkazu', detail: null }, { cas: cas(-2, '02:41'), kdo: 'telefon', akce: 'synchronizace', detail: '1 zápis' }],
@@ -152,7 +165,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.6', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.10.0', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -194,11 +207,16 @@ app.post('/api/d/pecedoma/zprava', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH.T420777000123`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
-app.get('/api/c/lide', j({ lide, role: { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
+app.get('/api/c/lide', j({ lide, tymy, role: { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
 app.get('/api/c/lide/pecedoma', j({ lide: pdTym }));
 app.post('/api/c/osoba', j({ id: 99, pin: '482913', sms: null }));
 app.post('/api/c/lide/import', j((req) => ({ pridano: req.body.radky.length, aktualizovano: 0, chyby: [], piny: req.body.radky.map((r, i) => ({ ...r, pin: String(305117 + i * 91813).slice(0, 6), sms: req.body.sms ? { ok: true } : null })) })));
 app.post('/api/c/pacient/:id/lide', j({ zmeny: 1 }));
+app.post('/api/c/tym-lidi', j({ id: 9 }));
+app.post('/api/c/pacient/:id/tym-lidi', j((req) => { const b = req.body || {};
+  if (b.pridatTymId) { const t = tymy.find((x) => x.id === Number(b.pridatTymId)); tymyLidi.push({ id: 10 + t.id, tymId: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, od: den(0), clenove: lide.filter((o) => o.poskytovatelId === t.poskytovatelId && o.tym === t.nazev).map((o) => clen(o.id)) }); return { pracovistePridano: false }; }
+  if (b.odebratTymId) { const i = tymyLidi.findIndex((x) => x.tymId === Number(b.odebratTymId)); if (i > -1) tymyLidi.splice(i, 1); return {}; }
+  const t = tymyLidi.find((x) => x.tymId === Number(b.tymId)); const c = t && t.clenove.find((x) => x.osobaId === Number(b.osobaId)); if (c) c.aktivni = b.aktivni ? 1 : 0; return {}; }));
 // kód lékaře dne – stejný výpočet jako src/crypto.js kodDne (telefon ho ověří offline z tajemství '0011…')
 const TAJEMSTVI = '00112233445566778899aabbccddeeff00112233';
 const kodDne = (datum) => { const h = createHmac('sha256', Buffer.from(TAJEMSTVI, 'hex')).update('kod-dne:' + datum).digest(); return String((((h[0] & 0x7f) << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) % 1000000).padStart(6, '0'); };
@@ -232,6 +250,7 @@ async function stranka({ mobil = false, session = null, init = null } = {}) {
   return p;
 }
 const foto = async (p, jmeno, { cela = false, vyska = null } = {}) => {
+  await p.evaluate(() => { const t = document.getElementById('toast'); if (t) t.hidden = true; });   // hlášky z předchozích kroků do snímků nepatří
   await p.evaluate(() => { scrollTo(0, 0); document.querySelectorAll('.box').forEach((b) => (b.scrollTop = 0)); });
   await p.waitForTimeout(350);
   const vp = p.viewportSize();
@@ -288,12 +307,21 @@ await zalozka('kontakty', 'c-kontakty');
   await klik(p, '[data-kmv="3|1"]'); await p.waitForTimeout(600);   // vrátit pořadí pro další snímky
   await klik(p, '[data-kdel]:last-of-type'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForTimeout(400);
 }
-await zalozka('tym', 'c-tym', { vyska: 900 });
+await zalozka('tym', 'c-tym', { vyska: 1150 });
+// kontrola chování: deaktivace člena, aktivace zpět, přidání týmu, odebrání
+{
+  const stav = async (oid) => p.$eval(`[data-tlcl^="1|${oid}|"]`, (b) => b.textContent.trim());
+  await klik(p, '[data-tlcl="1|2|0"]'); await p.waitForTimeout(400);
+  if ((await stav(2)) !== 'Aktivovat') chyby.push('deaktivace člena týmu u pacienta se neprojevila');
+  await klik(p, '[data-tlcl="1|2|1"]'); await p.waitForTimeout(400);
+  if ((await stav(2)) !== 'Deaktivovat') chyby.push('aktivace člena týmu u pacienta se neprojevila');
+  await p.selectOption('#tl_sel', '2'); await klik(p, '#tl_ok'); await p.waitForTimeout(500);
+  if (!(await p.textContent('#tabbody')).includes('Tým Otrokovice · Hospic Ukázka')) chyby.push('přidání týmu k pacientovi se neprojevilo');
+  await klik(p, '[data-tlodeb="2"]'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk');
+  try { await p.waitForSelector('[data-tlodeb="2"]', { state: 'detached', timeout: 4000 }); } catch { chyby.push('odebrání týmu u pacienta se neprojevilo: ' + (await p.evaluate(() => (document.getElementById('toast') || {}).textContent || ''))); }
+  await p.waitForTimeout(300);
+}
 await zalozka('telefon', 'c-telefon', { vyska: 1000 });
-await klik(p, '#lide_prirad'); await p.waitForSelector('[data-celytym]');
-await p.click('[data-os="3"]');
-await p.setViewportSize({ width: 1200, height: 1060 }); await foto(p, 'c-prirazeni'); await p.setViewportSize({ width: 1200, height: 760 });
-await p.evaluate(() => KP.closeModal());
 await klik(p, '#parovat'); await p.waitForSelector('#pr_sms');
 await foto(p, 'c-parovani', { vyska: 1000 });
 await p.evaluate(() => KP.closeModal());
@@ -316,7 +344,11 @@ await p.evaluate(() => document.querySelector('#pd_o').scrollIntoView({ block: '
 await foto(p, 'c-nastaveni-pecedoma', { vyska: 1000 });
 await klik(p, '.nav button[data-v="lide"]'); await p.waitForSelector('tr[data-oid]');
 await p.selectOption('#lf', ''); await p.waitForSelector('tr[data-oid="9"]');
-await foto(p, 'c-lide', { vyska: 1150 });
+await foto(p, 'c-lide', { vyska: 1300 });
+await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok');
+if ((await p.$$('[data-tcl]:checked')).length !== 3) chyby.push('okno týmu nemá zaškrtnuté členy týmu');
+await foto(p, 'c-tym-okno');
+await p.evaluate(() => KP.closeModal());
 await klik(p, '#l_pd'); await p.waitForSelector('#im_ok');
 await p.setViewportSize({ width: 1200, height: 900 }); await foto(p, 'c-lide-import');
 await klik(p, '#im_ok'); await p.waitForSelector('#pn_tisk'); await p.waitForTimeout(3600);
