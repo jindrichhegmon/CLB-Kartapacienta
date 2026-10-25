@@ -810,7 +810,7 @@ central.get('/lide', sUzivatelem(async (q) => ({
     FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = t.PoskytovatelID ORDER BY t.Aktivni DESC, p.Nazev, t.Nazev`),
   lide: await q.all(`SELECT o.OsobaID AS id, o.PoskytovatelID AS poskytovatelId, p.Nazev AS poskytovatel, p.Typ AS typPoskytovatele, o.Tym AS tym, o.Jmeno AS jmeno, o.Role AS role,
       o.Telefon AS telefon, o.Email AS email, o.Poznamka AS pozn, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, CONVERT(char(16), o.PinVydan, 120) AS pinVydan,
-      o.Zdroj AS zdroj, o.Aktivni AS aktivni,
+      o.Zdroj AS zdroj, o.ExterniID AS externiId, o.Aktivni AS aktivni,
       (SELECT COUNT(*) FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Pacient pa ON pa.PacientID = po.PacientID WHERE po.OsobaID = o.OsobaID AND po.Aktivni = 1 AND pa.Stav = 'AKTIVNI') AS pacientu
     FROM dbo.A_KP_Osoba o JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = o.PoskytovatelID
     ORDER BY o.Aktivni DESC, p.Nazev, o.Tym, o.Jmeno`),
@@ -894,6 +894,40 @@ central.get('/lide/pecedoma', sUzivatelem(async (q) => {
   } catch (e) { throw chyba('Tým z PéčeDoma se nepodařilo načíst (' + String(e.message).slice(0, 120) + ') – použijte soubor CSV', 502); }
   const nactene = new Set((await q.all(`SELECT ExterniID FROM dbo.A_KP_Osoba WHERE ExterniID LIKE 'pd:%'`)).map((x) => x.ExterniID));
   return { lide: rows.map((r) => ({ ...r, externiId: 'pd:' + r.id, nacteno: nactene.has('pd:' + r.id) })) };
+}));
+
+/** aktualizace lidí z PéčeDoma (0.11.3): jméno, role a telefon podle uživatele portálu (párování přes ExterniID pd:<UzivatelID>, jinak stejné jméno);
+ *  PéčeDoma e-mail nevede – ten se vyplní u člověka ručně. { poskytovatelId } = celé pracoviště, { osobaId } = jeden člověk. PIN zůstává. */
+central.post('/lide/pecedoma/aktualizovat', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  let lide;
+  if (cislo(b.osobaId)) {
+    lide = await q.all(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, ExterniID FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(b.osobaId) });
+    if (!lide.length) throw chyba('Člověk nenalezen', 404);
+    if (!smiSpravovatLidi(s, lide[0].PoskytovatelID)) throw chyba('Tohoto člověka spravuje jeho pracoviště', 403);
+  } else {
+    const ps = await pracoviste(q, s, b.poskytovatelId);
+    lide = await q.all(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, ExterniID FROM dbo.A_KP_Osoba WHERE PoskytovatelID = @ps AND Aktivni = 1`, { ps: ps.PoskytovatelID });
+  }
+  let pd;
+  try { pd = await q.all(`SELECT UzivatelID AS id, Jmeno AS jmeno, Telefon AS telefon FROM dbo.A_MSPPP_UzivatelSestra WHERE Aktivni = 1`); }
+  catch (e) { throw chyba('PéčeDoma se nepodařilo načíst (' + String(e.message).slice(0, 120) + ')', 502); }
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  const zmeny = [], bezTelefonu = [], neparovani = [];
+  for (const o of lide) {
+    const u = pd.find((x) => 'pd:' + x.id === o.ExterniID) || pd.find((x) => norm(x.jmeno) === norm(o.Jmeno));
+    if (!u) { neparovani.push(o.Jmeno); continue; }
+    const tel = text(u.telefon, 30) || null;
+    const co = [];
+    if (!o.ExterniID) co.push('propojeno s PéčeDoma');
+    if (tel && normTel(tel) !== normTel(o.Telefon)) co.push(`telefon ${hezkyTel(o.Telefon) || '—'} → ${hezkyTel(tel)}`);
+    if (!tel) bezTelefonu.push(o.Jmeno);
+    if (!co.length) continue;
+    await q.exec(`UPDATE dbo.A_KP_Osoba SET Telefon = ISNULL(@tel, Telefon), ExterniID = ISNULL(ExterniID, @x), Zdroj = CASE WHEN Zdroj = 'RUCNE' THEN 'PECEDOMA' ELSE Zdroj END WHERE OsobaID = @o`, { tel, x: 'pd:' + u.id, o: o.OsobaID });
+    zmeny.push({ jmeno: o.Jmeno, co: co.join(', ') });
+  }
+  if (zmeny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'aktualizace lidí z PéčeDoma', detail: zmeny.map((z) => `${z.jmeno}: ${z.co}`).join('; ').slice(0, 400), ip: s.ip });
+  return { zmeny, bezTelefonu, neparovani, celkem: lide.length };
 }));
 
 /** týmy lidí u pacienta (0.10.0): { pridatTymId } | { odebratTymId } | { tymId, osobaId, aktivni } – lidé se přidávají jen po týmech z agendy Lidé a týmy,

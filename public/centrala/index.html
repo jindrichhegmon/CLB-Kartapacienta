@@ -783,7 +783,7 @@ async function renderLide() {
   const skupiny = seskup(vidim, (o) => o.poskytovatel);
   $('work').innerHTML = `${nav()}
     <div class="row"><select id="lf" style="max-width:320px"><option value="">Všechna pracoviště</option>${S.posk.map((p) => `<option value="${p.id}" ${String(p.id) === S.lideFiltr ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select>
-      ${spravuji.length ? `<button class="btn primary" id="l_tym">+ Tým</button><button class="btn primary" id="l_new">+ Člověk</button><label class="btn">Načíst CSV<input type="file" id="l_csv" accept=".csv,text/csv,.txt" hidden></label><button class="btn" id="l_pd">Načíst z PéčeDoma</button><button class="btn ghost" id="l_vzor">Vzor CSV</button>` : ''}
+      ${spravuji.length ? `<button class="btn primary" id="l_tym">+ Tým</button><button class="btn primary" id="l_new">+ Člověk</button><label class="btn">Načíst CSV<input type="file" id="l_csv" accept=".csv,text/csv,.txt" hidden></label><button class="btn" id="l_pd">Načíst z PéčeDoma</button><button class="btn" id="l_pd_akt" title="Telefony a jména podle uživatelů portálu PéčeDoma; PINy zůstávají">Aktualizovat z PéčeDoma</button><button class="btn ghost" id="l_vzor">Vzor CSV</button>` : ''}
       <label class="row" style="font-size:13px;gap:6px;margin-left:auto"><input type="checkbox" id="l_neakt" ${S.lideNeaktivni ? 'checked' : ''}> i vyřazení</label></div>
     <div class="note">Každé pracoviště – garant i partneři (domov, praktický lékař…) – si své lidi zapíše <b>jednou</b> a rozdělí do týmů. Každý dostane <b>osobní PIN</b>, kterým odemkne kartu na telefonu u všech pacientů, u kterých je vybraný jeho <b>tým</b> (detail pacienta → Tým a garance → Týmy u pacienta; tam jde člena nejvýš deaktivovat). Role určuje, co na kartě smí. Rodina má PIN u konkrétního pacienta, záchranná služba žádný – jméno zapíše až u výjezdu.</div>
     ${tymyBlok(vidim)}
@@ -798,6 +798,7 @@ async function renderLide() {
   document.querySelectorAll('[data-tid]').forEach((b) => (b.onclick = () => { const t = S.tymy.find((x) => x.id === Number(b.dataset.tid)); if (t && smiLidi(t.poskytovatelId)) tymOkno(t); }));
   if ($('l_csv')) $('l_csv').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const r = ctiCsv(await textSouboru(f)); if (!r.length) return toast('V souboru nejsou žádní lidé'); importOkno(r, 'CSV'); } catch (err) { toast(err.message); } };
   if ($('l_pd')) $('l_pd').onclick = async () => { try { const r = await C('/lide/pecedoma'); if (!r.lide.length) return toast('V PéčeDoma pro tuto organizaci nikdo není'); importOkno(r.lide, 'PECEDOMA'); } catch (e) { toast(e.message); } };
+  if ($('l_pd_akt')) $('l_pd_akt').onclick = () => aktualizovatZPd({ poskytovatelId: Number(S.lideFiltr) || (spravuji.find((p) => p.id === S.ja.poskytovatelId) || spravuji[0]).id });
   if ($('l_vzor')) $('l_vzor').onclick = () => {
     const a = document.createElement('a'); a.download = 'lide-vzor.csv';
     a.href = URL.createObjectURL(new Blob(['﻿jméno;role;telefon;e-mail;tým\nMUDr. Jana Nová;lékař;777 123 456;jana.nova@example.cz;Tým Zlín\nBc. Petra Malá;sestra;777 234 567;;Tým Zlín\nIvana Dlouhá;pečovatelka;777 345 678;;Tým Otrokovice\n'], { type: 'text/csv' }));
@@ -817,7 +818,7 @@ function osobaOkno(o) {
     <div class="field"><label>Poznámka</label><input id="os_poz" value="${esc(o.pozn || '')}"></div>
     ${o.id ? `<label class="row"><input type="checkbox" id="os_a" ${o.aktivni ? 'checked' : ''}> aktivní (vyřazený člověk kartu neodemkne u žádného pacienta)</label>` : ''}
     ${S.smsLide ? `<label class="row"><input type="checkbox" id="os_sms"> ${o.id ? 'nový PIN poslat SMS' : 'poslat osobní PIN SMS'} na jeho telefon</label>` : ''}
-    <div class="quick"><button class="btn primary ulozit" id="os_ok">Uložit</button>${o.id ? '<button class="btn" id="os_pin">Nový PIN</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
+    <div class="quick"><button class="btn primary ulozit" id="os_ok">Uložit</button>${o.id ? '<button class="btn" id="os_pin">Nový PIN</button><button class="btn" id="os_pd" title="Telefon a jméno podle uživatele portálu PéčeDoma">Aktualizovat z PéčeDoma</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
     <div class="note">Role určuje, co člověk na kartě uvidí a zapíše: lékař a praktický lékař vše včetně návštěv lékaře, hospic a sestra DPS stav, SOS léky a zhoršení. ${o.id ? '' : 'Po uložení se zobrazí osobní PIN – jen jednou.'}</div></div>`, () => {
     const telo = () => ({ id: o.id, poskytovatelId: Number($('os_p').value), jmeno: $('os_j').value, role: $('os_r').value, telefon: $('os_tel').value, email: $('os_e').value, pozn: $('os_poz').value,
       aktivni: $('os_a') ? $('os_a').checked : true, sms: !!($('os_sms') && $('os_sms').checked) });
@@ -826,6 +827,7 @@ function osobaOkno(o) {
       try { const r = await C('/osoba', { method: 'POST', body: b }); closeModal(); toast('Uloženo');
         await renderLide(); if (r.pin) pinyOkno([{ ...b, pin: r.pin, sms: r.sms }]); } catch (e) { toast(e.message); }
     };
+    if ($('os_pd')) $('os_pd').onclick = () => { closeModal(); aktualizovatZPd({ osobaId: o.id }); };
     if ($('os_pin')) $('os_pin').onclick = async () => {
       if (!(await KP.confirm('Nový osobní PIN', `Dosavadní PIN ${esc(o.jmeno)} přestane platit na všech telefonech (při jejich synchronizaci).`, 'Vydat nový PIN'))) return;
       try { const sms = !!($('os_sms') && $('os_sms').checked); const r = await C(`/osoba/${o.id}/pin`, { method: 'POST', body: { sms } }); await renderLide(); pinyOkno([{ ...o, pin: r.pin, sms: r.sms }]); } catch (e) { toast(e.message); }
@@ -834,6 +836,19 @@ function osobaOkno(o) {
 }
 
 /** vydané osobní PINy – zobrazí se jen jednou; tisk kartiček pro předání */
+/* aktualizace lidí z PéčeDoma (0.11.3): telefon a propojení podle uživatelů portálu; e-mail PéčeDoma nevede – vyplňuje se u člověka ručně */
+async function aktualizovatZPd(telo) {
+  try {
+    const r = await C('/lide/pecedoma/aktualizovat', { method: 'POST', body: telo });
+    await renderLide();
+    modal(`<h2>Aktualizace z PéčeDoma</h2>
+      ${r.zmeny.length ? `<div class="banner ok">Změněno: ${r.zmeny.length}</div><ul style="margin:0;padding-left:20px">${r.zmeny.map((z) => `<li><b>${esc(z.jmeno)}</b> – ${esc(z.co)}</li>`).join('')}</ul>` : `<div class="banner">Nic ke změně – telefony odpovídají PéčeDoma (${r.celkem} lidí).</div>`}
+      ${r.bezTelefonu.length ? `<div class="note"><b>V PéčeDoma nemají telefon:</b> ${r.bezTelefonu.map(esc).join(', ')}. Doplňte ho v portálu PéčeDoma (Uživatelé) a spusťte aktualizaci znovu, nebo přímo tady u člověka.</div>` : ''}
+      ${r.neparovani.length ? `<div class="note"><b>V PéčeDoma nenalezeni</b> (jiné jméno, nebo nejsou uživateli portálu): ${r.neparovani.map(esc).join(', ')}.</div>` : ''}
+      <div class="note">PéčeDoma vede jméno, roli a telefon; e-mail ne – ten vyplníte u člověka ručně. Osobní PIN se aktualizací nemění, platí dál u všech pacientů, kde je člověk v týmu.</div>
+      <div class="quick"><button class="btn" data-close>Zavřít</button></div>`);
+  } catch (e) { toast(e.message); }
+}
 /* ---- týmy lidí (0.10.2): tým patří pracovišti, které ho založilo (garant); členem může být kdokoli z organizace, i lidé jiných pracovišť; k pacientovi se přiřazuje celý tým ---- */
 const tymyOsoby = (osobaId) => (S.clenstvi || []).filter((c) => c.osobaId === osobaId).map((c) => (S.tymy || []).find((t) => t.id === c.tymId)).filter(Boolean);
 function tymyBlok(lide) {

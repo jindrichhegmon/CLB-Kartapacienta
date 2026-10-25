@@ -308,6 +308,8 @@ Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapito
 
 ![Načtení týmu z PéčeDoma](/napoveda/img/c-lide-import.png)
 
+**Aktualizovat z PéčeDoma** (tlačítko v liště pro vybrané pracoviště, nebo v okně člověka) převezme **telefon** a propojení podle uživatelů portálu PéčeDoma (párování přes identifikátor z PéčeDoma, jinak podle shodného jména). PéčeDoma e-mail nevede – ten vyplníte u člověka ručně. Osobní PIN se tím nemění: člověk má **jeden PIN pro všechny pacienty**, u kterých je v týmu. Výsledek ukáže, co se změnilo, kdo v PéčeDoma telefon nemá a koho se nepodařilo spárovat.
+
 ### Načtení ze souboru CSV
 
 **Načíst CSV** – soubor z Excelu (uložit jako CSV, oddělovač středník nebo čárka, kódování UTF-8 i Windows-1250). Sloupce: **jméno; role; telefon; e-mail; tým** – první řádek může být záhlaví. Role stačí napsat slovy (lékař, praktický lékař, sestra, pečovatelka, hospic, sestra DPS). Tlačítko **Vzor CSV** stáhne ukázkový soubor.

@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.2', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.3', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -216,6 +216,7 @@ app.post('/api/c/lide/import', j((req) => ({ pridano: req.body.radky.length, akt
 app.post('/api/c/pacient/:id/lide', j({ zmeny: 1 }));
 app.post('/api/c/tym-lidi', j({ id: 9 }));
 app.post('/api/c/tym-lidi/:id/smazat', j({ pacientu: 0 }));
+app.post('/api/c/lide/pecedoma/aktualizovat', j({ zmeny: [{ jmeno: 'Bc. Tereza Vzorná', co: 'telefon — → +420 777 100 203' }], bezTelefonu: [], neparovani: ['MUDr. Eva Vzorová'], celkem: 5 }));
 app.post('/api/c/pacient/:id/tym-lidi', j((req) => { const b = req.body || {};
   if (b.pridatTymId) { const t = tymy.find((x) => x.id === Number(b.pridatTymId)); tymyLidi.push({ id: 10 + t.id, tymId: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, od: den(0), clenove: clenstvi.filter((c) => c.tymId === t.id).map((c) => clen(c.osobaId)) }); return { pracovistePridano: false }; }
   if (b.odebratTymId) { const i = tymyLidi.findIndex((x) => x.tymId === Number(b.odebratTymId)); if (i > -1) tymyLidi.splice(i, 1); return {}; }
