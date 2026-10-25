@@ -786,6 +786,22 @@ central.post('/tym-lidi', sUzivatelem(async (q, s, req) => {
   return { id };
 }));
 
+/** smazání týmu (0.11.2): u pacientů ztratí členové přístup získaný tímto týmem (přes jiný tým zůstanou), tým zmizí z nabídky i přehledu */
+central.post('/tym-lidi/:id/smazat', sUzivatelem(async (q, s, req) => {
+  const t = await q.one(`SELECT t.TymLidiID, t.PoskytovatelID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.TymLidiID = @t`, { t: cislo(req.params.id) });
+  if (!t) throw chyba('Tým nenalezen', 404);
+  if (!smiSpravovatLidi(s, t.PoskytovatelID)) throw chyba('Tým maže pracoviště, které ho založilo, nebo správce organizace', 403);
+  const pacientu = (await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_PacientTym WHERE TymLidiID = @t AND Aktivni = 1`, { t: t.TymLidiID })).n;
+  await q.exec(`UPDATE dbo.A_KP_TymLidi SET Aktivni = 0 WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await synchronizujTymUPacientu(q, t.TymLidiID, s.uzivatelId);   // členové u pacientů: přepsat na jiný tým, nebo vyřadit
+  await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET TymLidiID = NULL WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await q.exec(`DELETE FROM dbo.A_KP_PacientTym WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await q.exec(`DELETE FROM dbo.A_KP_TymClen WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await q.exec(`DELETE FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'smazání týmu lidí', detail: `${t.Nazev} (${t.Pracoviste})${pacientu ? ` – odebrán u ${pacientu} pacientů` : ''}`, ip: s.ip });
+  return { pacientu };
+}));
+
 central.get('/lide', sUzivatelem(async (q) => ({
   clenstvi: await q.all(`SELECT c.TymLidiID AS tymId, c.OsobaID AS osobaId FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE o.Aktivni = 1`),
   tymy: await q.all(`SELECT t.TymLidiID AS id, t.PoskytovatelID AS poskytovatelId, p.Nazev AS poskytovatel, t.Nazev AS nazev, t.Popis AS popis, t.Aktivni AS aktivni,

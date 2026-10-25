@@ -856,8 +856,13 @@ function tymOkno(t) {
     <div class="field"><label>Popis (volitelně)</label><input id="tm_pop" value="${esc(t.popis || '')}" placeholder="např. Zlín a okolí, služba po–pá"></div>
     ${t.id ? `<label class="row"><input type="checkbox" id="tm_a" ${t.aktivni ? 'checked' : ''}> aktivní (zrušený tým už nejde k pacientovi přidat a jeho členové u pacientů kartu neodemknou)</label>` : ''}
     <div class="field"><label>Členové týmu – lidé kteréhokoli pracoviště organizace</label><div id="tm_clenove" style="display:grid;gap:2px;max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:6px 10px">${clenHTML()}</div><span class="hint">Do týmu patří i lidé třetích stran – sestra domova, praktický lékař. Člověk může být ve více týmech. Změna členů se promítne ke všem pacientům, kteří tým mají; pracoviště členů se u nich přidá do týmu kolem pacienta.</span></div>
-    <div class="quick"><button class="btn primary ulozit" id="tm_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, (m) => {
+    <div class="quick"><button class="btn primary ulozit" id="tm_ok">Uložit</button>${t.id ? '<button class="btn crit" id="tm_del">Smazat tým</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
+    ${t.id ? '<div class="note">Smazat tým: tým zmizí z přehledu i z nabídky u pacientů; u pacientů, kde byl přidělený, ztratí jeho členové přístup (kdo je u pacienta i přes jiný tým, zůstane). Lidé samotní zůstávají zapsaní. Pak jde založit znovu a k pacientovi přidat.</div>' : ''}</div>`, (m) => {
     m.querySelector('.box').style.maxWidth = '640px';
+    if ($('tm_del')) $('tm_del').onclick = async () => {
+      if (!(await KP.confirm('Smazat tým', `Tým <b>${esc(t.nazev)}</b> se smaže${t.pacientu ? ` a u <b>${t.pacientu}</b> pacientů se odebere` : ''}. Lidé zůstanou zapsaní v agendě.`, 'Smazat', true))) return;
+      try { const r = await C(`/tym-lidi/${t.id}/smazat`, { method: 'POST', body: {} }); closeModal(); toast(r.pacientu ? `Tým smazán a odebrán u ${r.pacientu} pacientů` : 'Tým smazán'); await renderLide(); } catch (e) { toast(e.message); }
+    };
     $('tm_ok').onclick = async () => {
       const body = { id: t.id, poskytovatelId: Number($('tm_p').value), nazev: $('tm_n').value.trim(), popis: $('tm_pop').value.trim(), aktivni: $('tm_a') ? $('tm_a').checked : true,
         clenove: [...document.querySelectorAll('[data-tcl]:checked')].map((c) => Number(c.dataset.tcl)) };

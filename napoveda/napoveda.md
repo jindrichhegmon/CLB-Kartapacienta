@@ -286,7 +286,7 @@ Menu **Lidé a týmy** (všichni kromě role jen čtení). Každé pracoviště 
 
 ### Týmy
 
-Nahoře je přehled **Týmů**: název, popis, které pracoviště ho založilo (zpravidla garant), počet členů a u kolika aktivních pacientů tým je. **+ Tým** založí nový tým: pracoviště, kterému tým patří, název (např. „Tým Zlín“, „Oddělení A“), popis a **členové** – zaškrtnete lidi **kteréhokoli pracoviště organizace**, tedy i třetích stran: sestru domova, praktického lékaře, pečovatelku agentury. Člověk může být ve více týmech. **Upravit** u týmu mění název, popis, členy a zaškrtnutí **aktivní**; zrušený tým už k pacientovi nejde přidat a jeho členové u pacientů kartu neodemknou.
+Nahoře je přehled **Týmů**: název, popis, které pracoviště ho založilo (zpravidla garant), počet členů a u kolika aktivních pacientů tým je. **+ Tým** založí nový tým: pracoviště, kterému tým patří, název (např. „Tým Zlín“, „Oddělení A“), popis a **členové** – zaškrtnete lidi **kteréhokoli pracoviště organizace**, tedy i třetích stran: sestru domova, praktického lékaře, pečovatelku agentury. Člověk může být ve více týmech. **Upravit** u týmu mění název, popis, členy a zaškrtnutí **aktivní**; zrušený tým už k pacientovi nejde přidat a jeho členové u pacientů kartu neodemknou. **Smazat tým** (v okně Upravit) tým odstraní úplně – zmizí z přehledu i z nabídky u pacientů, u pacientů, kde byl přidělený, ztratí jeho členové přístup (kdo je tam i přes jiný tým, zůstane); lidé zůstávají zapsaní a tým jde založit znovu. Tým u konkrétního pacienta odeberete a znovu přidáte v záložce Tým a garance → Týmy u pacienta.
 
 ![Tým a jeho členové](/napoveda/img/c-tym-okno.png)
 
