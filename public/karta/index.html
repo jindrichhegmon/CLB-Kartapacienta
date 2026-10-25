@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.9';
+const APP_VERZE = 'karta-0.11.10';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -387,7 +387,7 @@ function kresliParovani(predvyplnit = {}) {
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>${KARTY.length ? 'Přidat další průkaz do telefonu' : 'Spárovat telefon s průkazem'}</h2></div><div class="form" style="padding:14px">
     ${KARTY.length ? `<div class="banner ok">V telefonu ${KARTY.length === 1 ? 'už je průkaz ' + esc(jmenoKarty(KARTY[0])) : 'už jsou průkazy ' + KARTY.length + ' pacientů'} – zůstanou, nový se přidá. Po spuštění se pak vybírá pacient.</div>` : ''}
     <div class="note">Párovací kód vygeneruje lékař nebo hospic v centrální aplikaci (Telefon a PINy → Spárovat telefon) – odkaz přijde SMS na číslo tohoto telefonu, nebo naskenujte QR kód. Karta jde nahrát jen do telefonu s číslem, které je u pacienta uvedené.</div>
-    ${jeIosProhlizec() ? '<div class="banner warn">Chcete kartu jako aplikaci na ploše? Nejdřív ji přidejte na plochu (Sdílet → Přidat na plochu), otevřete ji z plochy a spárujte až tam tlačítkem <b>Načíst QR kód</b>. Aplikace na ploše má vlastní úložiště – co se spáruje tady v Safari, na ploše nebude.</div>' : ''}
+    ${jeIosProhlizec() ? '<div class="banner warn">Chcete kartu jako aplikaci na ploše? Přidejte ji na plochu (Sdílet → Přidat na plochu), otevřete z plochy a spárujte tam <b>stejným kódem</b> (QR kód nebo odkaz z SMS – kód platí 30 minut). Aplikace na ploše má vlastní úložiště; když spárujete i tady v Safari, po spárování na ploše tahle kopie skončí.</div>' : ''}
     ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
     <button class="btn" id="p_inst" style="display:${instalace ? '' : 'none'}">Přidat kartu na plochu telefonu</button>

@@ -45,7 +45,7 @@ device.get('/parovaci-info', h(async (req) => {
   omez('pinfo:' + ip(req), 30, 3600e3);
   return vTenantu(tenant, async (q) => {
     const z = await q.one(`SELECT z.Rezim, z.Telefon, p.TelefonKarty FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
-      WHERE z.ParovaciKod = @k AND z.Stav = 'CEKA' AND z.ParovaciPlatnost > SYSDATETIME()`, { k: kod });
+      WHERE z.ParovaciKod = @k AND z.Stav IN ('CEKA', 'SPAROVANO') AND z.ParovaciPlatnost > SYSDATETIME()`, { k: kod });
     if (!z) throw chyba('Kód je neplatný nebo vypršel – vygenerujte v centrální aplikaci nový', 404);
     const t = normTel(z.Rezim === 'PACIENT' ? z.Telefon : z.TelefonKarty);
     return { rezim: z.Rezim, telefon: t ? hezkyTel(t) : '' };
@@ -61,8 +61,10 @@ device.post('/parovat', h(async (req) => {
   if (!telefon) throw chyba('Zadejte číslo tohoto telefonu (např. +420 777 123 456)');
   omez('parovani:' + ip(req), 10);
   return vTenantu(tenant, async (q) => {
-    const z = await q.one(`SELECT z.ZarizeniID, z.PacientID, z.Rezim, z.Telefon, p.TelefonKarty FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
-      WHERE z.ParovaciKod = @k AND z.Stav = 'CEKA' AND z.ParovaciPlatnost > SYSDATETIME()`, { k: kod });
+    /* 0.11.10: kód platí po celou dobu platnosti i po spárování – stejný telefon (stejné číslo) ho smí použít znovu, typicky když se
+       aplikace po spárování v Safari přidá na plochu iPhonu (aplikace na ploše má vlastní úložiště). Předchozí kopie tím ztratí přístup. */
+    const z = await q.one(`SELECT z.ZarizeniID, z.PacientID, z.Rezim, z.Telefon, z.Stav, p.TelefonKarty FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+      WHERE z.ParovaciKod = @k AND z.Stav IN ('CEKA', 'SPAROVANO') AND z.ParovaciPlatnost > SYSDATETIME()`, { k: kod });
     if (!z) throw chyba('Kód je neplatný nebo vypršel – vygenerujte v centrální aplikaci nový', 404);
     if (z.Rezim !== rezim) throw chyba(`Tento kód patří do aplikace ${REZIM_NAZ[z.Rezim]} – otevřete odkaz z SMS nebo QR kód v ní`, 409);
     // karta je jen v telefonu s číslem uvedeným u pacienta (vlastní telefon pacienta: s číslem, na které lékař kód vydal)
@@ -75,11 +77,12 @@ device.post('/parovat', h(async (req) => {
     const raw = nahodny(32);
     const tajemstvi = randomBytes(20).toString('hex');
     // předchozí telefon pacienta téhož režimu se zablokuje – platí vždy jen jeden zapůjčený a jeden vlastní
-    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO' WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = @r`, { p: z.PacientID, r: rezim });
-    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'SPAROVANO', TokenHash = @th, Tajemstvi = @t, Sparovano = SYSDATETIME(), PosledniSync = SYSDATETIME(), ParovaciKod = NULL, ParovaciPlatnost = NULL, Telefon = @tel
+    const znovu = z.Stav === 'SPAROVANO';
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = @r AND ZarizeniID <> @z`, { p: z.PacientID, r: rezim, z: z.ZarizeniID });
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'SPAROVANO', TokenHash = @th, Tajemstvi = @t, Sparovano = SYSDATETIME(), PosledniSync = SYSDATETIME(), Telefon = @tel
       WHERE ZarizeniID = @z`, { th: sha256(raw), t: rezim === 'PACIENT' ? null : zasifruj(tajemstvi), tel: telefon, z: z.ZarizeniID });
-    await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: rezim === 'PACIENT' ? `Průkaz zpřístupněn ve vlastním telefonu pacienta (${hezkyTel(telefon)}).` : `Průkaz nahrán do telefonu u pacienta (${hezkyTel(telefon)}).`, autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
-    await audit(q, { zarizeniId: z.ZarizeniID, kdo: rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: 'telefon spárován', ip: ip(req) });
+    if (!znovu) await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: rezim === 'PACIENT' ? `Průkaz zpřístupněn ve vlastním telefonu pacienta (${hezkyTel(telefon)}).` : `Průkaz nahrán do telefonu u pacienta (${hezkyTel(telefon)}).`, autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
+    await audit(q, { zarizeniId: z.ZarizeniID, kdo: rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: znovu ? 'telefon spárován znovu stejným kódem' : 'telefon spárován', detail: znovu ? 'předchozí kopie v tomto telefonu (např. v Safari) ztrácí přístup' : null, ip: ip(req) });
     const balik = await balikProZarizeni(q, z.PacientID, { rezim });
     // kód lékaře (TOTP) má smysl jen na zapůjčeném telefonu, který odemyká tým
     return { token: `${tenant}.${z.ZarizeniID}.${raw}`, tajemstvi: rezim === 'PACIENT' ? null : tajemstvi, zarizeniId: z.ZarizeniID, telefon: hezkyTel(telefon), rezim, balik };

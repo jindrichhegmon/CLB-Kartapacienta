@@ -211,7 +211,7 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 
 ![Okno Spárovat telefon – QR kód, kódy a SMS](/napoveda/img/c-parovani.png)
 
-- Párovací kód platí **15 minut a jen jednou**. Pro nový pokus klikněte znovu na Spárovat telefon.
+- Párovací kód platí **30 minut**. Po celou dobu platnosti ho jde použít znovu **ve stejném telefonu** (stejné číslo) – typicky když kartu po spárování v Safari přidáte na plochu iPhonu: aplikace na ploše má vlastní úložiště, spárujte ji stejným kódem a kopie v Safari skončí. Jiné číslo kód nepřijme. Po vypršení klikněte znovu na Spárovat telefon.
 - Po spárování se případný předchozí telefon pacienta zablokuje.
 - Když SMS nejde odeslat, okno napíše proč a spárujete QR kódem.
 - **Zablokovat** – ztracený telefon; při nejbližším připojení se data z něj vymažou. **Vráceno** – zablokovaný telefon, který se vrátil.
@@ -241,7 +241,7 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 
 ![Zpřístupnění průkazu v telefonu pacienta](/napoveda/img/c-pacientovi.png)
 
-- Kód platí **3 dny a jen jednou**. Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.
+- Kód platí **3 dny** a ve stejném telefonu (stejné číslo) jde během platnosti použít znovu – třeba po přidání aplikace na plochu iPhonu. Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.
 - Pacient vidí plán, kontakty a tým. **Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí** a do deníku z něj nikdo nezapisuje.
 - **Ukončit přístup** – data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie a smazat ji nelze.
 - Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
@@ -458,7 +458,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 ## 18. Časté otázky
 
-**Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy.** Aplikace na ploše má vlastní úložiště. V centrální aplikaci klikněte znovu na Spárovat telefon (kód platí jen jednou) a v aplikaci na ploše klepněte na Načíst QR kód fotoaparátem (kapitola 13).
+**Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy / hlásí neplatný kód.** Aplikace na ploše má vlastní úložiště, co se spárovalo v Safari, na ploše není. Od verze 0.11.10 použijte v aplikaci na ploše **stejný kód** (odkaz z SMS nebo Načíst QR kód fotoaparátem, kapitola 13) – kód platí 30 minut (Můj průkaz 3 dny) i po prvním spárování; kopie v Safari tím skončí. Po vypršení vydejte v centrální aplikaci nový kód.
 
 **Telefon hlásí „určená pro jiné číslo telefonu“.** Zadané číslo neodpovídá poli Telefon s kartou u pacienta. Opravte číslo v Údajích, nebo zadejte číslo telefonu, který držíte.
 
@@ -472,7 +472,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Lékař na pohotovosti nemá PIN.** Kód lékaře pro dnešek najde v PéčeDoma v Datech klienta (🪪 Kód lékaře na kartu) nebo mu ho nadiktuje lékař z týmu z centrální aplikace. Na telefonu zvolí Lékař bez PINu (kapitola 8).
 
-**Pečující zapomněl PIN.** PIN nejde zobrazit znovu. Člověku z Lidí a týmů vydejte **Nový PIN** (platí pak u všech jeho pacientů), rodinný PIN u pacienta zrušte a vydejte nový.
+**Pečující zapomněl PIN.** Člověku z Lidí a týmů ukáže **Zobrazit PIN** platný PIN (u PINů vydaných od verze 0.11.6), jinak mu vydejte **Nový PIN** (platí pak u všech jeho pacientů); celému týmu jdou kartičky s PINem vytisknout najednou. Rodinný PIN u pacienta zrušte a vydejte nový.
 
 **Musím každou sestru domova zapisovat ke každému pacientovi?** Ne. Domov (nebo správce) své sestry zapíše jednou v Lidech a týmech, rozdělí do oddělení a k pacientovi přiřadíte celé oddělení jedním zaškrtnutím.
 

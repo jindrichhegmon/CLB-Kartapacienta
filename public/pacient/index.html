@@ -59,7 +59,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.9';
+const APP_VERZE = 'pacient-0.11.10';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -150,7 +150,7 @@ async function sync({ tichy = true } = {}) {
     const r = await KP.api('/api/d/sync', { method: 'POST', token: D.token, typ: 'Device', body: { fronta: [], verzePlanu: D.balik && D.balik.plan && D.balik.plan.verze, verzeAplikace: APP_VERZE } });
     if (r.prikaz === 'odpojit' || r.prikaz === 'smazat') {
       D.token = null; D.odpojeno = new Date().toISOString(); await uloz(); kresli();
-      modal('<h2>Lékař ukončil přístup</h2><p>Údaje od lékaře se v tomto telefonu už nebudou aktualizovat. Co v telefonu máte, zůstává – i vaše vlastní přání, léky a poznámky. Pokud jde o omyl, požádejte lékaře o nový kód.</p><div class="quick"><button class="btn" data-close>Rozumím</button></div>');
+      modal('<h2>Přístup z tohoto místa skončil</h2><p>Buď jste průkaz propojili znovu jinde (třeba v aplikaci na ploše – ta má vlastní úložiště a platí teď ona), nebo lékař přístup ukončil. Údaje od lékaře se tady už nebudou aktualizovat. Co v telefonu máte, zůstává – i vaše vlastní přání, léky a poznámky. Pokud jde o omyl, požádejte lékaře o nový kód.</p><div class="quick"><button class="btn" data-close>Rozumím</button></div>');
       return;
     }
     const novaVerze = r.balik.plan && D.balik.plan && r.balik.plan.verze !== D.balik.plan.verze;
@@ -550,7 +550,7 @@ function propojeniHTML(predvyplnit = {}) {
   hlavicka();
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Propojit s průkazem</h2></div><div class="form" style="padding:14px">
     <div class="note">Kód vám dá lékař – přijde SMS s odkazem, nebo vám v ordinaci ukáže QR kód. Kód platí jen pro vaše číslo telefonu.</div>
-    ${jeIosProhlizec() ? '<div class="banner warn">Chcete Můj průkaz jako aplikaci na ploše? Nejdřív ho přidejte na plochu (Sdílet → Přidat na plochu), otevřete ho z plochy a propojte až tam. Co se propojí tady v Safari, na ploše nebude.</div>' : ''}
+    ${jeIosProhlizec() ? '<div class="banner warn">Chcete Můj průkaz jako aplikaci na ploše? Přidejte ho na plochu (Sdílet → Přidat na plochu), otevřete z plochy a propojte tam <b>stejným kódem</b> (QR kód nebo odkaz z SMS – platí 3 dny). Aplikace na ploše má vlastní úložiště; kopie tady v Safari po propojení na ploše skončí.</div>' : ''}
     ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy od lékaře:</div>

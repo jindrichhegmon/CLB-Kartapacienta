@@ -415,7 +415,7 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   const telKarty = normTel(pac && pac.TelefonKarty);
   if (!telKarty) throw chyba('Nejdřív u pacienta vyplňte číslo telefonu, na kterém bude karta (záložka Údaje) – karta jde nahrát jen do telefonu s tímto číslem');
   const kod = parovaciKod();
-  const platnost = new Date(Date.now() + 15 * 60e3);
+  const platnost = new Date(Date.now() + 30 * 60e3);   // 0.11.10: 30 minut (stihne se i přidání na plochu iPhonu a spárování znovu)
   // čekající nespárovaný telefon pacienta se použije znovu, jinak nový záznam
   const z = await q.one(`SELECT TOP 1 ZarizeniID FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'ZAPUJCENY' ORDER BY ZarizeniID DESC`, { p: id });
   let zid;
@@ -425,7 +425,7 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   const odkaz = `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}.T${telKarty.replace(/\D/g, '')}`;   // .T<číslo> = předvyplnění čísla v telefonu
   let sms = null;
   if (req.body.sms) {   // odkaz SMS na číslo s kartou – dostane ho jen tento telefon
-    try { await posliSms(telKarty, `Karta pacienta: otevřete odkaz v tomto telefonu a potvrďte jeho číslo. ${odkaz} (platí 15 minut)`); sms = { ok: true };
+    try { await posliSms(telKarty, `Karta pacienta: otevřete odkaz v tomto telefonu a potvrďte jeho číslo. ${odkaz} (platí 30 minut)`); sms = { ok: true };
       await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací odkaz poslán SMS', detail: hezkyTel(telKarty), ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }

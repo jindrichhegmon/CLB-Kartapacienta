@@ -535,7 +535,7 @@ async function parovat(sms) {
       <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
       <p>Na telefonu u pacienta otevřete odkaz z SMS nebo naskenujte QR kód fotoaparátem, případně otevřete <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
       <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Párovací kód</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
-      <p class="muted">Kód platí 15 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}) a jen jednou. Po spárování se případný předchozí telefon tohoto pacienta zablokuje; průkazy jiných pacientů v témže telefonu zůstávají.</p>
+      <p class="muted">Kód platí 30 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}); ve stejném telefonu ho jde během platnosti použít znovu (třeba po přidání aplikace na plochu iPhonu). Po spárování se případný předchozí telefon tohoto pacienta zablokuje; průkazy jiných pacientů v témže telefonu zůstávají.</p>
       <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; $('pr_sms').onclick = () => { closeModal(); parovat(true); }; });
   } catch (e) { toast(e.message); }
 }
