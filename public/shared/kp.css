@@ -250,8 +250,10 @@ body.printing .card{box-shadow:none}
 .lockbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);font-size:13px;color:var(--muted);box-shadow:var(--shadow)}
 
 /* ---------- doplňky pro centrální aplikaci a správu tenantů (širší rozložení) ---------- */
-.app.wide{max-width:1180px}
+/* centrální aplikace přes celou šířku obrazovky (0.11.14); dřív 1180 px */
+.app.wide{max-width:none;width:100%}
 @media (min-width:900px){ .app.wide .content{padding-left:24px;padding-right:24px} }
+@media (min-width:1500px){ .app.wide .content{padding-left:32px;padding-right:32px} }
 .grid2{display:grid;gap:12px}
 @media (min-width:900px){ .grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .grid2.l{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)} }
 .tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);padding-bottom:0}
