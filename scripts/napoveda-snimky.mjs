@@ -69,17 +69,19 @@ const lide = [
 ];
 // týmy lidí (0.10.0): hlavičky týmů, týmy u pacienta s členy (člen 3 u pacienta deaktivován), nabídka dalších týmů
 const tymy = [
-  { id: 1, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Zlín', popis: 'Zlín a okolí', aktivni: 1, clenu: 3, pacientu: 3 },
+  { id: 1, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Zlín', popis: 'Zlín a okolí', aktivni: 1, clenu: 5, pacientu: 3 },
   { id: 2, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Otrokovice', popis: '', aktivni: 1, clenu: 2, pacientu: 1 },
   { id: 3, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení A', popis: 'přízemí', aktivni: 1, clenu: 2, pacientu: 5 },
   { id: 4, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení B', popis: '', aktivni: 1, clenu: 1, pacientu: 3 },
 ];
-const clen = (oid, aktivni = 1) => { const o = lide.find((x) => x.id === oid); return { osobaId: oid, jmeno: o.jmeno, role: o.role, maPin: 1, aktivni }; };
+const clen = (oid, aktivni = 1) => { const o = lide.find((x) => x.id === oid); return { osobaId: oid, jmeno: o.jmeno, role: o.role, poskytovatel: o.poskytovatel, maPin: 1, aktivni }; };
+// členství (0.10.2): tým garanta může mít i lidi jiných pracovišť – Tým Zlín má i sestru domova a praktickou lékařku
+const clenstvi = [[1, 1], [1, 2], [1, 3], [1, 6], [1, 7], [2, 4], [2, 5], [3, 7], [3, 8], [4, 9]].map(([tymId, osobaId]) => ({ tymId, osobaId }));
 const tymyLidi = [
-  { id: 1, tymId: 1, nazev: 'Tým Zlín', popis: 'Zlín a okolí', poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', od: den(-21), clenove: [clen(1), clen(2), clen(3, 0)] },
+  { id: 1, tymId: 1, nazev: 'Tým Zlín', popis: 'Zlín a okolí', poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', od: den(-21), clenove: [clen(1), clen(2), clen(3, 0), clen(6), clen(7)] },
   { id: 2, tymId: 3, nazev: 'Oddělení A', popis: 'přízemí', poskytovatelId: 3, poskytovatel: 'Domov Pohoda', od: den(-10), clenove: [clen(7), clen(8)] },
 ];
-const tymyNabidka = () => tymy.filter((t) => !tymyLidi.some((x) => x.tymId === t.id)).map((t) => ({ id: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, clenu: t.clenu, vTymu: t.poskytovatelId !== 4 }));
+const tymyNabidka = () => tymy.filter((t) => !tymyLidi.some((x) => x.tymId === t.id)).map((t) => ({ id: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, clenu: t.clenu, mimoTym: t.id === 4 ? ['Domov Pohoda – odd. B'] : [] }));
 const prirazeni = [6].map((oid) => { const o = lide.find((x) => x.id === oid); return { id: 100 + oid, osobaId: oid, jmeno: o.jmeno, role: o.role, tym: o.tym, poskytovatelId: o.poskytovatelId, poskytovatel: o.poskytovatel, od: den(-20), maPin: 1 }; });
 const pdTym = [
   { id: 11, jmeno: 'Bc. Tereza Vzorná', role: 'sestra', telefon: '777 100 203', login: 'tereza', externiId: 'pd:11', nacteno: true },
@@ -165,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.10.1', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.10.2', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -207,14 +209,14 @@ app.post('/api/d/pecedoma/zprava', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH.T420777000123`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
-app.get('/api/c/lide', j({ lide, tymy, role: { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
+app.get('/api/c/lide', j({ lide, tymy, clenstvi, role: { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
 app.get('/api/c/lide/pecedoma', j({ lide: pdTym }));
 app.post('/api/c/osoba', j({ id: 99, pin: '482913', sms: null }));
 app.post('/api/c/lide/import', j((req) => ({ pridano: req.body.radky.length, aktualizovano: 0, chyby: [], piny: req.body.radky.map((r, i) => ({ ...r, pin: String(305117 + i * 91813).slice(0, 6), sms: req.body.sms ? { ok: true } : null })) })));
 app.post('/api/c/pacient/:id/lide', j({ zmeny: 1 }));
 app.post('/api/c/tym-lidi', j({ id: 9 }));
 app.post('/api/c/pacient/:id/tym-lidi', j((req) => { const b = req.body || {};
-  if (b.pridatTymId) { const t = tymy.find((x) => x.id === Number(b.pridatTymId)); tymyLidi.push({ id: 10 + t.id, tymId: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, od: den(0), clenove: lide.filter((o) => o.poskytovatelId === t.poskytovatelId && o.tym === t.nazev).map((o) => clen(o.id)) }); return { pracovistePridano: false }; }
+  if (b.pridatTymId) { const t = tymy.find((x) => x.id === Number(b.pridatTymId)); tymyLidi.push({ id: 10 + t.id, tymId: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, od: den(0), clenove: clenstvi.filter((c) => c.tymId === t.id).map((c) => clen(c.osobaId)) }); return { pracovistePridano: false }; }
   if (b.odebratTymId) { const i = tymyLidi.findIndex((x) => x.tymId === Number(b.odebratTymId)); if (i > -1) tymyLidi.splice(i, 1); return {}; }
   const t = tymyLidi.find((x) => x.tymId === Number(b.tymId)); const c = t && t.clenove.find((x) => x.osobaId === Number(b.osobaId)); if (c) c.aktivni = b.aktivni ? 1 : 0; return {}; }));
 // kód lékaře dne – stejný výpočet jako src/crypto.js kodDne (telefon ho ověří offline z tajemství '0011…')
@@ -346,7 +348,7 @@ await klik(p, '.nav button[data-v="lide"]'); await p.waitForSelector('tr[data-oi
 await p.selectOption('#lf', ''); await p.waitForSelector('tr[data-oid="9"]');
 await foto(p, 'c-lide', { vyska: 1300 });
 await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok');
-if ((await p.$$('[data-tcl]:checked')).length !== 3) chyby.push('okno týmu nemá zaškrtnuté členy týmu');
+if ((await p.$$('[data-tcl]:checked')).length !== 5) chyby.push('okno týmu nemá zaškrtnuté členy týmu');
 await foto(p, 'c-tym-okno');
 await p.evaluate(() => KP.closeModal());
 await klik(p, '#l_pd'); await p.waitForSelector('#im_ok');

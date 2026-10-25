@@ -43,7 +43,7 @@ export const config = {
   },
   // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
   partnerKlic: env('KP_PARTNER_KLIC'),
-  verze: '0.10.1',
+  verze: '0.10.2',
 };
 
 export function zkontrolujKonfiguraci() {

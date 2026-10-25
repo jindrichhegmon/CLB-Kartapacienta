@@ -191,7 +191,7 @@ Záložka **Důležité kontakty** ukazuje jeden seznam **v pořadí, jak se kon
 
 Panel **Týmy u pacienta** (nahoře v záložce Tým a garance) říká, **kdo z lidí** kartu u tohoto pacienta odemkne. Lidé se k pacientovi nepřidávají jednotlivě – vybere se **celý tým** založený v agendě Lidé a týmy (kapitola 11):
 
-1. V poli **Přidat tým** vyberte tým (u názvu je pracoviště a počet členů) a klikněte na **Přidat tým**. Pokud pracoviště týmu ještě není v týmu kolem pacienta, garant ho tím zároveň přidá s rolí péče.
+1. V poli **Přidat tým** vyberte tým (u názvu je, kdo ho založil, a počet členů) a klikněte na **Přidat tým**. Pracoviště členů, která ještě nejsou v týmu kolem pacienta (např. domov seniorů sestry z týmu), tím garant zároveň přidá s rolí péče – nabídka to u týmu uvádí.
 2. Členové týmu se vypíší pod názvem týmu. Kdo z nich u tohoto pacienta kartu odemykat nemá, toho **deaktivujete** (řádek zešedne, stav „deaktivován u pacienta“); **Aktivovat** ho vrátí. Nikoho tu přidat nejde – nového člověka zapíšete do týmu v agendě Lidé a týmy a u všech pacientů s tímto týmem dostane přístup sám.
 3. **Odebrat tým** – členové týmu už kartu neodemknou (při nejbližší synchronizaci telefonu).
 
@@ -286,15 +286,15 @@ Menu **Lidé a týmy** (všichni kromě role jen čtení). Každé pracoviště 
 
 ### Týmy
 
-Nahoře je přehled **Týmů** po pracovištích: název, popis, počet členů a u kolika aktivních pacientů tým je. **+ Tým** založí nový tým: pracoviště, název (např. „Tým Zlín“, „Oddělení A“), popis a **členové** – zaškrtnete lidi pracoviště. Člověk je nejvýš v jednom týmu, zaškrtnutím ho z jiného týmu přesunete. **Upravit** u týmu mění název, popis, členy a zaškrtnutí **aktivní**; zrušený tým už k pacientovi nejde přidat a jeho členové u pacientů kartu neodemknou.
+Nahoře je přehled **Týmů**: název, popis, které pracoviště ho založilo (zpravidla garant), počet členů a u kolika aktivních pacientů tým je. **+ Tým** založí nový tým: pracoviště, kterému tým patří, název (např. „Tým Zlín“, „Oddělení A“), popis a **členové** – zaškrtnete lidi **kteréhokoli pracoviště organizace**, tedy i třetích stran: sestru domova, praktického lékaře, pečovatelku agentury. Člověk může být ve více týmech. **Upravit** u týmu mění název, popis, členy a zaškrtnutí **aktivní**; zrušený tým už k pacientovi nejde přidat a jeho členové u pacientů kartu neodemknou.
 
 ![Tým a jeho členové](/napoveda/img/c-tym-okno.png)
 
-Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapitola 7, Týmy u pacienta): nový člen dostane přístup, odebraný ho ztratí. Koho u konkrétního pacienta lékař deaktivoval, ten se změnou týmu nevrátí.
+Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapitola 7, Týmy u pacienta): nový člen dostane přístup, odebraný ho ztratí; pracoviště nového člena se u těchto pacientů přidá do týmu kolem pacienta s rolí péče. Koho u konkrétního pacienta lékař deaktivoval, ten se změnou týmu nevrátí.
 
 ### Přidání člověka
 
-**+ Člověk**: pracoviště, tým (výběr z týmů pracoviště, nebo bez týmu), jméno, **role na kartě** (lékař, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
+**+ Člověk**: pracoviště, jméno, **role na kartě** (lékař, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
 
 ![Úprava člověka – role na kartě a nový PIN](/napoveda/img/c-osoba.png)
 
