@@ -115,9 +115,11 @@
   KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Pravidelná medikace', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
   KP.lekyRadky = (leky, muze) => {
     const e = KP.esc, sk = KP.SKUPINY_LEKU;
-    return sk.map(([t, n, c]) => { const r = (leky || []).filter((l) => l.typ === t); return `<div class="lbl" style="padding:8px 14px 2px">${n} <span class="chip ${c}">${r.length}</span></div>
+    // každá skupina jako samostatný barevně odlišený blok (od 0.9.5): barevný pruh vlevo, podbarvené záhlaví, počet léků
+    return sk.map(([t, n, c]) => { const r = (leky || []).filter((l) => l.typ === t); return `<section class="lkskup ${c}${r.length ? '' : ' prazdna'}">
+      <div class="lkskup-h"><span>${n}</span><span class="chip ${c}">${r.length}</span></div>
       ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${e(l.nazev)}</b>${l.davka ? ' – ' + e(l.davka) : ''}${l.instr ? `<div class="lbl">${e(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${e(l.popis)}</div>` : ''}</td>
-        <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${e(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${e(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted" style="padding:0 14px 8px;font-size:13px">žádné</div>'}`; }).join('');
+        <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${e(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${e(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted lkskup-p">žádné</div>'}</section>`; }).join('');
   };
   KP.lekOkno = (l, ulozit) => {
     const e = KP.esc, $ = (id) => document.getElementById(id);

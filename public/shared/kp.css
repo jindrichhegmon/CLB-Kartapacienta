@@ -244,6 +244,16 @@ body.printing .card{box-shadow:none}
 .tabs button{border:0;background:none;padding:9px 12px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-size:13.5px}
 .tabs button:hover{background:var(--surface-2)}
 .tabs button.on{color:var(--accent-ink);border-bottom-color:var(--accent);background:var(--accent-soft)}
+/* skupiny léků (KP.lekyRadky): každý typ ve vlastním bloku s barevným pruhem a podbarveným záhlavím */
+.lkskup{--c:var(--accent);--cs:var(--accent-soft);margin:10px 14px 0;border:1px solid var(--line);border-left:5px solid var(--c);border-radius:8px;overflow:hidden;background:var(--surface)}
+.lkskup:last-child{margin-bottom:12px}
+.lkskup.warn{--c:var(--warn);--cs:var(--warn-soft)}.lkskup.crit{--c:var(--crit);--cs:var(--crit-soft)}.lkskup.acc{--c:var(--accent);--cs:var(--accent-soft)}.lkskup.vio{--c:var(--violet);--cs:var(--violet-soft)}
+.lkskup-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;background:var(--cs);color:var(--c);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.lkskup-h .chip{background:var(--surface);color:var(--c)}
+.lkskup .tbl td{padding:9px 12px}
+.lkskup .tbl tr:last-child td{border-bottom:0}
+.lkskup-p{padding:8px 12px;font-size:13px}
+.lkskup.prazdna{opacity:.75}
 .tbl.hover tr[data-id]{cursor:pointer}
 .tbl.hover tr[data-id]:hover td{background:var(--bg)}
 .alerts{display:grid;gap:6px}
