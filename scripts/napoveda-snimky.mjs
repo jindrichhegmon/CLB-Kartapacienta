@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.7', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.8', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -260,6 +260,13 @@ const foto = async (p, jmeno, { cela = false, vyska = null } = {}) => {
   await p.evaluate(() => { const t = document.getElementById('toast'); if (t) t.hidden = true; });   // hlášky z předchozích kroků do snímků nepatří
   await p.evaluate(() => { scrollTo(0, 0); document.querySelectorAll('.box').forEach((b) => (b.scrollTop = 0)); });
   await p.waitForTimeout(350);
+  const spatne = await p.evaluate(() => {
+    const cek = document.querySelector('.app.wide') ? 38 : 42;
+    return [...document.querySelectorAll('select:not([multiple]),input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])')]
+      .filter((e) => e.offsetParent && !e.closest('.hlp-chat,.hlp')).map((e) => ({ id: e.id || e.dataset.k || e.dataset.imr || e.dataset.imt || e.placeholder || e.tagName, v: Math.round(e.getBoundingClientRect().height) }))
+      .filter((x) => x.v !== cek).map((x) => `${x.id}=${x.v}px (čekáno ${cek})`);
+  });
+  if (spatne.length) chyby.push(`${jmeno}: políčka s jinou výškou: ${spatne.join(', ')}`);
   const vp = p.viewportSize();
   const opt = { path: path.join(VYSTUP, jmeno + '.png'), animations: 'disabled' };
   if (cela || vyska) { opt.fullPage = true; if (vyska) opt.clip = { x: 0, y: 0, width: vp.width, height: vyska }; }

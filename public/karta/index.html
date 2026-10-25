@@ -31,7 +31,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.7';
+const APP_VERZE = 'karta-0.11.8';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -327,7 +327,7 @@ function denikHTML(denik) {
 function zhorseniHTML(b, zh) {
   const first = (b.kontakty || []).find((k) => /hospic/i.test(k.jmeno)) || (b.kontakty || []).find((k) => k.skupina === 'pecuje');
   return `<div class="panel"><div class="panel-h"><h2>Průvodce: co se děje</h2></div><div class="form" style="padding:14px">
-      <div class="field"><label>1. Co pozoruji</label><div class="checks" id="z_sym">${['dušnost', 'bolest', 'neklid / zmatenost', 'horečka', 'nepřijímá tekutiny', 'pád', 'porucha vědomí', 'krvácení'].map((s) => `<label><input type="checkbox" value="${s}">${s}</label>`).join('')}</div><input id="z_pozn" placeholder="doplnění vlastními slovy" style="margin-top:6px;border:1px solid var(--line);border-radius:11px;padding:10px"></div>
+      <div class="field"><label>1. Co pozoruji</label><div class="checks" id="z_sym">${['dušnost', 'bolest', 'neklid / zmatenost', 'horečka', 'nepřijímá tekutiny', 'pád', 'porucha vědomí', 'krvácení'].map((s) => `<label><input type="checkbox" value="${s}">${s}</label>`).join('')}</div><input id="z_pozn" placeholder="doplnění vlastními slovy" style="margin-top:6px"></div>
       <div class="field"><label>2. Co jsem už udělal(a)</label><div class="checks" id="z_akce">${['podán SOS lék', 'poloha / kyslík', 'zklidnění, přítomnost', 'změřeny funkce'].map((s) => `<label><input type="checkbox" value="${s}">${s}</label>`).join('')}</div></div>
       <div class="field"><label>3. Komu jsem volal(a)</label><div class="checks" id="z_vol">${['hospic', 'lékař plánu', 'praktický lékař', 'rodina / zástupce', '155'].map((s) => `<label><input type="checkbox" value="${s}">${s}</label>`).join('')}</div></div>
       <button class="btn crit" id="btnZ">Zapsat zhoršení a zobrazit na kartě</button></div></div>
