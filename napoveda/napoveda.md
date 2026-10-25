@@ -203,7 +203,7 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ### Spárování telefonu
 
-Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telefon s kartou** v Údajích). Jeden telefon ale může nést průkazy **více pacientů** (typicky domov seniorů s jedním telefonem na oddělení): u každého pacienta uvedete stejné číslo a telefon spárujete pro každého zvlášť; okno Spárovat telefon ukáže, čí průkazy už na tom čísle jsou. Párovat smí garant nebo lékař v týmu.
+Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telefon s kartou** v Detailu pacienta). Jeden telefon ale může nést průkazy **více pacientů** (typicky domov seniorů s jedním telefonem na oddělení): u každého pacienta uvedete stejné číslo a telefon spárujete pro každého zvlášť; okno Spárovat telefon ukáže, čí průkazy už na tom čísle jsou. Párovat smí garant nebo lékař v týmu.
 
 1. Klikněte na **Poslat odkaz SMS na +420…** – pacientovi přijde SMS s odkazem, nebo na **Spárovat telefon** – otevře se okno s QR kódem a kódy.
 2. Na telefonu otevřete odkaz z SMS, nebo v aplikaci karty klepněte na **Načíst QR kód fotoaparátem** a namiřte na obrazovku (kapitola 13).
@@ -215,7 +215,7 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 - Po spárování se případný předchozí telefon pacienta zablokuje.
 - Když SMS nejde odeslat, okno napíše proč a spárujete QR kódem.
 - **Zablokovat** – ztracený telefon; při nejbližším připojení se data z něj vymažou. **Vráceno** – zablokovaný telefon, který se vrátil.
-- Změna čísla v Údajích zablokuje telefon na předchozím čísle.
+- Změna čísla v Detailu pacienta zablokuje telefon na předchozím čísle.
 
 ### Kód lékaře
 
@@ -246,13 +246,13 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 - **Ukončit přístup** – data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie a smazat ji nelze.
 - Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
 
-## 9. Údaje, dokumenty a uzavření průkazu
+## 9. Detail pacienta, dokumenty a uzavření průkazu
 
-V záložce **Údaje** jsou identifikační údaje pacienta: jméno, rodné číslo, datum narození, pojišťovna, adresa, kde pobývá, **telefon s kartou** a od verze 0.11.4 i **e-mail pacienta** (informativní údaj, do telefonu u lůžka se neposílá; při založení z PéčeDoma se převezme).
+V záložce **Detail pacienta** (dříve Údaje) jsou identifikační údaje pacienta: jméno, rodné číslo, datum narození, pojišťovna, adresa, kde pobývá, **telefon s kartou** a od verze 0.11.4 i **e-mail pacienta** (informativní údaj, do telefonu u lůžka se neposílá; při založení z PéčeDoma se převezme).
 
-![Údaje pacienta](/napoveda/img/c-udaje.png)
+![Detail pacienta](/napoveda/img/c-udaje.png)
 
-- **Údaje**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
+- **Detail pacienta**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
 - **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** (záložka Léky – jedna agenda pro portál i Kartu) a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5).
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
@@ -365,7 +365,7 @@ Pod hlavičkou je v každém telefonu tmavomodrý pruh **KARTA TÝMU · telefon 
 ![Telefon – výběr pacienta při více průkazech](/napoveda/img/k-vyber.png)
 
 Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení domova), ukáže se po spuštění a po každém zamknutí **výběr pacienta**: jméno, kód průkazu, pobyt a upozornění (probíhá zhoršení, zápisy čekající na odeslání, stará data). Klepnutím na pacienta se otevře jeho zamčená krizová karta a dál vše funguje jako s jedním průkazem; šipka zpět v hlavičce vrátí na výběr. **Přidat další průkaz do tohoto telefonu** otevře spárování – stávající průkazy zůstanou. Všechny průkazy se synchronizují samy; průkaz z telefonu odebere centrální aplikace (zablokování telefonu u pacienta nebo uzavření průkazu), ostatní zůstanou.
-- Hláška „Karta tohoto pacienta je určená pro jiné číslo telefonu“ znamená, že číslo neodpovídá – zkontrolujte ho v centrální aplikaci (Údaje → Telefon s kartou).
+- Hláška „Karta tohoto pacienta je určená pro jiné číslo telefonu“ znamená, že číslo neodpovídá – zkontrolujte ho v centrální aplikaci (Detail pacienta → Telefon s kartou).
 
 ## 14. Karta na telefonu – každodenní používání
 
@@ -462,7 +462,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy / hlásí neplatný kód.** Aplikace na ploše má vlastní úložiště, co se spárovalo v Safari, na ploše není. Od verze 0.11.10 použijte v aplikaci na ploše **stejný kód** (odkaz z SMS nebo Načíst QR kód fotoaparátem, kapitola 13) – kód platí 30 minut (Můj průkaz 3 dny) i po prvním spárování; kopie v Safari tím skončí. Po vypršení vydejte v centrální aplikaci nový kód.
 
-**Telefon hlásí „určená pro jiné číslo telefonu“.** Zadané číslo neodpovídá poli Telefon s kartou u pacienta. Opravte číslo v Údajích, nebo zadejte číslo telefonu, který držíte.
+**Telefon hlásí „určená pro jiné číslo telefonu“.** Zadané číslo neodpovídá poli Telefon s kartou u pacienta. Opravte číslo v Detailu pacienta, nebo zadejte číslo telefonu, který držíte.
 
 **V Týmu a garanci se nenabízí žádné pracoviště.** V organizaci zatím není další pracoviště. Založte ho ve Správa organizace → Pracoviště (kapitola 12).
 

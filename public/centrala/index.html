@@ -45,7 +45,7 @@ const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'hos
 
 /* nápověda: kapitola a název obrazovky podle toho, co má uživatel otevřené */
 const TAB_KAP = { karta: 5, plan: 5, denik: 6, kontakty: 6, tym: 7, telefon: 8, udaje: 9, dok: 9, pristupy: 9 };
-const TAB_NAZ = { karta: 'Krizová karta', plan: 'Plán péče', denik: 'Deník', kontakty: 'Důležité kontakty', tym: 'Tým a garance', telefon: 'Telefon a PINy', udaje: 'Údaje', dok: 'Dokumenty', pristupy: 'Přístupy' };
+const TAB_NAZ = { karta: 'Krizová karta', plan: 'Plán péče', denik: 'Deník', kontakty: 'Důležité kontakty', tym: 'Tým a garance', telefon: 'Telefon a PINy', udaje: 'Detail pacienta', dok: 'Dokumenty', pristupy: 'Přístupy' };
 KP.napoveda.nastav({ aplikace: 'centrala', fab: true, auth: () => ({ token: S.session }),
   kapitola: () => (!S.session ? 2 : ({ pacienti: 3, novy: 4, detail: TAB_KAP[S.tab] || 5, lide: 11, sprava: 12, ucet: 2 }[S.view] || 3)),
   obrazovka: () => (!S.session ? 'Přihlášení' : S.view === 'detail' ? 'Detail pacienta, záložka ' + (TAB_NAZ[S.tab] || '') : ({ pacienti: 'Pacienti', novy: 'Nový pacient', lide: 'Lidé a týmy', sprava: 'Správa organizace' + (S.sTab ? ' – ' + S.sTab : ''), ucet: 'Můj účet' }[S.view] || S.view)) });
@@ -151,7 +151,7 @@ function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const navrh = d.garance.find((x) => x.stav === 'NAVRZENO');
-  const tabs = [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Údaje'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
+  const tabs = [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Detail pacienta'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
   const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
@@ -371,7 +371,7 @@ function tabTelefon(d) {
         <td>${d.op.garant && z.stav !== 'ZABLOKOVANO' && z.stav !== 'CEKA' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient zatím nemá průkaz ve svém telefonu.</td></tr>'}</tbody></table></div>
         ${(d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? '<div style="padding:12px 14px"><button class="btn" id="pacientovi">Zpřístupnit pacientovi v jeho telefonu</button></div>' : ''}
         <div class="rolehelp">Pro soběstačné pacienty: v aplikaci <b>Můj průkaz</b> uvidí plán, kontakty a tým od lékaře a vede si vlastní přání, léky a otázky. Ty zůstávají jen v jeho telefonu – týmu je pošle, až když sám vybere a potvrdí. Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a ZZS se do něj nedostane.</div></div>
-      <div class="note"><b>Jak to funguje:</b> karta je jen v jednom telefonu – s číslem uvedeným u pacienta (záložka Údaje). Odkaz na spárování přijde SMS na toto číslo (nebo naskenujte QR kód) a telefon při spárování potvrdí své číslo; jiné číslo server odmítne. Telefon komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
+      <div class="note"><b>Jak to funguje:</b> karta je jen v jednom telefonu – s číslem uvedeným u pacienta (záložka Detail pacienta). Odkaz na spárování přijde SMS na toto číslo (nebo naskenujte QR kód) a telefon při spárování potvrdí své číslo; jiné číslo server odmítne. Telefon komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${lidePanel(d)}
@@ -1060,7 +1060,7 @@ async function spravaNast() {
     <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
     <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
-    <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Údaje) – otevře PéčeDoma, kde je klient.</span></div>
+    <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Detail pacienta) – otevře PéčeDoma, kde je klient.</span></div>
     <div class="field"><label>Server PéčeDoma (jhn-apps)</label><input id="pd_a" value="${esc(pd.api || pd.apiVychozi || '')}"></div>
     <div class="field"><label>Token aplikace PéčeDoma${pd.tokenNastaven ? ' (vyplněn – nechte prázdné, nebo zadejte nový)' : ''}</label><input id="pd_t" type="password" autocomplete="off" placeholder="${pd.tokenNastaven ? '••••••••' : 'FAMICURA_REPORTY_TOKEN z nastavení serveru PéčeDoma'}"><span class="hint">Stejný token, kterým portál PéčeDoma volá svůj server. Do prohlížeče se zpět neposílá.</span></div>
     <label class="lbl" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pd_s" ${pd.sync ? 'checked' : ''}> Synchronizovat automaticky (léky a nejbližší návštěva propojených pacientů, každých 30 minut)</label>
