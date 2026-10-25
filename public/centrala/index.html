@@ -46,7 +46,7 @@ const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'hos
 
 /* nápověda: kapitola a název obrazovky podle toho, co má uživatel otevřené */
 const TAB_KAP = { karta: 5, plan: 5, denik: 6, kontakty: 6, tym: 7, telefon: 8, udaje: 9, dok: 9, pristupy: 9 };
-const TAB_NAZ = { karta: 'Krizová karta', plan: 'Plán péče', denik: 'Deník', kontakty: 'Kontakty', tym: 'Tým a garance', telefon: 'Telefon a PINy', udaje: 'Údaje', dok: 'Dokumenty', pristupy: 'Přístupy' };
+const TAB_NAZ = { karta: 'Krizová karta', plan: 'Plán péče', denik: 'Deník', kontakty: 'Důležité kontakty', tym: 'Tým a garance', telefon: 'Telefon a PINy', udaje: 'Údaje', dok: 'Dokumenty', pristupy: 'Přístupy' };
 KP.napoveda.nastav({ aplikace: 'centrala', fab: true, auth: () => ({ token: S.session }),
   kapitola: () => (!S.session ? 2 : ({ pacienti: 3, novy: 4, detail: TAB_KAP[S.tab] || 5, lide: 11, sprava: 12, ucet: 2 }[S.view] || 3)),
   obrazovka: () => (!S.session ? 'Přihlášení' : S.view === 'detail' ? 'Detail pacienta, záložka ' + (TAB_NAZ[S.tab] || '') : ({ pacienti: 'Pacienti', novy: 'Nový pacient', lide: 'Lidé a týmy', sprava: 'Správa organizace' + (S.sTab ? ' – ' + S.sTab : ''), ucet: 'Můj účet' }[S.view] || S.view)) });
@@ -152,7 +152,7 @@ function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const navrh = d.garance.find((x) => x.stav === 'NAVRZENO');
-  const tabs = [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Údaje'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
+  const tabs = [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Údaje'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
   const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
@@ -311,16 +311,25 @@ function tabDenik(d) {
       <button class="btn primary ulozit" id="d_ok">Zapsat jako ${esc(S.ja.jmeno)}</button>
       <div class="note">Zápisy nelze mazat ani měnit, jen doplňovat. Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později.</div></div></div></div>`;
 }
-/* ---- kontakty ---- */
+/* ---- důležité kontakty (od 0.9.6): jeden seznam v pořadí, jak se zobrazují; formulář vedle, úprava přímo v něm (žádné duplicitní id v okně) ---- */
+const SKUP_KONT = { ROZHODUJE: ['Rozhoduje', 'crit', 'zástupce, opatrovník, určená osoba'], INFORMOVAT: ['Informovat', 'acc', 'rodina a blízcí'], PECUJE: ['Pečuje', 'ok', 'hospic, lékaři, nemocnice'] };
 function tabKontakty(d) {
-  const sk = [['ROZHODUJE', 'Rozhoduje (zástupce, opatrovník)', 'crit'], ['INFORMOVAT', 'Informovat', 'acc'], ['PECUJE', 'Pečuje (hospic, lékaři, nemocnice)', 'ok']];
-  return `<div class="grid2">${sk.map(([k, n, c]) => `<div class="panel"><div class="panel-h"><h2>${n}</h2><span class="chip ${c}">${d.kontakty.filter((x) => x.skupina === k).length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${d.kontakty.filter((x) => x.skupina === k).map((x) => `<tr><td><b>${esc(x.jmeno)}</b>${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td class="mono" style="white-space:nowrap">${esc(x.tel)}</td><td style="white-space:nowrap">${d.op.zapis && (k !== 'ROZHODUJE' || d.op.lekar) ? `<button class="btn sm" data-ked="${x.id}">✎</button> <button class="btn sm" data-kdel="${x.id}">×</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">nikdo</td></tr>'}</tbody></table></div></div>`).join('')}
-    <div class="panel"><div class="panel-h"><h2>Přidat kontakt</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">${kontaktForm({})}<button class="btn primary ulozit" id="k_ok">Přidat</button><div class="note">Roli „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení).</div></div></div></div>`;
+  const kont = d.kontakty;   // ze serveru v pořadí Poradi, KontaktID – stejně je řadí krizová karta i telefon
+  const muze = (k) => d.op.zapis && (k.skupina !== 'ROZHODUJE' || d.op.lekar);
+  const e = S.kontEdit ? kont.find((x) => x.id === S.kontEdit) : null;
+  return `<div class="grid2 l"><div class="panel"><div class="panel-h"><h2>Důležité kontakty · v pořadí, jak se zobrazují</h2><span class="chip">${kont.length}</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>#</th><th>Skupina</th><th>Kontakt</th><th>Telefon</th><th></th></tr></thead><tbody>${kont.map((x, i) => `<tr${e && e.id === x.id ? ' style="background:var(--accent-soft)"' : ''}><td class="muted">${i + 1}</td><td><span class="chip ${(SKUP_KONT[x.skupina] || SKUP_KONT.INFORMOVAT)[1]}">${(SKUP_KONT[x.skupina] || SKUP_KONT.INFORMOVAT)[0]}</span></td><td><b>${esc(x.jmeno) || '<span class="muted">bez jména</span>'}</b>${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td style="white-space:nowrap"><a class="num mono" href="tel:${esc(String(x.tel || '').replace(/\s/g, ''))}">${esc(x.tel)}</a></td>
+      <td style="white-space:nowrap;text-align:right">${d.op.zapis ? `<button class="btn sm" data-kmv="${x.id}|-1" title="Posunout výš" ${i === 0 ? 'disabled' : ''}>↑</button> <button class="btn sm" data-kmv="${x.id}|1" title="Posunout níž" ${i === kont.length - 1 ? 'disabled' : ''}>↓</button> ` : ''}${muze(x) ? `<button class="btn sm" data-ked="${x.id}">Upravit</button> <button class="btn sm" data-kdel="${x.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">zatím žádné kontakty</td></tr>'}</tbody></table></div>
+    <div class="note">Krizová karta v oddílu KOHO VOLAT ukazuje nejdřív kontakt ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a lidi ze skupiny Rozhoduje; na telefonu jsou všechny kontakty po skupinách v tomto pořadí. Šipkami pořadí změníte.</div></div>
+    <div class="panel"><div class="panel-h"><h2>${e ? 'Upravit kontakt' : 'Přidat kontakt'}</h2>${e ? `<span class="chip acc">${esc(e.jmeno)}</span>` : ''}</div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">${kontaktForm(e || {}, d)}
+      <div class="quick"><button class="btn primary ulozit" id="k_ok">${e ? 'Uložit změny' : 'Přidat kontakt'}</button>${e ? '<button class="btn" id="k_zrusit">Zrušit</button>' : ''}</div>
+      <div class="note">Skupinu „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení). Nový kontakt se zařadí na konec seznamu.</div></div></div></div>`;
 }
-function kontaktForm(k) {
+function kontaktForm(k, d) {
+  const skupiny = (d && d.op.lekar ? ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'] : ['INFORMOVAT', 'PECUJE']);
   return `<div class="field"><label>Jméno a vztah</label><input id="k_j" value="${esc(k.jmeno || '')}" placeholder="např. Anna Nová, vnučka"></div>
-    <div class="frow"><div class="field"><label>Telefon</label><input id="k_t" value="${esc(k.tel || '')}"></div><div class="field"><label>Skupina</label><select id="k_s">${(S.pac.op.lekar ? ['ROZHODUJE'] : []).concat(['INFORMOVAT', 'PECUJE']).map((s) => `<option value="${s}" ${k.skupina === s ? 'selected' : ''}>${s.toLowerCase()}</option>`).join('')}</select></div></div>
-    <div class="frow"><div class="field"><label>Poznámka</label><input id="k_p" value="${esc(k.pozn || '')}" placeholder="volat jako první, určená osoba…"></div><div class="field"><label>Pořadí</label><input id="k_o" type="number" value="${esc(k.poradi || '')}"></div></div>`;
+    <div class="frow"><div class="field"><label>Telefon</label><input id="k_t" type="tel" value="${esc(k.tel || '')}" placeholder="např. 777 123 456"></div><div class="field"><label>Skupina</label><select id="k_s">${skupiny.map((s) => `<option value="${s}" ${(k.skupina || 'INFORMOVAT') === s ? 'selected' : ''}>${SKUP_KONT[s][0]} – ${SKUP_KONT[s][2]}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Poznámka</label><input id="k_p" value="${esc(k.pozn || '')}" placeholder="volat jako první, určená osoba…"></div>`;
 }
 /* ---- tým a garance ---- */
 function tabTym(d) {
@@ -423,13 +432,23 @@ function bindTab() {
     try { const v = await C(`/pacient/${S.pacId}/plan/${r.dataset.v}`); modal(`<h2>Plán – verze ${v.verze}</h2><div class="muted">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))} · platnost do ${fmtD(v.platnostDo)}</div>${planForm(v.data, v.platnostDo, true, 'h')}<div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
   }));
   on('d_ok', () => akce('/denik', { typ: $('d_typ').value, text: $('d_txt').value }, 'Zapsáno'));
-  on('k_ok', () => akce('/kontakt', { jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value, poradi: $('k_o').value }, 'Kontakt přidán'));
-  document.querySelectorAll('[data-kdel]').forEach((b) => (b.onclick = async () => { const k = d.kontakty.find((x) => x.id === Number(b.dataset.kdel)); if (await KP.confirm('Odebrat kontakt', `${esc(k.jmeno)} · ${esc(k.tel)}`, 'Odebrat', true)) akce('/kontakt', { id: k.id, smazat: true, jmeno: k.jmeno, skupina: k.skupina }, 'Odebráno'); }));
-  document.querySelectorAll('[data-ked]').forEach((b) => (b.onclick = () => {
-    const k = d.kontakty.find((x) => x.id === Number(b.dataset.ked));
-    modal(`<h2>Upravit kontakt</h2><div class="form">${kontaktForm(k)}<div class="quick"><button class="btn primary ulozit" id="ke_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
-      $('ke_ok').onclick = () => { closeModal(); akce('/kontakt', { id: k.id, jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value, poradi: $('k_o').value }, 'Uloženo'); };
-    });
+  on('k_ok', async () => {
+    const e = S.kontEdit ? d.kontakty.find((x) => x.id === S.kontEdit) : null;
+    const body = { jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value };
+    if (e) body.id = e.id; else body.poradi = Math.max(0, ...d.kontakty.map((x) => Number(x.poradi) || 0)) + 10;   // nový na konec
+    try { await akce('/kontakt', body, e ? 'Kontakt uložen' : 'Kontakt přidán'); S.kontEdit = null; kresliDetail(); } catch (err) { /* hláška v akce() */ }
+  });
+  on('k_zrusit', () => { S.kontEdit = null; kresliDetail(); });
+  document.querySelectorAll('[data-ked]').forEach((b) => (b.onclick = () => { S.kontEdit = Number(b.dataset.ked); kresliDetail(); if ($('k_j')) $('k_j').focus(); }));
+  document.querySelectorAll('[data-kdel]').forEach((b) => (b.onclick = async () => { const k = d.kontakty.find((x) => x.id === Number(b.dataset.kdel)); if (await KP.confirm('Odebrat kontakt', `${esc(k.jmeno)} · ${esc(k.tel)}`, 'Odebrat', true)) { if (S.kontEdit === k.id) S.kontEdit = null; akce('/kontakt', { id: k.id, smazat: true, jmeno: k.jmeno, skupina: k.skupina }, 'Odebráno'); } }));
+  document.querySelectorAll('[data-kmv]').forEach((b) => (b.onclick = async () => {
+    const [id, smer] = b.dataset.kmv.split('|'); const kont = [...d.kontakty]; const i = kont.findIndex((x) => x.id === Number(id)); const j = i + Number(smer);
+    if (i < 0 || j < 0 || j >= kont.length) return;
+    [kont[i], kont[j]] = [kont[j], kont[i]];
+    try {
+      for (let n = 0; n < kont.length; n++) { const p = (n + 1) * 10; if (Number(kont[n].poradi) !== p) await C(`/pacient/${S.pacId}/kontakt`, { method: 'POST', body: { id: kont[n].id, jenPoradi: true, poradi: p } }); }
+      await nactiDetail(); kresliDetail();
+    } catch (err) { toast(err.message); }
   }));
   document.querySelectorAll('[data-novaposk]').forEach((b) => (b.onclick = () => { S.view = 'sprava'; S.sTab = 'posk'; render(); window.scrollTo(0, 0); }));
   on('t_ok', () => akce('/tym', { poskytovatelId: Number($('t_p').value), role: $('t_r').value }, 'Přidáno do týmu'));

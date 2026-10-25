@@ -282,18 +282,27 @@ central.post('/pacient/:id/kontakt', sUzivatelem(async (q, s, req) => {
   const sk = String(b.skupina || 'INFORMOVAT').toUpperCase();
   if (!['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(sk)) throw chyba('Neznámá skupina kontaktu');
   const kid = cislo(b.id);
+  const poradi = text(b.poradi) === '' ? null : cislo(b.poradi);   // prázdné = beze změny (Number('') by bylo 0)
   if (kid) {
-    const k = await q.one(`SELECT Skupina FROM dbo.A_KP_Kontakt WHERE KontaktID = @k AND PacientID = @p`, { k: kid, p: id });
+    const k = await q.one(`SELECT Skupina FROM dbo.A_KP_Kontakt WHERE KontaktID = @k AND PacientID = @p AND Aktivni = 1`, { k: kid, p: id });
     if (!k) throw chyba('Kontakt nenalezen', 404);
+    if (b.jenPoradi) {   // přeřazení šipkami: jen pořadí, bez zápisu do deníku (pořadí smí měnit celý tým, i u skupiny „rozhoduje“)
+      if (poradi === null) throw chyba('Chybí pořadí');
+      await q.exec(`UPDATE dbo.A_KP_Kontakt SET Poradi = @o, Zmeneno = SYSDATETIME() WHERE KontaktID = @k`, { k: kid, o: poradi });
+      return;
+    }
     if ((k.Skupina === 'ROZHODUJE' || sk === 'ROZHODUJE') && !op.lekar) throw chyba('Kontakt „rozhoduje“ mění jen lékař (na základě dokladu)', 403);
     if (b.smazat) await q.exec(`UPDATE dbo.A_KP_Kontakt SET Aktivni = 0, Zmeneno = SYSDATETIME() WHERE KontaktID = @k`, { k: kid });
-    else await q.exec(`UPDATE dbo.A_KP_Kontakt SET Jmeno = @j, Telefon = @t, Skupina = @s, Poznamka = @poz, Poradi = ISNULL(@o, Poradi), Zmeneno = SYSDATETIME() WHERE KontaktID = @k`,
-      { k: kid, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: cislo(b.poradi) });
+    else {
+      if (!text(b.jmeno) || !text(b.tel)) throw chyba('Vyplňte jméno i telefon');
+      await q.exec(`UPDATE dbo.A_KP_Kontakt SET Jmeno = @j, Telefon = @t, Skupina = @s, Poznamka = @poz, Poradi = ISNULL(@o, Poradi), Zmeneno = SYSDATETIME() WHERE KontaktID = @k`,
+        { k: kid, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: poradi });
+    }
   } else {
     if (sk === 'ROZHODUJE' && !op.lekar) throw chyba('Kontakt „rozhoduje“ přidává jen lékař (na základě dokladu)', 403);
     if (!text(b.jmeno) || !text(b.tel)) throw chyba('Vyplňte jméno i telefon');
     await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi) VALUES (@p, @j, @t, @s, @poz, ISNULL(@o, 100))`,
-      { p: id, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: cislo(b.poradi) });
+      { p: id, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: poradi });
   }
   await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `${b.smazat ? 'Odebrán' : kid ? 'Upraven' : 'Přidán'} kontakt ${text(b.jmeno, 150)} (${sk.toLowerCase()}).`, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
 }));

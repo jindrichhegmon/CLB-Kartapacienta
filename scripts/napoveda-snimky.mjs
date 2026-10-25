@@ -152,10 +152,16 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.5', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.6', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
+// důležité kontakty (0.9.6): přidání, úprava, odebrání i přeřazení šipkami nad polem kontakty (seřazené jako server: Poradi, id)
+app.post('/api/c/pacient/:id/kontakt', j((req) => { const b = req.body || {}; const por = b.poradi === '' || b.poradi == null ? null : Number(b.poradi);
+  if (b.id) { const k = kontakty.find((x) => x.id === Number(b.id)); if (!k) return { ok: false, error: 'Kontakt nenalezen' };
+    if (b.smazat) kontakty.splice(kontakty.indexOf(k), 1); else if (b.jenPoradi) k.poradi = por; else Object.assign(k, { jmeno: b.jmeno, tel: b.tel, skupina: b.skupina, pozn: b.pozn || '', poradi: por == null ? k.poradi : por }); }
+  else { if (!b.jmeno || !b.tel) return { ok: false, error: 'Vyplňte jméno i telefon' }; kontakty.push({ id: kontakty.length + 10, jmeno: b.jmeno, tel: b.tel, skupina: b.skupina, pozn: b.pozn || '', poradi: por == null ? 100 : por }); }
+  kontakty.sort((a, c) => (a.poradi - c.poradi) || (a.id - c.id)); return {}; }));
 // léky – jedna agenda (PéčeDoma)
 let pdLeky = [
   { id: '1', typ: 'ZACHRANNA', nazev: 'Morphin', davka: '10 mg s.c.', instr: 'při bolesti nebo dušnosti, nejvýš po 4 h', popis: '' },
@@ -266,6 +272,22 @@ await p.evaluate(() => KP.closeModal());
 await zalozka('plan', 'c-plan', { vyska: 1050 });
 await zalozka('denik', 'c-denik');
 await zalozka('kontakty', 'c-kontakty');
+// kontrola chování záložky Důležité kontakty: úprava ve formuláři, přeřazení šipkami, přidání na konec
+{
+  const jmena = async () => p.$$eval('#tabbody .tbl tbody tr td:nth-child(3) b', (els) => els.map((e) => e.textContent.trim()));
+  await klik(p, '[data-ked="2"]'); await p.waitForSelector('#k_zrusit');
+  if ((await p.inputValue('#k_j')) !== 'Petr Zkušební, syn') chyby.push('Upravit kontakt nenačetl kontakt do formuláře');
+  await foto(p, 'c-kontakty-upravit', { vyska: 700 });
+  await p.fill('#k_j', 'Petr Zkušební, syn (víkendy)'); await klik(p, '#k_ok'); await p.waitForTimeout(400);
+  if (!(await jmena()).includes('Petr Zkušební, syn (víkendy)')) chyby.push('úprava kontaktu se neuložila');
+  if (await p.$('#k_zrusit')) chyby.push('po uložení zůstal formulář v režimu úpravy');
+  await klik(p, '[data-kmv="3|-1"]'); await p.waitForTimeout(600);
+  const po = await jmena(); if (po[1] !== 'Hospic Ukázka – sestra 24/7') chyby.push('šipka nahoru nepřeřadila kontakt: ' + po.join(' | '));
+  await p.fill('#k_j', 'Eva Nová, sousedka'); await p.fill('#k_t', '777 000 999'); await klik(p, '#k_ok'); await p.waitForTimeout(400);
+  const po2 = await jmena(); if (po2[po2.length - 1] !== 'Eva Nová, sousedka') chyby.push('nový kontakt není na konci: ' + po2.join(' | '));
+  await klik(p, '[data-kmv="3|1"]'); await p.waitForTimeout(600);   // vrátit pořadí pro další snímky
+  await klik(p, '[data-kdel]:last-of-type'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForTimeout(400);
+}
 await zalozka('tym', 'c-tym', { vyska: 900 });
 await zalozka('telefon', 'c-telefon', { vyska: 1000 });
 await klik(p, '#lide_prirad'); await p.waitForSelector('[data-celytym]');

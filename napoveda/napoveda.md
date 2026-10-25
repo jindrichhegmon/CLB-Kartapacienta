@@ -135,7 +135,7 @@ Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám po�
 - **DVP sepsané při přijetí u poskytovatele**: vyplňte jen tehdy, když bylo přání sepsáno při přijetí do péče nebo při hospitalizaci. Takové přání platí jen u tohoto poskytovatele – karta pro ZZS to tak i napíše.
 - Bez DVP karta uvádí **rozhodnutí lékaře** a odkaz na zprávu nebo zápis o rozhovoru.
 
-## 6. Deník a kontakty
+## 6. Deník a důležité kontakty
 
 Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémové záznamy (spárování telefonu, propojení s PéčeDoma, změna čísla, úprava identifikačních údajů…) jsou sbalené na konci v bloku **Systémové záznamy** a rozbalí se klepnutím – v centrále i na telefonu.
 
@@ -147,11 +147,17 @@ Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémov
 - Zápisy **nelze mazat ani měnit**, jen doplňovat.
 - Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později. Zápis posádky ZZS je označený jako neověřený.
 
-### Kontakty
+### Důležité kontakty
 
-![Kontakty pacienta](/napoveda/img/c-kontakty.png)
+![Důležité kontakty pacienta](/napoveda/img/c-kontakty.png)
 
-Tři skupiny: **Rozhoduje** (zástupce, opatrovník, určená osoba – tuto skupinu přiděluje jen lékař na základě dokladu), **Informovat** a **Pečuje** (hospic, lékaři, nemocnice). Kontakt má jméno a vztah, telefon, poznámku (např. „volat jako první“) a pořadí. Kontakty upravuje tým kolem pacienta.
+Záložka **Důležité kontakty** ukazuje jeden seznam **v pořadí, jak se kontakty zobrazují** v krizové kartě a na telefonu; vedle něj je formulář, takže při zapisování nového kontaktu vidíte, kdo už tam je. Každý kontakt má skupinu, jméno a vztah, telefon a poznámku (např. „volat jako první“). Tři skupiny: **Rozhoduje** (zástupce, opatrovník, určená osoba – tuto skupinu přiděluje jen lékař na základě dokladu), **Informovat** (rodina a blízcí) a **Pečuje** (hospic, lékaři, nemocnice).
+
+- **Přidat kontakt** zařadí nový kontakt na konec seznamu; šipkami **↑ ↓** u řádku pořadí změníte (přeřazení se nezapisuje do deníku).
+- **Upravit** načte kontakt do formuláře vpravo (řádek se podbarví), **Uložit změny** ho přepíše, **Zrušit** úpravu opustí. **Odebrat** kontakt skryje, v databázi zůstává.
+
+![Úprava kontaktu přímo ve formuláři vedle seznamu](/napoveda/img/c-kontakty-upravit.png)
+- Krizová karta v oddílu KOHO VOLAT bere **Nejdřív volat** ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a lidi ze skupiny Rozhoduje. Kontakty upravuje celý tým kolem pacienta.
 
 ## 7. Tým a garance
 
