@@ -405,7 +405,7 @@ Jen pro provozovatele platformy (`/tenanti/`, heslo správy).
 
 ### Vzhled – barevná schémata
 
-Tlačítko **🎨** v hlavičce (na telefonu v okně nápovědy) otevře výběr barevného schématu: Karta modrá (výchozí, v noci tmavá podle systému), PéčeDoma Plus zelená, Datec modrá, Veselá, Konzervativní, Letní, Zimní, Podzimní, Jarní a Tmavá. Volba platí jen na tomto zařízení a v tomto prohlížeči. Barvy stavů (červená, oranžová, zelená) zůstávají stejné.
+Karta pacienta má od verze 0.9.4 stejný vzhled jako portál PéčeDoma: modrou hlavičku s přechodem, stejnou paletu, velikost tlačítek, výšku řádků i štítky, takže přechod mezi oběma aplikacemi nepůsobí rušivě. Tlačítko **🎨** v hlavičce (na telefonu v okně nápovědy) otevře výběr barevného schématu: Karta modrá (výchozí, v noci tmavá podle systému), PéčeDoma Plus zelená, Datec modrá, Veselá, Konzervativní, Letní, Zimní, Podzimní, Jarní a Tmavá. Volba platí jen na tomto zařízení a v tomto prohlížeči. Barvy stavů (červená, oranžová, zelená) zůstávají stejné.
 
 ![Vzhled – výběr barevného schématu](/napoveda/img/c-vzhled.png)
 

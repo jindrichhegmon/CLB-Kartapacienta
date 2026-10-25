@@ -55,7 +55,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.9.3';
+const APP_VERZE = 'pacient-0.9.4';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -250,7 +250,7 @@ function praniHTML() {
       ${pole('kdo', 'Koho chci mít u rozhodování', 'jméno, vztah, telefon')}
       <div class="field"><label>Odkud tento záznam je</label><select id="pr_puvod">${Object.entries(PUVOD_PRANI).map(([k, n]) => `<option value="${k}" ${(p.puvod || 'vlastni') === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="frow" id="pr_rozh" style="${(p.puvod || 'vlastni') === 'vlastni' ? 'display:none' : ''}"><div class="field"><label>S kým / odkud</label><input id="pr_rk" value="${esc(p.rozhovorKdo || '')}" placeholder="např. MUDr. Nováková, hospic"></div><div class="field"><label>Kdy</label><input type="date" id="pr_rd" value="${esc(p.rozhovorDatum || '')}"></div></div>
-      <button class="btn primary" id="pr_ok">Uložit do telefonu</button>
+      <button class="btn primary ulozit" id="pr_ok">Uložit do telefonu</button>
       ${p.aktualizovano ? `<div class="note">Naposledy upraveno ${esc(fmtDT(p.aktualizovano))}.</div>` : ''}</div></div>
     <div class="banner warn" style="display:block"><b>Toto není dříve vyslovené přání podle zákona.</b> Je to váš osobní záznam pro rozhovor s lékařem a pro blízké. Platné dříve vyslovené přání se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.</div>`;
 }
@@ -266,7 +266,7 @@ function lekOkno(l = {}) {
     <div class="field"><label>Název léku</label><input id="lk_n" value="${esc(l.nazev || '')}" placeholder="např. Morphin"></div>
     <div class="field"><label>Jak ho beru (dávka)</label><input id="lk_d" value="${esc(l.davka || '')}" placeholder="např. 10 mg ráno a večer"></div>
     <div class="field"><label>Poznámka</label><input id="lk_p" value="${esc(l.pozn || '')}" placeholder="např. jen při bolesti, od 3. 10. jinak než ve zprávě"></div>
-    <div class="quick"><button class="btn primary" id="lk_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
+    <div class="quick"><button class="btn primary ulozit" id="lk_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
     $('lk_n').focus();
     $('lk_ok').onclick = async () => {
       const nazev = $('lk_n').value.trim(); if (!nazev) return toast('Vyplňte název léku');
@@ -282,7 +282,7 @@ function poznamkyHTML() {
   return `<div class="panel"><div class="panel-h"><h2>Nová poznámka</h2><span class="chip pac">údaj pacienta</span></div><div class="form" style="padding:14px">
       <div class="field"><label>Druh</label><select id="pz_d"><option value="OTAZKY">otázka pro lékaře</option><option value="POZNAMKA">poznámka (jak se mám, co se stalo)</option></select></div>
       <div class="field"><label>Text</label><textarea id="pz_t" style="font-family:var(--font);min-height:80px"></textarea></div>
-      <button class="btn primary" id="pz_ok">Uložit do telefonu</button></div></div>
+      <button class="btn primary ulozit" id="pz_ok">Uložit do telefonu</button></div></div>
     <div class="panel"><div class="panel-h"><h2>Moje poznámky a otázky</h2><span class="chip">${m.length}</span></div>
       ${m.map((x) => `<div class="lek-row"><div><span class="chip ${x.druh === 'OTAZKY' ? 'acc' : ''}">${x.druh === 'OTAZKY' ? 'otázka' : 'poznámka'}</span> <span class="lbl">${esc(fmtDT(x.cas))}</span><div style="white-space:pre-wrap;margin-top:4px">${esc(x.text)}</div></div><button class="btn sm" data-ps="${x.id}">Smazat</button></div>`).join('') || '<div class="rolehelp muted">Zatím nic.</div>'}</div>`;
 }
@@ -450,7 +450,7 @@ function pinOkno({ titulek, popis = '', hotovo, zrusit = true }) {
   modal(`<h2>${titulek}</h2>${popis ? `<p class="muted" style="margin:0">${popis}</p>` : ''}<div class="form pinpad">
     <div class="field"><label>PIN (6–12 číslic)</label><input id="np1" type="password" inputmode="numeric" maxlength="12" autocomplete="new-password"></div>
     <div class="field"><label>PIN znovu</label><input id="np2" type="password" inputmode="numeric" maxlength="12" autocomplete="new-password"></div>
-    <div class="quick"><button class="btn primary" id="np_ok">Uložit PIN</button>${zrusit ? '<button class="btn" data-close>Zpět</button>' : ''}</div>
+    <div class="quick"><button class="btn primary ulozit" id="np_ok">Uložit PIN</button>${zrusit ? '<button class="btn" data-close>Zpět</button>' : ''}</div>
     <div class="note">Nepoužívejte datum narození ani 123456. PIN si zapamatujte – obnovit ho nejde.</div></div>`, (m) => {
     if (!zrusit) m.querySelector('.modal').onclick = null;   // PIN je nutný – okno nejde zavřít klepnutím vedle
     $('np1').focus();
@@ -522,7 +522,7 @@ function propojeniHTML(predvyplnit = {}) {
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters"></div>
     <div class="field"><label>Kód od lékaře (8 znaků)</label><input id="p_k" autocapitalize="characters" style="font-size:22px;letter-spacing:.2em"></div>`}
     <div class="field"><label>Číslo vašeho telefonu</label><input id="p_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
-    <button class="btn primary" id="p_ok">Propojit</button></div></div>
+    <button class="btn primary ulozit" id="p_ok">Propojit</button></div></div>
     <div class="note">Po propojení si nastavíte vlastní PIN. Uvidíte svůj plán péče, kontakty a tým od lékaře a můžete si vést vlastní přání, léky a poznámky – ty zůstávají jen ve vašem telefonu.</div>
     <div class="footer">${APP_VERZE}</div>`;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });

@@ -88,7 +88,7 @@ function formular(predvyplnit = {}) {
       <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="f_sj" placeholder="MUDr. Jana Nová"></div><div class="field"><label>Přihlašovací jméno</label><input id="f_sl" placeholder="jana.nova" autocapitalize="off"></div></div>
       <div class="frow"><div class="field"><label>E-mail</label><input id="f_se" type="email"></div><div class="field"><label>Telefon</label><input id="f_st"></div></div>
       <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label></div>
-      <div class="quick"><button class="btn primary" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
+      <div class="quick"><button class="btn primary ulozit" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
       <div class="note">Vznikne: tenant v PeceDomaPlus (IDTENANT = IČO + 8 písmen z názvu), první pracoviště, účet správce s vygenerovaným heslem a odkaz pro přihlášení. Heslo se zobrazí jen jednou – správce si ho po prvním přihlášení změní.</div>
     </div>`, () => {
     $('f_sj').oninput = () => { if (!$('f_sl').dataset.ruc) $('f_sl').value = $('f_sj').value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(mudr|ing|mgr|bc|phdr)\.?\s*/g, '').trim().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, ''); };

@@ -152,7 +152,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.3', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.9.4', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -340,7 +340,9 @@ await klik(p, '#unDoc'); await p.fill('#kod', '000000'); await p.fill('#kodJ', '
 if (await p.$('.tile[data-tab]')) chyby.push('špatný kód lékaře odemkl kartu');
 await p.fill('#kod', kodDne(dnesLokalne())); await klik(p, '#kodOk'); await p.waitForSelector('.tile[data-tab]', { timeout: 15000 });
 if (!/MUDr\. Test/.test(await p.textContent('#work'))) chyby.push('kód dne neodemkl kartu jako lékaře');
-await klik(p, '.tile[data-tab="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'k-leky-lekar', { vyska: 1300 });
+await klik(p, '.tile[data-tab="leky"]'); await p.waitForSelector('#lk_seznam table');
+await p.evaluate(() => { const t = document.getElementById('toast'); if (t) t.hidden = true; });   // hláška o špatném kódu z testu výše
+await foto(p, 'k-leky-lekar', { vyska: 1300 });
 await p.evaluate(() => window.scrollTo(0, 0));
 await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await klik(p, '#unCarer'); await p.fill('#pin', '123456'); await klik(p, '#pinOk');

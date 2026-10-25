@@ -12,12 +12,13 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
 <link rel="stylesheet" href="/shared/kp.css">
 <style>
   .nav{display:flex;gap:6px;flex-wrap:wrap}
-  .nav button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 13px;font-weight:600;font-size:13.5px;cursor:pointer}
+  .nav button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:0 13px;height:34px;font-weight:700;font-size:12.5px;cursor:pointer;color:var(--accent-ink)}
+  .nav button:hover{background:var(--surface-2)}
   .nav button.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .who{font-size:12.5px;color:var(--muted);text-align:right;line-height:1.25}
   .anon{white-space:pre-wrap;font-family:var(--mono);font-size:12px;max-height:260px;overflow:auto;background:var(--surface-2);border-radius:10px;padding:10px}
   .kontrow{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;align-items:center}
-  .kontrow input,.kontrow select{border:1px solid var(--line);border-radius:9px;padding:8px 9px;min-width:0;background:var(--surface)}
+  .kontrow input,.kontrow select{border:1px solid var(--line);border-radius:7px;padding:0 9px;height:38px;min-width:0;background:var(--surface);font-size:13px}
   @media (max-width:640px){.kontrow{grid-template-columns:1fr 1fr}}
   @media print{ .top,.nav,.tabs,.actions,.noprint,#modal,#toast{display:none!important} .card{box-shadow:none} }
 </style>
@@ -85,7 +86,7 @@ function renderLogin() {
     ${S.tenant ? `<div class="note">Organizace: <span class="mono">${esc(S.tenant)}</span> · <a href="#" id="jinaOrg">jiná organizace</a></div>` : `<div class="field"><label>Kód organizace</label><input id="l_t" placeholder="16 znaků z odkazu, který jste dostali" autocapitalize="characters"></div>`}
     <div class="field"><label>Přihlašovací jméno</label><input id="l_l" autocomplete="username" autocapitalize="off"></div>
     <div class="field"><label>Heslo</label><input id="l_h" type="password" autocomplete="current-password"></div>
-    <button class="btn primary" id="l_ok">Přihlásit</button>
+    <button class="btn primary ulozit" id="l_ok">Přihlásit</button>
     <div class="footer">Karta pacienta · data v PeceDomaPlus, přístup podle týmu kolem pacienta</div></div></div>`;
   if ($('jinaOrg')) $('jinaOrg').onclick = (e) => { e.preventDefault(); S.tenant = ''; localStorage.removeItem('kp_tenant'); renderLogin(); };
   const go = async () => {
@@ -105,7 +106,7 @@ function renderUcet(povinne) {
     <div class="field"><label>Současné heslo</label><input type="password" id="h_s" autocomplete="current-password"></div>
     <div class="field"><label>Nové heslo</label><input type="password" id="h_n" autocomplete="new-password"></div>
     <div class="field"><label>Nové heslo znovu</label><input type="password" id="h_n2" autocomplete="new-password"></div>
-    <button class="btn primary" id="h_ok">Změnit heslo</button></div></div>`;
+    <button class="btn primary ulozit" id="h_ok">Změnit heslo</button></div></div>`;
   if (!povinne) bindNav();
   $('h_ok').onclick = async () => {
     if ($('h_n').value !== $('h_n2').value) return toast('Nová hesla se neshodují');
@@ -206,7 +207,7 @@ function tabDg(d) {
         <div class="field"><label>Diagnózy</label><textarea id="dg_dg" style="font-family:var(--font);min-height:90px">${esc(p.dg || '')}</textarea></div>
         <div class="field"><label>Obvyklý funkční stav</label><textarea id="dg_fun" style="font-family:var(--font);min-height:60px">${esc(p.funkce || '')}</textarea></div>
         <div class="field"><label>Alergie</label><input id="dg_al" value="${esc(p.alergie || '')}"></div>
-        <button class="btn primary" id="dg_ok">Uložit</button></div></div>`}
+        <button class="btn primary ulozit" id="dg_ok">Uložit</button></div></div>`}
       <div class="note">Diagnózy, funkční stav a alergie jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Léky mají vlastní agendu.</div>
     </div></div>`;
 }
@@ -235,7 +236,7 @@ function tabLeky(d) {
         <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="lk_sos" style="font-family:var(--font);min-height:80px">${esc((p.sos || []).join('\n'))}</textarea></div>
         <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="lk_opi" style="font-family:var(--font);min-height:60px">${esc((p.opioidy || []).join('\n'))}</textarea></div>
         <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="lk_med" style="font-family:var(--font);min-height:90px">${esc((p.medikace || []).join('\n'))}</textarea></div>
-        <button class="btn primary" id="lk_ok">Uložit</button></div></div>`}
+        <button class="btn primary ulozit" id="lk_ok">Uložit</button></div></div>`}
       <div class="note">Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.</div>
     </div></div>`;
 }
@@ -296,7 +297,7 @@ function revize() {
   const plat = new Date(); plat.setMonth(plat.getMonth() + (S.interval || 3));
   modal(`<h2>Revize plánu péče</h2><p>Potvrzuji, že jsem plán péče prošel(a) s pacientem / zástupcem a platí beze změny.</p>
     <div class="field"><label>Platnost do</label><input type="date" id="rv_d" value="${plat.toISOString().slice(0, 10)}"></div><div class="field"><label>Poznámka (volitelně)</label><input id="rv_p"></div>
-    <div class="quick"><button class="btn primary" id="rv_ok">Potvrdit revizi</button><button class="btn" data-close>Zpět</button></div>`, () => {
+    <div class="quick"><button class="btn primary ulozit" id="rv_ok">Potvrdit revizi</button><button class="btn" data-close>Zpět</button></div>`, () => {
     $('rv_ok').onclick = async () => { closeModal(); await akce('/plan', { typ: 'REVIZE', platnostDo: $('rv_d').value, poznamka: $('rv_p').value }, 'Revize potvrzena'); };
   });
 }
@@ -307,14 +308,14 @@ function tabDenik(d) {
     <div class="panel" style="align-self:start"><div class="panel-h"><h2>Nový zápis</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">
       <div class="field"><label>Typ</label><select id="d_typ">${typy.map((t) => `<option>${t}</option>`).join('')}</select></div>
       <div class="field"><label>Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
-      <button class="btn primary" id="d_ok">Zapsat jako ${esc(S.ja.jmeno)}</button>
+      <button class="btn primary ulozit" id="d_ok">Zapsat jako ${esc(S.ja.jmeno)}</button>
       <div class="note">Zápisy nelze mazat ani měnit, jen doplňovat. Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později.</div></div></div></div>`;
 }
 /* ---- kontakty ---- */
 function tabKontakty(d) {
   const sk = [['ROZHODUJE', 'Rozhoduje (zástupce, opatrovník)', 'crit'], ['INFORMOVAT', 'Informovat', 'acc'], ['PECUJE', 'Pečuje (hospic, lékaři, nemocnice)', 'ok']];
   return `<div class="grid2">${sk.map(([k, n, c]) => `<div class="panel"><div class="panel-h"><h2>${n}</h2><span class="chip ${c}">${d.kontakty.filter((x) => x.skupina === k).length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${d.kontakty.filter((x) => x.skupina === k).map((x) => `<tr><td><b>${esc(x.jmeno)}</b>${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td class="mono" style="white-space:nowrap">${esc(x.tel)}</td><td style="white-space:nowrap">${d.op.zapis && (k !== 'ROZHODUJE' || d.op.lekar) ? `<button class="btn sm" data-ked="${x.id}">✎</button> <button class="btn sm" data-kdel="${x.id}">×</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">nikdo</td></tr>'}</tbody></table></div></div>`).join('')}
-    <div class="panel"><div class="panel-h"><h2>Přidat kontakt</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">${kontaktForm({})}<button class="btn primary" id="k_ok">Přidat</button><div class="note">Roli „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení).</div></div></div></div>`;
+    <div class="panel"><div class="panel-h"><h2>Přidat kontakt</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">${kontaktForm({})}<button class="btn primary ulozit" id="k_ok">Přidat</button><div class="note">Roli „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení).</div></div></div></div>`;
 }
 function kontaktForm(k) {
   return `<div class="field"><label>Jméno a vztah</label><input id="k_j" value="${esc(k.jmeno || '')}" placeholder="např. Anna Nová, vnučka"></div>
@@ -342,7 +343,7 @@ function tabTym(d) {
         ${kPredani.length ? '' : zadne('Garanci zatím není komu předat – chybí další pracoviště typu nemocnice, hospic, ambulance nebo PL.')}
         <div class="field"><label>Nový garant</label><select id="g_p">${kPredani.map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Garantem je nemocnice (dočasně, max. 30 dní), hospic, paliativní ambulance nebo praktický lékař – domov ne.</span></div>
         <div class="field"><label>Poznámka pro přebírajícího</label><input id="g_poz"></div>
-        <button class="btn primary" id="g_ok"${kPredani.length ? '' : ' disabled'}>Navrhnout předání</button>
+        <button class="btn primary ulozit" id="g_ok"${kPredani.length ? '' : ' disabled'}>Navrhnout předání</button>
         <div class="note">Přebírající lékař převzetí potvrdí. Do potvrzení zůstává garance u vás; po 72 h bez potvrzení přijde upozornění.</div></div></div>` : ''}
       <div class="panel"><div class="panel-h"><h2>Historie garance</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.garance.map((g) => `<tr><td><b>${esc(g.nazev)}</b><div class="lbl">${g.stav === 'NAVRZENO' ? 'navrženo ' + esc(fmtDT(g.navrzeno)) + ' · ' + esc(g.navrhl || '') : `${esc(fmtDT(g.od))} – ${esc(g.do ? fmtDT(g.do) : 'dosud')}${g.lekar ? ' · ' + esc(g.lekar) : ''}`}${g.poznamka ? ' · ' + esc(g.poznamka) : ''}</div></td><td><span class="chip ${g.stav === 'PLATNA' ? 'ok' : g.stav === 'NAVRZENO' ? 'vio' : ''}">${esc(g.stav.toLowerCase())}</span></td></tr>`).join('')}</tbody></table></div></div>
     </div></div>`;
@@ -374,7 +375,7 @@ function tabTelefon(d) {
 }
 function tabUdaje(d) {
   const p = d.pacient, ro = !(d.op.lekar || d.op.garant);
-  return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Identifikace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : ''}</div><div class="form ${ro ? 'locked' : ''}" style="padding:14px">${udajeForm(p, 'u')}${ro ? '' : '<button class="btn primary" id="u_ok">Uložit údaje</button>'}</div></div>
+  return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Identifikace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : ''}</div><div class="form ${ro ? 'locked' : ''}" style="padding:14px">${udajeForm(p, 'u')}${ro ? '' : '<button class="btn primary ulozit" id="u_ok">Uložit údaje</button>'}</div></div>
     <div style="display:grid;gap:12px;align-content:start"><div class="note">Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci. Telefon dostane jméno a rok narození, AI nedostane nic z toho – rozbor zpráv běží přes anonymizační bránu.</div>
       <dl class="kv panel" style="padding:12px 14px"><dt>Průkaz</dt><dd class="mono">${esc(p.kod)}</dd><dt>Založen</dt><dd>${esc(fmtDT(p.zalozeno))}</dd><dt>Informace pacientovi</dt><dd>${p.souhlas ? esc(p.souhlas) : (d.op.lekar ? '<button class="btn sm" id="souhlas">Potvrdit podpis</button>' : '<span class="chip warn">nepotvrzeno</span>')}</dd>${p.stav === 'UZAVRENY' ? `<dt>Uzavřeno</dt><dd>${esc(fmtDT(p.uzavreno))} · ${esc(p.duvodUzavreni || '')}</dd>` : ''}</dl>
       ${pdPanel(d)}
@@ -395,7 +396,7 @@ function tabDok(d) {
       <div class="frow"><div class="field"><label>Typ</label><select id="dk_t"><option value="DVP">dříve vyslovené přání</option><option value="ZPRAVA">lékařská zpráva</option><option value="SOUHLAS">informace pacientovi</option><option value="JINY">jiný</option></select></div><div class="field"><label>Název</label><input id="dk_n"></div></div>
       <div class="frow"><div class="field"><label>Datum dokumentu</label><input type="date" id="dk_d"></div><div class="field"><label>Pracoviště, které ho vydalo</label><input id="dk_pr" placeholder="např. Nemocnice Zlín, interna"></div></div>
       <div class="field"><label>Kde je originál</label><input id="dk_k"></div><div class="field"><label>Soubor (PDF / foto, max. 8 MB)</label><input type="file" id="dk_f" accept="application/pdf,image/*"></div>
-      <button class="btn primary" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
+      <button class="btn primary ulozit" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
 }
 function tabPristupy(d) {
   return `<div class="panel"><div class="panel-h"><h2>Deník přístupů</h2><span class="chip">posledních ${d.pristupy.length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${d.pristupy.map((a) => `<tr><td class="mono" style="font-size:12px;white-space:nowrap">${esc(fmtDT(a.cas))}</td><td>${esc(a.kdo || '')}</td><td>${esc(a.akce)}${a.detail ? `<div class="lbl">${esc(a.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
@@ -426,7 +427,7 @@ function bindTab() {
   document.querySelectorAll('[data-kdel]').forEach((b) => (b.onclick = async () => { const k = d.kontakty.find((x) => x.id === Number(b.dataset.kdel)); if (await KP.confirm('Odebrat kontakt', `${esc(k.jmeno)} · ${esc(k.tel)}`, 'Odebrat', true)) akce('/kontakt', { id: k.id, smazat: true, jmeno: k.jmeno, skupina: k.skupina }, 'Odebráno'); }));
   document.querySelectorAll('[data-ked]').forEach((b) => (b.onclick = () => {
     const k = d.kontakty.find((x) => x.id === Number(b.dataset.ked));
-    modal(`<h2>Upravit kontakt</h2><div class="form">${kontaktForm(k)}<div class="quick"><button class="btn primary" id="ke_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
+    modal(`<h2>Upravit kontakt</h2><div class="form">${kontaktForm(k)}<div class="quick"><button class="btn primary ulozit" id="ke_ok">Uložit</button><button class="btn" data-close>Zpět</button></div></div>`, () => {
       $('ke_ok').onclick = () => { closeModal(); akce('/kontakt', { id: k.id, jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value, poradi: $('k_o').value }, 'Uloženo'); };
     });
   }));
@@ -691,7 +692,7 @@ function renderNovy() {
         <div class="field"><label>Garant průkazu</label><select id="n_g">${garanti.map((p) => `<option value="${p.id}" ${p.id === S.ja.poskytovatelId ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Nemocnice je garantem dočasně (max. 30 dní) – pak garanci předá hospici, ambulanci nebo PL.</span></div>
         <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="n_t" multiple>${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div>
       </div></div>
-      <div class="quick"><button class="btn" id="n_zpet">Zpět ke zprávě</button><button class="btn primary" id="n_ok">Založit průkaz</button></div>
+      <div class="quick"><button class="btn" id="n_zpet">Zpět ke zprávě</button><button class="btn primary ulozit" id="n_ok">Založit průkaz</button></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
@@ -792,7 +793,7 @@ function osobaOkno(o) {
     <div class="field"><label>Poznámka</label><input id="os_poz" value="${esc(o.pozn || '')}"></div>
     ${o.id ? `<label class="row"><input type="checkbox" id="os_a" ${o.aktivni ? 'checked' : ''}> aktivní (vyřazený člověk kartu neodemkne u žádného pacienta)</label>` : ''}
     ${S.smsLide ? `<label class="row"><input type="checkbox" id="os_sms"> ${o.id ? 'nový PIN poslat SMS' : 'poslat osobní PIN SMS'} na jeho telefon</label>` : ''}
-    <div class="quick"><button class="btn primary" id="os_ok">Uložit</button>${o.id ? '<button class="btn" id="os_pin">Nový PIN</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
+    <div class="quick"><button class="btn primary ulozit" id="os_ok">Uložit</button>${o.id ? '<button class="btn" id="os_pin">Nový PIN</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
     <div class="note">Role určuje, co člověk na kartě uvidí a zapíše: lékař a praktický lékař vše včetně návštěv lékaře, hospic a sestra DPS stav, SOS léky a zhoršení. ${o.id ? '' : 'Po uložení se zobrazí osobní PIN – jen jednou.'}</div></div>`, () => {
     const telo = () => ({ id: o.id, poskytovatelId: Number($('os_p').value), tym: $('os_t').value, jmeno: $('os_j').value, role: $('os_r').value, telefon: $('os_tel').value, email: $('os_e').value, pozn: $('os_poz').value,
       aktivni: $('os_a') ? $('os_a').checked : true, sms: !!($('os_sms') && $('os_sms').checked) });
@@ -854,7 +855,7 @@ function importOkno(radky, zdroj) {
           <td><select data-imr="${i}"><option value="">—</option>${Object.entries(ROLE_OS).map(([k, n]) => `<option value="${k}" ${role[i] === k ? 'selected' : ''}>${n}</option>`).join('')}</select></td>
           <td><input data-imt="${i}" value="${esc(r.tym || '')}" style="min-width:110px"></td><td class="mono" style="font-size:13px">${esc(r.telefon || '')}</td></tr>`).join('')}</tbody></table></div>
       ${S.smsLide ? '<label class="row"><input type="checkbox" id="im_sms"> novým lidem poslat osobní PIN SMS (kdo má telefon)</label>' : ''}
-      <div class="quick"><button class="btn primary" id="im_ok">Načíst vybrané</button><button class="btn" data-close>Zrušit</button></div>
+      <div class="quick"><button class="btn primary ulozit" id="im_ok">Načíst vybrané</button><button class="btn" data-close>Zrušit</button></div>
       <div class="note">${zdroj === 'PECEDOMA' ? 'Tým PéčeDoma = uživatelé portálu PéčeDoma této organizace. Správci a monitor bez další role nejsou předvybraní. ' : ''}Kdo už v pracovišti je (stejné jméno), jen se aktualizuje a PIN mu zůstane. Novým lidem se vydá osobní PIN – zobrazí se po načtení.</div>`, (m) => {
       m.querySelector('.box').style.maxWidth = '880px';
       $('im_p').onchange = () => { ps = spravuji.find((p) => p.id === Number($('im_p').value)); kresli(); };
@@ -900,7 +901,7 @@ async function prirazeniOkno() {
   }).join('');
   modal(`<h2>Přiřadit lidi z týmů</h2><p class="muted" style="margin:0;font-size:13.5px">Nabízejí se lidé pracovišť v týmu kolem pacienta. Odemknou kartu svým osobním PINem; co uvidí a zapíší, určuje jejich role. Další pracoviště přidáte v záložce Tým a garance.</p>
     <div style="display:grid;gap:10px;max-height:58vh;overflow:auto">${html || '<div class="note">Žádné pracoviště, za které můžete přiřazovat.</div>'}</div>
-    <div class="quick"><button class="btn primary" id="pr_ok">Přiřadit vybrané</button><button class="btn" data-close>Zrušit</button></div>`, (m) => {
+    <div class="quick"><button class="btn primary ulozit" id="pr_ok">Přiřadit vybrané</button><button class="btn" data-close>Zrušit</button></div>`, (m) => {
     m.querySelector('.box').style.maxWidth = '760px';
     document.querySelectorAll('[data-celytym]').forEach((c) => (c.onchange = () => document.querySelectorAll(`[data-skup="${c.dataset.celytym}"]:not(:disabled)`).forEach((x) => (x.checked = c.checked))));
     $('pr_ok').onclick = async () => {
@@ -930,7 +931,7 @@ async function spravaPosk() {
     <div class="frow"><div class="field"><label>IČO</label><input id="pp_ico" value="${esc(p.ico || '')}"></div><div class="field"><label>IČP</label><input id="pp_icp" value="${esc(p.icp || '')}"></div></div>
     <div class="field"><label>Adresa</label><input id="pp_a" value="${esc(p.adresa || '')}"></div>
     <label class="row"><input type="checkbox" id="pp_ak" ${p.aktivni === false ? '' : 'checked'}> aktivní</label>
-    <div class="quick"><button class="btn primary" id="pp_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
+    <div class="quick"><button class="btn primary ulozit" id="pp_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
     $('pp_ok').onclick = async () => { try { await C('/poskytovatel', { method: 'POST', body: { id: p.id, nazev: $('pp_n').value, typ: $('pp_t').value, telefon24: $('pp_tel').value, ico: $('pp_ico').value, icp: $('pp_icp').value, adresa: $('pp_a').value, aktivni: $('pp_ak').checked } }); closeModal(); toast('Uloženo'); renderSprava(); } catch (e) { toast(e.message); } };
   });
   $('p_new').onclick = () => form();
@@ -947,7 +948,7 @@ async function spravaUziv() {
     <div class="field"><label>Role</label><div class="checks">${Object.entries(ROLE_NAZ).map(([k, n]) => `<label style="color:inherit"><input type="checkbox" name="uu_r" value="${k}" ${(u.role || ['sestra']).includes(k) ? 'checked' : ''} style="accent-color:var(--accent)">${n}</label>`).join('')}</div></div>
     <label class="row"><input type="checkbox" id="uu_a" ${u.aktivni === false ? '' : 'checked'}> aktivní</label>
     ${u.id ? '<label class="row"><input type="checkbox" id="uu_h"> vygenerovat nové heslo</label>' : ''}
-    <div class="quick"><button class="btn primary" id="uu_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
+    <div class="quick"><button class="btn primary ulozit" id="uu_ok">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
     $('uu_j').oninput = () => { if (!u.id && !$('uu_l').dataset.r) $('uu_l').value = $('uu_j').value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(mudr|ing|mgr|bc|phdr)\.?\s*/g, '').trim().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, ''); };
     $('uu_l').oninput = () => ($('uu_l').dataset.r = 1);
     $('uu_ok').onclick = async () => {
@@ -976,14 +977,14 @@ async function spravaNast() {
     <div class="field"><label>Název sítě (hlavička aplikace)</label><input id="ns_n" value="${esc(S.nazevSite || '')}"></div>
     <div class="field"><label>Výchozí interval revize plánu (měsíce)</label><input id="ns_i" type="number" min="1" max="12" value="${esc(S.interval || 3)}"></div>
     <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
-    <button class="btn primary" id="ns_ok">Uložit</button></div></div>
+    <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
     <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Údaje) – otevře PéčeDoma, kde je klient.</span></div>
     <div class="field"><label>Server PéčeDoma (jhn-apps)</label><input id="pd_a" value="${esc(pd.api || pd.apiVychozi || '')}"></div>
     <div class="field"><label>Token aplikace PéčeDoma${pd.tokenNastaven ? ' (vyplněn – nechte prázdné, nebo zadejte nový)' : ''}</label><input id="pd_t" type="password" autocomplete="off" placeholder="${pd.tokenNastaven ? '••••••••' : 'FAMICURA_REPORTY_TOKEN z nastavení serveru PéčeDoma'}"><span class="hint">Stejný token, kterým portál PéčeDoma volá svůj server. Do prohlížeče se zpět neposílá.</span></div>
     <label class="lbl" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pd_s" ${pd.sync ? 'checked' : ''}> Synchronizovat automaticky (léky a nejbližší návštěva propojených pacientů, každých 30 minut)</label>
     ${pd.partnerKlic ? '' : '<div class="banner warn">Na serveru chybí KP_PARTNER_KLIC – spusťte nasazení deploy/vps-deploy.sh.</div>'}
-    <button class="btn primary" id="pd_ok">Uložit propojení</button>
+    <button class="btn primary ulozit" id="pd_ok">Uložit propojení</button>
     <div class="note">Co se přebírá z PéčeDoma: při založení pacienta údaje, diagnózy, léky, funkční stav a kontakty (výběr klienta v průvodci Nový pacient); u propojeného pacienta pak průběžně <b>aktivní léky</b> a <b>nejbližší plánovaná návštěva</b> (kalendář FK). Plán péče se tím nemění – léky lékař převezme do nové verze plánu v záložce Plán péče.</div></div></div>`; })()}`;
   $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };
   $('pd_ok').onclick = async () => {
