@@ -835,9 +835,9 @@ central.post('/osoba', sUzivatelem(async (q, s, req) => {
     return { id: puv.OsobaID };
   }
   const pin = await novyPinAsync();
-  const r = await q.one(`INSERT INTO dbo.A_KP_Osoba (PoskytovatelID, Tym, Jmeno, Role, Telefon, Email, Poznamka, Salt, Hash, Iterace, PinVydan, Zdroj, VytvorilUzivatelID)
-    OUTPUT inserted.OsobaID VALUES (@ps, @t, @j, @r, @tel, @e, @poz, @sa, @h, @i, SYSDATETIME(), 'RUCNE', @u)`,
-    { ps: ps.PoskytovatelID, t: o.tym, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, poz: o.pozn, sa: pin.salt, h: pin.hash, i: pin.iterace, u: s.uzivatelId });
+  const r = await q.one(`INSERT INTO dbo.A_KP_Osoba (PoskytovatelID, Tym, Jmeno, Role, Telefon, Email, Poznamka, Salt, Hash, Iterace, PinVydan, PinSifrovany, Zdroj, VytvorilUzivatelID)
+    OUTPUT inserted.OsobaID VALUES (@ps, @t, @j, @r, @tel, @e, @poz, @sa, @h, @i, SYSDATETIME(), @psf, 'RUCNE', @u)`,
+    { ps: ps.PoskytovatelID, t: o.tym, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, poz: o.pozn, sa: pin.salt, h: pin.hash, i: pin.iterace, psf: zasifruj(pin.pin), u: s.uzivatelId });
   if (o.tym) { const tid = await zajistiTymLidi(q, ps.PoskytovatelID, o.tym, s.uzivatelId); await pridejClena(q, tid, r.OsobaID, s.uzivatelId); }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'nový člověk pracoviště', detail: `${o.jmeno} (${ps.Nazev})`, ip: s.ip });
   return { id: r.OsobaID, pin: pin.pin, sms: b.sms ? await pinSms(o.telefon, pin.pin) : null };
@@ -848,9 +848,20 @@ central.post('/osoba/:id/pin', sUzivatelem(async (q, s, req) => {
   if (!o) throw chyba('Člověk nenalezen', 404);
   if (!smiSpravovatLidi(s, o.PoskytovatelID)) throw chyba('Tohoto člověka spravuje jeho pracoviště', 403);
   const pin = await novyPinAsync();
-  await q.exec(`UPDATE dbo.A_KP_Osoba SET Salt = @sa, Hash = @h, Iterace = @i, PinVydan = SYSDATETIME() WHERE OsobaID = @o`, { sa: pin.salt, h: pin.hash, i: pin.iterace, o: o.OsobaID });
+  await q.exec(`UPDATE dbo.A_KP_Osoba SET Salt = @sa, Hash = @h, Iterace = @i, PinVydan = SYSDATETIME(), PinSifrovany = @psf WHERE OsobaID = @o`, { sa: pin.salt, h: pin.hash, i: pin.iterace, psf: zasifruj(pin.pin), o: o.OsobaID });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'nový osobní PIN', detail: o.Jmeno, ip: s.ip });
   return { pin: pin.pin, sms: req.body && req.body.sms ? await pinSms(o.Telefon, pin.pin) : null };
+}));
+
+/** zobrazení platného osobního PINu (0.11.6) – jen PINy vydané od této verze (uložené šifrovaně); starší se zobrazit nedají, vydá se nový. Zapisuje se do logu přístupů. */
+central.post('/osoba/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
+  const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, PinSifrovany, CONVERT(char(16), PinVydan, 120) AS vydan FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(req.params.id) });
+  if (!o) throw chyba('Člověk nenalezen', 404);
+  if (!smiSpravovatLidi(s, o.PoskytovatelID)) throw chyba('PIN zobrazí pracoviště člověka nebo správce organizace', 403);
+  const pin = desifruj(o.PinSifrovany);
+  if (!pin) throw chyba('Tento PIN byl vydán před verzí, která ho umí znovu zobrazit – vydejte nový PIN (tlačítko Nový PIN).', 409);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zobrazení osobního PINu', detail: o.Jmeno, ip: s.ip });
+  return { pin, vydan: o.vydan, sms: req.body && req.body.sms ? await pinSms(o.Telefon, pin) : null };
 }));
 
 /** hromadný import do jednoho pracoviště: CSV nebo tým z PéčeDoma; existující (stejné ExterniID, jinak stejné jméno) se jen aktualizují */
@@ -874,9 +885,9 @@ central.post('/lide/import', sUzivatelem(async (q, s, req) => {
       out.aktualizovano++; continue;
     }
     const pin = await novyPinAsync();
-    const novy = await q.one(`INSERT INTO dbo.A_KP_Osoba (PoskytovatelID, Jmeno, Role, Telefon, Email, Salt, Hash, Iterace, PinVydan, Zdroj, ExterniID, VytvorilUzivatelID)
-      OUTPUT inserted.OsobaID VALUES (@ps, @j, @r, @tel, @e, @sa, @h, @i, SYSDATETIME(), @z, @x, @u)`,
-      { ps: ps.PoskytovatelID, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, sa: pin.salt, h: pin.hash, i: pin.iterace, z: zdroj, x: ext, u: s.uzivatelId });
+    const novy = await q.one(`INSERT INTO dbo.A_KP_Osoba (PoskytovatelID, Jmeno, Role, Telefon, Email, Salt, Hash, Iterace, PinVydan, PinSifrovany, Zdroj, ExterniID, VytvorilUzivatelID)
+      OUTPUT inserted.OsobaID VALUES (@ps, @j, @r, @tel, @e, @sa, @h, @i, SYSDATETIME(), @psf, @z, @x, @u)`,
+      { ps: ps.PoskytovatelID, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, sa: pin.salt, h: pin.hash, i: pin.iterace, psf: zasifruj(pin.pin), z: zdroj, x: ext, u: s.uzivatelId });
     await pridejClena(q, tymId, novy.OsobaID, s.uzivatelId);
     stavajici.push({ OsobaID: novy.OsobaID, Jmeno: o.jmeno, ExterniID: ext });
     out.pridano++;

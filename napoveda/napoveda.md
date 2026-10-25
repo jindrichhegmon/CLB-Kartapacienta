@@ -300,7 +300,7 @@ Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapito
 
 ![Úprava člověka – role na kartě a nový PIN](/napoveda/img/c-osoba.png)
 
-- Klik na řádek člověka ho upraví. **Nový PIN** – dosavadní PIN přestane platit na všech telefonech.
+- Klik na řádek člověka ho upraví (okno **Upravit – člen týmu**). **Zobrazit PIN** znovu ukáže platný osobní PIN (každé zobrazení se zapíše do logu přístupů); PINy vydané před verzí 0.11.6 zobrazit nejdou – aplikace nabídne vydat nový. **Nový PIN** – dosavadní PIN přestane platit na všech telefonech.
 - Zrušené zaškrtnutí **aktivní** člověka vyřadí: kartu už neodemkne u žádného pacienta (vyřazené ukáže zaškrtnutí **i vyřazení**).
 - Sloupec **Pacientů** ukazuje, u kolika aktivních pacientů je člověk přiřazený.
 
