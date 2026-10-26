@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.26';
+const APP_VERZE = 'karta-0.11.27';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -324,7 +324,7 @@ function odPacientaHTML(b) {
   const posledni = new Map(); vse.forEach((x) => { if (!posledni.has(x.druh)) posledni.set(x.druh, x); });   // balík je od nejnovějšího
   const poradi = ['PRANI', 'POZNAMKA', 'OTAZKY', 'PODANI', 'LEKY'];
   const bloky = poradi.filter((d) => posledni.has(d)).map((d) => { const x = posledni.get(d); return `<div class="panel"><div class="panel-h"><h2>${esc(OD_PACIENTA_NAZ[d] || x.nazev || d)}</h2><span class="chip vio">údaj pacienta</span></div>
-      <div style="padding:12px 14px;white-space:pre-wrap;line-height:1.45">${esc(x.obsah || '')}</div><div class="puvod">${esc(x.puvod || 'údaj pacienta')} · posláno ${esc(fmtDT(x.cas))}${x.aktualizovano ? ' · aktualizováno ' + esc(fmtDT(x.aktualizovano)) : ''}</div></div>`; });
+      <div style="padding:12px 14px;white-space:pre-wrap;line-height:1.45">${esc(x.obsah || '')}</div><div class="lbl" style="padding:0 14px 12px">${esc(x.puvod || 'údaj pacienta')} · posláno ${esc(fmtDT(x.cas))}${x.aktualizovano ? ' · aktualizováno ' + esc(fmtDT(x.aktualizovano)) : ''}</div></div>`; });
   return `${bloky.join('') || '<div class="panel"><div style="padding:14px" class="muted">Pacient zatím z Mého průkazu nic neposlal.</div></div>'}
     <div class="note"><b>Poznámky pacienta</b> jsou slova pacienta nebo rodiny z aplikace Můj průkaz: přání a hodnoty, poznámky, otázky pro lékaře a záznam podání léků. Přenášejí se automaticky při každé změně v telefonu pacienta (když je připojený); tady se jen čtou, upravit je může jen pacient ve svém telefonu. Přání v aplikaci není dříve vyslovené přání podle zákona.</div>`;
 }
