@@ -214,7 +214,7 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 
 ![Okno Spárovat telefon – QR kód, kódy a SMS](/napoveda/img/c-parovani.png)
 
-- Párovací kód platí **30 minut**. Po celou dobu platnosti ho jde použít znovu **ve stejném telefonu** (stejné číslo) – typicky když kartu po spárování v Safari přidáte na plochu iPhonu: aplikace na ploše má vlastní úložiště, spárujte ji stejným kódem a kopie v Safari skončí. Jiné číslo kód nepřijme. Po vypršení klikněte znovu na Spárovat telefon.
+- Párovací kód platí **30 minut**. Dokud platí ještě aspoň 10 minut, ukáže další kliknutí na Spárovat telefon i Poslat odkaz SMS **tentýž kód** – QR kód na obrazovce a odkaz v SMS jsou stejné a nové kliknutí předchozí kód neruší. Po celou dobu platnosti ho jde použít znovu **ve stejném telefonu** (stejné číslo) – typicky když kartu po spárování v Safari přidáte na plochu iPhonu: aplikace na ploše má vlastní úložiště, spárujte ji stejným kódem a kopie v Safari skončí. Jiné číslo kód nepřijme. Po vypršení klikněte znovu na Spárovat telefon.
 - Po spárování se případný předchozí telefon pacienta zablokuje.
 - Když SMS nejde odeslat, okno napíše proč a spárujete QR kódem.
 - **Zablokovat** – ztracený telefon; při nejbližším připojení se data z něj vymažou. **Vráceno** – zablokovaný telefon, který se vrátil.
@@ -466,6 +466,8 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 - Deník, historie garance, verze plánu a log přístupů nejde mazat ani přepisovat.
 
 ## 18. Časté otázky
+
+**Telefon hlásí „Kód je neplatný nebo vypršel“.** Nejčastěji byl kód mezitím nahrazen novým (každé další Spárovat telefon nebo Poslat SMS po vypršení vydá nový kód) nebo uběhlo 30 minut. Otevřete v centrální aplikaci Spárovat telefon znovu a použijte kód, který je na obrazovce teď; v kioskové aplikaci bez fotoaparátu ho opište ručně i s kódem organizace. Kiosková aplikace nesmí při nečinnosti mazat data webu (cache, úložiště), jinak se karta z telefonu ztratí a bude chtít spárovat znovu.
 
 **Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy / hlásí neplatný kód.** Aplikace na ploše má vlastní úložiště, co se spárovalo v Safari, na ploše není. Od verze 0.11.10 použijte v aplikaci na ploše **stejný kód** (odkaz z SMS nebo Načíst QR kód fotoaparátem, kapitola 13) – kód platí 30 minut (Můj průkaz 3 dny) i po prvním spárování; kopie v Safari tím skončí. Po vypršení vydejte v centrální aplikaci nový kód.
 

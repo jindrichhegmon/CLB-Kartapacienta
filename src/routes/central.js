@@ -415,14 +415,16 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   const pac = await q.one(`SELECT TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
   const telKarty = normTel(pac && pac.TelefonKarty);
   if (!telKarty) throw chyba('Nejdřív u pacienta vyplňte číslo telefonu, na kterém bude karta (záložka Údaje) – karta jde nahrát jen do telefonu s tímto číslem');
-  const kod = parovaciKod();
-  const platnost = new Date(Date.now() + 30 * 60e3);   // 0.11.10: 30 minut (stihne se i přidání na plochu iPhonu a spárování znovu)
-  // čekající nespárovaný telefon pacienta se použije znovu, jinak nový záznam
-  const z = await q.one(`SELECT TOP 1 ZarizeniID FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'ZAPUJCENY' ORDER BY ZarizeniID DESC`, { p: id });
+  // čekající nespárovaný telefon pacienta se použije znovu, jinak nový záznam; kód platný ještě aspoň 10 minut zůstává (0.11.18) –
+  // QR kód na obrazovce, odkaz v SMS i ručně opsaný kód jsou pak stejné a další kliknutí předchozí kód neruší
+  const z = await q.one(`SELECT TOP 1 ZarizeniID, ParovaciKod, ParovaciPlatnost FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'ZAPUJCENY' ORDER BY ZarizeniID DESC`, { p: id });
+  const platny = z && z.ParovaciKod && z.ParovaciPlatnost && new Date(z.ParovaciPlatnost).getTime() > Date.now() + 10 * 60e3;
+  const kod = platny ? z.ParovaciKod : parovaciKod();
+  const platnost = platny ? new Date(z.ParovaciPlatnost) : new Date(Date.now() + 30 * 60e3);   // 0.11.10: 30 minut (stihne se i přidání na plochu iPhonu a spárování znovu)
   let zid;
   if (z) { zid = z.ZarizeniID; await q.exec(`UPDATE dbo.A_KP_Zarizeni SET ParovaciKod = @k, ParovaciPlatnost = @pl, Stitek = ISNULL(@st, Stitek) WHERE ZarizeniID = @z`, { k: kod, pl: platnost, st: text(req.body.stitek, 60) || null, z: zid }); }
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost) OUTPUT inserted.ZarizeniID VALUES (@p, @st, @k, @pl)`, { p: id, st: text(req.body.stitek, 60) || null, k: kod, pl: platnost })).ZarizeniID;
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací kód vydán', ip: s.ip });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: platny ? 'párovací kód zobrazen znovu' : 'párovací kód vydán', ip: s.ip });
   const odkaz = `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}.T${telKarty.replace(/\D/g, '')}`;   // .T<číslo> = předvyplnění čísla v telefonu
   let sms = null;
   if (req.body.sms) {   // odkaz SMS na číslo s kartou – dostane ho jen tento telefon
@@ -443,9 +445,10 @@ central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
   if (!op.aktivni) throw chyba('Průkaz je uzavřený');
   const tel = normTel(req.body.telefon);
   if (!tel) throw chyba('Zadejte číslo mobilu pacienta (např. +420 777 123 456) – kód půjde použít jen s ním');
-  const kod = parovaciKod();
-  const platnost = new Date(Date.now() + 72 * 3600e3);
-  const z = await q.one(`SELECT TOP 1 ZarizeniID FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'PACIENT' ORDER BY ZarizeniID DESC`, { p: id });
+  const z = await q.one(`SELECT TOP 1 ZarizeniID, ParovaciKod, ParovaciPlatnost, Telefon FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'PACIENT' ORDER BY ZarizeniID DESC`, { p: id });
+  const platny = z && z.ParovaciKod && z.ParovaciPlatnost && normTel(z.Telefon) === tel && new Date(z.ParovaciPlatnost).getTime() > Date.now() + 60 * 60e3;   // stejné číslo a aspoň hodina platnosti → stejný kód (0.11.18)
+  const kod = platny ? z.ParovaciKod : parovaciKod();
+  const platnost = platny ? new Date(z.ParovaciPlatnost) : new Date(Date.now() + 72 * 3600e3);
   let zid;
   if (z) { zid = z.ZarizeniID; await q.exec(`UPDATE dbo.A_KP_Zarizeni SET ParovaciKod = @k, ParovaciPlatnost = @pl, Telefon = @t WHERE ZarizeniID = @z`, { k: kod, pl: platnost, t: tel, z: zid }); }
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost, Telefon, Rezim) OUTPUT inserted.ZarizeniID VALUES (@p, N'telefon pacienta', @k, @pl, @t, 'PACIENT')`,
