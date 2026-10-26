@@ -146,7 +146,7 @@ Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémov
 
 ![Deník pacienta](/napoveda/img/c-denik.png)
 
-- Do deníku zapisuje tým kolem pacienta (role péče, lékař, garant). Vyberete **typ** (změna stavu, podán SOS lék, návštěva lékaře, návštěva hospice, telefonát, pozorování rodiny, zhoršení stavu, stav stabilizován) a napíšete text.
+- Do deníku zapisuje tým kolem pacienta (role péče, lékař, garant). Zápisy **Zhoršení stavu** (a Výjezd ZZS) jsou v seznamu červeně, **Stav stabilizován** zeleně, aby byly epizody zhoršení vidět na první pohled. U pacienta propojeného s PéčeDoma jde každé zhoršení i stabilizace automaticky také do portálu (Data klienta → 🪪 Z Karty pacienta, historie zhoršení). Vyberete **typ** (změna stavu, podán SOS lék, návštěva lékaře, návštěva hospice, telefonát, pozorování rodiny, zhoršení stavu, stav stabilizován) a napíšete text.
 - Zápisy **nelze mazat ani měnit**, jen doplňovat.
 - Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později. Zápis posádky ZZS je označený jako neověřený.
 
@@ -262,7 +262,7 @@ V záložce **Detail pacienta** (dříve Údaje) jsou identifikační údaje pac
 
 - **Detail pacienta**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
-- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** (záložka Léky – jedna agenda pro portál i Kartu) a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5).
+- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** (záložka Léky – jedna agenda pro portál i Kartu) a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5). Přání, poznámky a otázky, které pacient zapíše v Mém průkazu, Karta u propojeného pacienta předá i do PéčeDoma (Data klienta → **🪪 Z Karty pacienta**), takže je lékař vidí i tam.
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
 
 ![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
@@ -519,7 +519,7 @@ Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří c
 
 > Na iPhonu nejdřív přidejte Můj průkaz na plochu (Sdílet → Přidat na plochu) a propojte ho až v aplikaci na ploše.
 
-Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod krizovou kartou (pod oddílem Příští návštěva) panel **Zprávy pro a od lékaře** – poslední dvě zprávy jsou vidět rovnou bez rozklikávání (načítají se na pozadí, naposledy načtené zůstanou i bez připojení), tlačítko otevře celé vlákno a odpověď; stejné zprávy jako v aplikaci PéčeDoma; lékař a sestry je vidí u klienta v portálu a odpoví sem. Ve vlákně je pacient označený „Vy“, druhá strana „Lékař a tým“.
+Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod krizovou kartou panel **Zprávy pro a od lékaře** – poslední dvě zprávy jsou vidět rovnou bez rozklikávání (načítají se na pozadí, naposledy načtené zůstanou i bez připojení), tlačítko otevře celé vlákno a odpověď; stejné zprávy jako v aplikaci PéčeDoma; lékař a sestry je vidí u klienta v portálu a odpoví sem. Ve vlákně je pacient označený „Vy“, druhá strana „Lékař a tým“.
 
 ![Můj průkaz – Zprávy pro a od lékaře](/napoveda/img/p-zpravy-chat.png)
 
@@ -533,7 +533,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 - **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
 - **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
 - **Léky** – **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. Léky předepisuje a mění jen lékař, v telefonu je nejde přidat ani upravit. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat; týmu je pošlete v oddílu Sdílet.
-- **Poznámky pacienta** – otázky pro lékaře a poznámky, jak se máte. Přání, poznámky, otázky i záznam podání léků vidí **tým automaticky** – v centrální aplikaci (panel Od pacienta) i na kartě u lůžka (dlaždice Poznámky pacienta); u přání a poznámek je zelený pruh s časem posledního odeslání, bez připojení se změna pošle při nejbližší synchronizaci. Oddíl **Sdílet** slouží k tisku a poslání jinam; prázdné položky jsou v něm šedě s radou, kde je vyplnit.
+- **Poznámky pacienta** – otázky pro lékaře a poznámky, jak se máte. Přání, poznámky, otázky i záznam podání léků vidí **tým automaticky** – v centrální aplikaci (panel Od pacienta) i na kartě u lůžka (dlaždice Poznámky pacienta); u přání a poznámek je zelený pruh s časem posledního odeslání, bez připojení se změna pošle při nejbližší synchronizaci. Oddíl **Sdílet** slouží k tisku a poslání jinam; prázdné položky jsou v něm šedě s radou, kde je vyplnit. U pacienta propojeného s PéčeDoma jdou přání, poznámky a otázky automaticky i lékaři do portálu PéčeDoma (Data klienta → záložka **🪪 Z Karty pacienta**). Termín příští návštěvy se v Mém průkazu neukazuje – pacient ho má od týmu.
 - **Sdílet** – souhrn k tisku nebo k předání (níže).
 - **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.
 - **Nastavení** – změna PINu, smazání všeho z telefonu.

@@ -85,6 +85,37 @@ export async function posliZpravuPd(nast, pdKlientId, { text, smer, kdo }) {
   return { zpravy: Array.isArray(r.zpravy) ? r.zpravy : [], portalKlientId: r.portalKlientId || null };
 }
 
+/** Záznamy pacienta z Mého průkazu (přání, poznámky, otázky; od 0.11.28) → PéčeDoma, Data klienta → Z Karty pacienta (A_MSPPP_KartaZaznam).
+ *  Vrací počet nově uložených (PéčeDoma stejný text znovu neukládá). Identita pacienta jde jen jako ID klienta PéčeDoma, které portál už zná. */
+export const DRUHY_PRO_PD = ['PRANI', 'POZNAMKA', 'OTAZKY', 'ZHORSENI'];
+export const TYPY_ZHORSENI = ['Zhoršení stavu', 'Stav stabilizován'];
+/** Zápisy o zhoršení (a stabilizaci) z deníku → PéčeDoma jako druh ZHORSENI (historie zhoršení v Data klienta → Z Karty pacienta). Nikdy neshodí zápis do deníku. */
+export async function predejZhorseniPd(q, pacientId, zapisy, { audit = null, ip = null } = {}) {
+  const z = (Array.isArray(zapisy) ? zapisy : []).filter((x) => TYPY_ZHORSENI.includes(x.typ) && x.text);
+  if (!z.length) return false;
+  try {
+    const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacientId });
+    if (!p || !p.pd) return false;
+    const nast = await nastaveniPd(q);
+    if (!nast.nastaveno) return false;
+    const polozky = z.map((x) => ({ druh: 'ZHORSENI', nazev: x.typ, obsah: `${x.typ}: ${x.text}`, puvod: `${x.autor || 'tým'} (Karta pacienta${x.role ? ', ' + x.role : ''})`, aktualizovano: x.cas || null }));
+    const r = await zaznamyPd(nast, p.pd, polozky);
+    if (audit && r.ulozeno) await audit(q, { pacientId, kdo: z[0].autor || 'Karta', akce: 'PéčeDoma: zhoršení předáno', detail: z.map((x) => x.typ).join(', '), ip });
+    return true;
+  } catch (e) {
+    if (audit) await audit(q, { pacientId, kdo: 'Karta', akce: 'PéčeDoma: předání zhoršení selhalo', detail: String(e && e.message || e).slice(0, 300), ip }).catch(() => {});
+    return false;
+  }
+}
+export async function zaznamyPd(nast, pdKlientId, polozky) {
+  if (!UUID.test(String(pdKlientId || ''))) throw chyba('Pacient není propojený s klientem PéčeDoma', 400);
+  const p = (Array.isArray(polozky) ? polozky : []).filter((x) => DRUHY_PRO_PD.includes(x.druh) && x.obsah).slice(0, 10)
+    .map((x) => ({ druh: x.druh, nazev: String(x.nazev || '').slice(0, 150), text: String(x.obsah || '').slice(0, 8000), puvod: String(x.puvod || '').slice(0, 200), aktualizovano: x.aktualizovano || null }));
+  if (!p.length) return { ulozeno: 0 };
+  const r = await pdVolej(nast, 'zaznam', { klientId: String(pdKlientId).toLowerCase(), polozky: p });
+  return { ulozeno: Number(r.ulozeno) || 0, portalKlientId: r.portalKlientId || null };
+}
+
 /** Léky klienta v PéčeDoma (od 0.9.0) – jedna agenda: Karta je čte i mění přímo v A_MSPPP_Medikace přes pecedoma-karta. */
 /** Uživatelé portálu PéčeDoma i s telefony (akce uzivatele) – telefony vede jen portál (CLB1), kopie tabulky v PeceDomaPlus je bez nich. */
 export async function uzivatelePd(nast) {

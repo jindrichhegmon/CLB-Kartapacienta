@@ -18,7 +18,7 @@ import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
 import { normTel, hezkyTel } from '../telefon.js';
-import { nastaveniPd, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
+import { nastaveniPd, zaznamyPd, DRUHY_PRO_PD, predejZhorseniPd, TYPY_ZHORSENI, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
 
 export const device = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -123,7 +123,7 @@ device.post('/sync', h(async (req) => {
     }
     const pac = await q.one(`SELECT Stav FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: z.PacientID });
     const potvrzeno = [];
-    const odmitnuto = [];
+    const odmitnuto = [], zhorseni = [];
     // vlastní telefon pacienta do deníku nezapisuje – týmu posílá jen to, co sám vybere (/sdilet)
     for (const e of (z.Rezim === 'PACIENT' ? [] : Array.isArray(b.fronta) ? b.fronta : []).slice(0, 200)) {
       const uuid = String(e.uuid || '');
@@ -133,13 +133,16 @@ device.post('/sync', h(async (req) => {
       if (!POVOLENE[role] || !POVOLENE[role].includes(typ) || pac.Stav !== 'AKTIVNI') { odmitnuto.push(uuid); continue; }
       const cas = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(e.cas || '') ? new Date(e.cas) : null;
       const casOk = cas && !isNaN(cas) && cas.getTime() < Date.now() + 10 * 60e3 && cas.getTime() > Date.now() - 60 * 864e5 ? cas : null;
-      await zapisDenik(q, {
+      const zapsano = await zapisDenik(q, {
         pacientId: z.PacientID, typ, text: text(e.text, 4000) || '(bez textu)', autor: text(e.autor, 150) || (role === 'zzs' ? 'posádka ZZS' : 'neuvedeno'),
         role, zarizeniId: zid, cas: casOk, uuid, overeno: role !== 'zzs' && !!e.overeno,
       });
+      if (zapsano.novy && TYPY_ZHORSENI.includes(typ)) zhorseni.push({ typ, text: text(e.text, 4000) || '(bez textu)', autor: text(e.autor, 150) || 'neuvedeno', role: ROLE_CHAT[role] || role, cas: casOk ? casOk.toISOString().slice(0, 16).replace('T', ' ') : null });
       potvrzeno.push(uuid);
     }
     if (potvrzeno.length) await audit(q, { zarizeniId: zid, kdo: 'telefon', pacientId: z.PacientID, akce: 'synchronizace zápisů', detail: `${potvrzeno.length} zápisů`, ip: ip(req) });
+    // 0.11.28: zhoršení a stabilizace jdou u propojeného pacienta i do PéčeDoma (historie zhoršení v Data klienta → Z Karty pacienta)
+    if (zhorseni.length) await predejZhorseniPd(q, z.PacientID, zhorseni, { audit: (qq, a) => audit(qq, { ...a, zarizeniId: zid }), ip: ip(req) });
     const baterie = Number.isFinite(Number(b.baterie)) && b.baterie !== null ? Math.max(0, Math.min(100, Math.round(Number(b.baterie)))) : null;
     const balik = await balikProZarizeni(q, z.PacientID, { rezim: z.Rezim });
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET PosledniSync = SYSDATETIME(), Baterie = ISNULL(@b, Baterie), VerzeAplikace = @v, DelkaFronty = @f, VerzePlanuVZarizeni = @vp WHERE ZarizeniID = @z`,
@@ -263,6 +266,22 @@ device.post('/sdilet', h(async (req) => {
       text: `Pacient sdílel: ${polozky.map((p) => p.nazev).join(', ')}. Údaje pacienta – celé znění v záložce Karta, oddíl Od pacienta.`,
     });
     await audit(q, { zarizeniId: zid, kdo: 'telefon pacienta', pacientId: z.PacientID, akce: auto ? 'záznamy pacienta přeneseny automaticky' : 'pacient sdílel údaje', detail: polozky.map((p) => p.nazev).join(', '), ip: ip(req) });
-    return { ok: true, cas: new Date().toISOString() };
+    // 0.11.28: přání, poznámky a otázky jdou u propojeného pacienta i do PéčeDoma (Data klienta → Z Karty pacienta); selhání sdílení v Kartě nezastaví
+    let pecedoma = false;
+    const proPd = polozky.filter((p) => DRUHY_PRO_PD.includes(p.druh));
+    if (proPd.length) {
+      const pac2 = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: z.PacientID });
+      const nast = pac2 && pac2.pd ? await nastaveniPd(q) : null;
+      if (nast && nast.nastaveno) {
+        try {
+          const r = await zaznamyPd(nast, pac2.pd, proPd);
+          pecedoma = true;
+          if (r.ulozeno) await audit(q, { zarizeniId: zid, kdo: 'telefon pacienta', pacientId: z.PacientID, akce: 'PéčeDoma: záznamy pacienta předány', detail: `${r.ulozeno}× (${proPd.map((p) => p.nazev).join(', ')})`, ip: ip(req) });
+        } catch (e) {
+          await audit(q, { zarizeniId: zid, kdo: 'telefon pacienta', pacientId: z.PacientID, akce: 'PéčeDoma: předání záznamů selhalo', detail: String(e && e.message || e).slice(0, 300), ip: ip(req) });
+        }
+      }
+    }
+    return { ok: true, cas: new Date().toISOString(), pecedoma };
   });
 }));

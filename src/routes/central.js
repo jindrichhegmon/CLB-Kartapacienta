@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { nastaveniPd, pdVolej, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI } from '../pecedoma.js';
+import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI } from '../pecedoma.js';
 
 export const central = Router();
 
@@ -334,7 +334,9 @@ central.post('/pacient/:id/denik', sUzivatelem(async (q, s, req) => {
   const typ = TYPY_DENIKU.includes(req.body.typ) ? req.body.typ : 'Změna stavu';
   const t = text(req.body.text, 4000);
   if (!t) throw chyba('Napište text zápisu');
-  await zapisDenik(q, { pacientId: id, typ, text: t, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+  const role = s.role.includes('lekar') ? 'lekar' : 'sestra';
+  const zapsano = await zapisDenik(q, { pacientId: id, typ, text: t, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+  if (zapsano.novy) await predejZhorseniPd(q, id, [{ typ, text: t, autor: s.jmeno, role: role === 'lekar' ? 'lékař' : 'sestra', cas: null }], { audit: (qq, a) => audit(qq, { ...a, uzivatelId: s.uzivatelId }), ip: s.ip });
 }));
 
 central.post('/pacient/:id/souhlas', sUzivatelem(async (q, s, req) => {

@@ -60,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.27';
+const APP_VERZE = 'pacient-0.11.28';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -208,7 +208,7 @@ function prehledHTML(b) {
   const m = D.moje;
   return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b> a <b>Poznámky pacienta</b> vedete své vlastní záznamy a v <b>Lécích</b> zaznamenáváte podání předepsaných léků. Váš tým je vidí automaticky v centrální aplikaci i na kartě u lůžka; v oddílu <b>Sdílet</b> je můžete vytisknout nebo poslat jinam.</div></div>
     <div class="puvod" style="padding:4px 2px 0"><span class="chip lek">od lékaře</span> ${puvodLekar(b)}</div>
-    ${KP.kartaHTML({ ...b, denik: [] })}
+    ${KP.kartaHTML({ ...b, denik: [] }, { navsteva: false })}
     ${b.pecedoma && b.pecedoma.chat ? `<div class="panel"><div class="panel-h"><h2>Zprávy pro a od lékaře</h2><span class="chip lek">PéčeDoma</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY) : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat lékaři'}</button></div></div></div><div class="note"><b>Zprávy pro a od lékaře:</b> napište svému lékaři a sestrám, nebo si přečtěte, co vám poslali. Zprávy jsou stejné jako v aplikaci PéčeDoma.</div>` : ''}
     <div class="panel"><div class="panel-h"><h2>Moje záznamy</h2><span class="chip pac">jen v tomto telefonu</span></div><dl class="kv" style="padding:12px 14px">
       <dt>Hodnoty a přání</dt><dd>${m.prani.aktualizovano ? 'aktualizováno ' + esc(fmtDT(m.prani.aktualizovano)) : '<span class="muted">zatím nevyplněno</span>'}</dd>
@@ -234,8 +234,7 @@ function lekarHTML(b) {
 }
 function kontaktyHTML(b) {
   const g = b.garant || {};
-  const pd = b.pecedoma || {};
-  return `${pd.pristiNavsteva ? `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip lek">od lékaře</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(pd.pristiNavsteva))}</b></dd>${pd.pristiKdo ? `<dt>Kdo</dt><dd>${esc(pd.pristiKdo)}</dd>` : ''}${pd.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(pd.pristiPozn)}</dd>` : ''}</dl></div>` : ''}<div class="panel"><div class="panel-h"><h2>Na koho se obrátit</h2><span class="chip lek">od lékaře</span></div><div class="tblwrap"><table class="tbl"><tbody>
+  return `<div class="panel"><div class="panel-h"><h2>Na koho se obrátit</h2><span class="chip lek">od lékaře</span></div><div class="tblwrap"><table class="tbl"><tbody>
       ${g.poskytovatel ? `<tr><td><b>${esc(g.poskytovatel)}</b><div class="lbl">garant průkazu${g.lekar ? ' · ' + esc(g.lekar) : ''}</div></td><td>${g.telefon24 ? `<a class="btn sm" href="tel:${esc(String(g.telefon24).replace(/\s/g, ''))}">${esc(g.telefon24)}</a>` : ''}</td></tr>` : ''}
       ${(b.kontakty || []).map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc({ rozhoduje: 'rozhoduje za mě', informovat: 'informovat', pecuje: 'pečuje' }[x.skupina] || x.skupina)}${x.pozn ? ' · ' + esc(x.pozn) : ''}</div></td><td><a class="btn sm" href="tel:${esc(String(x.tel).replace(/\s/g, ''))}">${esc(x.tel)}</a></td></tr>`).join('')}
       ${(b.tym || []).map((t) => `<tr><td><b>${esc(t.nazev)}</b><div class="lbl">tým kolem mě</div></td><td class="mono">${t.tel ? `<a class="btn sm" href="tel:${esc(String(t.tel).replace(/\s/g, ''))}">${esc(t.tel)}</a>` : ''}</td></tr>`).join('')}
@@ -257,10 +256,10 @@ async function autoSdilet() {
   if (!navigator.onLine) return;
   const polozky = polozkySouhrnu(D.balik).filter((x) => AUTO_DRUHY.includes(x.druh) && x.obsah).map((x) => ({ druh: x.druh, nazev: x.nazev, obsah: x.obsah, puvod: x.puvod, aktualizovano: x.aktualizovano ? String(x.aktualizovano).replace(' ', 'T') : null }));
   if (!polozky.length) { D.moje.autoCeka = false; await uloz(); return; }
-  try { await KP.api('/api/d/sdilet', { method: 'POST', token: D.token, typ: 'Device', body: { polozky, auto: true } }); D.moje.autoCeka = false; D.moje.autoPoslano = KP.casLokalni(); await uloz(); if (tab === 'prani' || tab === 'poznamky' || tab === 'leky') kresli(); }
+  try { const r = await KP.api('/api/d/sdilet', { method: 'POST', token: D.token, typ: 'Device', body: { polozky, auto: true } }); D.moje.autoCeka = false; D.moje.autoPoslano = KP.casLokalni(); D.moje.autoPecedoma = !!(r && r.pecedoma); await uloz(); if (tab === 'prani' || tab === 'poznamky' || tab === 'leky') kresli(); }
   catch (e) { /* zůstane autoCeka – pošle se při příští synchronizaci */ }
 }
-const autoBanner = (co) => `<div class="banner ${D.moje.autoCeka ? 'warn' : 'ok'} keep" style="display:block;margin-top:0">Tým ${co} vidí automaticky v centrální aplikaci i na kartě u lůžka${D.moje.autoCeka ? ' – <b>poslední změna čeká na připojení</b>' : D.moje.autoPoslano ? ' · naposledy odesláno ' + esc(fmtDT(D.moje.autoPoslano)) : ''}.</div>`;
+const autoBanner = (co) => `<div class="banner ${D.moje.autoCeka ? 'warn' : 'ok'} keep" style="display:block;margin-top:0">Tým ${co} vidí automaticky v centrální aplikaci i na kartě u lůžka${D.moje.autoPecedoma ? ' a lékař v PéčeDoma' : ''}${D.moje.autoCeka ? ' – <b>poslední změna čeká na připojení</b>' : D.moje.autoPoslano ? ' · naposledy odesláno ' + esc(fmtDT(D.moje.autoPoslano)) : ''}.</div>`;
 function praniHTML() {
   const p = D.moje.prani;
   const vyplneno = ['dulezite', 'obavy', 'rozhodovani', 'kdo'].some((k) => (p[k] || '').trim());
