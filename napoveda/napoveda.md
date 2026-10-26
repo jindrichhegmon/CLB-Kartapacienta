@@ -119,7 +119,7 @@ U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠ
 
 ![Chat PéčeDoma s klientem z Karty pacienta](/napoveda/img/c-chat-pecedoma.png)
 
-Panel **Od pacienta** se objeví, když pacient z aplikace Můj průkaz sám pošle své údaje – hodnoty a přání, léky, které skutečně užívá, poznámky a otázky. U každé položky je původ (např. „jak si pamatuji rozhovor se zdravotníkem“) a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam ani dříve vyslovené přání; v deníku je o tom zápis **Sdíleno pacientem**.
+Panel **Od pacienta** ukazuje, co pacient vede v aplikaci Můj průkaz – hodnoty a přání, poznámky a otázky, záznam podání léků (od verze 0.11.26 se přenášejí **automaticky** při každé změně v jeho telefonu; dřív jen po ručním odeslání v oddílu Sdílet). U každé položky je původ (např. „jak si pamatuji rozhovor se zdravotníkem“) a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam ani dříve vyslovené přání; v deníku je o tom zápis **Sdíleno pacientem**.
 
 ![Panel Od pacienta v záložce Krizová karta](/napoveda/img/c-od-pacienta.png)
 
@@ -414,7 +414,7 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršen�
 
 ![Telefon – zápis do deníku](/napoveda/img/k-denik.png)
 
-- **Poznámky pacienta** – přání a hodnoty, poznámky, otázky pro lékaře a záznam podání léků, které pacient nebo rodina **sami poslali** z aplikace Můj průkaz (oddíl Sdílet). Karta ukazuje vždy poslední poslanou verzi každého druhu, jen ke čtení; co pacient neposlal, v kartě není. Totéž vidí tým v centrální aplikaci v panelu Od pacienta.
+- **Poznámky pacienta** – přání a hodnoty, poznámky, otázky pro lékaře a záznam podání léků z aplikace Můj průkaz. Přenášejí se **automaticky** při každé změně v telefonu pacienta (je-li připojený); karta ukazuje poslední verzi každého druhu, jen ke čtení. Totéž vidí tým v centrální aplikaci v panelu Od pacienta.
 
 ![Telefon – Poznámky pacienta ze sdílení](/napoveda/img/k-od-pacienta.png)
 
@@ -533,7 +533,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 - **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
 - **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
 - **Léky** – **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. Léky předepisuje a mění jen lékař, v telefonu je nejde přidat ani upravit. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat; týmu je pošlete v oddílu Sdílet.
-- **Poznámky pacienta** – otázky pro lékaře a poznámky, jak se máte. **Tým je uvidí až po odeslání**: u přání i poznámek je žlutý pruh s tlačítkem **Poslat týmu**, které vede do oddílu Sdílet; po odeslání je tým vidí v centrální aplikaci (panel Od pacienta) i na kartě u lůžka (dlaždice Poznámky pacienta). V Sdílet jsou prázdné položky (např. nevyplněná Přání) šedě s radou, kde je vyplnit.
+- **Poznámky pacienta** – otázky pro lékaře a poznámky, jak se máte. Přání, poznámky, otázky i záznam podání léků vidí **tým automaticky** – v centrální aplikaci (panel Od pacienta) i na kartě u lůžka (dlaždice Poznámky pacienta); u přání a poznámek je zelený pruh s časem posledního odeslání, bez připojení se změna pošle při nejbližší synchronizaci. Oddíl **Sdílet** slouží k tisku a poslání jinam; prázdné položky jsou v něm šedě s radou, kde je vyplnit.
 - **Sdílet** – souhrn k tisku nebo k předání (níže).
 - **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.
 - **Nastavení** – změna PINu, smazání všeho z telefonu.
@@ -547,7 +547,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 
 1. V oddílu **Sdílet** zaškrtněte, co chcete předat (u každé položky je, zda je *od lékaře*, nebo *údaj pacienta*, a kdy byla aktualizovaná).
 2. **Zobrazit náhled** – uvidíte přesně to, co předáte, s datem vytvoření a původem každé položky.
-3. Vyberte: **Vytisknout / PDF**, **Poslat svému týmu** (do centrální aplikace – jen vaše vlastní údaje, údaje od lékaře tým už má), nebo **Poslat jinam** (e-mail, zpráva).
+3. Vyberte: **Vytisknout / PDF**, **Poslat svému týmu** (ruční odeslání se zápisem do deníku týmu – vaše záznamy tým vidí i tak automaticky, tohle se hodí, když chcete výslovně upozornit), nebo **Poslat jinam** (e-mail, zpráva).
 
 ![Výběr, co předat](/napoveda/img/p-sdilet.png)
 ![Náhled souhrnu](/napoveda/img/p-nahled.png)

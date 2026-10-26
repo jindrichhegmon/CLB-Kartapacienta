@@ -60,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.25';
+const APP_VERZE = 'pacient-0.11.26';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -157,6 +157,7 @@ async function sync({ tichy = true } = {}) {
     const novaVerze = r.balik.plan && D.balik.plan && r.balik.plan.verze !== D.balik.plan.verze;
     D.balik = r.balik; D.posledniSync = new Date().toISOString(); chybaSync = '';
     await uloz();
+    if (D.moje.autoCeka) autoSdilet();
     if (!tichy) toast('Aktualizováno');
     else if (novaVerze) toast('Lékař aktualizoval plán péče');
   } catch (e) {
@@ -205,7 +206,7 @@ function kresli() {
 }
 function prehledHTML(b) {
   const m = D.moje;
-  return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b> a <b>Poznámky pacienta</b> vedete své vlastní záznamy a v <b>Lécích</b> zaznamenáváte podání předepsaných léků – zůstává to jen ve vašem telefonu, dokud to sami nepošlete v oddílu Sdílet; pak je tým uvidí v centrální aplikaci i na kartě u lůžka.</div></div>
+  return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b> a <b>Poznámky pacienta</b> vedete své vlastní záznamy a v <b>Lécích</b> zaznamenáváte podání předepsaných léků. Váš tým je vidí automaticky v centrální aplikaci i na kartě u lůžka; v oddílu <b>Sdílet</b> je můžete vytisknout nebo poslat jinam.</div></div>
     <div class="puvod" style="padding:4px 2px 0"><span class="chip lek">od lékaře</span> ${puvodLekar(b)}</div>
     ${KP.kartaHTML({ ...b, denik: [] })}
     ${b.pecedoma && b.pecedoma.chat ? `<div class="panel"><div class="panel-h"><h2>Zprávy pro a od lékaře</h2><span class="chip lek">PéčeDoma</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY) : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat lékaři'}</button></div></div></div><div class="note"><b>Zprávy pro a od lékaře:</b> napište svému lékaři a sestrám, nebo si přečtěte, co vám poslali. Zprávy jsou stejné jako v aplikaci PéčeDoma.</div>` : ''}
@@ -245,8 +246,21 @@ function puvodPrani(p) {
   const z = PUVOD_PRANI[p.puvod] || PUVOD_PRANI.vlastni;
   return 'údaj pacienta – ' + z + (p.puvod !== 'vlastni' && (p.rozhovorKdo || p.rozhovorDatum) ? ` (${[p.rozhovorKdo, p.rozhovorDatum ? fmtD(p.rozhovorDatum) : ''].filter(Boolean).join(', ')})` : '');
 }
-/* připomínka (0.11.25): vlastní záznamy jdou týmu až po odeslání v oddílu Sdílet – tlačítko rovnou vede tam */
-const poslatBanner = (co) => `<div class="banner warn keep" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:0"><span style="flex:1;min-width:180px">Tým ${co} uvidí až po odeslání v oddílu Sdílet.</span><button class="btn sm primary" data-sdilet>Poslat týmu</button></div>`;
+/* automatický přenos vlastních záznamů týmu (0.11.26): přání, poznámky, otázky a podání léků odcházejí po každé změně do centrály
+   (stejnou cestou jako Sdílet → Poslat týmu, bez zápisu do deníku) – tým je vidí v centrále (Od pacienta) i na kartě u lůžka (Poznámky pacienta).
+   Bez připojení se pošlou při nejbližší synchronizaci. Oddíl Sdílet zůstává pro tisk a poslání jinam. */
+const AUTO_DRUHY = ['PRANI', 'POZNAMKA', 'OTAZKY', 'PODANI'];
+let autoCasovac = null;
+async function naplanujAutoSdilet() { if (!D) return; D.moje.autoCeka = true; await uloz(); clearTimeout(autoCasovac); autoCasovac = setTimeout(autoSdilet, 1200); }
+async function autoSdilet() {
+  if (!D || !D.token || D.odpojeno || !D.moje.autoCeka) return;
+  if (!navigator.onLine) return;
+  const polozky = polozkySouhrnu(D.balik).filter((x) => AUTO_DRUHY.includes(x.druh) && x.obsah).map((x) => ({ druh: x.druh, nazev: x.nazev, obsah: x.obsah, puvod: x.puvod, aktualizovano: x.aktualizovano ? String(x.aktualizovano).replace(' ', 'T') : null }));
+  if (!polozky.length) { D.moje.autoCeka = false; await uloz(); return; }
+  try { await KP.api('/api/d/sdilet', { method: 'POST', token: D.token, typ: 'Device', body: { polozky, auto: true } }); D.moje.autoCeka = false; D.moje.autoPoslano = KP.casLokalni(); await uloz(); if (tab === 'prani' || tab === 'poznamky' || tab === 'leky') kresli(); }
+  catch (e) { /* zůstane autoCeka – pošle se při příští synchronizaci */ }
+}
+const autoBanner = (co) => `<div class="banner ${D.moje.autoCeka ? 'warn' : 'ok'} keep" style="display:block;margin-top:0">Tým ${co} vidí automaticky v centrální aplikaci i na kartě u lůžka${D.moje.autoCeka ? ' – <b>poslední změna čeká na připojení</b>' : D.moje.autoPoslano ? ' · naposledy odesláno ' + esc(fmtDT(D.moje.autoPoslano)) : ''}.</div>`;
 function praniHTML() {
   const p = D.moje.prani;
   const vyplneno = ['dulezite', 'obavy', 'rozhodovani', 'kdo'].some((k) => (p[k] || '').trim());
@@ -260,7 +274,7 @@ function praniHTML() {
       <div class="frow" id="pr_rozh" style="${(p.puvod || 'vlastni') === 'vlastni' ? 'display:none' : ''}"><div class="field"><label>S kým / odkud</label><input id="pr_rk" value="${esc(p.rozhovorKdo || '')}" placeholder="např. MUDr. Nováková, hospic"></div><div class="field"><label>Kdy</label><input type="date" id="pr_rd" value="${esc(p.rozhovorDatum || '')}"></div></div>
       <button class="btn primary ulozit" id="pr_ok">Uložit do telefonu</button>
       ${p.aktualizovano ? `<div class="note">Naposledy upraveno ${esc(fmtDT(p.aktualizovano))}.</div>` : ''}</div></div>
-    ${vyplneno ? poslatBanner('vaše přání') : ''}
+    ${vyplneno ? autoBanner('vaše přání') : ''}
     <div class="banner warn" style="display:block"><b>Toto není dříve vyslovené přání podle zákona.</b> Je to váš osobní záznam pro rozhovor s lékařem a pro blízké. Platné dříve vyslovené přání se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.</div>`;
 }
 /* ---- podání léků (0.11.9): pacient si u každého léku zaznamená, jestli ho ten den vzal; záznamy jsou jen pro doplňování a zůstávají v telefonu ---- */
@@ -290,7 +304,7 @@ function lekyHTML(b) {
   return `<div class="panel"><div class="panel-h"><h2>Předepsané léky</h2><span class="chip lek">od lékaře</span></div>${bloky}
       <div class="puvod" style="padding-top:10px">${puvodLekar(b)}</div>
       <div class="quick" style="padding:0 14px 14px"><button class="btn" id="pod_hist">Historie podání</button></div>
-      <div class="rolehelp"><b>Předepsané léky</b> jsou rozdělené jako u lékaře: SOS léky, opioidy a pravidelná medikace. Léky předepisuje a mění jen lékař – tady je nejde přidat ani upravit. U každého léku klepněte na <b>Podán</b>, když ho vezmete (u SOS léků klidně vícekrát za den), nebo na <b>Nepodán</b>, když jste ho vynechali. Hned vidíte, kdy byl lék použit naposled a co bylo dnes; <b>Historie</b> ukáže všechny dny. Záznamy zůstávají ve vašem telefonu a nejde je měnit ani mazat.</div></div>`;
+      <div class="rolehelp"><b>Předepsané léky</b> jsou rozdělené jako u lékaře: SOS léky, opioidy a pravidelná medikace. Léky předepisuje a mění jen lékař – tady je nejde přidat ani upravit. U každého léku klepněte na <b>Podán</b>, když ho vezmete (u SOS léků klidně vícekrát za den), nebo na <b>Nepodán</b>, když jste ho vynechali. Hned vidíte, kdy byl lék použit naposled a co bylo dnes; <b>Historie</b> ukáže všechny dny. Záznamy nejde měnit ani mazat; tým je vidí automaticky.</div></div>`;
 }
 function poznamkyHTML() {
   const m = [...D.moje.poznamky].reverse();
@@ -298,7 +312,7 @@ function poznamkyHTML() {
       <div class="field"><label>Druh</label><select id="pz_d"><option value="OTAZKY">otázka pro lékaře</option><option value="POZNAMKA">poznámka (jak se mám, co se stalo)</option></select></div>
       <div class="field"><label>Text</label><textarea id="pz_t" style="font-family:var(--font);min-height:80px"></textarea></div>
       <button class="btn primary ulozit" id="pz_ok">Uložit do telefonu</button></div></div>
-    ${m.length ? poslatBanner('vaše poznámky a otázky') : ''}
+    ${m.length ? autoBanner('vaše poznámky a otázky') : ''}
     <div class="panel"><div class="panel-h"><h2>Moje poznámky a otázky</h2><span class="chip">${m.length}</span></div>
       ${m.map((x) => `<div class="lek-row"><div><span class="chip ${x.druh === 'OTAZKY' ? 'acc' : ''}">${x.druh === 'OTAZKY' ? 'otázka' : 'poznámka'}</span> <span class="lbl">${esc(fmtDT(x.cas))}</span><div style="white-space:pre-wrap;margin-top:4px">${esc(x.text)}</div></div><button class="btn sm" data-ps="${x.id}">Smazat</button></div>`).join('') || '<div class="rolehelp muted">Zatím nic.</div>'}</div>`;
 }
@@ -410,7 +424,7 @@ function nastaveniHTML() {
       <dt>Úložiště</dt><dd>šifrované vaším PINem a klíčem telefonu</dd><dt>Zamknutí</dt><dd>po 5 minutách nečinnosti</dd></dl>
       <div class="quick" style="padding:0 14px 14px"><button class="btn" id="ns_pin">Změnit PIN</button><button class="btn crit" id="ns_smaz">Smazat vše z telefonu</button></div></div>
     <div class="note"><b>Zapomenutý PIN</b> nikdo neobnoví – ani lékař, ani provozovatel. Vaše záznamy jsou jen ve vašem telefonu. Proto si důležité věci občas vytiskněte nebo pošlete týmu. Údaje od lékaře dostanete znovu s novým kódem od lékaře.</div>
-    <div class="note"><b>Kdo co vidí:</b> údaje od lékaře vede váš tým v centrální aplikaci. Vaše přání, léky a poznámky vidíte jen vy – tým je uvidí, až když je v oddílu Sdílet sami pošlete. Provozovatel aplikace k nim přístup nemá.</div>`;
+    <div class="note"><b>Kdo co vidí:</b> údaje od lékaře vede váš tým v centrální aplikaci. Vaše přání, poznámky, otázky a záznam podání léků vidí automaticky i váš tým – v centrální aplikaci a na kartě u lůžka. Provozovatel aplikace k nim přístup nemá.</div>`;
 }
 
 const CHAT_NAZVY = { OD_TYMU: 'Lékař a tým', OD_PACIENTA: 'Vy' };
@@ -444,14 +458,14 @@ function bind() {
   on('pr_ok', async () => {
     const v = (id) => $('pr_' + id).value.trim();
     D.moje.prani = { dulezite: v('dulezite'), obavy: v('obavy'), rozhodovani: v('rozhodovani'), kdo: v('kdo'), puvod: $('pr_puvod').value, rozhovorKdo: v('rk'), rozhovorDatum: $('pr_rd').value, aktualizovano: KP.casLokalni() };
-    await uloz(); kresli(); toast('Uloženo do telefonu – týmu pošlete tlačítkem Poslat týmu');
+    await uloz(); naplanujAutoSdilet(); kresli(); toast('Uloženo – tým to uvidí po připojení');
   });
-  document.querySelectorAll('[data-pod]').forEach((b) => (b.onclick = async () => { const z = JSON.parse(b.dataset.pod); D.moje.podani = D.moje.podani || []; D.moje.podani.push({ id: KP.uuid(), klic: z.klic, nazev: z.nazev, stav: z.stav, cas: KP.casLokalni() }); await uloz(); kresli(); toast(z.stav === 'PODAN' ? `Zaznamenáno: ${z.nazev} podán` : `Zaznamenáno: ${z.nazev} nepodán`); }));
+  document.querySelectorAll('[data-pod]').forEach((b) => (b.onclick = async () => { const z = JSON.parse(b.dataset.pod); D.moje.podani = D.moje.podani || []; D.moje.podani.push({ id: KP.uuid(), klic: z.klic, nazev: z.nazev, stav: z.stav, cas: KP.casLokalni() }); await uloz(); naplanujAutoSdilet(); kresli(); toast(z.stav === 'PODAN' ? `Zaznamenáno: ${z.nazev} podán` : `Zaznamenáno: ${z.nazev} nepodán`); }));
   document.querySelectorAll('[data-podh]').forEach((b) => (b.onclick = () => { const z = JSON.parse(b.dataset.podh); historiePodani(z.klic, z.nazev); }));
   on('pod_hist', () => historiePodani());
   document.querySelectorAll('[data-sdilet]').forEach((b) => (b.onclick = () => { tab = 'sdilet'; kresli(); scrollTo(0, 0); }));
-  on('pz_ok', async () => { const t = $('pz_t').value.trim(); if (!t) return toast('Napište text'); D.moje.poznamky.push({ id: KP.uuid(), druh: $('pz_d').value, text: t, cas: KP.casLokalni() }); await uloz(); kresli(); toast('Uloženo do telefonu – týmu pošlete tlačítkem Poslat týmu'); });
-  document.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = async () => { if (!(await KP.confirm('Smazat poznámku', 'Poznámka se smaže z telefonu. Co už jste poslali týmu, zůstane u týmu.', 'Smazat', true))) return; D.moje.poznamky = D.moje.poznamky.filter((x) => x.id !== b.dataset.ps); await uloz(); kresli(); }));
+  on('pz_ok', async () => { const t = $('pz_t').value.trim(); if (!t) return toast('Napište text'); D.moje.poznamky.push({ id: KP.uuid(), druh: $('pz_d').value, text: t, cas: KP.casLokalni() }); await uloz(); naplanujAutoSdilet(); kresli(); toast('Uloženo – tým to uvidí po připojení'); });
+  document.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = async () => { if (!(await KP.confirm('Smazat poznámku', 'Poznámka se smaže z telefonu. Co už jste poslali týmu, zůstane u týmu.', 'Smazat', true))) return; D.moje.poznamky = D.moje.poznamky.filter((x) => x.id !== b.dataset.ps); await uloz(); naplanujAutoSdilet(); kresli(); }));
   on('sd_nahled', nahled);
   const nz = async () => { D.moje.nouze = { dg: $('nz_dg').checked, cil: $('nz_cil').checked }; $('nz_t').value = nouzeText(D.balik, D.moje.nouze); await uloz(); };
   if ($('nz_dg')) { $('nz_dg').onchange = nz; $('nz_cil').onchange = nz; }

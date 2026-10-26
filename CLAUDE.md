@@ -11,7 +11,8 @@
   nebo postup, uprav `napoveda/napoveda.md` (číslované kapitoly `## N. Název` – na čísla odkazují aplikace i chat) a obnov snímky
   `node scripts/napoveda-snimky.mjs` + `python3 scripts/napoveda-zmensit.py` (smyšlená data v napodobeném API ve skriptu).
 - Telefon má dva režimy (`A_KP_Zarizeni.Rezim`): zapůjčený (`/karta/`) a vlastní telefon pacienta (`/pacient/`, Můj průkaz). Do telefonu
-  pacienta nikdy deník, PINy týmu ani tajemství kódu lékaře; jeho vlastní záznamy zůstávají jen v telefonu, týmu jdou jen přes `/api/d/sdilet`.
+  pacienta nikdy deník, PINy týmu ani tajemství kódu lékaře; jeho vlastní záznamy jdou týmu jen přes `/api/d/sdilet` (od 0.11.26 automaticky
+  po každé změně s `auto: true`, bez zápisu do deníku; ruční „Poslat týmu“ navíc zapisuje do deníku). Nikdy přímo do jiných tabulek.
 - Po změně: `npm test`, commit, push a nasazení `./deploy/vps-deploy.sh` z Macu (SQL je dostupné jen z VPS).
 - Po nasazení nové verze poslat MUDr. Kabelkovi (kontakt „Kabelka“ v AJA Kontakty) a v kopii Jindřichovi e-mail o verzi: co je nového
   a co vyzkoušet, oslovení „Ahoj Laďo“, tykání (skill odeslat-mail).

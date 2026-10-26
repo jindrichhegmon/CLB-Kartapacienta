@@ -169,7 +169,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.25', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.26', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -500,7 +500,7 @@ await p.fill('#pr_obavy', 'Dušení a převozu do nemocnice v noci.');
 await p.fill('#pr_rozhodovani', 'Raději úleva než léčba za každou cenu.');
 await p.fill('#pr_kdo', 'dcera Jana, 777 000 321');
 await p.selectOption('#pr_puvod', 'rozhovor'); await p.fill('#pr_rk', 'MUDr. Ukázková, hospic');
-await klik(p, '#pr_ok'); await p.waitForSelector('[data-sdilet]'); await p.waitForTimeout(3300);
+await klik(p, '#pr_ok'); await p.waitForSelector('.banner.ok.keep'); await p.waitForTimeout(3300);
 await foto(p, 'p-prani', { vyska: 1500 });
 await klik(p, '.tile[data-tab="leky"]'); await p.waitForSelector('.lkskup');
 if (await p.$('#lk_novy')) chyby.push('Můj průkaz: pacient nesmí mít tlačítko Přidat lék');
@@ -520,7 +520,9 @@ await foto(p, 'p-sdilet', { vyska: 1200 });
 await klik(p, '#sd_nahled'); await p.waitForSelector('#sd_tym');
 await foto(p, 'p-nahled');
 await klik(p, '#sd_tym'); await klik(p, '#kpOk'); await p.waitForTimeout(500);
-if (sdileno.length !== 1 || sdileno[0].polozky.some((x) => !['PRANI', 'LEKY', 'PODANI', 'OTAZKY', 'POZNAMKA'].includes(x.druh))) chyby.push('sdílení týmu poslalo něco jiného než údaje pacienta');
+const rucni = sdileno.filter((x) => !x.auto), auto = sdileno.filter((x) => x.auto);
+if (rucni.length !== 1 || rucni[0].polozky.some((x) => !['PRANI', 'LEKY', 'PODANI', 'OTAZKY', 'POZNAMKA'].includes(x.druh))) chyby.push('sdílení týmu poslalo něco jiného než údaje pacienta');
+if (!auto.length || !auto.some((x) => x.polozky.some((p) => p.druh === 'PRANI')) || !auto.some((x) => x.polozky.some((p) => p.druh === 'PODANI'))) chyby.push('automatický přenos přání / podání léků týmu neproběhl');
 await klik(p, '.tile[data-tab="nouze"]'); await p.waitForSelector('#nz_kop'); await p.waitForTimeout(3300);
 await foto(p, 'p-nouze', { vyska: 1400 });
 // zamknutí a znovu odemknutí PINem (data jsou šifrovaná PINem)

@@ -241,7 +241,8 @@ device.post('/pecedoma/zprava', h(async (req) => {
 
 device.post('/sdilet', h(async (req) => {
   const { tenant, zid, raw } = tokenZarizeni(req);
-  omez('sdilet:' + zid, 30, 3600e3);
+  const auto = !!req.body.auto;   // 0.11.26: automatický přenos přání, poznámek, otázek a podání léků po každé změně v telefonu (bez zápisu do deníku)
+  omez('sdilet:' + zid, auto ? 240 : 30, 3600e3);
   const polozky = (Array.isArray(req.body.polozky) ? req.body.polozky : []).slice(0, 20).map((p) => ({
     druh: DRUHY_SDILENI[p.druh] ? p.druh : 'POZNAMKA',
     nazev: text(p.nazev, 150) || DRUHY_SDILENI[p.druh] || 'Poznámka pacienta',
@@ -257,11 +258,11 @@ device.post('/sdilet', h(async (req) => {
     const pac = await q.one(`SELECT Stav FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: z.PacientID });
     if (pac.Stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený');
     await q.exec(`INSERT INTO dbo.A_KP_Sdileni (PacientID, ZarizeniID, Polozky) VALUES (@p, @z, @j)`, { p: z.PacientID, z: zid, j: JSON.stringify(polozky) });
-    await zapisDenik(q, {
+    if (!auto) await zapisDenik(q, {
       pacientId: z.PacientID, typ: 'Sdíleno pacientem', role: 'pacient', autor: 'pacient (vlastní telefon)', zarizeniId: zid,
       text: `Pacient sdílel: ${polozky.map((p) => p.nazev).join(', ')}. Údaje pacienta – celé znění v záložce Karta, oddíl Od pacienta.`,
     });
-    await audit(q, { zarizeniId: zid, kdo: 'telefon pacienta', pacientId: z.PacientID, akce: 'pacient sdílel údaje', detail: polozky.map((p) => p.nazev).join(', '), ip: ip(req) });
+    await audit(q, { zarizeniId: zid, kdo: 'telefon pacienta', pacientId: z.PacientID, akce: auto ? 'záznamy pacienta přeneseny automaticky' : 'pacient sdílel údaje', detail: polozky.map((p) => p.nazev).join(', '), ip: ip(req) });
     return { ok: true, cas: new Date().toISOString() };
   });
 }));
