@@ -86,7 +86,7 @@ function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.
 async function render() {
   if (!S.session) return renderLogin();
   if (!S.ja) {
-    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; } catch (e) { return; }
+    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.smsPacientVychozi = d.smsPacientVychozi || ''; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; } catch (e) { return; }
     try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
   }
   hlavicka();
@@ -524,17 +524,22 @@ function pacientoviOkno(tel = '') {
   modal(`<h2>Zpřístupnit průkaz v telefonu pacienta</h2>
     <p class="muted" style="margin:0">Pacient si otevře aplikaci <b>Můj průkaz</b> (${esc(S.verejna)}/pacient/) ve svém telefonu. Uvidí plán, kontakty a tým a bude si vést vlastní přání a léky. Kód půjde použít jen s tímto číslem a platí 3 dny.</p>
     <div class="field"><label>Mobil pacienta</label><input id="pz_t" type="tel" value="${esc(tel)}" placeholder="+420 777 123 456"></div>
-    <div class="quick"><button class="btn primary" id="pz_sms"${S.pac.smsDostupne ? '' : ' disabled'}>Poslat odkaz SMS</button><button class="btn" id="pz_qr">Zobrazit QR kód (v ordinaci)</button><button class="btn" data-close>Zpět</button></div>
+    <div class="field"><label>Text SMS pro pacienta</label><textarea id="pz_txt" style="min-height:96px">${esc(localStorage.getItem('kp_sms_pacient') || S.smsPacientVychozi || 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)')}</textarea><span class="hint"><b>{odkaz}</b> se nahradí odkazem pro telefon pacienta (když ho smažete, přidá se na konec). <span id="pz_len"></span> <button type="button" class="btn sm" id="pz_vychozi" style="height:26px;min-height:26px;font-size:12px;margin-left:6px">Původní text</button></span></div>
+    <div class="quick"><button class="btn primary" id="pz_sms"${S.pac.smsDostupne ? '' : ' disabled'}>Poslat SMS</button><button class="btn" id="pz_qr">Zobrazit QR kód (v ordinaci)</button><button class="btn" data-close>Zpět</button></div>
     ${S.pac.smsDostupne ? '' : '<div class="note">SMS teď nejde odeslat – použijte QR kód.</div>'}`, () => {
     $('pz_t').focus();
+    const delka = () => { const t = $('pz_txt').value.replace('{odkaz}', 'x'.repeat(70)); const n = t.length, dia = /[^\x00-\x7F]/.test(t); const na = dia ? 70 : 160, na2 = dia ? 67 : 153; $('pz_len').textContent = `${n} znaků s odkazem ≈ ${n <= na ? 1 : Math.ceil(n / na2)} SMS`; };
+    $('pz_txt').oninput = delka; delka();
+    $('pz_vychozi').onclick = () => { $('pz_txt').value = S.smsPacientVychozi; localStorage.removeItem('kp_sms_pacient'); delka(); };
     const go = async (sms) => {
-      const telefon = $('pz_t').value;
+      const telefon = $('pz_t').value, textSms = $('pz_txt').value.trim();
+      if (sms) { if (textSms && textSms !== S.smsPacientVychozi) localStorage.setItem('kp_sms_pacient', textSms); else localStorage.removeItem('kp_sms_pacient'); }
       try {
-        const r = await C(`/pacient/${S.pacId}/pacientovi`, { method: 'POST', body: { telefon, sms } });
+        const r = await C(`/pacient/${S.pacId}/pacientovi`, { method: 'POST', body: { telefon, sms, text: sms ? textSms : undefined } });
         const smsOk = r.sms && r.sms.ok;
         const qr = qrcode(0, 'M'); qr.addData(r.odkaz); qr.make();
         modal(`<h2>Průkaz pro telefon pacienta</h2>
-          <div class="banner ${smsOk ? 'ok' : 'warn'}" style="margin-bottom:10px">${smsOk ? `Odkaz byl odeslán SMS na <b>${esc(r.telefon)}</b>. Pacient ho otevře ve svém telefonu, potvrdí číslo a nastaví si vlastní PIN.` : `Kód půjde použít jen s číslem <b>${esc(r.telefon)}</b>.`}</div>
+          <div class="banner ${smsOk ? 'ok' : 'warn'}" style="margin-bottom:10px">${smsOk ? `Odkaz byl odeslán SMS na <b>${esc(r.telefon)}</b>. Pacient ho otevře ve svém telefonu, potvrdí číslo a nastaví si vlastní PIN.${r.sms.text ? `<div class="lbl" style="margin-top:6px;white-space:pre-wrap">Odesláno: ${esc(r.sms.text)}</div>` : ''}` : `Kód půjde použít jen s číslem <b>${esc(r.telefon)}</b>.`}</div>
           ${r.sms && !r.sms.ok ? `<div class="banner crit" style="margin-bottom:10px">${esc(r.sms.chyba)}</div>` : ''}
           <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
           <p>Pacient QR kód načte fotoaparátem telefonu, nebo otevře <b>${esc(S.verejna)}/pacient/</b> a zadá:</p>

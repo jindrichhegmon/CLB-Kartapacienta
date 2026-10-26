@@ -67,7 +67,7 @@ central.get('/ja', sUzivatelem(async (q, s) => {
   const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni`);
   const nast = Object.fromEntries(n.map((x) => [x.Klic, x.Hodnota]));
   const pd = await nastaveniPd(q);
-  return { ja: s, nazevSite: nast.NAZEV_SITE || '', nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) },
+  return { ja: s, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) },
     // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
     pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
@@ -439,6 +439,7 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
 }));
 
 /* vlastní telefon pacienta („Můj průkaz“): kód jen pro číslo pacienta, SMS na něj, nebo QR v ordinaci; platí 3 dny */
+export const SMS_PACIENT_VYCHOZI = 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)';
 central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
   if (!op.garant && !op.lekar) throw chyba('Průkaz pacientovi zpřístupňuje garant nebo lékař v týmu', 403);
@@ -457,8 +458,11 @@ central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
   const odkaz = `${config.verejnaAdresa}/pacient/#p=${s.tenant}.${kod}.T${tel.replace(/\D/g, '')}`;   // .T<číslo> = pacient číslo jen potvrdí
   let sms = null;
   if (req.body.sms) {
-    try { await posliSms(tel, `Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: ${odkaz} (platí 3 dny)`); sms = { ok: true };
-      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'odkaz pro vlastní telefon poslán SMS', detail: hezkyTel(tel), ip: s.ip });
+    // text SMS (0.11.20): lékař ho vidí a doplní v okně; {odkaz} se nahradí odkazem, chybí-li, odkaz se připojí na konec
+    let textSms = text(req.body.text, 600).replace(/\s+/g, ' ').trim() || SMS_PACIENT_VYCHOZI;
+    textSms = textSms.includes('{odkaz}') ? textSms.replace(/\{odkaz\}/g, odkaz) : `${textSms} ${odkaz}`;
+    try { await posliSms(tel, textSms); sms = { ok: true, text: textSms };
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'odkaz pro vlastní telefon poslán SMS', detail: `${hezkyTel(tel)}${req.body.text && req.body.text !== SMS_PACIENT_VYCHOZI ? ' · vlastní text' : ''}`, ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }
   return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefon: hezkyTel(tel), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms };

@@ -244,7 +244,7 @@ Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **M
 
 1. V panelu **Vlastní telefon pacienta** klikněte na **Zpřístupnit pacientovi v jeho telefonu**.
 2. Zadejte **mobil pacienta**. Kód půjde použít jen s tímto číslem.
-3. **Poslat odkaz SMS** – pacientovi přijde odkaz; nebo **Zobrazit QR kód (v ordinaci)** – pacient ho načte fotoaparátem.
+3. **Poslat SMS** – pacientovi přijde odkaz; **text SMS vidíte v okně a můžete ho upravit nebo doplnit** (např. jméno lékaře, co má pacient udělat), značka `{odkaz}` se nahradí odkazem pro jeho telefon; aplikace ukazuje délku a počet SMS a upravený text si pamatuje pro příště (tlačítko Původní text ho vrátí). Nebo **Zobrazit QR kód (v ordinaci)** – pacient ho načte fotoaparátem.
 
 ![Zpřístupnění průkazu v telefonu pacienta](/napoveda/img/c-pacientovi.png)
 
