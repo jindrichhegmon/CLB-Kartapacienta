@@ -60,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.22';
+const APP_VERZE = 'pacient-0.11.23';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -520,14 +520,19 @@ async function predvyplnTelefon(predvyplnit, popisTlacitka) {
     const t = $('p_tel'), i = $('p_info'), b = $('p_ok');
     if (r.telefon && t && !t.value) { t.value = r.telefon; if (i) i.textContent = `Kód od lékaře načten. Vaše číslo ${r.telefon} je předvyplněné – stačí potvrdit.`; if (b) b.textContent = popisTlacitka; setTimeout(() => b && b.focus(), 50); }
     else if (i) i.textContent = 'Kód načten – zadejte číslo svého telefonu.';
-  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo svého telefonu (' + (e.message || 'číslo se nepodařilo zjistit') + ').'; if (e.status === 404) i.className = 'banner warn'; } }
+  } catch (e) {
+    if (e.status === 404) { history.replaceState(null, '', location.pathname); return propojeniHTML({}, e.message); }   // prošlý / neplatný kód z odkazu → rovnou nabídnout nový QR kód
+    const i = $('p_info'); if (i) i.textContent = 'Kód načten – zadejte číslo svého telefonu (' + (e.message || 'číslo se nepodařilo zjistit') + ').';
+  }
 }
-function propojeniHTML(predvyplnit = {}) {
+/* propojení; `chyba` (0.11.23) = hláška po neplatném / prošlém kódu z odkazu – obrazovka bez předvyplněného kódu, aby šel hned načíst nový QR kód */
+function propojeniHTML(predvyplnit = {}, chyba = '') {
   hlavicka();
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Propojit s průkazem</h2></div><div class="form" style="padding:14px">
+    ${chyba ? `<div class="banner crit" id="p_chyba">${esc(chyba)}<br>Požádejte lékaře o nový kód a načtěte ho tlačítkem <b>Načíst QR kód</b>, nebo kódy opište.</div>` : ''}
     <div class="note">Kód vám dá lékař – přijde SMS s odkazem, nebo vám v ordinaci ukáže QR kód. Kód platí jen pro vaše číslo telefonu.</div>
     ${jeIosProhlizec() ? '<div class="banner warn">Chcete Můj průkaz jako aplikaci na ploše? Přidejte ho na plochu (Sdílet → Přidat na plochu), otevřete z plochy a propojte tam <b>stejným kódem</b> (QR kód nebo odkaz z SMS – platí 3 dny). Aplikace na ploše má vlastní úložiště; kopie tady v Safari po propojení na ploše skončí.</div>' : ''}
-    ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
+    ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}"><button class="btn" id="p_jiny">Mám jiný kód – načíst QR kód nebo opsat</button>` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy od lékaře:</div>
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters"></div>
@@ -540,6 +545,7 @@ function propojeniHTML(predvyplnit = {}) {
   $('p_ok').onclick = () => propojit($('p_t').value, $('p_k').value, $('p_tel').value);
   if (predvyplnit.kod) predvyplnTelefon(predvyplnit, 'Potvrdit a propojit');
   if ($('p_qr')) $('p_qr').onclick = () => nactiQr();
+  if ($('p_jiny')) $('p_jiny').onclick = () => { history.replaceState(null, '', location.pathname); propojeniHTML(); };
   setTimeout(() => { const t = $('p_tel'); if (t && predvyplnit.kod) t.focus(); }, 50);
 }
 function jeIosProhlizec() {
@@ -592,7 +598,10 @@ async function propojit(tenant, kod, telefon) {
     if (D && D.moje) nove.moje = D.moje;
     pinOkno({ titulek: 'Nastavte si PIN', popis: 'Průkaz je propojený. PINem budete Můj průkaz otevírat a jím jsou data v telefonu zašifrovaná.', zrusit: false,
       hotovo: async (pin) => { D = nove; await nastavPin(pin); posledniAkce = Date.now(); tab = 'prehled'; kresli(); toast('Hotovo – Můj průkaz je ve vašem telefonu'); } });
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    if (e.status === 404) { history.replaceState(null, '', location.pathname); return propojeniHTML({}, e.message); }   // kód vypršel → zpět k načtení QR kódu
+    toast(e.message);
+  }
 }
 
 /* ---------------- start ---------------- */

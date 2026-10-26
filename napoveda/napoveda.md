@@ -468,7 +468,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 ## 18. Časté otázky
 
-**Telefon hlásí „Kód je neplatný nebo vypršel“.** Nejčastěji byl kód mezitím nahrazen novým (každé další Spárovat telefon nebo Poslat SMS po vypršení vydá nový kód) nebo uběhlo 30 minut. Otevřete v centrální aplikaci Spárovat telefon znovu a použijte kód, který je na obrazovce teď; v kioskové aplikaci bez fotoaparátu ho opište ručně i s kódem organizace. Kiosková aplikace nesmí při nečinnosti mazat data webu (cache, úložiště), jinak se karta z telefonu ztratí a bude chtít spárovat znovu.
+**Telefon hlásí „Kód je neplatný nebo vypršel“.** Obrazovka párování se po této hlášce vrátí k tlačítku **Načíst QR kód fotoaparátem** a polím pro opsání kódů, takže nový kód načtete hned; prošlý odkaz z adresy zmizí a při dalším spuštění už se nenabízí. Tlačítko **Mám jiný kód** je i u načteného kódu. Nejčastěji byl kód mezitím nahrazen novým (každé další Spárovat telefon nebo Poslat SMS po vypršení vydá nový kód) nebo uběhlo 30 minut. Otevřete v centrální aplikaci Spárovat telefon znovu a použijte kód, který je na obrazovce teď; v kioskové aplikaci bez fotoaparátu ho opište ručně i s kódem organizace. Kiosková aplikace nesmí při nečinnosti mazat data webu (cache, úložiště), jinak se karta z telefonu ztratí a bude chtít spárovat znovu.
 
 **Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy / hlásí neplatný kód.** Aplikace na ploše má vlastní úložiště, co se spárovalo v Safari, na ploše není. Od verze 0.11.10 použijte v aplikaci na ploše **stejný kód** (odkaz z SMS nebo Načíst QR kód fotoaparátem, kapitola 13) – kód platí 30 minut (Můj průkaz 3 dny) i po prvním spárování; kopie v Safari tím skončí. Po vypršení vydejte v centrální aplikaci nový kód.
 

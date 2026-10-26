@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.22';
+const APP_VERZE = 'karta-0.11.23';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -384,13 +384,15 @@ function bind() {
 }
 
 /* ---------------- párování ---------------- */
-function kresliParovani(predvyplnit = {}) {
+/* párování; `chyba` (0.11.23) = hláška po neplatném / prošlém kódu z odkazu – obrazovka se ukáže bez předvyplněného kódu, aby šel hned načíst nový QR kód nebo opsat nový kód */
+function kresliParovani(predvyplnit = {}, chyba = '') {
   hlavicka();
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>${KARTY.length ? 'Přidat další průkaz do telefonu' : 'Spárovat telefon s průkazem'}</h2></div><div class="form" style="padding:14px">
+    ${chyba ? `<div class="banner crit" id="p_chyba">${esc(chyba)}<br>Požádejte v centrální aplikaci o nový kód (Telefon a PINy → Spárovat telefon) a načtěte ho tlačítkem <b>Načíst QR kód</b>, nebo kódy opište.</div>` : ''}
     ${KARTY.length ? `<div class="banner ok">V telefonu ${KARTY.length === 1 ? 'už je průkaz ' + esc(jmenoKarty(KARTY[0])) : 'už jsou průkazy ' + KARTY.length + ' pacientů'} – zůstanou, nový se přidá. Po spuštění se pak vybírá pacient.</div>` : ''}
     <div class="note">Párovací kód vygeneruje lékař nebo hospic v centrální aplikaci (Telefon a PINy → Spárovat telefon) – odkaz přijde SMS na číslo tohoto telefonu, nebo naskenujte QR kód. Karta jde nahrát jen do telefonu s číslem, které je u pacienta uvedené.</div>
     ${jeIosProhlizec() ? '<div class="banner warn">Chcete kartu jako aplikaci na ploše? Přidejte ji na plochu (Sdílet → Přidat na plochu), otevřete z plochy a spárujte tam <b>stejným kódem</b> (QR kód nebo odkaz z SMS – kód platí 30 minut). Aplikace na ploše má vlastní úložiště; když spárujete i tady v Safari, po spárování na ploše tahle kopie skončí.</div>' : ''}
-    ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}">` : `
+    ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}"><button class="btn" id="p_jiny">Mám jiný kód – načíst QR kód nebo opsat</button>` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
     <button class="btn" id="p_inst" style="display:${instalace ? '' : 'none'}">Přidat kartu na plochu telefonu</button>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy z obrazovky centrální aplikace:</div>
@@ -405,6 +407,7 @@ function kresliParovani(predvyplnit = {}) {
   if ($('p_zpet')) $('p_zpet').onclick = () => { history.replaceState(null, '', location.pathname); D = KARTY.length === 1 ? KARTY[0] : null; kresli(); };
   if (predvyplnit.kod) predvyplnTelefon(predvyplnit, KARTY.length ? 'Potvrdit a přidat průkaz' : 'Potvrdit a spárovat');
   if ($('p_qr')) $('p_qr').onclick = () => nactiQr();
+  if ($('p_jiny')) $('p_jiny').onclick = () => { history.replaceState(null, '', location.pathname); kresliParovani(); };
   setTimeout(() => { const t = $('p_tel'); if (t && predvyplnit.kod) t.focus(); }, 50);
 }
 /* číslo telefonu k načtenému kódu se předvyplní ze serveru – uživatel ho jen potvrdí (může ho i přepsat) */
@@ -417,7 +420,10 @@ async function predvyplnTelefon(predvyplnit, popisTlacitka) {
     const t = $('p_tel'), i = $('p_info'), b = $('p_ok');
     if (r.telefon && t && !t.value) { t.value = r.telefon; if (i) i.textContent = `Kód načten. Číslo telefonu ${r.telefon} je předvyplněné – stačí potvrdit.`; if (b) b.textContent = popisTlacitka; setTimeout(() => b && b.focus(), 50); }
     else if (i) i.textContent = 'Kód načten – zadejte číslo tohoto telefonu.';
-  } catch (e) { const i = $('p_info'); if (i) { i.textContent = e.status === 404 ? e.message : 'Kód načten – zadejte číslo tohoto telefonu (' + (e.message || 'číslo se nepodařilo zjistit') + ').'; if (e.status === 404) i.className = 'banner warn'; } }
+  } catch (e) {
+    if (e.status === 404) { history.replaceState(null, '', location.pathname); return kresliParovani({}, e.message); }   // prošlý / neplatný kód z odkazu → rovnou nabídnout nový QR kód
+    const i = $('p_info'); if (i) i.textContent = 'Kód načten – zadejte číslo tohoto telefonu (' + (e.message || 'číslo se nepodařilo zjistit') + ').';
+  }
 }
 /* iPhone/iPad v Safari (ne z plochy): aplikace přidaná na plochu má oddělené úložiště, takže párovat až v ní */
 function jeIosProhlizec() {
@@ -475,7 +481,10 @@ async function parovat(tenant, kod, telefon) {
     KARTY = KARTY.filter((x) => !(x.tenant === tenant && x.balik && x.balik.pacient && x.balik.pacient.kod === kodPac));
     KARTY.push(k); D = k;
     await uloz(); history.replaceState(null, '', location.pathname); U = { role: null }; tab = 'karta'; kresli(); toast(KARTY.length > 1 ? `Průkaz přidán – v telefonu jsou průkazy ${KARTY.length} pacientů` : 'Průkaz nahrán do telefonu');
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    if (e.status === 404) { history.replaceState(null, '', location.pathname); return kresliParovani({}, e.message); }   // kód vypršel → zpět k načtení QR kódu
+    toast(e.message);
+  }
 }
 
 /* ---------------- start ---------------- */
