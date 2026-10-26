@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.29: krizová karta – oddíl Poslední zápis / Aktuální zhoršení je červený (dřív fialový).
 - 0.11.28: Můj průkaz bez oddílu Příští návštěva (termín návštěvy pacientovi sděluje tým); přání, poznámky a otázky pacienta jdou u propojeného pacienta automaticky i do PéčeDoma (akce `zaznam` aplikace pecedoma-karta → tabulka A_MSPPP_KartaZaznam, portál: Data klienta → Z Karty pacienta); tam jde i každý zápis Zhoršení stavu / Stav stabilizován (historie zhoršení). Interní poznámky: zápisy o zhoršení červeně, stabilizace zeleně.
 - 0.11.27: karta týmu – Poznámky pacienta: řádek s původem a časem má stejné odsazení jako text (dřív bez odsazení zleva).
 - 0.11.26: **automatický přenos** přání, poznámek, otázek a podání léků z Mého průkazu týmu (`POST /api/d/sdilet` s `auto: true`, limit 240/h, bez zápisu do deníku, audit „záznamy pacienta přeneseny automaticky“); telefon posílá 1,2 s po změně, bez připojení při příští synchronizaci (`D.moje.autoCeka`, `autoPoslano`); zelený pruh u přání a poznámek; texty, nápověda kap. 5, 14, 19, CLAUDE.md.
