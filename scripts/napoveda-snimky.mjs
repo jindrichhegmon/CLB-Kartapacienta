@@ -108,7 +108,8 @@ const detail = {
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
   kontakty, tym, garance,
   pecedoma: { klientId: 'a1b2c3d4-0000-4000-8000-000000000001', portalKlientId: 12, odkaz: pdNast.odkaz, nastaveno: true, autoSync: true, sync: pdSync },
-  zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT' },
+  zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT', vytvoreno: cas(-5, '10:58') },
+    { id: 11, stitek: 'dcera Jana', stav: 'CEKA', sparovano: null, sync: null, baterie: null, verzeAplikace: null, fronta: 0, verzePlanu: null, kod: 'Q7X2M4PL', kodPlatnost: cas(2, '09:15'), telefon: '+420777000321', rezim: 'PACIENT', vytvoreno: cas(-1, '09:15') },
     { id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123', rezim: 'ZAPUJCENY' }],
   odPacienta: [{ id: 1, cas: cas(-1, '19:30'), polozky: [
     { druh: 'PRANI', nazev: 'Moje hodnoty a přání', obsah: 'Co je pro mě důležité: zůstat doma s dcerou a vnoučaty, nemít bolesti.\nČeho se obávám: dušení a převozu do nemocnice v noci.\nCo chci, aby lékaři zohlednili: raději úleva než léčba za každou cenu.', puvod: 'údaj pacienta – jak si pamatuji rozhovor se zdravotníkem (MUDr. Ukázková, ' + den(-30).split('-').reverse().map(Number).join('. ') + ')', aktualizovano: cas(-1, '19:20') },
@@ -167,7 +168,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.21', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.22', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -207,6 +208,7 @@ app.post('/api/c/pacient/:id/pecedoma/zprava', j(chatOdpoved('OD_TYMU')));
 app.get('/api/d/pecedoma/zpravy', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/d/pecedoma/zprava', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH.T420777000123`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
+app.post('/api/c/pacient/:id/zarizeni', j({ ok: true }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', 'https://kartapacienta.example/pacient/#p=…') } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
 app.get('/api/c/lide', j({ lide, tymy, clenstvi, role: { LEKAR: 'Lékař a spec. sestra', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
@@ -360,7 +362,8 @@ await zalozka('telefon', 'c-telefon', { vyska: 1000 });
 await klik(p, '#parovat'); await p.waitForSelector('#pr_sms');
 await foto(p, 'c-parovani', { vyska: 1000 });
 await p.evaluate(() => KP.closeModal());
-await klik(p, '#pacientovi'); await p.waitForSelector('#pz_t'); await p.fill('#pz_t', '+420 604 000 777');
+if (!(await p.textContent('#tabbody')).includes('dcera Jana') || !(await p.$('[data-pzrusit="11"]')) || !(await p.$('[data-pznovu="11"]'))) chyby.push('vlastní telefony: čekající odkaz pro rodinu bez přehledu nebo tlačítek Zrušit / Poslat znovu');
+await klik(p, '#pacientovi'); await p.waitForSelector('#pz_t'); await p.fill('#pz_t', '+420 604 000 777'); await p.fill('#pz_s', 'telefon pacienta');
 if (!(await p.inputValue('#pz_txt')).includes('{odkaz}')) chyby.push('zpřístupnění pacientovi: chybí text SMS se značkou {odkaz}');
 await p.fill('#pz_txt', 'Dobrý den, MUDr. Ukázková vám zpřístupnila váš paliativní průkaz. Otevřete prosím odkaz v tomto telefonu: {odkaz} (platí 3 dny). Hospic Ukázka'); await p.evaluate(() => localStorage.removeItem('kp_sms_pacient'));
 await klik(p, '#pz_qr'); await p.waitForSelector('#pz_hot');

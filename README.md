@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.22: Můj průkaz ve **více telefonech** (pacient + rodina, max. 6): `/pacientovi` bere `stitek` (komu) a páruje čekající záznam podle čísla; párování blokuje jen předchozí kopii se stejným číslem (`device.js`); panel „Vlastní telefony pacienta a rodiny“ s přehledem (štítek, číslo, odesláno `vytvoreno`, platnost, stav), **Poslat znovu** a **Zrušit** (`/zarizeni` akce `zrusit`, jen CEKA) u čekajících, Ukončit přístup / Odebrat jako dřív; nápověda kap. 8.
 - 0.11.21: role na kartě `LEKAR` se jmenuje **Lékař a spec. sestra** (ROLE_OSOBY, ROLE_KARTA, KP.ROLE, ROLE_CHAT/ROLE_LEKY, nápověda kap. 10 a 11); práva beze změny – specializovaná sestra s touto rolí upravuje léky na telefonu jako lékař.
 - 0.11.20: Zpřístupnit pacientovi – **text SMS viditelný a upravitelný** v okně (`pz_txt`, značka `{odkaz}`, počet znaků a SMS, pamatuje se v `localStorage.kp_sms_pacient`); server `POST /pacient/:id/pacientovi` bere `text` (≤ 600 znaků, výchozí `SMS_PACIENT_VYCHOZI` i v `/ja`), vrací odeslaný text, audit „vlastní text“.
 - 0.11.19: chat PéčeDoma – bubliny barevně podle autora (`.msg.tym` modře = poskytovatel/tým, `.msg.klient` fialově = klient, rodina, karta) ve všech třech aplikacích; zarovnání vpravo/vlevo zůstává podle toho, kdo chat otevřel.

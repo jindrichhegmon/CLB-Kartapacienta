@@ -238,19 +238,20 @@ Rodině vydejte PIN přímo u pacienta: **jméno držitele**, role **rodina** a 
 
 **Záchranná služba** žádný PIN ani seznam lidí nepotřebuje – krizovou kartu vidí bez přihlášení a jméno a posádku zapíše až u zápisu výjezdu.
 
-### Vlastní telefon pacienta (Můj průkaz)
+### Vlastní telefony pacienta a rodiny (Můj průkaz)
 
-Soběstačný pacient může mít průkaz i ve svém telefonu – v aplikaci **Můj průkaz** (kapitola 19). Zpřístupňuje garant nebo lékař v týmu:
+Pacient i jeho blízcí mohou mít průkaz ve svých telefonech – v aplikaci **Můj průkaz** (kapitola 19), **ve více telefonech najednou** (např. pacient, dcera, syn; nejvýš 6). Zpřístupňuje garant nebo lékař v týmu:
 
-1. V panelu **Vlastní telefon pacienta** klikněte na **Zpřístupnit pacientovi v jeho telefonu**.
-2. Zadejte **mobil pacienta**. Kód půjde použít jen s tímto číslem.
+1. V panelu **Vlastní telefony pacienta a rodiny** klikněte na **Zpřístupnit pacientovi v jeho telefonu** (nebo **Zpřístupnit v dalším telefonu**).
+2. Zadejte **mobil** a **komu** telefon patří (např. „dcera Jana“) – štítek se ukáže v přehledu. Kód půjde použít jen s tímto číslem.
 3. **Poslat SMS** – pacientovi přijde odkaz; **text SMS vidíte v okně a můžete ho upravit nebo doplnit** (např. jméno lékaře, co má pacient udělat), značka `{odkaz}` se nahradí odkazem pro jeho telefon; aplikace ukazuje délku a počet SMS a upravený text si pamatuje pro příště (tlačítko Původní text ho vrátí). Nebo **Zobrazit QR kód (v ordinaci)** – pacient ho načte fotoaparátem.
 
 ![Zpřístupnění průkazu v telefonu pacienta](/napoveda/img/c-pacientovi.png)
 
-- Kód platí **3 dny** a ve stejném telefonu (stejné číslo) jde během platnosti použít znovu – třeba po přidání aplikace na plochu iPhonu. Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.
+- Kód platí **3 dny** a ve stejném telefonu (stejné číslo) jde během platnosti použít znovu – třeba po přidání aplikace na plochu iPhonu. Nový kód pro stejné číslo nahradí jen kopii v tom telefonu, ostatní telefony běží dál.
+- **Přehled**: panel ukazuje každý telefon – komu patří, číslo, stav (**čeká** = odkaz poslán, ale ještě neotevřen, s datem odeslání a platností kódu; **zpřístupněno** s časem posledního spojení; **ukončeno**). U čekajícího odkazu jsou tlačítka **Poslat znovu** (stejný kód, znovu SMS nebo QR) a **Zrušit** (kód přestane platit).
 - Pacient vidí plán, kontakty a tým. **Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí** a do deníku z něj nikdo nezapisuje.
-- **Ukončit přístup** – data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie a smazat ji nelze.
+- **Ukončit přístup** (u zpřístupněného telefonu) – data od lékaře se v tom telefonu přestanou aktualizovat; ostatní telefony to neovlivní. Co už pacient má, je jeho kopie a smazat ji nelze. Ukončený záznam odeberete ze seznamu tlačítkem **Odebrat**.
 - Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
 
 ## 9. Detail pacienta, dokumenty a uzavření průkazu

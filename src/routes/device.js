@@ -78,7 +78,8 @@ device.post('/parovat', h(async (req) => {
     const tajemstvi = randomBytes(20).toString('hex');
     // předchozí telefon pacienta téhož režimu se zablokuje – platí vždy jen jeden zapůjčený a jeden vlastní
     const znovu = z.Stav === 'SPAROVANO';
-    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = @r AND ZarizeniID <> @z`, { p: z.PacientID, r: rezim, z: z.ZarizeniID });
+    // zapůjčený telefon: platí vždy jen jeden; vlastní telefony pacienta a rodiny (0.11.22): víc najednou, zablokuje se jen předchozí kopie se stejným číslem
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = @r AND ZarizeniID <> @z AND (@r = 'ZAPUJCENY' OR Telefon = @tel)`, { p: z.PacientID, r: rezim, z: z.ZarizeniID, tel: telefon });
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'SPAROVANO', TokenHash = @th, Tajemstvi = @t, Sparovano = SYSDATETIME(), PosledniSync = SYSDATETIME(), Telefon = @tel
       WHERE ZarizeniID = @z`, { th: sha256(raw), t: rezim === 'PACIENT' ? null : zasifruj(tajemstvi), tel: telefon, z: z.ZarizeniID });
     if (!znovu) await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: rezim === 'PACIENT' ? `Průkaz zpřístupněn ve vlastním telefonu pacienta (${hezkyTel(telefon)}).` : `Průkaz nahrán do telefonu u pacienta (${hezkyTel(telefon)}).`, autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
