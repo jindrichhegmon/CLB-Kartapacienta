@@ -55,6 +55,7 @@ Menu **Pacienti** ukazuje pacienty, u kterých je vaše pracoviště v týmu (sp
 - Políčko **Hledat** nad seznamem filtruje řádky podle čehokoli, co je v nich vidět: jméno, kód průkazu, adresa, garant, cíl péče. Více slov = všechna musí sedět, diakritika nehraje roli. Stejné hledání je v Lidech a týmech (lidé i týmy), u Pracovišť, Uživatelů, Telefonů a v Logu přístupů.
 - V seznamu je u každého pacienta kód průkazu (`P-0001`), **adresa** (a pod ní pobyt, když se liší), garant, platnost plánu a stav telefonu (zelená tečka = připojil se v posledních 12 hodinách).
 - Pacient v **domově seniorů** nebo jiné pobytové službě má u adresy zelenomodrý štítek **🏠 domov seniorů · název domova** a barevný pruh u řádku; stejný štítek je v záhlaví detailu. Aplikace to pozná podle pracoviště typu „Domov / pobytová služba“ v týmu kolem pacienta, případně podle slova domov v pobytu.
+- **🏷 Štítky na telefony** vytiskne samolepky na zadní stranu telefonů u pacientů najednou (kapitola 8).
 - Přepínačem nahoře zobrazíte **uzavřené průkazy**.
 - Klik na pacienta otevře jeho detail se záložkami (kapitoly 5–9).
 
@@ -218,6 +219,10 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 - Když SMS nejde odeslat, okno napíše proč a spárujete QR kódem.
 - **Zablokovat** – ztracený telefon; při nejbližším připojení se data z něj vymažou. **Vráceno** – zablokovaný telefon, který se vrátil.
 - Změna čísla v Detailu pacienta zablokuje telefon na předchozím čísle.
+
+### Štítek na telefon
+
+Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) nebo **🏷 Štítky na telefony** (v přehledu Pacienti, pro víc pacientů najednou) vytiskne samolepky na zadní stranu zapůjčeného telefonu. Na štítku je **komu telefon patří** (garant pacienta, např. Centrum pro léčbu bolesti; jde přepsat jedním textem pro všechny), **jméno pacienta a kód průkazu** (lze vypnout) a velkým písmem **kam volat** při nálezu nebo potížích (telefon 24/7 garanta, jinak zadané číslo). Formát: samolepky **70 × 37 mm, 3 vedle sebe a 8 pod sebou na archu A4** (Rayfilm / Avery 70 × 37, 24 kusů). V okně vyberete pacienty (předvybraní jsou ti s telefonem), počet štítků na pacienta a **první volný štítek** na načatém archu; tiskněte v měřítku 100 %.
 
 ### Kód lékaře
 
