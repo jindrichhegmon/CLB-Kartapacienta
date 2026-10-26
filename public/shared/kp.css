@@ -117,6 +117,9 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .chip.ok{background:var(--ok-soft);color:var(--ok)}
 .chip.acc{background:var(--accent-soft);color:var(--accent-ink)}
 .chip.vio{background:var(--violet-soft);color:var(--violet)}
+/* pacient v domově seniorů / pobytové službě (0.11.16): zelenomodrý štítek a pruh u řádku */
+.chip.dom{background:#dff3ef;color:#0f6e5c}
+tr.vdomove>td:first-child{box-shadow:inset 5px 0 0 #1c9c84}
 /* crisis card */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 4px 16px var(--stin)}
 .card .hdr{background:linear-gradient(90deg,var(--top1),var(--accent));color:#fff;padding:14px 18px 12px}

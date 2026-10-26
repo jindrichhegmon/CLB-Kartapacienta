@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.16: pacient v domově seniorů odlišený v přehledu (štítek `.chip.dom` + pruh `tr.vdomove`) a v záhlaví detailu; `/prehled` vrací `domov` = název pracoviště typu DOMOV v aktivním týmu, frontend `vDomove()` s náhradou podle textu pobytu.
 - 0.11.15: Pacienti – panel Upozornění jako `<details>` (nad 3 zavřený, souhrn podle druhu, stav v `localStorage.kp_upoz`), sloupec **Adresa** místo Pobyt (`/prehled` vrací `adresa`, pobyt jako podřádek), **fulltextové hledání** v agendách (`hledatHTML`/`bindHledani`: Pacienti, Lidé a týmy, Pracoviště, Uživatelé, Telefony, Log přístupů; filtruje řádky tabulek bez diakritiky, text se pamatuje v `S.hledat`).
 - 0.11.14: centrální aplikace přes celou šířku obrazovky (`.app.wide{max-width:none}`; dřív 1180 px), od 1500 px větší boční odsazení.
 - 0.11.13: políčka vedle sebe (`.frow`) v jedné úrovni: `.field` uvnitř řádku je `display:contents`, popisek / políčko / nápověda mají každý svůj řádek mřížky (popisek zarovnaný dolů), takže dvouřádkový popisek ani nápověda pod políčkem souseda neposunou. Snímkový skript hlídá, že horní hrany políček v jednom řádku jsou stejné.

@@ -53,7 +53,8 @@ Menu **Pacienti** ukazuje pacienty, u kterých je vaše pracoviště v týmu (sp
 
 - Nahoře je panel **Upozornění**: plán po platnosti nebo blížící se revize, probíhající zhoršení stavu, telefon se dlouho nepřipojil nebo má slabou baterii, průkaz ještě není v žádném telefonu, čekající předání garance, nemocnice garantem déle než 30 dní, pacient bez garanta. Klik na upozornění otevře pacienta. Panel se klepnutím na záhlaví **sbalí a rozbalí** – při více než třech upozorněních je zavřený a v záhlaví ukazuje jen souhrn (např. „1× probíhá zhoršení stavu · 13× průkaz zatím není v žádném telefonu“); prohlížeč si pamatuje, jak jste ho nechali.
 - Políčko **Hledat** nad seznamem filtruje řádky podle čehokoli, co je v nich vidět: jméno, kód průkazu, adresa, garant, cíl péče. Více slov = všechna musí sedět, diakritika nehraje roli. Stejné hledání je v Lidech a týmech (lidé i týmy), u Pracovišť, Uživatelů, Telefonů a v Logu přístupů.
-- V seznamu je u každého pacienta kód průkazu (`P-0001`), **adresa** (a pod ní pobyt, když se liší, např. domov seniorů), garant, platnost plánu a stav telefonu (zelená tečka = připojil se v posledních 12 hodinách).
+- V seznamu je u každého pacienta kód průkazu (`P-0001`), **adresa** (a pod ní pobyt, když se liší), garant, platnost plánu a stav telefonu (zelená tečka = připojil se v posledních 12 hodinách).
+- Pacient v **domově seniorů** nebo jiné pobytové službě má u adresy zelenomodrý štítek **🏠 domov seniorů · název domova** a barevný pruh u řádku; stejný štítek je v záhlaví detailu. Aplikace to pozná podle pracoviště typu „Domov / pobytová služba“ v týmu kolem pacienta, případně podle slova domov v pobytu.
 - Přepínačem nahoře zobrazíte **uzavřené průkazy**.
 - Klik na pacienta otevře jeho detail se záložkami (kapitoly 5–9).
 
