@@ -544,7 +544,7 @@ function pacientoviOkno(tel = '') {
           <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
           <p>Pacient QR kód načte fotoaparátem telefonu, nebo otevře <b>${esc(S.verejna)}/pacient/</b> a zadá:</p>
           <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Kód od lékaře</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
-          <p class="muted">Platí do ${esc(new Date(r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))} a jen jednou. Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.</p>
+          <p class="muted">Platí do ${esc(new Date(r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))} ; ve stejném telefonu ho jde během platnosti použít znovu (třeba po přidání aplikace na plochu). Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.</p>
           <div class="quick"><button class="btn" id="pz_hot">Hotovo</button></div>`, () => { $('pz_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; });
       } catch (e) { toast(e.message); }
     };
