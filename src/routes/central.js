@@ -87,7 +87,7 @@ const VIDITELNI = `(@admin = 1 OR EXISTS (SELECT 1 FROM dbo.A_KP_Tym t WHERE t.P
 central.get('/prehled', sUzivatelem(async (q, s, req) => {
   const stav = req.query.stav === 'UZAVRENY' ? 'UZAVRENY' : 'AKTIVNI';
   const pacienti = await q.all(`
-    SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, p.Pobyt AS pobyt, p.Stav AS stav,
+    SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, p.Pobyt AS pobyt, p.Adresa AS adresa, p.Stav AS stav,
       CONVERT(char(16), p.Zalozeno, 120) AS zalozeno, CONVERT(char(16), p.Uzavreno, 120) AS uzavreno,
       pv.Verze AS verze, CONVERT(char(10), pv.PlatnostDo, 23) AS platnostDo, JSON_VALUE(pv.Data, '$.cil') AS cil,
       g.PoskytovatelID AS garantId, gp.Nazev AS garant, gp.Typ AS garantTyp, CONVERT(char(16), g.Od, 120) AS garantOd,

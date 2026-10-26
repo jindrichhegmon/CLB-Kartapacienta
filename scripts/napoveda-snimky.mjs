@@ -120,9 +120,9 @@ const detail = {
   op: { vidi: true, aktivni: true, lekar: true, garant: true, zapis: true, prijmoutGaranci: false, navrhGaranceId: null }, smsDostupne: true,
 };
 const pacienti = [
-  { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rok: 1941, pobyt: 'doma', stav: 'AKTIVNI', zalozeno: cas(-21, '09:10'), verze: 3, platnostDo: den(70), cil: 'symptom', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-21, '09:10'), sync: cas(0, '08:12'), baterie: 76, telefonu: 1, posledniKrize: null, posledniZapis: cas(-1, '18:15') },
-  { id: 2, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12', stav: 'AKTIVNI', zalozeno: cas(-50, '10:00'), verze: 2, platnostDo: den(9), cil: 'limited', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-50, '10:00'), sync: cas(0, '07:50'), baterie: 15, telefonu: 1, posledniKrize: 'Zhoršení stavu', posledniZapis: cas(0, '06:30') },
-  { id: 3, kod: 'P-0009', jmeno: 'Anna', prijmeni: 'Vzorová', rok: 1950, pobyt: 'doma', stav: 'AKTIVNI', zalozeno: cas(-3, '14:00'), verze: 1, platnostDo: den(88), cil: 'symptom', garantId: 4, garant: 'Krajská nemocnice – interna', garantTyp: 'NEMOCNICE', garantOd: cas(-3, '14:00'), sync: null, baterie: null, telefonu: 0, posledniKrize: null, posledniZapis: cas(-3, '14:00') },
+  { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rok: 1941, pobyt: 'doma', adresa: 'Lipová 12, Zlín', stav: 'AKTIVNI', zalozeno: cas(-21, '09:10'), verze: 3, platnostDo: den(70), cil: 'symptom', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-21, '09:10'), sync: cas(0, '08:12'), baterie: 76, telefonu: 1, posledniKrize: null, posledniZapis: cas(-1, '18:15') },
+  { id: 2, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12', adresa: 'Zahradní 5, Otrokovice', stav: 'AKTIVNI', zalozeno: cas(-50, '10:00'), verze: 2, platnostDo: den(9), cil: 'limited', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-50, '10:00'), sync: cas(0, '07:50'), baterie: 15, telefonu: 1, posledniKrize: 'Zhoršení stavu', posledniZapis: cas(0, '06:30') },
+  { id: 3, kod: 'P-0009', jmeno: 'Anna', prijmeni: 'Vzorová', rok: 1950, pobyt: 'doma', adresa: 'Polní 3, Zlín', stav: 'AKTIVNI', zalozeno: cas(-3, '14:00'), verze: 1, platnostDo: den(88), cil: 'symptom', garantId: 4, garant: 'Krajská nemocnice – interna', garantTyp: 'NEMOCNICE', garantOd: cas(-3, '14:00'), sync: null, baterie: null, telefonu: 0, posledniKrize: null, posledniZapis: cas(-3, '14:00') },
 ];
 const upozorneni = [
   { uroven: 'crit', pacientId: 2, text: 'Příkladný Josef: probíhá zhoršení stavu' },
@@ -167,7 +167,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.14', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.15', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -288,6 +288,16 @@ await p.close();
 
 p = await stranka({ session: 'ukazka' });
 await p.goto(`${URL}/centrala/`); await p.waitForSelector('tr[data-id]');
+if (await p.$('#upoz[open]')) chyby.push('Upozornění: při 4 upozorněních má být panel zavřený');
+if (!(await p.textContent('#upoz summary .souhrn')).includes('1× probíhá zhoršení stavu')) chyby.push('Upozornění: souhrn zavřeného panelu ' + (await p.textContent('#upoz summary .souhrn')));
+await klik(p, '#upoz summary'); await p.waitForSelector('#upoz[open]');
+if ((await p.evaluate(() => localStorage.getItem('kp_upoz'))) !== '1') chyby.push('Upozornění: rozbalení se nezapamatovalo');
+if (!(await p.textContent('thead')).includes('Adresa') || !(await p.textContent('tr[data-id="1"]')).includes('Lipová 12')) chyby.push('Pacienti: chybí sloupec Adresa');
+await p.fill('#hl_pac', 'prikladny'); await p.waitForTimeout(100);
+if ((await p.$$eval('tr[data-id]', (rs) => rs.filter((r) => !r.hidden).length)) !== 1) chyby.push('hledání v pacientech nevyfiltrovalo jediný řádek');
+if ((await p.textContent('#hlp_pac')) !== '1 z 3') chyby.push('hledání: špatný počet ' + (await p.textContent('#hlp_pac')));
+await p.fill('#hl_pac', ''); await p.waitForTimeout(100);
+await p.evaluate(() => localStorage.removeItem('kp_upoz'));
 await foto(p, 'c-pacienti');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' });
 await foto(p, 'c-novy-1');

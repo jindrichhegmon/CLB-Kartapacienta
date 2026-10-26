@@ -51,8 +51,9 @@ Menu **Pacienti** ukazuje pacienty, u kterých je vaše pracoviště v týmu (sp
 
 ![Přehled pacientů s upozorněními](/napoveda/img/c-pacienti.png)
 
-- Nahoře je panel **Upozornění**: plán po platnosti nebo blížící se revize, probíhající zhoršení stavu, telefon se dlouho nepřipojil nebo má slabou baterii, průkaz ještě není v žádném telefonu, čekající předání garance, nemocnice garantem déle než 30 dní, pacient bez garanta. Klik na upozornění otevře pacienta.
-- V seznamu je u každého pacienta kód průkazu (`P-0001`), garant, platnost plánu a stav telefonu (zelená tečka = připojil se v posledních 12 hodinách).
+- Nahoře je panel **Upozornění**: plán po platnosti nebo blížící se revize, probíhající zhoršení stavu, telefon se dlouho nepřipojil nebo má slabou baterii, průkaz ještě není v žádném telefonu, čekající předání garance, nemocnice garantem déle než 30 dní, pacient bez garanta. Klik na upozornění otevře pacienta. Panel se klepnutím na záhlaví **sbalí a rozbalí** – při více než třech upozorněních je zavřený a v záhlaví ukazuje jen souhrn (např. „1× probíhá zhoršení stavu · 13× průkaz zatím není v žádném telefonu“); prohlížeč si pamatuje, jak jste ho nechali.
+- Políčko **Hledat** nad seznamem filtruje řádky podle čehokoli, co je v nich vidět: jméno, kód průkazu, adresa, garant, cíl péče. Více slov = všechna musí sedět, diakritika nehraje roli. Stejné hledání je v Lidech a týmech (lidé i týmy), u Pracovišť, Uživatelů, Telefonů a v Logu přístupů.
+- V seznamu je u každého pacienta kód průkazu (`P-0001`), **adresa** (a pod ní pobyt, když se liší, např. domov seniorů), garant, platnost plánu a stav telefonu (zelená tečka = připojil se v posledních 12 hodinách).
 - Přepínačem nahoře zobrazíte **uzavřené průkazy**.
 - Klik na pacienta otevře jeho detail se záložkami (kapitoly 5–9).
 
