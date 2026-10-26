@@ -60,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.24';
+const APP_VERZE = 'pacient-0.11.25';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -245,8 +245,11 @@ function puvodPrani(p) {
   const z = PUVOD_PRANI[p.puvod] || PUVOD_PRANI.vlastni;
   return 'údaj pacienta – ' + z + (p.puvod !== 'vlastni' && (p.rozhovorKdo || p.rozhovorDatum) ? ` (${[p.rozhovorKdo, p.rozhovorDatum ? fmtD(p.rozhovorDatum) : ''].filter(Boolean).join(', ')})` : '');
 }
+/* připomínka (0.11.25): vlastní záznamy jdou týmu až po odeslání v oddílu Sdílet – tlačítko rovnou vede tam */
+const poslatBanner = (co) => `<div class="banner warn keep" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:0"><span style="flex:1;min-width:180px">Tým ${co} uvidí až po odeslání v oddílu Sdílet.</span><button class="btn sm primary" data-sdilet>Poslat týmu</button></div>`;
 function praniHTML() {
   const p = D.moje.prani;
+  const vyplneno = ['dulezite', 'obavy', 'rozhodovani', 'kdo'].some((k) => (p[k] || '').trim());
   const pole = (id, n, ph) => `<div class="field"><label>${n}</label><textarea id="pr_${id}" style="font-family:var(--font);min-height:80px" placeholder="${ph}">${esc(p[id] || '')}</textarea></div>`;
   return `<div class="panel"><div class="panel-h"><h2>Moje hodnoty a přání</h2><span class="chip pac">údaj pacienta</span></div><div class="form" style="padding:14px">
       ${pole('dulezite', 'Co je pro mě důležité', 'např. být doma, mít kolem sebe rodinu, nemít bolesti…')}
@@ -257,6 +260,7 @@ function praniHTML() {
       <div class="frow" id="pr_rozh" style="${(p.puvod || 'vlastni') === 'vlastni' ? 'display:none' : ''}"><div class="field"><label>S kým / odkud</label><input id="pr_rk" value="${esc(p.rozhovorKdo || '')}" placeholder="např. MUDr. Nováková, hospic"></div><div class="field"><label>Kdy</label><input type="date" id="pr_rd" value="${esc(p.rozhovorDatum || '')}"></div></div>
       <button class="btn primary ulozit" id="pr_ok">Uložit do telefonu</button>
       ${p.aktualizovano ? `<div class="note">Naposledy upraveno ${esc(fmtDT(p.aktualizovano))}.</div>` : ''}</div></div>
+    ${vyplneno ? poslatBanner('vaše přání') : ''}
     <div class="banner warn" style="display:block"><b>Toto není dříve vyslovené přání podle zákona.</b> Je to váš osobní záznam pro rozhovor s lékařem a pro blízké. Platné dříve vyslovené přání se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.</div>`;
 }
 /* ---- podání léků (0.11.9): pacient si u každého léku zaznamená, jestli ho ten den vzal; záznamy jsou jen pro doplňování a zůstávají v telefonu ---- */
@@ -294,6 +298,7 @@ function poznamkyHTML() {
       <div class="field"><label>Druh</label><select id="pz_d"><option value="OTAZKY">otázka pro lékaře</option><option value="POZNAMKA">poznámka (jak se mám, co se stalo)</option></select></div>
       <div class="field"><label>Text</label><textarea id="pz_t" style="font-family:var(--font);min-height:80px"></textarea></div>
       <button class="btn primary ulozit" id="pz_ok">Uložit do telefonu</button></div></div>
+    ${m.length ? poslatBanner('vaše poznámky a otázky') : ''}
     <div class="panel"><div class="panel-h"><h2>Moje poznámky a otázky</h2><span class="chip">${m.length}</span></div>
       ${m.map((x) => `<div class="lek-row"><div><span class="chip ${x.druh === 'OTAZKY' ? 'acc' : ''}">${x.druh === 'OTAZKY' ? 'otázka' : 'poznámka'}</span> <span class="lbl">${esc(fmtDT(x.cas))}</span><div style="white-space:pre-wrap;margin-top:4px">${esc(x.text)}</div></div><button class="btn sm" data-ps="${x.id}">Smazat</button></div>`).join('') || '<div class="rolehelp muted">Zatím nic.</div>'}</div>`;
 }
@@ -321,12 +326,13 @@ function polozkySouhrnu(b) {
     { id: 'POZNAMKA', druh: 'POZNAMKA', nazev: 'Moje poznámky', puvod: 'údaj pacienta', aktualizovano: m.poznamky.filter((x) => x.druh !== 'OTAZKY').map((x) => x.cas).sort().pop(),
       obsah: m.poznamky.filter((x) => x.druh !== 'OTAZKY').map((x) => `${fmtDT(x.cas)}: ${x.text}`).join('\n') },
   ];
-  return out.filter((x) => x.obsah);
+  return out.filter((x) => x.obsah || x.druh);   // vlastní položky i prázdné – v Sdílet se ukážou šedě s radou, kde je vyplnit (0.11.25)
 }
 function sdiletHTML(b) {
   const pol = polozkySouhrnu(b);
   return `<div class="panel"><div class="panel-h"><h2>Co chcete předat</h2></div><div class="form vyber" style="padding:6px 14px 14px">
-      ${pol.map((x) => `<label><input type="checkbox" value="${x.id}" ${x.druh ? 'checked' : ''}><span><b>${esc(x.nazev)}</b> <span class="chip ${x.druh ? 'pac' : 'lek'}">${x.druh ? 'údaj pacienta' : 'od lékaře'}</span><br><span class="lbl">${esc(x.puvod)}${x.aktualizovano && x.druh ? ' · aktualizováno ' + esc(fmtDT(x.aktualizovano)) : ''}</span></span></label>`).join('') || '<div class="muted">Zatím není co předat.</div>'}
+      ${pol.map((x) => x.obsah ? `<label><input type="checkbox" value="${x.id}" ${x.druh ? 'checked' : ''}><span><b>${esc(x.nazev)}</b> <span class="chip ${x.druh ? 'pac' : 'lek'}">${x.druh ? 'údaj pacienta' : 'od lékaře'}</span><br><span class="lbl">${esc(x.puvod)}${x.aktualizovano && x.druh ? ' · aktualizováno ' + esc(fmtDT(x.aktualizovano)) : ''}</span></span></label>`
+        : `<label style="opacity:.6"><input type="checkbox" disabled><span><b>${esc(x.nazev)}</b> <span class="chip">zatím prázdné</span><br><span class="lbl">vyplňte v oddílu ${esc({ PRANI: 'Přání', PODANI: 'Léky (Podán / Nepodán)', OTAZKY: 'Poznámky pacienta', POZNAMKA: 'Poznámky pacienta' }[x.druh] || x.nazev)}</span></span></label>`).join('') || '<div class="muted">Zatím není co předat.</div>'}
       <button class="btn primary" id="sd_nahled">Zobrazit náhled</button></div></div>
     <div class="note">Nejdřív uvidíte přesný náhled. Pak můžete souhrn <b>vytisknout</b> (nebo uložit jako PDF), <b>poslat svému týmu</b> do centrální aplikace, nebo <b>poslat jinam</b> (e-mail, zpráva). Týmu jdou jen vaše vlastní údaje – údaje od lékaře tým už má.</div>
     ${D.moje.sdileno.length ? `<div class="panel"><div class="panel-h"><h2>Poslané týmu</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${[...D.moje.sdileno].reverse().slice(0, 10).map((x) => `<li>${esc(fmtDT(x.cas))} – ${esc(x.polozky.join(', '))}</li>`).join('')}</ul></div>` : ''}`;
@@ -346,7 +352,7 @@ function souhrnText(vybrane) {
 }
 function nahled() {
   const ids = [...document.querySelectorAll('.vyber input:checked')].map((i) => i.value);
-  const vybrane = polozkySouhrnu(D.balik).filter((x) => ids.includes(x.id));
+  const vybrane = polozkySouhrnu(D.balik).filter((x) => ids.includes(x.id) && x.obsah);
   if (!vybrane.length) return toast('Vyberte, co chcete předat');
   const vlastni = vybrane.filter((x) => x.druh);
   modal(`<h2>Náhled</h2>${souhrnHTML(vybrane)}
@@ -438,12 +444,13 @@ function bind() {
   on('pr_ok', async () => {
     const v = (id) => $('pr_' + id).value.trim();
     D.moje.prani = { dulezite: v('dulezite'), obavy: v('obavy'), rozhodovani: v('rozhodovani'), kdo: v('kdo'), puvod: $('pr_puvod').value, rozhovorKdo: v('rk'), rozhovorDatum: $('pr_rd').value, aktualizovano: KP.casLokalni() };
-    await uloz(); kresli(); toast('Uloženo do telefonu');
+    await uloz(); kresli(); toast('Uloženo do telefonu – týmu pošlete tlačítkem Poslat týmu');
   });
   document.querySelectorAll('[data-pod]').forEach((b) => (b.onclick = async () => { const z = JSON.parse(b.dataset.pod); D.moje.podani = D.moje.podani || []; D.moje.podani.push({ id: KP.uuid(), klic: z.klic, nazev: z.nazev, stav: z.stav, cas: KP.casLokalni() }); await uloz(); kresli(); toast(z.stav === 'PODAN' ? `Zaznamenáno: ${z.nazev} podán` : `Zaznamenáno: ${z.nazev} nepodán`); }));
   document.querySelectorAll('[data-podh]').forEach((b) => (b.onclick = () => { const z = JSON.parse(b.dataset.podh); historiePodani(z.klic, z.nazev); }));
   on('pod_hist', () => historiePodani());
-  on('pz_ok', async () => { const t = $('pz_t').value.trim(); if (!t) return toast('Napište text'); D.moje.poznamky.push({ id: KP.uuid(), druh: $('pz_d').value, text: t, cas: KP.casLokalni() }); await uloz(); kresli(); toast('Uloženo do telefonu'); });
+  document.querySelectorAll('[data-sdilet]').forEach((b) => (b.onclick = () => { tab = 'sdilet'; kresli(); scrollTo(0, 0); }));
+  on('pz_ok', async () => { const t = $('pz_t').value.trim(); if (!t) return toast('Napište text'); D.moje.poznamky.push({ id: KP.uuid(), druh: $('pz_d').value, text: t, cas: KP.casLokalni() }); await uloz(); kresli(); toast('Uloženo do telefonu – týmu pošlete tlačítkem Poslat týmu'); });
   document.querySelectorAll('[data-ps]').forEach((b) => (b.onclick = async () => { if (!(await KP.confirm('Smazat poznámku', 'Poznámka se smaže z telefonu. Co už jste poslali týmu, zůstane u týmu.', 'Smazat', true))) return; D.moje.poznamky = D.moje.poznamky.filter((x) => x.id !== b.dataset.ps); await uloz(); kresli(); }));
   on('sd_nahled', nahled);
   const nz = async () => { D.moje.nouze = { dg: $('nz_dg').checked, cil: $('nz_cil').checked }; $('nz_t').value = nouzeText(D.balik, D.moje.nouze); await uloz(); };

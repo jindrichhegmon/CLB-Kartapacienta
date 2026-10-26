@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.25: Můj průkaz – u Přání a Poznámek pacienta pruh **Poslat týmu** (vede do Sdílet), hláška po uložení; v Sdílet se prázdné vlastní položky ukazují šedě s radou (polozkySouhrnu vrací i prázdné `druh` položky, odeslání filtruje `obsah`).
 - 0.11.24: karta týmu – dlaždice **Interní poznámky** (dřív Deník) a nová **Poznámky pacienta** (sdílené položky z `A_KP_Sdileni` v balíku `odPacienta`, poslední verze každého druhu, jen ke čtení; 9 dlaždic ve 3 sloupcích); Můj průkaz – dlaždice **Poznámky pacienta**; nápověda kap. 14 a 19, snímek k-od-pacienta.
 - 0.11.23: telefon i Můj průkaz – po neplatném/prošlém kódu z odkazu (404 z `parovaci-info` nebo `parovat`) se párovací obrazovka vykreslí bez předvyplněného kódu s hláškou a tlačítkem Načíst QR kód; hash se smaže; tlačítko „Mám jiný kód“ u načteného kódu; nápověda kap. 18.
 - 0.11.22: Můj průkaz ve **více telefonech** (pacient + rodina, max. 6): `/pacientovi` bere `stitek` (komu) a páruje čekající záznam podle čísla; párování blokuje jen předchozí kopii se stejným číslem (`device.js`); panel „Vlastní telefony pacienta a rodiny“ s přehledem (štítek, číslo, odesláno `vytvoreno`, platnost, stav), **Poslat znovu** a **Zrušit** (`/zarizeni` akce `zrusit`, jen CEKA) u čekajících, Ukončit přístup / Odebrat jako dřív; nápověda kap. 8.
