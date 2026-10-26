@@ -11,7 +11,7 @@ export const TYPY_POSKYTOVATELE = { NEMOCNICE: 'Nemocnice', HOSPIC: 'Mobilní ho
 export const TYPY_DENIKU = ['Založení', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Revize', 'Úprava údajů', 'Předání garance', 'Ukončení', 'Systém'];
 
 /** Role lidí pracovišť na kartě (jako v demu): lékař, praktický lékař, hospic, sestra DPS. Rodina má PIN u konkrétního pacienta, ZZS žádný. */
-export const ROLE_OSOBY = { LEKAR: 'Lékař', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' };
+export const ROLE_OSOBY = { LEKAR: 'Lékař a spec. sestra', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' };
 /** Role z textu (CSV, PéčeDoma: lekar / sestra / casemanager…) podle typu pracoviště; neznámá → null */
 export function roleOsoby(v, typPracoviste = '') {
   const t = String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

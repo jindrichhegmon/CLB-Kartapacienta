@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.20';
+const APP_VERZE = 'karta-0.11.21';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -151,10 +151,10 @@ setInterval(() => { if (U.role && Date.now() - U.posledni > ZAMEK_MS) { zamkni()
 function zamkni() { U = { role: null }; tab = 'karta'; closeModal(); if (KARTY.length > 1) D = null; kresli(); }
 
 /* ---------------- vykreslení ---------------- */
-const ROLE_NAZ = { lekar: 'lékař', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS' };
+const ROLE_NAZ = { lekar: 'lékař / spec. sestra', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS' };
 /* co která role na kartě smí (jako v demu); typy zápisů odpovídají serveru (src/routes/device.js POVOLENE), zhoršení zapisuje průvodce */
 const ROLE_KARTA = {
-  lekar: { nazev: 'Lékař', c: 'var(--accent)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče (cíl, limitace, léky) měníte v centrální aplikaci – telefon ho jen zobrazuje.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Návštěva hospice', 'Telefonát'] },
+  lekar: { nazev: 'Lékař a spec. sestra', c: 'var(--accent)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Léky upravujete přímo tady na telefonu, cíl péče a limitace mění lékař v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Návštěva hospice', 'Telefonát'] },
   pl: { nazev: 'Praktický lékař', c: 'var(--accent-ink)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče měníte v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Telefonát'] },
   hospic: { nazev: 'Hospic', c: 'var(--violet)', popis: 'Vidíte celý záznam, zapisujete do deníku a jste prvním kontaktem při zhoršení. Plán péče mění lékař.', typy: ['Návštěva hospice', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát'] },
   sestra: { nazev: 'Sestra DPS', c: 'var(--ok)', popis: 'Vidíte celý záznam, zapisujete stav a podané SOS léky, při zhoršení vyplníte průvodce. Plán péče měnit nemůžete.', typy: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát', 'Pozorování rodiny'] },

@@ -274,7 +274,7 @@ Role jsou stejné jako v ukázkové verzi. Každý po odemknutí karty vidí nah
 
 | Role | Jak se dostane ke kartě | Co vidí | Co zapisuje do deníku |
 |---|---|---|---|
-| Lékař | osobní PIN (Lidé a týmy) nebo kód lékaře dne | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, návštěva hospice, telefonát, zhoršení |
+| Lékař a spec. sestra | osobní PIN (Lidé a týmy) nebo kód lékaře dne | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, návštěva hospice, telefonát, zhoršení |
 | Praktický lékař | osobní PIN nebo kód lékaře dne | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, telefonát, zhoršení |
 | Hospic | osobní PIN | celý záznam, je prvním kontaktem při zhoršení | návštěva hospice, změna stavu, podán SOS lék, návštěva lékaře, telefonát, zhoršení |
 | Sestra DPS | osobní PIN | celý záznam | změna stavu, podán SOS lék, návštěva lékaře, telefonát, pozorování, zhoršení |
@@ -303,7 +303,7 @@ Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapito
 
 ### Přidání člověka
 
-**+ Člověk**: pracoviště, jméno, **role na kartě** (lékař, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
+**+ Člověk**: pracoviště, jméno, **role na kartě** (lékař a spec. sestra, praktický lékař, hospic, sestra DPS), telefon, e-mail. Po uložení se zobrazí **osobní PIN** – jen jednou. Když je zaškrtnuté **poslat osobní PIN SMS**, přijde mu PIN na telefon.
 
 ![Úprava člověka – role na kartě a nový PIN](/napoveda/img/c-osoba.png)
 

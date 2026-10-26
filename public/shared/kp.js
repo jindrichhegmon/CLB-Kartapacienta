@@ -187,7 +187,7 @@
     </div>`;
   };
 
-  KP.ROLE = { lekar: 'lékař', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', system: 'systém', pacient: 'pacient' };
+  KP.ROLE = { lekar: 'lékař / spec. sestra', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', system: 'systém', pacient: 'pacient' };
   KP.SYSTEM_TYPY = ['Systém', 'Úprava údajů'];   // zápisy o nastavování, ne o pacientovi
   /* deník: primárně jen zápisy o pacientovi; systémové (párování, propojení, změna čísla…) jsou sbalené na konci */
   KP.denikHTML = (denik, { role = true, system = true } = {}) => {

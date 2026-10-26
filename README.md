@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.21: role na kartě `LEKAR` se jmenuje **Lékař a spec. sestra** (ROLE_OSOBY, ROLE_KARTA, KP.ROLE, ROLE_CHAT/ROLE_LEKY, nápověda kap. 10 a 11); práva beze změny – specializovaná sestra s touto rolí upravuje léky na telefonu jako lékař.
 - 0.11.20: Zpřístupnit pacientovi – **text SMS viditelný a upravitelný** v okně (`pz_txt`, značka `{odkaz}`, počet znaků a SMS, pamatuje se v `localStorage.kp_sms_pacient`); server `POST /pacient/:id/pacientovi` bere `text` (≤ 600 znaků, výchozí `SMS_PACIENT_VYCHOZI` i v `/ja`), vrací odeslaný text, audit „vlastní text“.
 - 0.11.19: chat PéčeDoma – bubliny barevně podle autora (`.msg.tym` modře = poskytovatel/tým, `.msg.klient` fialově = klient, rodina, karta) ve všech třech aplikacích; zarovnání vpravo/vlevo zůstává podle toho, kdo chat otevřel.
 - 0.11.18: párovací kód se znovu nevydává, dokud platí (karta ≥ 10 min, Můj průkaz ≥ 1 h a stejné číslo) – QR, SMS i další kliknutí vrací stejný kód (audit „párovací kód zobrazen znovu“); nápověda kap. 8 a 18.

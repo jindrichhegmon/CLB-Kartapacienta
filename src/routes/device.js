@@ -150,7 +150,7 @@ device.post('/sync', h(async (req) => {
 const DRUHY_SDILENI = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', PODANI: 'Podání léků', POZNAMKA: 'Poznámka pacienta', OTAZKY: 'Otázky pro lékaře' };
 /* chat PéčeDoma z telefonu (od 0.8.0): zapůjčený telefon (rodina, tým u pacienta) i Můj průkaz píší „za stranu pacienta“ (OD_PACIENTA)
    se značkou [Karta · kdo]; čtení i psaní jde přes server Karty s partnerským klíčem, telefon token PéčeDoma nikdy nedostane. */
-const ROLE_CHAT = { lekar: 'lékař', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař' };
+const ROLE_CHAT = { lekar: 'lékař / spec. sestra', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař' };
 function overAktivni(z) {
   if (z.Stav === 'SPAROVANO') return;
   throw chyba(z.Rezim === 'PACIENT' ? 'Lékař ukončil přístup k průkazu v tomto telefonu – zprávy nelze číst ani posílat. Pokud jde o omyl, požádejte o nový kód.'
@@ -166,11 +166,11 @@ async function chatKontext(q, z) {
 }
 /* Léky z telefonu u pacienta (od 0.9.1): lékař (role lekar / pl po odemknutí) upravuje léky propojeného pacienta stejně jako v PéčeDoma –
    zápis jde do A_MSPPP_Medikace přes server Karty, pak hned synchronizace. Role je deklarovaná telefonem jako u deníku (PIN se ověřuje offline). */
-const ROLE_LEKY = { lekar: 'lékař', pl: 'praktický lékař' };
+const ROLE_LEKY = { lekar: 'lékař / spec. sestra', pl: 'praktický lékař' };
 async function lekyKontext(q, z, b) {
   if (z.Rezim !== 'ZAPUJCENY') throw chyba('Léky z vlastního telefonu pacienta měnit nejde', 403);
   const role = String((b && b.role) || '').toLowerCase();
-  if (!ROLE_LEKY[role]) throw chyba('Léky na telefonu upravuje lékař (odemčení kódem lékaře nebo PINem lékaře)', 403);
+  if (!ROLE_LEKY[role]) throw chyba('Léky na telefonu upravuje lékař nebo specializovaná sestra (odemčení kódem lékaře nebo PINem s rolí Lékař a spec. sestra)', 403);
   const { nast, pd, stav } = await chatKontext(q, z);
   if (stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený', 403);
   return { nast, pd, kdo: [ROLE_LEKY[role], text(b.kdo, 80)].filter(Boolean).join(' '), role };
