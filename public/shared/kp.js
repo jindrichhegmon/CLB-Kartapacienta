@@ -71,7 +71,7 @@
   /* chat PéčeDoma s klientem (od 0.8.0) – jedno okno pro centrálu, telefon i Můj průkaz.
      nacti() → { zpravy }, posli(text) → { zpravy }; mojeSmer = 'OD_TYMU' (centrála) nebo 'OD_PACIENTA' (telefony) */
   KP.chatHTML = (zpravy, mojeSmer, nazvy = {}) => (zpravy || []).length
-    ? zpravy.map((z) => `<div class="msg ${z.smer === mojeSmer ? 'out' : 'in'}${z.sms ? ' sms' : ''}"><div class="who">${KP.esc(nazvy[z.smer] || (z.smer === 'OD_TYMU' ? 'Tým PéčeDoma' : 'Klient'))}${z.kdo ? ' · ' + KP.esc(z.kdo) : ''} · ${KP.esc(KP.fmtDT(z.cas))}${z.sms ? ' · SMS' : ''}</div>${KP.esc(z.text)}</div>`).join('')
+    ? zpravy.map((z) => `<div class="msg ${z.smer === mojeSmer ? 'out' : 'in'} ${z.smer === 'OD_TYMU' ? 'tym' : 'klient'}${z.sms ? ' sms' : ''}"><div class="who">${KP.esc(nazvy[z.smer] || (z.smer === 'OD_TYMU' ? 'Tým PéčeDoma' : 'Klient'))}${z.kdo ? ' · ' + KP.esc(z.kdo) : ''} · ${KP.esc(KP.fmtDT(z.cas))}${z.sms ? ' · SMS' : ''}</div>${KP.esc(z.text)}</div>`).join('')
     : '<div class="muted" style="font-size:13px">Zatím žádné zprávy – napište první.</div>';
   /* náhled posledních zpráv bez rozklikávání (od 0.8.4): n posledních zpráv, prázdné vlákno = krátký text */
   KP.chatNahled = (zpravy, mojeSmer, nazvy = {}, n = 2) => (zpravy || []).length
