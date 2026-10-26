@@ -60,13 +60,13 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.23';
+const APP_VERZE = 'pacient-0.11.24';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
 let pinKlic = null;    // klíč z PINu – jen v paměti, po zamčení se zahodí
 let tab = 'prehled', syncBezi = false, chybaSync = '', posledniAkce = Date.now(), skryto = 0;
-const TABY = [['prehled', 'Průkaz'], ['lekar', 'Od lékaře'], ['prani', 'Přání'], ['leky', 'Léky'], ['poznamky', 'Poznámky'], ['sdilet', 'Sdílet'], ['nouze', 'Nouzové info'], ['nastaveni', 'Nastavení']];
+const TABY = [['prehled', 'Průkaz'], ['lekar', 'Od lékaře'], ['prani', 'Přání'], ['leky', 'Léky'], ['poznamky', 'Poznámky pacienta'], ['sdilet', 'Sdílet'], ['nouze', 'Nouzové info'], ['nastaveni', 'Nastavení']];
 const IKONY = {
   prani: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg>',
   leky: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-35 12 12)"/><path d="M9.5 8.5l5 7"/></svg>',
@@ -205,7 +205,7 @@ function kresli() {
 }
 function prehledHTML(b) {
   const m = D.moje;
-  return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b> a <b>Poznámky</b> vedete své vlastní záznamy a v <b>Lécích</b> zaznamenáváte podání předepsaných léků – zůstává to jen ve vašem telefonu, dokud to sami nepošlete.</div></div>
+  return `<div class="panel"><div class="rolehelp"><b>Váš paliativní průkaz.</b> Nahoře je krizová karta tak, jak ji vede váš lékař. Pod ní si v oddílech <b>Přání</b> a <b>Poznámky pacienta</b> vedete své vlastní záznamy a v <b>Lécích</b> zaznamenáváte podání předepsaných léků – zůstává to jen ve vašem telefonu, dokud to sami nepošlete v oddílu Sdílet; pak je tým uvidí v centrální aplikaci i na kartě u lůžka.</div></div>
     <div class="puvod" style="padding:4px 2px 0"><span class="chip lek">od lékaře</span> ${puvodLekar(b)}</div>
     ${KP.kartaHTML({ ...b, denik: [] })}
     ${b.pecedoma && b.pecedoma.chat ? `<div class="panel"><div class="panel-h"><h2>Zprávy pro a od lékaře</h2><span class="chip lek">PéčeDoma</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY) : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat lékaři'}</button></div></div></div><div class="note"><b>Zprávy pro a od lékaře:</b> napište svému lékaři a sestrám, nebo si přečtěte, co vám poslali. Zprávy jsou stejné jako v aplikaci PéčeDoma.</div>` : ''}

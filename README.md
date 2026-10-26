@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.24: karta týmu – dlaždice **Interní poznámky** (dřív Deník) a nová **Poznámky pacienta** (sdílené položky z `A_KP_Sdileni` v balíku `odPacienta`, poslední verze každého druhu, jen ke čtení; 9 dlaždic ve 3 sloupcích); Můj průkaz – dlaždice **Poznámky pacienta**; nápověda kap. 14 a 19, snímek k-od-pacienta.
 - 0.11.23: telefon i Můj průkaz – po neplatném/prošlém kódu z odkazu (404 z `parovaci-info` nebo `parovat`) se párovací obrazovka vykreslí bez předvyplněného kódu s hláškou a tlačítkem Načíst QR kód; hash se smaže; tlačítko „Mám jiný kód“ u načteného kódu; nápověda kap. 18.
 - 0.11.22: Můj průkaz ve **více telefonech** (pacient + rodina, max. 6): `/pacientovi` bere `stitek` (komu) a páruje čekající záznam podle čísla; párování blokuje jen předchozí kopii se stejným číslem (`device.js`); panel „Vlastní telefony pacienta a rodiny“ s přehledem (štítek, číslo, odesláno `vytvoreno`, platnost, stav), **Poslat znovu** a **Zrušit** (`/zarizeni` akce `zrusit`, jen CEKA) u čekajících, Ukončit přístup / Odebrat jako dřív; nápověda kap. 8.
 - 0.11.21: role na kartě `LEKAR` se jmenuje **Lékař a spec. sestra** (ROLE_OSOBY, ROLE_KARTA, KP.ROLE, ROLE_CHAT/ROLE_LEKY, nápověda kap. 10 a 11); práva beze změny – specializovaná sestra s touto rolí upravuje léky na telefonu jako lékař.

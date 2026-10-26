@@ -145,6 +145,7 @@ const balik = {
   tym: tym.map((t) => ({ nazev: t.nazev, typ: t.typ, role: t.role, tel: t.telefon24 })),
   piny: [{ id: 'o2', jmeno: 'Sestra Lucie Příkladná', role: 'hospic', salt, hash: pbkdf2Sync('123456', Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex'), iterace: 120000 }],
   denik, serverCas: new Date().toISOString(),
+  get odPacienta() { return detail.odPacienta.flatMap((x) => x.polozky.map((p) => ({ ...p, cas: x.cas }))); },
   pecedoma: { sos: pdSync.sos, opioidy: pdSync.opioidy, medikace: pdSync.medikace, pristiNavsteva: pdSync.pristiNavsteva, pristiKdo: pdSync.pristiKdo, pristiPozn: pdSync.pristiPozn, aktualizovano: pdSync.aktualizovano, chat: true, propojeno: true },
 };
 // vlastní telefon pacienta: bez PINů týmu a bez deníku (src/kp.js balikProZarizeni, rezim PACIENT)
@@ -168,7 +169,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.23', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.24', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(detail));
@@ -467,6 +468,10 @@ await klik(p, '#pdChat'); await p.waitForSelector('#chat_l .msg'); await p.waitF
 await p.screenshot({ path: path.join(VYSTUP, 'k-chat.png') }); console.log('  ✓ k-chat');
 await p.evaluate(() => KP.closeModal());
 await p.evaluate(() => window.scrollTo(0, 0));
+if (!(await p.textContent('.tiles')).includes('Interní poznámky') || !(await p.textContent('.tiles')).includes('Poznámky pacienta')) chyby.push('karta: dlaždice Interní poznámky / Poznámky pacienta chybí');
+await klik(p, '.tile[data-tab="odpac"]'); await p.waitForSelector('.chip.vio');
+if (!(await p.textContent('#work')).includes('Co je pro mě důležité')) chyby.push('karta: Poznámky pacienta neukazují sdílené přání');
+await foto(p, 'k-od-pacienta', { vyska: 1300 });
 await klik(p, '.tile[data-tab="denik"]'); await p.waitForSelector('#d_txt'); await p.fill('#d_txt', 'Odpoledne klidná, napila se, bolest 2/10.');
 await foto(p, 'k-denik');
 await klik(p, '.tile[data-tab="zhorseni"]'); await p.waitForSelector('#btnZ');

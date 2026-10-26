@@ -410,9 +410,13 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršen�
 
 ![Telefon – chat s týmem PéčeDoma](/napoveda/img/k-chat.png)
 
-- **Deník** – vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
+- **Interní poznámky** (deník týmu) – vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
 
 ![Telefon – zápis do deníku](/napoveda/img/k-denik.png)
+
+- **Poznámky pacienta** – přání a hodnoty, poznámky, otázky pro lékaře a záznam podání léků, které pacient nebo rodina **sami poslali** z aplikace Můj průkaz (oddíl Sdílet). Karta ukazuje vždy poslední poslanou verzi každého druhu, jen ke čtení; co pacient neposlal, v kartě není. Totéž vidí tým v centrální aplikaci v panelu Od pacienta.
+
+![Telefon – Poznámky pacienta ze sdílení](/napoveda/img/k-od-pacienta.png)
 
 - **Zhoršení** – průvodce: co pozoruji (dušnost, bolest, neklid…), co jsem udělal(a) (podán SOS lék, poloha…), komu jsem volal(a). **Zapsat zhoršení a zobrazit na kartě** – zhoršení se ukáže na kartě i v centrální aplikaci; po zlepšení klepněte na **Stav stabilizován**. Tlačítko **Volat** vytočí první pečující kontakt.
 
@@ -529,7 +533,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 - **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
 - **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
 - **Léky** – **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. Léky předepisuje a mění jen lékař, v telefonu je nejde přidat ani upravit. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat; týmu je pošlete v oddílu Sdílet.
-- **Poznámky** – otázky pro lékaře a poznámky, jak se máte.
+- **Poznámky pacienta** – otázky pro lékaře a poznámky, jak se máte. Po odeslání v oddílu Sdílet je tým vidí v centrální aplikaci (panel Od pacienta) i na kartě u lůžka (dlaždice Poznámky pacienta).
 - **Sdílet** – souhrn k tisku nebo k předání (níže).
 - **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.
 - **Nastavení** – změna PINu, smazání všeho z telefonu.

@@ -107,6 +107,9 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 AND o.Hash IS NOT NULL`, { p: pacientId });
   piny.push(...lide);
   const pacientuv = rezim === 'PACIENT';
+  // co pacient sám poslal z Mého průkazu (A_KP_Sdileni) – do karty týmu jen ke čtení (0.11.24); do telefonu pacienta se nevrací
+  const odPacienta = pacientuv ? [] : (await q.all(`SELECT TOP 30 SdileniID AS id, CONVERT(char(16), Vytvoreno, 120) AS cas, Polozky AS polozky FROM dbo.A_KP_Sdileni WHERE PacientID = @p ORDER BY SdileniID DESC`, { p: pacientId }))
+    .flatMap((x) => { let pol = []; try { pol = JSON.parse(x.polozky) || []; } catch { /* poškozený záznam přeskočit */ } return pol.map((p) => ({ druh: p.druh, nazev: p.nazev, obsah: p.obsah, puvod: p.puvod, aktualizovano: p.aktualizovano, cas: x.cas })); });
   // z PéčeDoma (je-li pacient propojený): aktivní léky a nejbližší plánovaná návštěva – jen k zobrazení vedle plánu
   const pd = await stavSync(q, pacientId);
   // chat PéčeDoma: telefon smí psát týmu, když je pacient propojený a propojení nastavené (zprávy jdou přes server Karty, nikdy přímo)
@@ -119,7 +122,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     garant: g ? { poskytovatel: g.Poskytovatel, typ: g.Typ, telefon24: g.Telefon24, lekar: g.Lekar, lekarTelefon: g.LekarTelefon } : null,
     // vlastní telefon pacienta: odemyká jen pacient svým PINem (PINy týmu ani rodiny do něj nepatří) a deník týmu
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
-    kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(),
+    kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(), odPacienta,
     rezim,
     pecedoma: pd || chat ? { sos: pd ? pd.sos : [], opioidy: pd ? pd.opioidy : [], medikace: pd ? pd.medikace : [], pristiNavsteva: pd ? pd.pristiNavsteva : null, pristiKdo: pd ? pd.pristiKdo : null, pristiPozn: pd ? pd.pristiPozn : null, aktualizovano: pd ? pd.aktualizovano : null, chat, propojeno: !!p.PdKlientID } : null,
     serverCas: new Date().toISOString(),
