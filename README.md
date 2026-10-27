@@ -48,6 +48,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- Android obálka 0.1.1 (`android/`): sloučeno z `main`; fotoaparát pro čtečku QR v kartě (v kiosku přidělí správce zařízení sám, jinak dotaz), nastavení telefonů QR kódem při prvním zapnutí (`node android/provisioning-qr.mjs`, APK v `public/android/` se nahrává na VPS při nasazení).
 - 0.11.44: každé modální okno (karta týmu, Můj průkaz, prototyp Průkaz i centrála) má vpravo nahoře křížek pro zavření (`KP.modal`); zavření okna vypne i běžící fotoaparát při čtení QR.
 - 0.11.43: tlačítko Zpět na Androidu kartu týmu ani Můj průkaz neukončí (`KP.zachytZpet`): zavře otevřené okno, jinak vrátí na dlaždici Karta / Přehled. Aplikaci opustí jen Domů; s připnutím obrazovky v Androidu tak telefon zůstává v Kartě.
 - 0.11.42: totéž i v prototypu Průkaz pro plán péče (`/prukaz/` 0.1.1): Hlavní kontakty, Kontakty (s tlačítkem Upravit) a krizová karta bez PINu (Koho volat, Můj lékař). Vlastní číslo telefonu v hlavičce zůstává jen jako text. Oprava: prototyp nenačítal `kp-napoveda.js`, takže se od 0.11.39 nevykreslil (chyběla `KP.tlacitkaHlavicky`).

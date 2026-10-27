@@ -1,6 +1,8 @@
 package cz.centrumlb.kartapacienta
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -20,6 +22,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.webkit.CookieManager
+import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -42,6 +45,7 @@ class MainActivity : Activity() {
     private lateinit var web: WebView
     private lateinit var chyba: View
     private var chybaNacteni = false
+    private var cekajiciKamera: PermissionRequest? = null
 
     private val puvod: String by lazy { puvodUrl(Uri.parse(BuildConfig.KARTA_URL)) }
 
@@ -72,7 +76,7 @@ class MainActivity : Activity() {
             settings.setSupportMultipleWindows(false)
             settings.userAgentString = settings.userAgentString + " KartaPacientaAndroid/" + BuildConfig.VERSION_NAME
             webViewClient = Klient()
-            webChromeClient = WebChromeClient() // bez něj by nefungovalo alert()/confirm()
+            webChromeClient = Chrome() // alert()/confirm() a fotoaparát pro čtečku QR
         }
 
         chyba = obrazovkaChyby()
@@ -141,6 +145,37 @@ class MainActivity : Activity() {
     }
 
     // ---- web ----
+
+    /** Fotoaparát jen pro kartu (čtení párovacího QR kódu); jiné zdroje a cizí původ se zamítnou. */
+    private inner class Chrome : WebChromeClient() {
+        override fun onPermissionRequest(request: PermissionRequest) {
+            runOnUiThread {
+                val kamera = request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+                if (!kamera || puvodUrl(request.origin) != puvod) {
+                    request.deny()
+                    return@runOnUiThread
+                }
+                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                } else {
+                    cekajiciKamera = request
+                    requestPermissions(arrayOf(Manifest.permission.CAMERA), KAMERA)
+                }
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != KAMERA) return
+        val r = cekajiciKamera ?: return
+        cekajiciKamera = null
+        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            r.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+        } else {
+            r.deny() // karta sama nabídne ruční opsání kódu
+        }
+    }
 
     private inner class Klient : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -300,6 +335,7 @@ class MainActivity : Activity() {
     private fun zprava(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
 
     companion object {
+        private const val KAMERA = 1
         fun puvodUrl(u: Uri) = "${u.scheme}://${u.authority}"
     }
 }

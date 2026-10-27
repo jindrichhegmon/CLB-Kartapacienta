@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Čtečka QR kódu v kartě (párování): v kiosku si aplikace oprávnění přidělí sama jako správce zařízení. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Kvůli volání z karty (odkazy tel:) – aby se dialer našel i na Androidu 11+. -->
     <queries>

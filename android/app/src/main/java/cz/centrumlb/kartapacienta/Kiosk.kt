@@ -1,5 +1,6 @@
 package cz.centrumlb.kartapacienta
 
+import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
@@ -57,6 +58,8 @@ object Kiosk {
         d.addPersistentPreferredActivity(a, domov, ComponentName(c.packageName, DOMOV))
 
         d.setKeyguardDisabled(a, true) // bez zámku obrazovky (vrací false, pokud je nastaven PIN telefonu)
+        // Čtečka QR v kartě: dialog oprávnění se v kiosku nezobrazí, správce zařízení ho přidělí rovnou.
+        d.setPermissionGrantState(a, c.packageName, Manifest.permission.CAMERA, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
         d.addUserRestriction(a, UserManager.DISALLOW_SAFE_BOOT) // nouzový režim by kiosk obešel
     }
 
@@ -96,6 +99,7 @@ object Kiosk {
         d.setLockTaskPackages(ad, emptyArray())
         d.setKeyguardDisabled(ad, false)
         d.clearUserRestriction(ad, UserManager.DISALLOW_SAFE_BOOT)
+        d.setPermissionGrantState(ad, a.packageName, Manifest.permission.CAMERA, DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT)
         domovskaObrazovka(a, false)
         d.clearDeviceOwnerApp(a.packageName)
     }
