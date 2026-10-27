@@ -12,6 +12,7 @@ připojení se sesynchronizuje. Dotazy na AI jsou vždy anonymní.
 | Centrální aplikace | `/centrala/?t=<IDTENANT>` | garant a tým kolem pacienta (nemocnice, hospic, PL, domov) |
 | Karta na mobil | `/karta/` | zapůjčený telefon u lůžka (PWA, offline, šifrovaná data) – **jeden pacient, jen v telefonu s číslem uvedeným u pacienta** |
 | Můj průkaz | `/pacient/` | vlastní telefon soběstačného pacienta (PWA) – data od lékaře jen ke čtení, vlastní přání, léky a poznámky jen v telefonu |
+| Android aplikace | `android/` | kiosk obálka karty pro zapůjčený telefon (správce zařízení, nejde z ní odejít) – viz `android/README.md` |
 
 Vše startuje z jednoho serveru (`src/server.js`), zatím ne z Netlify. Make se nepoužívá.
 Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa přesměruje na úvod) a nový tenant se zakládá bez ukázkových dat.
