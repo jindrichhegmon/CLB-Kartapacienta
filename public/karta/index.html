@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.32';
+const APP_VERZE = 'karta-0.11.33';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -158,7 +158,7 @@ const ROLE_KARTA = {
   pl: { nazev: 'Praktický lékař', c: 'var(--accent-ink)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče měníte v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Telefonát'] },
   hospic: { nazev: 'Hospic', c: 'var(--violet)', popis: 'Vidíte celý záznam, zapisujete do deníku a jste prvním kontaktem při zhoršení. Plán péče mění lékař.', typy: ['Návštěva hospice', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát'] },
   sestra: { nazev: 'Sestra DPS', c: 'var(--ok)', popis: 'Vidíte celý záznam, zapisujete stav a podané SOS léky, při zhoršení vyplníte průvodce. Plán péče měnit nemůžete.', typy: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát', 'Pozorování rodiny'] },
-  rodina: { nazev: 'Rodina', c: 'var(--warn)', popis: 'Vidíte celý záznam a můžete připsat do deníku, co pozorujete a jaký SOS lék jste podali. Při zhoršení vám pomůže průvodce.', typy: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát'] },
+  rodina: { nazev: 'Rodina', c: 'var(--warn)', popis: 'Vidíte kartu, plán, léky, kontakty a poznámky pacienta. Interní poznámky týmu nevidíte. Při zhoršení vám pomůže průvodce v dlaždici Zhoršení.', typy: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát'] },
 };
 function stariSync() { if (!D || !D.posledniSync) return Infinity; return Date.now() - new Date(D.posledniSync).getTime(); }
 function textStari() {
@@ -221,7 +221,9 @@ function kresli() {
         <button class="btn primary" id="btnZZS">Zapsat výjezd do deníku</button>
         <div class="note">Záchranná služba nepotřebuje PIN – krizovou kartu vidí bez přihlášení. Jméno se zapisuje jen k výjezdu. Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený).</div></div></div>`;
   } else {
-    const tabs = [['karta', 'Karta'], ['dg', 'Diagnóza'], ['plan', 'Plán'], ['leky', 'Léky'], ['denik', 'Interní poznámky'], ['odpac', 'Poznámky pacienta'], ['zhorseni', 'Zhoršení'], ['kontakty', 'Kontakty'], ['udaje', 'Tým']];
+    // 0.11.33: Interní poznámky (deník týmu) jsou jen pro tým – rodina dlaždici nevidí (zhoršení zapisuje průvodcem v dlaždici Zhoršení)
+    if (U.role === 'rodina' && tab === 'denik') tab = 'karta';
+    const tabs = [['karta', 'Karta'], ['dg', 'Diagnóza'], ['plan', 'Plán'], ['leky', 'Léky'], ['denik', 'Interní poznámky'], ['odpac', 'Poznámky pacienta'], ['zhorseni', 'Zhoršení'], ['kontakty', 'Kontakty'], ['udaje', 'Tým']].filter(([id]) => !(U.role === 'rodina' && id === 'denik'));
     const badge = (id) => (id === 'zhorseni' && zh ? '<span class="bdg">!</span>' : id === 'denik' && D.fronta.length ? `<span class="bdg">${D.fronta.length}</span>` : id === 'plan' && (!b.plan || KP.prosly(b.plan.platnostDo)) ? '<span class="bdg">!</span>' : '');
     html += `<div class="tiles" style="grid-template-columns:repeat(3,1fr)">${tabs.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${KP.ICON[id] || KP.ICON.udaje}<span>${n}</span>${badge(id)}</button>`).join('')}</div>`;
     const rk = ROLE_KARTA[U.role];

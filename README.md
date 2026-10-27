@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.33: karta týmu – rodina nevidí dlaždici Interní poznámky (deník jen pro tým); zhoršení zapisuje průvodcem.
 - 0.11.32: Telefon a PINy – tlačítko Zobrazit PIN u každého člověka v panelu Lidé, kteří odemknou kartu.
 - 0.11.31: PIN rodiny a jednorázové PINy jdou znovu zobrazit (Telefon a PINy → Zobrazit PIN, `A_KP_Pin.PinSifrovany`, sql/01i) a vydat znovu stejnému držiteli (Nový PIN).
 - 0.11.30: Zobrazit PIN ověří, že uložený PIN odpovídá otisku, kterým ho ověřuje telefon; při neshodě vyzve k vydání nového PINu (zapsáno do logu).

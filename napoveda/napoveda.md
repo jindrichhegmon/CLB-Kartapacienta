@@ -281,7 +281,7 @@ Role jsou stejné jako v ukázkové verzi. Každý po odemknutí karty vidí nah
 | Praktický lékař | osobní PIN nebo kód lékaře dne | celý záznam | návštěva lékaře, změna stavu, podán SOS lék, telefonát, zhoršení |
 | Hospic | osobní PIN | celý záznam, je prvním kontaktem při zhoršení | návštěva hospice, změna stavu, podán SOS lék, návštěva lékaře, telefonát, zhoršení |
 | Sestra DPS | osobní PIN | celý záznam | změna stavu, podán SOS lék, návštěva lékaře, telefonát, pozorování, zhoršení |
-| Rodina | PIN od garanta u pacienta | celý záznam | pozorování, podán SOS lék, změna stavu, telefonát, zhoršení |
+| Rodina | PIN od garanta u pacienta | karta, plán, léky, kontakty, poznámky pacienta – **bez Interních poznámek** | zhoršení a stabilizace (průvodce v dlaždici Zhoršení) |
 | ZZS | bez PINu | jen krizovou kartu | jen výjezd – jméno a posádku zapíše až u výjezdu |
 
 ![Telefon – po odemknutí je vidět jméno, role a co role smí](/napoveda/img/k-odemceno.png)
@@ -412,7 +412,7 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Deník, Zhoršen�
 
 ![Telefon – chat s týmem PéčeDoma](/napoveda/img/k-chat.png)
 
-- **Interní poznámky** (deník týmu) – vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
+- **Interní poznámky** (deník týmu) – jen pro tým (lékař, hospic, sestra, praktický lékař); rodina tuto dlaždici nemá (od 0.11.33). Vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
 
 ![Telefon – zápis do deníku](/napoveda/img/k-denik.png)
 
