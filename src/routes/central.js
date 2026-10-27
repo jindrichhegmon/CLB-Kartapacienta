@@ -81,7 +81,7 @@ const VIDITELNI = `(@admin = 1 OR EXISTS (SELECT 1 FROM dbo.A_KP_Tym t WHERE t.P
 central.get('/prehled', sUzivatelem(async (q, s, req) => {
   const stav = req.query.stav === 'UZAVRENY' ? 'UZAVRENY' : 'AKTIVNI';
   const pacienti = await q.all(`
-    SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, p.Pobyt AS pobyt, p.Stav AS stav,
+    SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, p.Pobyt AS pobyt, p.Telefon AS telefon, p.Stav AS stav,
       CONVERT(char(16), p.Zalozeno, 120) AS zalozeno, CONVERT(char(16), p.Uzavreno, 120) AS uzavreno,
       pv.Verze AS verze, CONVERT(char(10), pv.PlatnostDo, 23) AS platnostDo, JSON_VALUE(pv.Data, '$.cil') AS cil,
       g.PoskytovatelID AS garantId, gp.Nazev AS garant, gp.Typ AS garantTyp, CONVERT(char(16), g.Od, 120) AS garantOd,
@@ -153,9 +153,9 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
   if (!gp.SmiBytGarant) throw chyba(`${gp.Nazev} nemůže být garantem (garantem je nemocnice, hospic, paliativní ambulance nebo praktický lékař)`);
 
   const kod = await dalsiKod(q);
-  const pac = await q.one(`INSERT INTO dbo.A_KP_Pacient (KodPrukazu, Jmeno, Prijmeni, RodneCislo, DatumNarozeni, RokNarozeni, Pohlavi, Pojistovna, Adresa, Pobyt, ZalozilUzivatelID)
-    OUTPUT inserted.PacientID VALUES (@k, @j, @p, @rc, @dn, @r, @po, @poj, @a, @pb, @u)`,
-  { k: kod, j: jmeno, p: prijmeni.toUpperCase(), rc, dn: datum, r: rok, po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null, u: s.uzivatelId });
+  const pac = await q.one(`INSERT INTO dbo.A_KP_Pacient (KodPrukazu, Jmeno, Prijmeni, RodneCislo, DatumNarozeni, RokNarozeni, Pohlavi, Pojistovna, Adresa, Pobyt, Telefon, ZalozilUzivatelID)
+    OUTPUT inserted.PacientID VALUES (@k, @j, @p, @rc, @dn, @r, @po, @poj, @a, @pb, @tel, @u)`,
+  { k: kod, j: jmeno, p: prijmeni.toUpperCase(), rc, dn: datum, r: rok, po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null, tel: text(pa.telefon, 40) || null, u: s.uzivatelId });
   const id = pac.PacientID;
   await q.exec(`INSERT INTO dbo.A_KP_Garance (PacientID, PoskytovatelID, LekarUzivatelID, Stav, Od, NavrhlUzivatelID) VALUES (@p, @ps, @l, 'PLATNA', SYSDATETIME(), @u)`,
     { p: id, ps: garantId, l: garantId === s.poskytovatelId ? s.uzivatelId : null, u: s.uzivatelId });
@@ -181,7 +181,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const id = pid(req);
   const op = await opravneni(q, s, id);
   const pacient = await q.one(`SELECT PacientID AS id, KodPrukazu AS kod, Jmeno AS jmeno, Prijmeni AS prijmeni, RodneCislo AS rc, CONVERT(char(10), DatumNarozeni, 23) AS datumNarozeni,
-      RokNarozeni AS rok, Pohlavi AS pohlavi, Pojistovna AS pojistovna, Adresa AS adresa, Pobyt AS pobyt, Stav AS stav, Souhlas AS souhlas,
+      RokNarozeni AS rok, Pohlavi AS pohlavi, Pojistovna AS pojistovna, Adresa AS adresa, Pobyt AS pobyt, Telefon AS telefon, Stav AS stav, Souhlas AS souhlas,
       CONVERT(char(16), Zalozeno, 120) AS zalozeno, CONVERT(char(16), Uzavreno, 120) AS uzavreno, DuvodUzavreni AS duvodUzavreni
     FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
   const plan = await planAktualni(q, id);
@@ -222,8 +222,8 @@ central.post('/pacient/:id/udaje', sUzivatelem(async (q, s, req) => {
   if (!op.lekar && !op.garant) throw chyba('Údaje pacienta upravuje lékař z týmu', 403);
   const pa = req.body || {};
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(pa.datumNarozeni || '') ? pa.datumNarozeni : null;
-  await q.exec(`UPDATE dbo.A_KP_Pacient SET Jmeno = @j, Prijmeni = @p, RodneCislo = @rc, DatumNarozeni = @dn, RokNarozeni = @r, Pohlavi = @po, Pojistovna = @poj, Adresa = @a, Pobyt = @pb WHERE PacientID = @id`,
-    { id, j: text(pa.jmeno, 80), p: text(pa.prijmeni, 80).toUpperCase(), rc: text(pa.rc, 11) || null, dn: datum, r: cislo(pa.rok) || (datum ? Number(datum.slice(0, 4)) : null), po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null });
+  await q.exec(`UPDATE dbo.A_KP_Pacient SET Jmeno = @j, Prijmeni = @p, RodneCislo = @rc, DatumNarozeni = @dn, RokNarozeni = @r, Pohlavi = @po, Pojistovna = @poj, Adresa = @a, Pobyt = @pb, Telefon = @tel WHERE PacientID = @id`,
+    { id, j: text(pa.jmeno, 80), p: text(pa.prijmeni, 80).toUpperCase(), rc: text(pa.rc, 11) || null, dn: datum, r: cislo(pa.rok) || (datum ? Number(datum.slice(0, 4)) : null), po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null, tel: text(pa.telefon, 40) || null });
   await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: 'Upraveny identifikační údaje nebo místo pobytu.', autor: s.jmeno, role: 'lekar', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'úprava údajů', ip: s.ip });
 }));
@@ -450,14 +450,14 @@ central.post('/ai/rozbor', sUzivatelem(async (q, s, req) => {
   if (t.trim().length < 40) throw chyba('Vložte text propouštěcí zprávy');
   if (t.length > 60000) throw chyba('Text je příliš dlouhý (max. 60 000 znaků)');
   const pa = req.body.znamo || {};
-  const znamo = { jmeno: text(pa.jmeno, 80), prijmeni: text(pa.prijmeni, 80), rc: text(pa.rc, 11), datumNarozeni: pa.datumNarozeni, adresa: text(pa.adresa, 300), telefony: [], osoby: [] };
+  const znamo = { jmeno: text(pa.jmeno, 80), prijmeni: text(pa.prijmeni, 80), rc: text(pa.rc, 11), datumNarozeni: pa.datumNarozeni, adresa: text(pa.adresa, 300), telefony: [text(pa.telefon, 40)].filter(Boolean), osoby: [] };
   const pacId = cislo(req.body.pacientId);
   if (pacId) {
     await opravneni(q, s, pacId);
-    const p = await q.one(`SELECT Jmeno, Prijmeni, RodneCislo, CONVERT(char(10), DatumNarozeni, 23) AS DN, Adresa FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacId });
+    const p = await q.one(`SELECT Jmeno, Prijmeni, RodneCislo, CONVERT(char(10), DatumNarozeni, 23) AS DN, Adresa, Telefon FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacId });
     Object.assign(znamo, { jmeno: p.Jmeno, prijmeni: p.Prijmeni, rc: p.RodneCislo, datumNarozeni: p.DN, adresa: p.Adresa });
     const k = await q.all(`SELECT Jmeno, Telefon FROM dbo.A_KP_Kontakt WHERE PacientID = @p`, { p: pacId });
-    znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = k.map((x) => x.Telefon);
+    znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = [p.Telefon, ...k.map((x) => x.Telefon)].filter(Boolean);
   }
   const r = await rozborZpravy(t, znamo);
   await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, N'rozbor zprávy', @d, @n, @b, @m, @v)`,

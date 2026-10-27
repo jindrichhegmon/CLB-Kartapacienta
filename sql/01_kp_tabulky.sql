@@ -72,6 +72,7 @@ CREATE TABLE dbo.A_KP_Pacient (
   Pojistovna varchar(3) NULL,
   Adresa nvarchar(300) NULL,
   Pobyt nvarchar(200) NULL,                -- kde pacient právě pobývá (domov, pokoj…)
+  Telefon nvarchar(40) NULL,               -- telefon pacienta / k lůžku (jen v centrále)
   Stav varchar(10) NOT NULL CONSTRAINT DF_A_KP_Pacient_S DEFAULT ('AKTIVNI'),
   Souhlas nvarchar(200) NULL,              -- potvrzení informace pacientovi
   ZalozilUzivatelID int NULL,
@@ -84,6 +85,8 @@ CREATE TABLE dbo.A_KP_Pacient (
 );
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UX_A_KP_Pacient_Kod')
   CREATE UNIQUE INDEX UX_A_KP_Pacient_Kod ON dbo.A_KP_Pacient (IDTENANT, KodPrukazu);
+IF COL_LENGTH('dbo.A_KP_Pacient', 'Telefon') IS NULL
+  ALTER TABLE dbo.A_KP_Pacient ADD Telefon nvarchar(40) NULL;
 
 IF OBJECT_ID('dbo.A_KP_Garance') IS NULL
 CREATE TABLE dbo.A_KP_Garance (

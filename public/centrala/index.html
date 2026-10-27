@@ -25,6 +25,17 @@
   .plist .avatar{margin-top:2px}
   .plist .chev{align-self:center}
   #bnav button svg{width:22px;height:22px}
+  .upoz-h{cursor:pointer;user-select:none}
+  .upoz-h .chev{color:var(--muted);transition:transform .2s;display:inline-block;margin-left:4px}
+  .upoz-h.open .chev{transform:rotate(90deg)}
+  @media (max-width:640px){
+    .tabs{display:flex;flex-wrap:wrap;gap:6px;overflow:visible;border-bottom:0;margin-inline:0;padding-inline:0;mask-image:none;-webkit-mask-image:none}
+    .tabs button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 12px;min-height:38px;font-size:13.5px;border-bottom-width:1px}
+    .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+    #tabbody .grid2 > div:last-child:not(.panel){display:contents!important}
+    #tabbody .grid2 .actions{order:-1}
+    #tabbody .grid2 .actions .btn{flex:1 1 auto}
+  }
   @media print{ .top,.nav,.tabs,.actions,.noprint,#modal,#toast{display:none!important} .card{box-shadow:none} }
 </style>
 </head>
@@ -54,7 +65,7 @@ function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_s
 /* ================= hlavička ================= */
 function hlavicka() {
   if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>`; return; }
-  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>${esc(S.nazevSite || 'Karta pacienta')}</h1><div class="meta d-only">Centrální aplikace · garant a tým kolem pacienta</div><div class="meta m-only">${esc(S.ja.jmeno)} · ${esc(S.ja.poskytovatel)}</div></div>
+  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>${esc(S.nazevSite || 'Karta pacienta')}</h1><div class="meta d-only">Centrální aplikace · garant a tým kolem pacienta</div><div class="meta m-only">${esc(S.ja.jmeno)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')} · ${esc(S.ja.poskytovatel)}</div></div>
     <div class="who noprint d-only">${esc(S.ja.jmeno)}<br>${esc(S.ja.poskytovatel)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</div>
     <span class="verbadge d-only">v${esc(S.verze || '')}</span><button class="btn sm noprint" id="odhl">Odhlásit</button>`;
   $('odhl').onclick = odhlas;
@@ -133,23 +144,31 @@ function renderUcet(povinne) {
 async function renderPacienti() {
   $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav();
   let d; try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+  renderPacientiZ(d);
+}
+/** Upozornění: na počítači rozbalená, na mobilu sbalená; volba se pamatuje. */
+const upozOtevreno = () => { const v = localStorage.getItem('kp_upoz'); return v ? v === '1' : !window.matchMedia('(max-width:640px)').matches; };
+const telOdkaz = (t) => t ? `<a class="num mono" href="tel:${esc(String(t).replace(/\s/g, ''))}">${esc(t)}</a>` : '';
+function renderPacientiZ(d) {
   const synch = (p) => !p.telefonu ? '<span class="chip">bez telefonu</span>' : `<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ` <span class="muted" style="font-size:12px">${p.baterie} %</span>` : ''}`;
   $('work').innerHTML = `${nav()}
-    ${d.upozorneni.length && S.stav === 'AKTIVNI' ? `<div class="panel"><div class="panel-h"><h2>Upozornění</h2><span class="chip ${d.upozorneni.some((u) => u.uroven === 'crit') ? 'crit' : 'warn'}">${d.upozorneni.length}</span></div><div class="alerts" style="padding:10px">${d.upozorneni.slice(0, 30).map((u) => `<div class="alert ${u.uroven}" data-p="${u.pacientId}">${esc(u.text)}</div>`).join('')}</div></div>` : ''}
+    ${d.upozorneni.length && S.stav === 'AKTIVNI' ? `<div class="panel"><div class="panel-h upoz-h ${upozOtevreno() ? 'open' : ''}" id="upozH" role="button" aria-expanded="${upozOtevreno()}" tabindex="0"><h2>Upozornění <span class="chev">${KP.ICON.chev || '›'}</span></h2><span class="row"><span class="chip ${d.upozorneni.some((u) => u.uroven === 'crit') ? 'crit' : 'warn'}">${d.upozorneni.length}</span><span class="muted" style="font-size:12px">${upozOtevreno() ? 'skrýt' : 'zobrazit'}</span></span></div><div class="alerts" id="upozB" style="padding:10px" ${upozOtevreno() ? '' : 'hidden'}>${d.upozorneni.slice(0, 30).map((u) => `<div class="alert ${u.uroven}" data-p="${u.pacientId}">${esc(u.text)}</div>`).join('')}</div></div>` : ''}
     <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>
       <div class="seg stav"><button data-s="AKTIVNI" class="${S.stav === 'AKTIVNI' ? 'on' : ''}">Aktivní</button><button data-s="UZAVRENY" class="${S.stav === 'UZAVRENY' ? 'on' : ''}">Uzavřené</button></div></div>
       <ul class="plist m-only" style="padding:10px">${d.pacienti.map((p) => `<li data-id="${p.id}" tabindex="0"><div class="avatar">${esc((p.prijmeni || '?')[0])}${esc((p.jmeno || '')[0] || '')}</div><div style="min-width:0;flex:1">
           <div class="n">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}${p.posledniKrize === 'Zhoršení stavu' ? ' <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' <span class="chip vio">předává se</span>' : ''}</div>
-          <div class="s"><div><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')}</div><div>garant: ${esc(p.garant || '—')}</div>
-            <div>plán: ${p.platnostDo ? (KP.prosly(p.platnostDo) ? '<span class="chip crit">po platnosti</span>' : 'do ' + fmtD(p.platnostDo)) : '<span class="chip warn">chybí</span>'}${p.verze ? ' · v' + p.verze : ''}</div>
-            <div>${S.stav === 'AKTIVNI' ? 'telefon: ' + synch(p) : 'uzavřeno ' + esc(fmtDT(p.uzavreno))}</div></div></div><span class="chev">›</span></li>`).join('') || `<li class="muted" style="cursor:default">${S.stav === 'AKTIVNI' ? 'Zatím žádný pacient.' + (jeLekar() ? ' Začněte tlačítkem „Nový“.' : '') : 'Žádné uzavřené průkazy.'}</li>`}</ul>
+          <div class="s"><div><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')}${p.telefon ? ' · ' + telOdkaz(p.telefon) : ''}</div><div>garant: ${esc(p.garant || '—')}</div>
+            <div>plán: ${p.platnostDo ? (KP.prosly(p.platnostDo) ? '<span class="chip crit">po platnosti</span>' : 'do ' + fmtD(p.platnostDo)) : '<span class="chip warn">chybí</span>'}${CILE[p.cil] ? ' · ' + esc(CILE[p.cil].split(' (')[0]) : ''}${p.verze ? ' · v' + p.verze : ''}</div>
+            <div>${S.stav === 'AKTIVNI' ? 'telefon u pacienta: ' + synch(p) : 'uzavřeno ' + esc(fmtDT(p.uzavreno))}</div>
+            <div>poslední zápis: <span class="mono" style="font-size:12px">${esc(fmtDT(p.posledniZapis))}</span></div></div></div><span class="chev">›</span></li>`).join('') || `<li class="muted" style="cursor:default">${S.stav === 'AKTIVNI' ? 'Zatím žádný pacient.' + (jeLekar() ? ' Začněte tlačítkem „Nový“.' : '') : 'Žádné uzavřené průkazy.'}</li>`}</ul>
       <div class="tblwrap d-only"><table class="tbl hover"><thead><tr><th>Průkaz</th><th>Pacient</th><th>Pobyt</th><th>Garant</th><th>Plán</th><th>Telefon</th><th>Poslední zápis</th></tr></thead><tbody>
-      ${d.pacienti.map((p) => `<tr data-id="${p.id}"><td class="mono">${esc(p.kod)}</td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.rok || '')}${p.posledniKrize === 'Zhoršení stavu' ? ' · <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' · <span class="chip vio">předává se</span>' : ''}</div></td>
+      ${d.pacienti.map((p) => `<tr data-id="${p.id}"><td class="mono">${esc(p.kod)}</td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.rok || '')}${p.telefon ? ' · ' + telOdkaz(p.telefon) : ''}${p.posledniKrize === 'Zhoršení stavu' ? ' · <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' · <span class="chip vio">předává se</span>' : ''}</div></td>
         <td>${esc(p.pobyt || '—')}</td><td>${esc(p.garant || '—')}</td>
         <td>${p.platnostDo ? (KP.prosly(p.platnostDo) ? '<span class="chip crit">po platnosti</span>' : 'do ' + fmtD(p.platnostDo)) : '<span class="chip warn">chybí</span>'}<div class="lbl">${esc(CILE[p.cil] ? CILE[p.cil].split(' (')[0] : '')}${p.verze ? ' · v' + p.verze : ''}</div></td>
         <td>${S.stav === 'AKTIVNI' ? synch(p) : esc(fmtDT(p.uzavreno))}</td><td class="mono" style="font-size:12px">${esc(fmtDT(p.posledniZapis))}</td></tr>`).join('') || `<tr><td colspan="7" class="muted">${S.stav === 'AKTIVNI' ? 'Zatím žádný pacient.' + (jeLekar() ? ' Začněte tlačítkem „+ Nový pacient“.' : '') : 'Žádné uzavřené průkazy.'}</td></tr>`}
       </tbody></table></div></div>`;
   bindNav();
+  if ($('upozH')) { const tg = () => { localStorage.setItem('kp_upoz', upozOtevreno() ? '0' : '1'); renderPacientiZ(d, synch); }; $('upozH').onclick = tg; $('upozH').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tg(); } }; }
   document.querySelectorAll('tr[data-id],.plist li[data-id],.alert[data-p]').forEach((r) => { r.onclick = () => otevri(Number(r.dataset.id || r.dataset.p)); r.onkeydown = (e) => { if (e.key === 'Enter') r.onclick(); }; });
   document.querySelectorAll('.seg [data-s]').forEach((b) => (b.onclick = () => { S.stav = b.dataset.s; renderPacienti(); }));
 }
@@ -176,7 +195,7 @@ function kresliDetail() {
   const body = { karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
-      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} · garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}</div></div></div>
+      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')}${p.telefon ? ' · tel. ' + telOdkaz(p.telefon) : ''} · garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}</div></div></div>
     ${navrh && op.prijmoutGaranci ? `<div class="banner crit">Bylo vám navrženo převzetí garance (navrhl ${esc(navrh.navrhl || '—')}, ${esc(fmtDT(navrh.navrzeno))}).<button class="btn sm primary" id="prevzit">Převzít garanci</button><button class="btn sm" id="odmitnout">Odmítnout</button></div>` : navrh ? `<div class="banner warn">Předání garance na ${esc(navrh.nazev)} čeká na potvrzení (od ${esc(fmtDT(navrh.navrzeno))}). Do potvrzení zůstává garantem ${esc(g ? g.nazev : '—')}.</div>` : ''}
     ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
     <div class="tabs noprint">${tabs.map(([k, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
@@ -306,17 +325,18 @@ function tabUdaje(d) {
   const p = d.pacient, ro = !(d.op.lekar || d.op.garant);
   return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Identifikace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : ''}</div><div class="form ${ro ? 'locked' : ''}" style="padding:14px">${udajeForm(p, 'u')}${ro ? '' : '<button class="btn primary" id="u_ok">Uložit údaje</button>'}</div></div>
     <div style="display:grid;gap:12px;align-content:start"><div class="note">Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci. Telefon dostane jméno a rok narození, AI nedostane nic z toho – rozbor zpráv běží přes anonymizační bránu.</div>
-      <dl class="kv panel" style="padding:12px 14px"><dt>Průkaz</dt><dd class="mono">${esc(p.kod)}</dd><dt>Založen</dt><dd>${esc(fmtDT(p.zalozeno))}</dd><dt>Informace pacientovi</dt><dd>${p.souhlas ? esc(p.souhlas) : (d.op.lekar ? '<button class="btn sm" id="souhlas">Potvrdit podpis</button>' : '<span class="chip warn">nepotvrzeno</span>')}</dd>${p.stav === 'UZAVRENY' ? `<dt>Uzavřeno</dt><dd>${esc(fmtDT(p.uzavreno))} · ${esc(p.duvodUzavreni || '')}</dd>` : ''}</dl>
+      <dl class="kv panel" style="padding:12px 14px"><dt>Průkaz</dt><dd class="mono">${esc(p.kod)}</dd><dt>Telefon pacienta</dt><dd>${p.telefon ? telOdkaz(p.telefon) : '<span class="muted">neuveden</span>'}</dd><dt>Založen</dt><dd>${esc(fmtDT(p.zalozeno))}</dd><dt>Informace pacientovi</dt><dd>${p.souhlas ? esc(p.souhlas) : (d.op.lekar ? '<button class="btn sm" id="souhlas">Potvrdit podpis</button>' : '<span class="chip warn">nepotvrzeno</span>')}</dd>${p.stav === 'UZAVRENY' ? `<dt>Uzavřeno</dt><dd>${esc(fmtDT(p.uzavreno))} · ${esc(p.duvodUzavreni || '')}</dd>` : ''}</dl>
       ${d.op.garant ? '<div class="panel"><div class="panel-h"><h2>Ukončení</h2></div><div style="padding:12px 14px"><button class="btn crit" id="uzavrit">Uzavřít průkaz</button></div></div>' : ''}</div></div>`;
 }
 function udajeForm(p, pref) {
   return `<div class="frow"><div class="field"><label>Jméno</label><input id="${pref}_j" value="${esc(p.jmeno || '')}"></div><div class="field"><label>Příjmení</label><input id="${pref}_p" value="${esc(p.prijmeni || '')}"></div></div>
     <div class="frow"><div class="field"><label>Rodné číslo</label><input id="${pref}_rc" value="${esc(p.rc || '')}" placeholder="123456/7890"></div><div class="field"><label>Datum narození</label><input type="date" id="${pref}_dn" value="${esc(p.datumNarozeni || '')}"></div></div>
     <div class="frow"><div class="field"><label>Rok narození</label><input type="number" id="${pref}_r" value="${esc(p.rok || '')}"></div><div class="field"><label>Pohlaví</label><select id="${pref}_po"><option ${p.pohlavi === 'muž' ? 'selected' : ''}>muž</option><option ${p.pohlavi === 'žena' ? 'selected' : ''}>žena</option></select></div></div>
-    <div class="frow"><div class="field"><label>Pojišťovna</label><input id="${pref}_poj" maxlength="3" value="${esc(p.pojistovna || '')}" placeholder="111"></div><div class="field"><label>Kde pacient pobývá</label><input id="${pref}_pb" value="${esc(p.pobyt || '')}" placeholder="doma / domov, pokoj…"></div></div>
+    <div class="frow"><div class="field"><label>Pojišťovna</label><input id="${pref}_poj" maxlength="3" value="${esc(p.pojistovna || '')}" placeholder="111"></div><div class="field"><label>Telefon pacienta / k lůžku</label><input id="${pref}_tel" type="tel" inputmode="tel" autocomplete="off" value="${esc(p.telefon || '')}" placeholder="např. 604 000 000"></div></div>
+    <div class="field"><label>Kde pacient pobývá</label><input id="${pref}_pb" value="${esc(p.pobyt || '')}" placeholder="doma / domov, pokoj…"></div>
     <div class="field"><label>Adresa</label><input id="${pref}_a" value="${esc(p.adresa || '')}"></div>`;
 }
-const ctiUdaje = (pref) => ({ jmeno: $(`${pref}_j`).value, prijmeni: $(`${pref}_p`).value, rc: $(`${pref}_rc`).value, datumNarozeni: $(`${pref}_dn`).value, rok: $(`${pref}_r`).value, pohlavi: $(`${pref}_po`).value, pojistovna: $(`${pref}_poj`).value, pobyt: $(`${pref}_pb`).value, adresa: $(`${pref}_a`).value });
+const ctiUdaje = (pref) => ({ jmeno: $(`${pref}_j`).value, prijmeni: $(`${pref}_p`).value, rc: $(`${pref}_rc`).value, datumNarozeni: $(`${pref}_dn`).value, rok: $(`${pref}_r`).value, pohlavi: $(`${pref}_po`).value, pojistovna: $(`${pref}_poj`).value, telefon: $(`${pref}_tel`).value, pobyt: $(`${pref}_pb`).value, adresa: $(`${pref}_a`).value });
 function tabDok(d) {
   return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Dokumenty</h2></div><div class="tblwrap"><table class="tbl stack"><tbody>${d.dokumenty.map((x) => `<tr><td><b>${esc(x.nazev)}</b><div class="lbl">${esc(x.typ)} · ${esc(fmtDT(x.vytvoreno))}${x.kdeOriginal ? ' · originál: ' + esc(x.kdeOriginal) : ''}</div></td><td class="act">${x.velikost ? `<button class="btn sm" data-dok="${x.id}">Otevřít</button>` : '<span class="chip">bez souboru</span>'}</td></tr>`).join('') || '<tr><td class="muted">Žádné dokumenty.</td></tr>'}</tbody></table></div></div>
     ${d.op.lekar || d.op.garant ? `<div class="panel" style="align-self:start"><div class="panel-h"><h2>Vložit dokument</h2></div><div class="form" style="padding:14px">
@@ -479,7 +499,7 @@ function renderNovy() {
       w.text = $('w_t').value; if (w.text.trim().length < 40) return toast('Vložte text zprávy');
       $('w_ai').disabled = true; $('w_ai').textContent = 'Anonymizuji a rozebírám…';
       try {
-        const r = await C('/ai/rozbor', { method: 'POST', body: { text: w.text } });
+        const r = await C('/ai/rozbor', { method: 'POST', body: { text: w.text, znamo: w.d.pacient } });
         if (r.blokovano) { toast('Dotaz zablokován'); modal(`<h2>Dotaz na AI nebyl odeslán</h2><p>${esc(r.duvod)}</p><div class="anon">${esc(r.anonymniText)}</div><div class="quick"><button class="btn" data-close>Rozumím</button></div>`); return; }
         w.ai = r; const v = r.vysledek;
         const [prijmeni, ...jm] = String(v.jmenoCele || '').split(/\s+/).reverse();
