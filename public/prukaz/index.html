@@ -61,6 +61,7 @@
 <div id="tisk"></div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
+<script src="/shared/kp-napoveda.js"></script>
 <script>
 /*
  * Průkaz pro plán péče – prototyp pacientem řízené karty (zadání MUDr. Kabelky, verze 0.1, 27. 10. 2026).
@@ -503,6 +504,7 @@ function bind() {
 setInterval(() => { if (D && !zamceno && !ukazka && Date.now() - posledniAktivita > 5 * 60e3) { zamceno = true; closeModal(); render(); } }, 15e3);
 
 /* ---------------- start ---------------- */
+KP.napoveda.nastav({ aplikace: 'pacient', kapitola: 20, obrazovka: () => ({ prehled: 'Přehled', zdravi: 'Zdraví a dokumenty', hodnoty: 'Co je pro mě důležité', rozhovor: 'Rozhovor s lékařem', budouci: 'Budoucí péče', krize: 'Krizová karta', sdilet: 'Sdílet a exportovat', bezpecnost: 'Bezpečnost a obnova' })[tab] || 'Průkaz', fab: false });
 (async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/prukaz/sw.js').catch(() => {});
   if (new URLSearchParams(location.search).get('ukazka')) { D = ukazkovaKarta(); ukazka = true; zamceno = new URLSearchParams(location.search).get('ukazka') === 'zamek'; tab = new URLSearchParams(location.search).get('tab') || 'prehled'; render(); return; }
