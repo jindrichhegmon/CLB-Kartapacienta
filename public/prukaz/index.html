@@ -61,6 +61,7 @@
 <div id="tisk"></div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
+<script src="/shared/kp-napoveda.js"></script>
 <script>
 /*
  * Průkaz pro plán péče – prototyp pacientem řízené karty (zadání MUDr. Kabelky, verze 0.1, 27. 10. 2026).
@@ -70,7 +71,7 @@
  *  - sdílení = výběr položek, náhled přesného obsahu, potvrzení, PDF (tisk) nebo soubor přes systémové sdílení; lokální historie
  *  - záloha = šifrovaný soubor s heslem, obnova na jiném telefonu bez centrální databáze
  */
-const APP_VERZE = 'prukaz-0.1.0';
+const APP_VERZE = 'prukaz-0.1.1';
 const $ = (id) => document.getElementById(id);
 const esc = KP.esc, fmtDT = KP.fmtDT, fmtD = KP.fmtD, toast = KP.toast, modal = KP.modal, closeModal = KP.closeModal;
 const dnes = () => new Date().toISOString().slice(0, 10);
@@ -229,10 +230,10 @@ function prehledHTML() {
       ${stareDok ? `<div class="stav-warn">${stareDok} dokument(y) po platnosti.</div>` : ''}
       ${D.budouci.dvp.ma ? `<div class="stav-ok">Dříve vyslovené přání: ${esc(PODPIS[D.budouci.dvp.podpis])}${D.budouci.dvp.original ? ', originál ' + esc(D.budouci.dvp.original) : ''}.</div>` : '<div class="muted">Formální dříve vyslovené přání nemám zaznamenané.</div>'}
       ${D.hodnoty.aktualizovano ? '' : '<div class="muted">Moje hodnoty zatím nejsou vyplněné – dlaždice Co je pro mě důležité.</div>'}</div></div>
-    <div class="panel"><div class="panel-h"><h2>Hlavní kontakty</h2></div><div class="tblwrap"><table class="tbl"><tbody>
-      ${rozh ? `<tr><td><b>${esc(rozh.jmeno)}</b><div class="lbl">rozhoduje za mě${rozh.vztah ? ' · ' + esc(rozh.vztah) : ''}</div></td><td class="mono">${esc(rozh.tel)}</td></tr>` : ''}
-      ${lekar ? `<tr><td><b>${esc(lekar.jmeno)}</b><div class="lbl">${esc(lekar.vztah || 'lékař')}</div></td><td class="mono">${esc(lekar.tel)}</td></tr>` : ''}
-      ${!rozh && !lekar ? '<tr><td class="muted">Zatím žádný kontakt – doplňte v Zdraví a dokumenty.</td></tr>' : ''}</tbody></table></div></div>
+    <div class="panel"><div class="panel-h"><h2>Hlavní kontakty</h2></div><div class="kontlist">
+      ${rozh ? `<div class="kont"><b>${esc(rozh.jmeno)}</b><div class="lbl" style="margin-top:0">rozhoduje za mě${rozh.vztah ? ' · ' + esc(rozh.vztah) : ''}</div>${KP.telHTML(rozh.tel)}</div>` : ''}
+      ${lekar ? `<div class="kont"><b>${esc(lekar.jmeno)}</b><div class="lbl" style="margin-top:0">${esc(lekar.vztah || 'lékař')}</div>${KP.telHTML(lekar.tel)}</div>` : ''}
+      ${!rozh && !lekar ? '<div class="muted" style="padding:6px 0">Zatím žádný kontakt – doplňte v Zdraví a dokumenty.</div>' : ''}</div></div>
     <div class="note">Tato karta je váš osobní nástroj. Lékařský pokyn je jen to, co napsal a podepsal lékař (dokumenty s ověřením). Co zapíšete sami, je označené jako neověřené, aby to nikdo nezaměnil za ordinaci. Při akutních potížích volejte 155 – karta nenahrazuje lékařskou péči.</div>`;
 }
 function profilOkno() {
@@ -254,7 +255,7 @@ function zdraviHTML() {
   return seznam(z.dg, 'Diagnózy', 'dg') + seznam(z.alergie, 'Alergie', 'alergie') + seznam(z.leky, 'Léky', 'leky') +
     `<div class="panel"><div class="panel-h"><h2>Jak se mi daří (funkční stav)</h2></div><div class="form" style="padding:14px"><textarea id="zd_fun" style="min-height:70px;font-family:var(--font)" placeholder="např. chodím s chodítkem, doma se obsloužím…">${esc(z.funkce)}</textarea><button class="btn ulozit" id="zd_fun_ok" style="margin-top:8px">Uložit</button></div></div>
     <div class="panel"><div class="panel-h"><h2>Kontakty</h2><button class="btn sm" id="k_pridat">+ Přidat</button></div>
-      ${D.kontakty.length ? `<div class="tblwrap"><table class="tbl"><tbody>${D.kontakty.map((k, i) => `<tr><td><b>${esc(k.jmeno)}</b><div class="lbl">${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ' · ' + esc(k.vztah) : ''}</div></td><td class="mono">${esc(k.tel)}</td><td><button class="btn sm" data-kupr="${i}">Upravit</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="prazdne">Zatím žádný kontakt.</div>'}</div>
+      ${D.kontakty.length ? `<div class="kontlist">${D.kontakty.map((k, i) => `<div class="kont"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b>${esc(k.jmeno)}</b><div class="lbl" style="margin-top:0">${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ' · ' + esc(k.vztah) : ''}</div></div><button class="btn sm" data-kupr="${i}">Upravit</button></div>${KP.telHTML(k.tel)}</div>`).join('')}</div>` : '<div class="prazdne">Zatím žádný kontakt.</div>'}</div>
     <div class="panel"><div class="panel-h"><h2>Dokumenty</h2><button class="btn sm" id="d_pridat">+ Přidat dokument</button></div>
       ${D.dokumenty.length ? D.dokumenty.map((d, i) => `<div class="zaznam" style="display:flex;gap:10px"><div class="dok-ikona">${d.soubor ? (d.soubor.typ.startsWith('image/') ? '🖼' : '📄') : '📝'}</div><div style="flex:1;min-width:0"><div class="t"><b>${esc(d.nazev)}</b></div><div class="meta">${esc(TYPY_DOK[d.typ] || d.typ)}${d.vydal ? ' · ' + esc(d.vydal) : ''}${d.datum ? ' · ' + esc(fmtD(d.datum)) : ''}${d.platnostDo ? (d.platnostDo < dnes() ? ` · <span class="chip crit">po platnosti ${esc(fmtD(d.platnostDo))}</span>` : ' · platí do ' + esc(fmtD(d.platnostDo))) : ''} · <span class="chip ${d.podpis === 'neoveren' ? 'neov' : 'lek'}">${esc(PODPIS[d.podpis] || d.podpis)}</span>${d.original ? ' · originál: ' + esc(d.original) : ''}</div>
         <div class="quick">${d.soubor ? `<button class="btn sm" data-dok="${i}">Otevřít soubor</button>` : ''}<button class="btn sm" data-dupr="${i}">Upravit</button><button class="btn sm" data-dsmaz="${i}">Smazat</button></div></div></div>`).join('') : '<div class="prazdne">Zatím žádný dokument – vyfoťte zprávu nebo přidejte PDF.</div>'}</div>
@@ -374,8 +375,8 @@ function krizovaKartaHTML(vse = false) {
   if (pov('dg') && z.dg.length) s += sek('Diagnózy', z.dg.map((x) => esc(x.text) + (x.overeno ? '' : ' <span class="chip neov">neověřeno</span>')).join('<br>'), '', false);
   if (pov('alergie') && z.alergie.length) s += sek('Alergie', z.alergie.map((x) => esc(x.text)).join(', '), '', true);
   if (pov('leky') && z.leky.length) s += sek('Léky', z.leky.map((x) => esc(x.nazev) + (x.davka ? ' – ' + esc(x.davka) : '') + (x.overeno ? '' : ' <span class="chip neov">neověřeno</span>')).join('<br>'), 'seznam vedený pacientem – ověřte proti aktuální zprávě', false);
-  if (pov('kontakty') && kontakty.length) s += sek('Koho volat', kontakty.map((k) => `<div class="callrow"><span>${esc(k.jmeno)}<span class="lbl" style="margin:0"> · ${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ', ' + esc(k.vztah) : ''}</span></span><a class="num" href="tel:${esc(String(k.tel).replace(/\s/g, ''))}">${esc(k.tel)}</a></div>`).join(''), '', false);
-  if (pov('lekar') && lekar) s += sek('Můj lékař', `${esc(lekar.jmeno)}${lekar.vztah ? ' · ' + esc(lekar.vztah) : ''} <a class="num" href="tel:${esc(String(lekar.tel).replace(/\s/g, ''))}">${esc(lekar.tel)}</a>`, '', false);
+  if (pov('kontakty') && kontakty.length) s += sek('Koho volat', kontakty.map((k) => `<div class="callblk"><div class="lbl">${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ' · ' + esc(k.vztah) : ''}</div><div class="val">${esc(k.jmeno)}</div>${KP.telHTML(k.tel)}</div>`).join(''), '', false);
+  if (pov('lekar') && lekar) s += sek('Můj lékař', `<div class="callblk"><div class="val">${esc(lekar.jmeno)}${lekar.vztah ? ' · ' + esc(lekar.vztah) : ''}</div>${KP.telHTML(lekar.tel)}</div>`, '', false);
   if (pov('hodnoty') && D.hodnoty.dulezite) s += sek('Co je pro mě důležité', esc(D.hodnoty.dulezite), 'osobní přání pacienta, ne lékařský pokyn', false);
   s += `<div class="sek"><div class="meta">Karta aktualizována ${esc(fmtDT(D.aktualizovano))}. Neověřené údaje zapsal pacient sám. V akutním stavu volejte 155.</div></div></div>`;
   return s;

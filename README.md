@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.42: totéž i v prototypu Průkaz pro plán péče (`/prukaz/` 0.1.1): Hlavní kontakty, Kontakty (s tlačítkem Upravit) a krizová karta bez PINu (Koho volat, Můj lékař). Vlastní číslo telefonu v hlavičce zůstává jen jako text. Oprava: prototyp nenačítal `kp-napoveda.js`, takže se od 0.11.39 nevykreslil (chyběla `KP.tlacitkaHlavicky`).
 - 0.11.41: telefonní čísla na telefonu (karta týmu i Můj průkaz) vždy jako tlačítko v rámečku na samostatném řádku s ikonou sluchátka – klepnutím se volá (`KP.telHTML`): krizová karta Koho volat, Kontakty, Tým, Zhoršení, Na koho se obrátit.
 - 0.11.40: karta týmu – oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** jen po odemknutí lékařem nebo členem týmu (sestra, hospic, PL); zamčená krizová karta (ZZS) a rodina ho nevidí (termín rodině sděluje tým). V centrále a tisku karty beze změny.
 - 0.11.39: **Průkaz pro plán péče** (`/prukaz/`, prototyp 0.1.0 podle zadání MUDr. Kabelky): pacientem řízená karta bez serveru – založení s PINem, zdraví a dokumenty s metadaty (zdroj, datum, ověření), hodnoty, rozhovor s lékařem, budoucí péče (přání / ACP / DVP / lékařský plán odděleně), krizová karta s volbou položek bez PINu, sdílení s náhledem a potvrzením (PDF / soubor), šifrovaná záloha a obnova; nápověda kap. 20.
