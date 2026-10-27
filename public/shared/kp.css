@@ -234,3 +234,53 @@ select[multiple]{min-height:120px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
 .dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.crit{background:var(--crit)}
 a.num{text-decoration:none}
+
+/* ---------- centrální aplikace na mobilu (≤ 640 px) ---------- */
+.m-only{display:none!important}
+@media (max-width:640px){
+  .d-only{display:none!important}
+  .m-only{display:revert!important}
+  .app.wide .top{min-height:52px;padding-block:6px}
+  .app.wide .top .ttl h1{font-size:16px}
+  /* obsah nad spodní lištou */
+  body.has-bnav .content{padding-bottom:calc(var(--nav) + 20px + env(safe-area-inset-bottom,0px))}
+  body.has-bnav .toast{bottom:calc(var(--nav) + 14px + env(safe-area-inset-bottom,0px))}
+  body.has-bnav .modal .box,body.has-bnav .sheet{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  /* záložky: posuvné, s naznačením pokračování */
+  .tabs{margin-inline:-16px;padding-inline:16px;scroll-padding-inline:16px;mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+  .tabs button{padding:12px 11px;min-height:44px}
+  /* formuláře do jednoho sloupce */
+  .frow{grid-template-columns:1fr}
+  .actions{flex-wrap:wrap;overflow:visible}
+  .quick{flex-direction:column}
+  .quick .btn{width:100%}
+  .panel-h{flex-wrap:wrap}
+  .panel-h .seg{width:100%!important}
+  .banner .btn{margin-left:0;flex:1 1 auto}
+  .login{margin-top:2vh}
+  .stats{grid-template-columns:1fr 1fr}
+  .kv{grid-template-columns:1fr;gap:2px 0}
+  .kv dt{margin-top:8px;font-size:12px}
+  .kv dt:first-child{margin-top:0}
+  .qr svg,.qr img{width:min(220px,70vw);height:auto}
+  /* tabulky poskládané do řádků – bez vodorovného posuvu */
+  .tbl.stack thead{display:none}
+  .tbl.stack tr{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .tbl.stack tr:last-child{border-bottom:0}
+  .tbl.stack td{display:block;border:0;padding:0;min-width:0}
+  .tbl.stack td:first-child{flex:1 1 100%}
+  .tbl.stack td:empty{display:none}
+  .tbl.stack td[data-l]:not(:first-child)::before{content:attr(data-l) ": ";color:var(--muted);font-size:12px;font-family:var(--font)}
+  .tbl.stack td.act{margin-left:auto}
+  .tbl.hover.stack tr[data-id]:hover td{background:none}
+  .tbl.hover.stack tr[data-id]:hover,.tbl.hover.stack tr[data-p]:hover{background:var(--surface-2)}
+}
+/* spodní navigace centrály: na mobilu místo chipů */
+.bnav{display:none}
+@media (max-width:640px){
+  .bnav{display:block}
+  .bnav .in{max-width:none}
+  .bnav button{min-width:0;padding:0 4px}
+  .bnav button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+}
+@media print{.bnav,.m-only{display:none!important}}
