@@ -25,7 +25,7 @@ Jak to funguje v kostce:
 
 ## 2. Přihlášení a můj účet
 
-Centrální aplikace funguje i na mobilu (od 0.11.46): hlavička je kompaktní, záložky pacienta jsou ve dvou řadách a tlačítka se zalamují. Videohovor na telefon u pacienta jde zahájit i z mobilu – otevře se v nové záložce prohlížeče.
+Centrální aplikace funguje i na mobilu (od 0.11.46): hlavička je kompaktní, záložky pacienta jsou ve dvou řadách a tlačítka se zalamují. Videohovor na telefon u pacienta jde zahájit i z mobilu – otevře se přes celou obrazovku.
 
 Centrální aplikaci otevřete odkazem, který dostanete od správce organizace (`…/centrala/?t=KÓD_ORGANIZACE`) – kód organizace se pak vyplní sám. Zadáte **přihlašovací jméno** a **heslo**.
 
@@ -216,7 +216,7 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
 
-**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefon u pacienta, hovor se vám otevře v nové záložce prohlížeče (povolte fotoaparát a mikrofon). Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
+**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefon u pacienta a hovor se otevře v okně přímo v centrále (povolte fotoaparát a mikrofon). **Zavřít okno** nechá hovor běžet na pozadí (znovu ho otevřete tlačítkem Připojit se), **Ukončit hovor** ho ukončí i pro telefon. Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
 
 ![Centrála – z telefonu u pacienta volá sestra](/napoveda/img/c-video.png)
 

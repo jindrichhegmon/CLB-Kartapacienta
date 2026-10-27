@@ -229,10 +229,21 @@ function videoTlacitkoC(d) {
   if (v.hovor) return '';
   return `<button class="btn sm" id="vidZahajit" title="${v.telefon ? 'Telefon u pacienta zazvoní, kdokoli u něj hovor přijme' : 'Pacient zatím nemá spárovaný telefon u lůžka'}">📹 Videohovor na telefon</button>`;
 }
-function otevriHovorC(h) {
+/* 0.11.48: hovor běží v okně přímo v centrále (iframe serveru videohovorů), ne v nové záložce; „Zavřít okno“ hovor nechá běžet na pozadí,
+   „Ukončit hovor“ ho ukončí i pro telefon */
+function otevriHovorC(h, pacientId) {
   if (!h || !h.odkaz) return toast('Hovor nemá odkaz');
-  const w = window.open(h.odkaz, '_blank'); if (!w) toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
+  zavriOknoHovoruC();
+  const el = document.createElement('div'); el.className = 'videocall';
+  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}<br><small style="font-weight:400;opacity:.75">místnost ${esc(h.mistnost)}</small></span>
+    <span class="row" style="flex-wrap:nowrap"><button class="btn sm" id="vidMin" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.4)">Zavřít okno</button><button class="btn sm crit" id="vidKonecC">Ukončit hovor</button></span></div>
+    <iframe src="${esc(h.odkaz)}" allow="camera; microphone; autoplay; display-capture; fullscreen" allowfullscreen title="Videohovor"></iframe>`;
+  document.body.appendChild(el);
+  VIDG.okno = { id: h.id, pacientId, el };
+  el.querySelector('#vidMin').onclick = () => { zavriOknoHovoruC(); toast('Hovor běží dál – znovu ho otevřete tlačítkem Připojit se'); };
+  el.querySelector('#vidKonecC').onclick = () => { zavriOknoHovoruC(); ukoncitHovorC(pacientId, h.id); };
 }
+function zavriOknoHovoruC() { if (VIDG.okno) { VIDG.okno.el.remove(); VIDG.okno = null; } }
 /* připojení k hovoru: vždy čerstvý stav ze serveru (ne starý odkaz) a u hovoru z telefonu označit jako přijatý – jinak by ho server po 3 min zavřel */
 async function pripojitSeC(pacientId, hovorId) {
   try {
@@ -240,14 +251,15 @@ async function pripojitSeC(pacientId, hovorId) {
     if (!r.hovor) return toast('Hovor už skončil');
     if (r.hovor.stav === 'ZVONI') r = await C(`/pacient/${pacientId}/video`, { method: 'POST', body: { akce: 'prijmout', id: r.hovor.id } });
     if (S.view === 'detail' && S.pac && S.pacId === pacientId) { S.pac.video = r; kresliDetail(); }
-    otevriHovorC(r.hovor); videoGlobalPoll();
+    otevriHovorC(r.hovor, pacientId); videoGlobalPoll();
   } catch (e) { toast(e.message); }
 }
 async function ukoncitHovorC(pacientId, hovorId) {
+  if (VIDG.okno && VIDG.okno.id === hovorId) zavriOknoHovoruC();
   try { const r = await C(`/pacient/${pacientId}/video`, { method: 'POST', body: { akce: 'ukoncit', id: hovorId } }); if (S.view === 'detail' && S.pac && S.pacId === pacientId) { S.pac.video = r; kresliDetail(); } videoGlobalPoll(); toast('Videohovor ukončen'); } catch (e) { toast(e.message); }
 }
 /* ---- globální signalizace (0.11.47): každých 15 s seznam zvonících a probíhajících hovorů, pruh pod hlavičkou v každé agendě, zvonění ---- */
-const VIDG = { hovory: [], klic: '', zvonek: null, zvoniOd: 0 };
+const VIDG = { hovory: [], klic: '', zvonek: null, zvoniOd: 0, okno: null };
 function vidTon() {
   try { const ac = new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(); const g = ac.createGain(); o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(ac.destination); o.start(); o.frequency.setValueAtTime(660, ac.currentTime + 0.3); o.stop(ac.currentTime + 0.6); o.onended = () => ac.close(); } catch { /* bez zvuku */ }
 }
@@ -279,6 +291,8 @@ async function videoGlobalPoll() {
     const zvoniZTelefonu = r.hovory.some((h) => h.stav === 'ZVONI' && h.zahajil === 'TELEFON');
     const nove = r.hovory.some((h) => h.stav === 'ZVONI' && h.zahajil === 'TELEFON' && !VIDG.hovory.some((x) => x.id === h.id));
     VIDG.hovory = r.hovory;
+    // druhá strana hovor ukončila → zavřít okno
+    if (VIDG.okno && !r.hovory.some((h) => h.id === VIDG.okno.id)) { zavriOknoHovoruC(); toast('Videohovor byl ukončen'); }
     if (klic !== VIDG.klic) { VIDG.klic = klic; kresliVidGlobal(); }
     if (nove) vidZvonit(true); else if (!zvoniZTelefonu) vidZvonit(false);
   } catch { /* bez připojení */ }
@@ -287,7 +301,7 @@ setInterval(videoGlobalPoll, 15000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') videoGlobalPoll(); });
 async function videoZahajitC() {
   if (!S.pac.video.telefon && !(await KP.confirm('Telefon u pacienta není spárovaný', 'Pacient nemá spárovaný telefon u lůžka, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
-  try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor); toast('Telefon u pacienta zvoní'); videoGlobalPoll(); } catch (e) { toast(e.message); }
+  try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor, S.pacId); toast('Telefon u pacienta zvoní'); videoGlobalPoll(); } catch (e) { toast(e.message); }
 }
 setInterval(async () => {
   if (S.view !== 'detail' || !S.pac || !S.pac.video || !S.pac.video.server || document.visibilityState !== 'visible') return;
