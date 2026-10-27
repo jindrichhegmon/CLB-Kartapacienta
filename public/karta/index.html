@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.34';
+const APP_VERZE = 'karta-0.11.35';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -245,7 +245,7 @@ function kresli() {
 /* chat PéčeDoma: po odemknutí může rodina i tým u pacienta napsat týmu PéčeDoma (zprávy jdou přes server Karty) */
 function navstevaHTML(b) {
   const pd = b.pecedoma; if (!pd || !pd.chat || !U.role || U.role === 'zzs') return '';
-  return `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip acc">chat</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA') : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick"><button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat týmu PéčeDoma'}</button></div></div></div><div class="note"><b>Chat PéčeDoma:</b> zprávu uvidí tým PéčeDoma (sestry, lékař) v portálu u klienta a odpoví sem; stejné vlákno vidí klient ve své aplikaci PéčeDoma.</div>`;
+  return `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip acc">chat</span></div><div style="padding:12px 14px"><div id="pdNahled">${D.zpravy ? KP.chatNahled(D.zpravy, 'OD_PACIENTA') : '<div class="muted" style="font-size:13px;padding:0 0 6px">Načítám zprávy…</div>'}</div><div class="quick">${chatJenCte() ? '<button class="btn" id="pdVse">Všechny zprávy</button>' : `<button class="btn primary" id="pdChat">💬 ${D.zpravy && D.zpravy.length ? 'Všechny zprávy a odpověď' : 'Napsat týmu PéčeDoma'}</button>`}</div></div></div><div class="note"><b>Chat PéčeDoma:</b> zprávu uvidí tým PéčeDoma (sestry, lékař) v portálu u klienta a odpoví sem; stejné vlákno vidí klient ve své aplikaci PéčeDoma.</div>`;
 }
 /* poslední zprávy rovnou v panelu (po odemknutí); načtení na pozadí nejvýš jednou za 5 minut, cache v telefonu */
 let zpravyBezi = false;
@@ -266,14 +266,17 @@ function ulozZpravy(zpravy) {
 }
 /* dlaždice Zprávy (0.11.34): celé vlákno chatu PéčeDoma – co píše pacient a rodina z Mého průkazu a z aplikace PéčeDoma a co odpovídá tým */
 const CHAT_NAZVY = { OD_PACIENTA: 'Pacient / rodina', OD_TYMU: 'Tým PéčeDoma' };
+/* 0.11.35: lékař (i praktický) zprávy na telefonu jen čte – z telefonu by psal za stranu pacienta; odpovídá z portálu PéčeDoma nebo z centrály Karty jako Tým PéčeDoma */
+const chatJenCte = () => U.role === 'lekar' || U.role === 'pl';
 function vlaknoHTML() { return D.zpravy ? (D.zpravy.length ? KP.chatHTML(D.zpravy, 'OD_PACIENTA', CHAT_NAZVY) : '<div class="muted" style="font-size:13px;padding:6px 0">Zatím žádné zprávy.</div>') : '<div class="muted" style="font-size:13px;padding:6px 0">Načítám zprávy…</div>'; }
 function zpravyHTML(b) {
   return `<div class="panel"><div class="panel-h"><h2>Zprávy s pacientem a rodinou</h2><span class="chip acc">PéčeDoma</span></div>
       <div id="pdVlakno" class="chatl" style="max-height:none;min-height:0;padding:12px 14px">${vlaknoHTML()}</div>
-      <div class="quick" style="padding:0 14px 14px"><button class="btn primary" id="pdChat">💬 Odpovědět</button></div></div>
-    <div class="note">Stejné vlákno, jaké má pacient v Mém průkazu (Zprávy pro a od lékaře), rodina v aplikaci PéčeDoma a tým v portálu PéčeDoma (Data klienta → Zprávy). Zprávy se načítají při otevření dlaždice; naposledy načtené zůstávají i bez připojení.</div>`;
+      ${chatJenCte() ? '<div class="lbl keep" style="padding:0 14px 14px">Jen ke čtení – lékař odpovídá z portálu PéčeDoma (Data klienta → Zprávy) nebo z centrály Karty, aby zpráva šla za Tým PéčeDoma.</div>' : '<div class="quick" style="padding:0 14px 14px"><button class="btn primary" id="pdChat">💬 Odpovědět</button></div>'}</div>
+    <div class="note">Stejné vlákno, jaké má pacient v Mém průkazu (Zprávy pro a od lékaře), rodina v aplikaci PéčeDoma a tým v portálu PéčeDoma (Data klienta → Zprávy). Zprávy se načítají při otevření dlaždice; naposledy načtené zůstávají i bez připojení.${chatJenCte() ? ' Z telefonu píše za stranu pacienta rodina a tým u lůžka; lékař zprávy jen čte.' : ''}</div>`;
 }
 function chatPd() {
+  if (chatJenCte()) return toast('Lékař zprávy z telefonu neodesílá – odpovězte z portálu PéčeDoma nebo z centrály Karty.');
   if (!navigator.onLine) return toast('Chat potřebuje připojení k internetu');
   const kdo = [ROLE_NAZ[U.role] || U.role || '', U.jmeno || ''].filter(Boolean).join(' ');
   const hlidej = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { if (e.status === 401 || e.status === 403) setTimeout(() => sync(), 400); throw e; } };
@@ -377,6 +380,7 @@ function tymHTML(b) {
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('pdChat', chatPd);
+  on('pdVse', () => { tab = 'zpravy'; kresli(); scrollTo(0, 0); });
   on('lk_novy', () => lekOknoTel());
   if ($('lk_seznam')) nactiLekyTel();
   on('p_inst', async () => { if (!instalace) return; instalace.prompt(); try { await instalace.userChoice; } catch { /* */ } instalace = null; const b = $('p_inst'); if (b) b.style.display = 'none'; });

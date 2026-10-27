@@ -235,7 +235,9 @@ device.post('/pecedoma/zprava', h(async (req) => {
     const z = await overZarizeni(q, zid, raw);
     const { nast, pd, stav } = await chatKontext(q, z);
     if (stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený', 403);
-    const kdo = z.Rezim === 'PACIENT' ? 'pacient' : [ROLE_CHAT[String(b.role || '').toLowerCase()] || '', text(b.kdo, 80)].filter(Boolean).join(' ') || 'telefon u pacienta';
+    const roleTel = String(b.role || '').toLowerCase();
+    if (z.Rezim !== 'PACIENT' && (roleTel === 'lekar' || roleTel === 'pl')) throw chyba('Lékař zprávy z telefonu neodesílá – odpovězte z portálu PéčeDoma nebo z centrály Karty (zpráva pak jde za Tým PéčeDoma)', 403);   // 0.11.35
+    const kdo = z.Rezim === 'PACIENT' ? 'pacient' : [ROLE_CHAT[roleTel] || '', text(b.kdo, 80)].filter(Boolean).join(' ') || 'telefon u pacienta';
     const r = await posliZpravuPd(nast, pd, { text: text(b.text, 4000), smer: 'OD_PACIENTA', kdo });
     await audit(q, { zarizeniId: zid, kdo: z.Rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: 'PéčeDoma: zpráva odeslána', detail: kdo, ip: ip(req) });
     return { zpravy: r.zpravy };
