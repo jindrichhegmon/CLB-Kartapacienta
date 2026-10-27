@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.43: tlačítko Zpět na Androidu kartu týmu ani Můj průkaz neukončí (`KP.zachytZpet`): zavře otevřené okno, jinak vrátí na dlaždici Karta / Přehled. Aplikaci opustí jen Domů; s připnutím obrazovky v Androidu tak telefon zůstává v Kartě.
 - 0.11.42: totéž i v prototypu Průkaz pro plán péče (`/prukaz/` 0.1.1): Hlavní kontakty, Kontakty (s tlačítkem Upravit) a krizová karta bez PINu (Koho volat, Můj lékař). Vlastní číslo telefonu v hlavičce zůstává jen jako text. Oprava: prototyp nenačítal `kp-napoveda.js`, takže se od 0.11.39 nevykreslil (chyběla `KP.tlacitkaHlavicky`).
 - 0.11.41: telefonní čísla na telefonu (karta týmu i Můj průkaz) vždy jako tlačítko v rámečku na samostatném řádku s ikonou sluchátka – klepnutím se volá (`KP.telHTML`): krizová karta Koho volat, Kontakty, Tým, Zhoršení, Na koho se obrátit.
 - 0.11.40: karta týmu – oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** jen po odemknutí lékařem nebo členem týmu (sestra, hospic, PL); zamčená krizová karta (ZZS) a rodina ho nevidí (termín rodině sděluje tým). V centrále a tisku karty beze změny.

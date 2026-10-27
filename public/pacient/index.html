@@ -60,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.42';
+const APP_VERZE = 'pacient-0.11.43';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -639,6 +639,8 @@ async function start() {
   propojeniHTML();
 }
 (async function init() {
+  // 0.11.43: Zpět na telefonu Můj průkaz nezavře – zavře otevřené okno, jinak vrátí na Přehled
+  KP.zachytZpet(() => { if (document.querySelector('#modal .modal')) closeModal(); else if (D && tab !== 'prehled') { tab = 'prehled'; kresli(); scrollTo(0, 0); } });
   await start();
   addEventListener('online', () => sync());
   addEventListener('hashchange', () => { const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i); if (h && D) propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); });

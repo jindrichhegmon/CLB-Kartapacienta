@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.42';
+const APP_VERZE = 'karta-0.11.43';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -525,6 +525,8 @@ async function parovat(tenant, kod, telefon) {
   const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
   if (h) { D = null; kresliParovani({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); }   // odkaz z SMS / QR předvyplní kódy; další průkaz se přidá vedle stávajících
   else kresli();
+  // 0.11.43: Zpět na telefonu kartu nezavře – zavře otevřené okno, jinak vrátí na dlaždici Karta (obsluha pak Kartu nemusí znovu hledat)
+  KP.zachytZpet(() => { if (document.querySelector('#modal .modal')) closeModal(); else if (tab !== 'karta') { tab = 'karta'; kresli(); scrollTo(0, 0); } });
   syncVse();
   addEventListener('online', () => syncVse());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncVse(); });

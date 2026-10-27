@@ -60,6 +60,13 @@
     return `<a class="telbtn" href="tel:${KP.esc(t.replace(/[^+\d]/g, ''))}" aria-label="Zavolat ${KP.esc(t)}">${KP.ICON.tel}<span class="telc">${KP.esc(t)}</span>${popis ? `<span class="telp">${KP.esc(popis)}</span>` : ''}</a>`;
   };
 
+  /** Systémové tlačítko Zpět (Android) aplikaci neukončí: drží v historii jeden krok navíc a při každém Zpět zavolá `fn`
+   *  (zavřít okno, vrátit se na úvodní dlaždici) a krok zase doplní. Ukončit aplikaci jde jen tlačítkem Domů (0.11.43). */
+  KP.zachytZpet = (fn) => {
+    try { history.pushState({ kp: 'zpet' }, ''); } catch { return; }
+    addEventListener('popstate', () => { try { fn(); } catch { /* */ } try { history.pushState({ kp: 'zpet' }, ''); } catch { /* */ } });
+  };
+
   /** Aktivní zhoršení = poslední krizový zápis je „Zhoršení stavu“. */
   KP.aktivniZhorseni = (denik) => {
     const krize = (denik || []).filter((e) => ['Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Ukončení'].includes(e.typ));
