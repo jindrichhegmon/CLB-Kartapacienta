@@ -37,6 +37,7 @@
   };
 
   KP.ICON = {
+    tel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg>',
     zpravy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.3A8 8 0 1 1 21 12z"/></svg>',
     odpac: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
     karta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h6"/></svg>',
@@ -51,6 +52,12 @@
     back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 5l-7 7 7 7"/></svg>',
     zamek: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>',
     sync: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5"/></svg>',
+  };
+
+  /** Telefonní číslo jako tlačítko na samostatném řádku: rámeček, ikona sluchátka, klepnutím se volá (0.11.41). `popis` = drobný text vpravo. */
+  KP.telHTML = (tel, { popis = '' } = {}) => {
+    const t = String(tel || '').trim(); if (!t) return '';
+    return `<a class="telbtn" href="tel:${KP.esc(t.replace(/[^+\d]/g, ''))}" aria-label="Zavolat ${KP.esc(t)}">${KP.ICON.tel}<span class="telc">${KP.esc(t)}</span>${popis ? `<span class="telp">${KP.esc(popis)}</span>` : ''}</a>`;
   };
 
   /** Aktivní zhoršení = poslední krizový zápis je „Zhoršení stavu“. */
@@ -177,9 +184,9 @@
           ${leky.opioidy.length ? `<div class="lbl">Opioidy</div>${leky.opioidy.map((s) => `<div class="val">${e(s)}</div>`).join('')}` : ''}
         </section>
         <section class="sec blue"><h3>KOHO VOLAT</h3>
-          ${first ? `<a class="callrow first" href="tel:${e(String(first.tel).replace(/\s/g, ''))}" style="color:inherit;text-decoration:none"><span>Nejdřív: ${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</span><span class="num">${e(first.tel)}</span></a>` : ''}
-          <div class="callrow"><span><span class="lbl" style="margin:0">Lékař plánu${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</span><br>${e(lekarJm)}</span>${lekarTel ? `<a class="num" href="tel:${e(lekarTel.replace(/\s/g, ''))}">${e(lekarTel)}</a>` : ''}</div>
-          ${dalsiKontakty.map((r) => `<div class="callrow"><span><span class="lbl" style="margin:0">${SKUP_NAZ[r.skupina] || e(r.skupina)}${r.pozn ? ' · ' + e(r.pozn) : ''}</span><br>${e(r.jmeno)}</span><a class="num" href="tel:${e(String(r.tel).replace(/\s/g, ''))}">${e(r.tel)}</a></div>`).join('')}
+          ${first ? `<div class="callblk first"><div class="lbl">Nejdřív volat</div><div class="val"><b>${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</b></div>${KP.telHTML(first.tel)}</div>` : ''}
+          <div class="callblk"><div class="lbl">Lékař plánu${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</div><div class="val">${e(lekarJm)}</div>${KP.telHTML(lekarTel)}</div>
+          ${dalsiKontakty.map((r) => `<div class="callblk"><div class="lbl">${SKUP_NAZ[r.skupina] || e(r.skupina)}${r.pozn ? ' · ' + e(r.pozn) : ''}</div><div class="val">${e(r.jmeno)}</div>${KP.telHTML(r.tel)}</div>`).join('')}
         </section>
         ${navsteva && pd && pd.pristiNavsteva ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="val"><b>${e(KP.fmtDT(pd.pristiNavsteva))}</b></div>${pd.pristiKdo ? `<div class="val">${e(pd.pristiKdo)}</div>` : ''}${pd.pristiPozn ? `<div class="lbl">${e(pd.pristiPozn)}</div>` : ''}</section>`
           : navsteva && pd && pd.aktualizovano ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="lbl">V kalendáři PéčeDoma zatím není naplánovaná návštěva (stav ${e(KP.fmtDT(pd.aktualizovano))}).</div></section>` : ''}

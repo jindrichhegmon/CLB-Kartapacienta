@@ -60,7 +60,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.40';
+const APP_VERZE = 'pacient-0.11.41';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -234,11 +234,11 @@ function lekarHTML(b) {
 }
 function kontaktyHTML(b) {
   const g = b.garant || {};
-  return `<div class="panel"><div class="panel-h"><h2>Na koho se obrátit</h2><span class="chip lek">od lékaře</span></div><div class="tblwrap"><table class="tbl"><tbody>
-      ${g.poskytovatel ? `<tr><td><b>${esc(g.poskytovatel)}</b><div class="lbl">garant průkazu${g.lekar ? ' · ' + esc(g.lekar) : ''}</div></td><td>${g.telefon24 ? `<a class="btn sm" href="tel:${esc(String(g.telefon24).replace(/\s/g, ''))}">${esc(g.telefon24)}</a>` : ''}</td></tr>` : ''}
-      ${(b.kontakty || []).map((x) => `<tr><td><b>${esc(x.jmeno)}</b><div class="lbl">${esc({ rozhoduje: 'rozhoduje za mě', informovat: 'informovat', pecuje: 'pečuje' }[x.skupina] || x.skupina)}${x.pozn ? ' · ' + esc(x.pozn) : ''}</div></td><td><a class="btn sm" href="tel:${esc(String(x.tel).replace(/\s/g, ''))}">${esc(x.tel)}</a></td></tr>`).join('')}
-      ${(b.tym || []).map((t) => `<tr><td><b>${esc(t.nazev)}</b><div class="lbl">tým kolem mě</div></td><td class="mono">${t.tel ? `<a class="btn sm" href="tel:${esc(String(t.tel).replace(/\s/g, ''))}">${esc(t.tel)}</a>` : ''}</td></tr>`).join('')}
-    </tbody></table></div></div>`;
+  return `<div class="panel"><div class="panel-h"><h2>Na koho se obrátit</h2><span class="chip lek">od lékaře</span></div><div class="kontlist">
+      ${g.poskytovatel ? `<div class="kont"><b>${esc(g.poskytovatel)}</b><div class="lbl" style="margin-top:0">garant průkazu${g.lekar ? ' · ' + esc(g.lekar) : ''}</div>${KP.telHTML(g.telefon24)}</div>` : ''}
+      ${(b.kontakty || []).map((x) => `<div class="kont"><b>${esc(x.jmeno)}</b><div class="lbl" style="margin-top:0">${esc({ rozhoduje: 'rozhoduje za mě', informovat: 'informovat', pecuje: 'pečuje' }[x.skupina] || x.skupina)}${x.pozn ? ' · ' + esc(x.pozn) : ''}</div>${KP.telHTML(x.tel)}</div>`).join('')}
+      ${(b.tym || []).map((t) => `<div class="kont"><b>${esc(t.nazev)}</b><div class="lbl" style="margin-top:0">tým kolem mě</div>${KP.telHTML(t.tel)}</div>`).join('')}
+    </div><div class="puvod">Klepnutím na číslo se volá.</div></div>`;
 }
 const PUVOD_PRANI = { vlastni: 'moje vlastní příprava', rozhovor: 'jak si pamatuji rozhovor se zdravotníkem', zaznam: 'opsáno ze záznamu zdravotníka' };
 function puvodPrani(p) {

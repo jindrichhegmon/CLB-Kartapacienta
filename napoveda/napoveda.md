@@ -170,7 +170,7 @@ Záložka **Důležité kontakty** ukazuje jeden seznam **v pořadí, jak se kon
 - **Upravit** načte kontakt do formuláře vpravo (řádek se podbarví), **Uložit změny** ho přepíše, **Zrušit** úpravu opustí. **Odebrat** kontakt skryje, v databázi zůstává.
 
 ![Úprava kontaktu přímo ve formuláři vedle seznamu](/napoveda/img/c-kontakty-upravit.png)
-- Krizová karta v oddílu KOHO VOLAT bere **Nejdřív volat** ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a potom **všechny ostatní kontakty** v pořadí ze seznamu (Rozhoduje první) se štítkem skupiny a poznámkou. Kontakty upravuje celý tým kolem pacienta.
+- Krizová karta v oddílu KOHO VOLAT bere **Nejdřív volat** ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a potom **všechny ostatní kontakty** v pořadí ze seznamu (Rozhoduje první) se štítkem skupiny a poznámkou. Každé číslo je na telefonu v rámečku na samostatném řádku s ikonou sluchátka – klepnutím se rovnou volá (stejně v dlaždicích Kontakty a Tým i v Mém průkazu). Kontakty upravuje celý tým kolem pacienta.
 
 ## 7. Tým a garance
 

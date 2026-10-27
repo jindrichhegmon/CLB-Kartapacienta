@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.40';
+const APP_VERZE = 'karta-0.11.41';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -363,18 +363,18 @@ function zhorseniHTML(b, zh) {
       <div class="field"><label>2. Co jsem už udělal(a)</label><div class="checks" id="z_akce">${['podán SOS lék', 'poloha / kyslík', 'zklidnění, přítomnost', 'změřeny funkce'].map((s) => `<label><input type="checkbox" value="${s}">${s}</label>`).join('')}</div></div>
       <div class="field"><label>3. Komu jsem volal(a)</label><div class="checks" id="z_vol">${['hospic', 'lékař plánu', 'praktický lékař', 'rodina / zástupce', '155'].map((s) => `<label><input type="checkbox" value="${s}">${s}</label>`).join('')}</div></div>
       <button class="btn crit" id="btnZ">Zapsat zhoršení a zobrazit na kartě</button></div></div>
-    ${first ? `<a class="btn block primary" href="tel:${esc(String(first.tel).replace(/\s/g, ''))}">Volat: ${esc(first.jmeno)} · ${esc(first.tel)}</a>` : ''}
+    ${first ? `<div class="panel"><div class="panel-h"><h2>Volat nejdřív</h2></div><div class="kontlist"><div class="kont"><b>${esc(first.jmeno)}</b>${KP.telHTML(first.tel)}</div></div></div>` : ''}
     <div class="note keep"><b>SOS léky:</b> ${esc(((b.plan && b.plan.data.sos) || []).join('; ') || 'neuvedeny')}</div>
     ${zh ? `<div class="banner crit">Aktivní zhoršení od ${esc(fmtDT(zh.cas))}.<button class="btn sm" id="btnStab">Stav stabilizován</button></div>` : ''}`;
 }
 function kontaktyHTML(b) {
   const sk = [['rozhoduje', 'Rozhoduje (zástupce, opatrovník)', 'crit'], ['informovat', 'Informovat', 'acc'], ['pecuje', 'Pečuje', 'ok']];
-  return sk.map(([k, n, c]) => `<div class="panel"><div class="panel-h"><h2>${n}</h2><span class="chip ${c}">${(b.kontakty || []).filter((x) => x.skupina === k).length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${(b.kontakty || []).filter((x) => x.skupina === k).map((x) => `<tr><td><b>${esc(x.jmeno)}</b>${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td style="white-space:nowrap"><a class="btn sm" href="tel:${esc(String(x.tel).replace(/\s/g, ''))}">${esc(x.tel)}</a></td></tr>`).join('') || '<tr><td class="muted">nikdo</td></tr>'}</tbody></table></div></div>`).join('')
-    + '<div class="note">Kontakty upravuje tým v centrální aplikaci.</div>';
+  return sk.map(([k, n, c]) => `<div class="panel"><div class="panel-h"><h2>${n}</h2><span class="chip ${c}">${(b.kontakty || []).filter((x) => x.skupina === k).length}</span></div><div class="kontlist">${(b.kontakty || []).filter((x) => x.skupina === k).map((x) => `<div class="kont"><b>${esc(x.jmeno)}</b>${x.pozn ? `<div class="lbl" style="margin-top:0">${esc(x.pozn)}</div>` : ''}${KP.telHTML(x.tel)}</div>`).join('') || '<div class="muted" style="padding:6px 0">nikdo</div>'}</div></div>`).join('')
+    + '<div class="note">Klepnutím na číslo se volá. Kontakty upravuje tým v centrální aplikaci.</div>';
 }
 function tymHTML(b) {
-  return `<div class="panel"><div class="panel-h"><h2>Garant průkazu</h2></div><dl class="kv" style="padding:12px 14px"><dt>Pracoviště</dt><dd>${esc((b.garant && b.garant.poskytovatel) || '—')}</dd><dt>Lékař</dt><dd>${esc((b.garant && b.garant.lekar) || '—')}</dd><dt>Telefon 24/7</dt><dd>${esc((b.garant && b.garant.telefon24) || '—')}</dd></dl></div>
-    <div class="panel"><div class="panel-h"><h2>Tým kolem pacienta</h2></div><div class="tblwrap"><table class="tbl"><tbody>${(b.tym || []).map((t) => `<tr><td><b>${esc(t.nazev)}</b><div class="lbl">${esc(t.role.toLowerCase())}</div></td><td class="mono">${esc(t.tel || '')}</td></tr>`).join('')}</tbody></table></div></div>
+  return `<div class="panel"><div class="panel-h"><h2>Garant průkazu</h2></div><dl class="kv" style="padding:12px 14px"><dt>Pracoviště</dt><dd>${esc((b.garant && b.garant.poskytovatel) || '—')}</dd><dt>Lékař</dt><dd>${esc((b.garant && b.garant.lekar) || '—')}</dd><dt>Telefon 24/7</dt><dd>${b.garant && b.garant.telefon24 ? KP.telHTML(b.garant.telefon24) : '—'}</dd></dl></div>
+    <div class="panel"><div class="panel-h"><h2>Tým kolem pacienta</h2></div><div class="kontlist">${(b.tym || []).map((t) => `<div class="kont"><b>${esc(t.nazev)}</b><div class="lbl" style="margin-top:0">${esc(t.role.toLowerCase())}</div>${KP.telHTML(t.tel)}</div>`).join('') || '<div class="muted" style="padding:6px 0">nikdo</div>'}</div></div>
     <div class="panel"><div class="panel-h"><h2>Tento telefon</h2></div><dl class="kv" style="padding:12px 14px"><dt>Spárován</dt><dd>${esc(fmtDT(D.parovano))}</dd><dt>Poslední spojení</dt><dd>${esc(textStari())}</dd><dt>Čeká na odeslání</dt><dd>${D.fronta.length}</dd><dt>Úložiště</dt><dd>${pametOnly ? '<span class="chip warn">jen v paměti</span>' : 'šifrované (AES-GCM)'}</dd></dl></div>`;
 }
 
