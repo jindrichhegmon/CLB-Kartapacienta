@@ -399,11 +399,11 @@ function tabTelefon(d) {
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${lidePanel(d)}
-      <div class="panel"><div class="panel-h"><h2>Rodina a jednorázové PINy</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.piny.map((p) => `<tr><td><b>${esc(p.jmeno)}</b><div class="lbl">${esc(p.role.toLowerCase())} · vydán ${fmtD(p.vytvoreno)}</div></td><td>${d.op.garant || d.op.lekar ? `<button class="btn sm" data-pzrus="${p.id}">Zrušit</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný PIN.</td></tr>'}</tbody></table></div>
+      <div class="panel"><div class="panel-h"><h2>Rodina a jednorázové PINy</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.piny.map((p) => `<tr><td><b>${esc(p.jmeno)}</b><div class="lbl">${esc(p.role.toLowerCase())} · vydán ${fmtD(p.vytvoreno)}</div></td><td style="white-space:nowrap">${d.op.garant || d.op.lekar ? `${p.zobrazitelny ? `<button class="btn sm" data-pzobr="${p.id}" title="Ukáže platný PIN (zapíše se do logu přístupů)">Zobrazit PIN</button> ` : ''}<button class="btn sm" data-pnovy="${p.id}" title="Vydá stejnému držiteli nový PIN, starý přestane platit">Nový PIN</button> <button class="btn sm" data-pzrus="${p.id}">Zrušit</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný PIN.</td></tr>'}</tbody></table></div>
         ${d.op.garant || d.op.lekar ? `<div class="form" style="padding:12px 14px"><div class="frow"><div class="field"><label>Jméno držitele</label><input id="pin_j" placeholder="např. Jana Nováková (dcera)"></div><div class="field"><label>Role</label><select id="pin_r"><option value="RODINA">rodina</option><option value="SESTRA">sestra (domov)</option><option value="HOSPIC">hospic</option><option value="PL">praktický lékař</option></select></div></div>
           <div class="field"><label>Pracoviště (pro sestru / hospic)</label><select id="pin_p"><option value="">—</option>${d.tym.map((t) => `<option value="${t.poskytovatelId}">${esc(t.nazev)}</option>`).join('')}</select><span class="hint">PIN pracoviště přestane platit, když pracoviště odejde z týmu.</span></div>
           <button class="btn" id="pin_ok">Vydat PIN</button></div>` : ''}</div>
-      <div class="note">Lidé pracovišť odemykají kartu svým <b>osobním PINem</b> z agendy Lidé a týmy – platí u všech pacientů, ke kterým jsou přiřazení. Rodině vydejte PIN tady (6 číslic, zobrazí se jen jednou). Telefon PINy ověřuje i bez signálu. <b>ZZS</b> žádný PIN nepotřebuje: krizovou kartu vidí bez přihlášení a jméno zapíše až u výjezdu.</div>
+      <div class="note">Lidé pracovišť odemykají kartu svým <b>osobním PINem</b> z agendy Lidé a týmy – platí u všech pacientů, ke kterým jsou přiřazení. Rodině vydejte PIN tady (6 číslic); znovu ho ukáže <b>Zobrazit PIN</b> (u PINů vydaných od verze 0.11.31, zapisuje se do logu), <b>Nový PIN</b> vydá stejnému držiteli jiný. Telefon PINy ověřuje i bez signálu. <b>ZZS</b> žádný PIN nepotřebuje: krizovou kartu vidí bez přihlášení a jméno zapíše až u výjezdu.</div>
     </div></div>`;
 }
 function tabUdaje(d) {
@@ -494,10 +494,20 @@ function bindTab() {
   on('pin_ok', async () => {
     try { const r = await C(`/pacient/${S.pacId}/pin`, { method: 'POST', body: { jmeno: $('pin_j').value, role: $('pin_r').value, poskytovatelId: Number($('pin_p').value) || null } });
       await nactiDetail(); kresliDetail();
-      modal(`<h2>PIN vydán</h2><div class="secret">${esc(r.pin)}</div><p class="muted">PIN se zobrazuje jen teď. Předejte ho držiteli. Do telefonu se dostane při nejbližší synchronizaci.</p><div class="quick"><button class="btn" data-close>Hotovo</button></div>`);
+      pinRodinyOkno('PIN vydán', r, 'Předejte ho držiteli; znovu ho ukáže tlačítko Zobrazit PIN. Do telefonu se dostane při nejbližší synchronizaci.');
     } catch (e) { toast(e.message); }
   });
   document.querySelectorAll('[data-pzrus]').forEach((b) => (b.onclick = () => akce('/pin', { zrusitId: Number(b.dataset.pzrus) }, 'PIN zrušen')));
+  document.querySelectorAll('[data-pzobr]').forEach((b) => (b.onclick = async () => {
+    try { const r = await C(`/pacient/${S.pacId}/pin/zobrazit`, { method: 'POST', body: { pinId: Number(b.dataset.pzobr) } }); pinRodinyOkno('Platný PIN', r, `Vydán ${esc(fmtDT(r.vydan))}. Zobrazení je zapsané v logu přístupů.`); }
+    catch (e) { toast(e.message, 7000); }
+  }));
+  document.querySelectorAll('[data-pnovy]').forEach((b) => (b.onclick = async () => {
+    const p = (S.pac.piny || []).find((x) => x.id === Number(b.dataset.pnovy)) || {};
+    if (!confirm(`Vydat nový PIN pro ${p.jmeno || 'držitele'}? Dosavadní PIN přestane platit při nejbližší synchronizaci telefonu.`)) return;
+    try { const r = await C(`/pacient/${S.pacId}/pin`, { method: 'POST', body: { obnovitId: Number(b.dataset.pnovy) } }); await nactiDetail(); kresliDetail(); pinRodinyOkno('Nový PIN vydán', r, 'Starý PIN přestal platit. Předejte nový držiteli; do telefonu se dostane při nejbližší synchronizaci.'); }
+    catch (e) { toast(e.message); }
+  }));
   on('tl_ok', async () => { const sel = $('tl_sel'); if (!sel || !sel.value) return toast('Vyberte tým'); try { const r = await akce('/tym-lidi', { pridatTymId: Number(sel.value) }, 'Tým přiřazen'); if (r && r.pracovistePridano) toast('Pracoviště členů týmu byla přidána do týmu kolem pacienta s rolí péče', 7000); } catch (e) { /* hláška v akce() */ } });
   document.querySelectorAll('[data-tlodeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat tým', 'Členové týmu už kartu tohoto pacienta neodemknou (při nejbližší synchronizaci telefonu).', 'Odebrat', true)) akce('/tym-lidi', { odebratTymId: Number(b.dataset.tlodeb) }, 'Tým odebrán'); }));
   document.querySelectorAll('[data-tlcl]').forEach((b) => (b.onclick = () => { const [tymId, osobaId, akt] = b.dataset.tlcl.split('|').map(Number); akce('/tym-lidi', { tymId, osobaId, aktivni: !!akt }, akt ? 'Člen aktivován' : 'Člen deaktivován u pacienta'); }));
@@ -982,6 +992,10 @@ async function stitkyOkno(predvybrani = []) {
       w.document.close();
     };
   });
+}
+/* PIN rodiny / jednorázový PIN (0.11.31): vydání, nové vydání i zobrazení ukazují stejné okno */
+function pinRodinyOkno(nadpis, r, pozn) {
+  modal(`<h2>${esc(nadpis)}</h2><div class="lbl" style="margin-bottom:6px">${esc(r.jmeno || '')}${r.role ? ' · ' + esc(String(r.role).toLowerCase()) : ''}</div><div class="secret">${esc(r.pin)}</div><p class="muted">${pozn}</p><div class="quick"><button class="btn" data-close>Hotovo</button></div>`);
 }
 function pinyOkno(piny, nadpis) {
   if (!piny || !piny.length) return;

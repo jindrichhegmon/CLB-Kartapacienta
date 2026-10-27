@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.31: PIN rodiny a jednorázové PINy jdou znovu zobrazit (Telefon a PINy → Zobrazit PIN, `A_KP_Pin.PinSifrovany`, sql/01i) a vydat znovu stejnému držiteli (Nový PIN).
 - 0.11.30: Zobrazit PIN ověří, že uložený PIN odpovídá otisku, kterým ho ověřuje telefon; při neshodě vyzve k vydání nového PINu (zapsáno do logu).
 - 0.11.29: krizová karta – oddíl Poslední zápis / Aktuální zhoršení je červený (dřív fialový).
 - 0.11.28: Můj průkaz bez oddílu Příští návštěva (termín návštěvy pacientovi sděluje tým); přání, poznámky a otázky pacienta jdou u propojeného pacienta automaticky i do PéčeDoma (akce `zaznam` aplikace pecedoma-karta → tabulka A_MSPPP_KartaZaznam, portál: Data klienta → Z Karty pacienta); tam jde i každý zápis Zhoršení stavu / Stav stabilizován (historie zhoršení). Interní poznámky: zápisy o zhoršení červeně, stabilizace zeleně.

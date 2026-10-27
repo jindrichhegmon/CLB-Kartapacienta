@@ -214,7 +214,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const zarizeni = await q.all(`SELECT ZarizeniID AS id, Stitek AS stitek, Stav AS stav, CONVERT(char(16), Sparovano, 120) AS sparovano, CONVERT(char(16), PosledniSync, 120) AS sync,
       Baterie AS baterie, VerzeAplikace AS verzeAplikace, DelkaFronty AS fronta, VerzePlanuVZarizeni AS verzePlanu, ParovaciKod AS kod, CONVERT(char(16), ParovaciPlatnost, 120) AS kodPlatnost, Telefon AS telefon, Rezim AS rezim, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno
     FROM dbo.A_KP_Zarizeni WHERE PacientID = @p ORDER BY ZarizeniID DESC`, { p: id });
-  const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, Role AS role, CONVERT(char(10), Vytvoreno, 23) AS vytvoreno FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1 ORDER BY PinID`, { p: id });
+  const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, Role AS role, PoskytovatelID AS poskytovatelId, CONVERT(char(10), Vytvoreno, 23) AS vytvoreno, CASE WHEN PinSifrovany IS NULL THEN 0 ELSE 1 END AS zobrazitelny FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1 ORDER BY PinID`, { p: id });
   const lide = await q.all(`SELECT po.PacientOsobaID AS id, o.OsobaID AS osobaId, o.Jmeno AS jmeno, o.Role AS role, o.Tym AS tym, o.PoskytovatelID AS poskytovatelId, ps.Nazev AS poskytovatel,
       CONVERT(char(10), po.Od, 23) AS od, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, po.TymLidiID AS tymId
     FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
@@ -502,16 +502,39 @@ central.post('/pacient/:id/pin', sUzivatelem(async (q, s, req) => {
     await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PIN zrušen', ip: s.ip });
     return {};
   }
-  const jmeno = text(req.body.jmeno, 150);
-  const role = String(req.body.role || 'RODINA').toUpperCase();
+  let jmeno = text(req.body.jmeno, 150);
+  let role = String(req.body.role || 'RODINA').toUpperCase();
+  let ps = cislo(req.body.poskytovatelId);
+  let obnoven = null;
+  if (req.body.obnovitId) {   // 0.11.31: Nový PIN stejnému držiteli (starý přestane platit) – pro PINy vydané před verzí, která je umí zobrazit, nebo při zapomenutí
+    const st = await q.one(`SELECT PinID, Jmeno, Role, PoskytovatelID FROM dbo.A_KP_Pin WHERE PinID = @i AND PacientID = @p AND Aktivni = 1`, { i: cislo(req.body.obnovitId), p: id });
+    if (!st) throw chyba('PIN nenalezen', 404);
+    jmeno = st.Jmeno; role = st.Role; ps = st.PoskytovatelID; obnoven = st.PinID;
+  }
   if (!jmeno) throw chyba('Vyplňte jméno držitele PINu');
   if (!['SESTRA', 'RODINA', 'HOSPIC', 'PL'].includes(role)) throw chyba('Neznámá role');
-  const ps = cislo(req.body.poskytovatelId);
   const n = novyPin();
-  await q.exec(`INSERT INTO dbo.A_KP_Pin (PacientID, Jmeno, Role, PoskytovatelID, Salt, Hash, Iterace, VytvorilUzivatelID) VALUES (@p, @j, @r, @ps, @s, @h, @i, @u)`,
-    { p: id, j: jmeno, r: role, ps, s: n.salt, h: n.hash, i: n.iterace, u: s.uzivatelId });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PIN vydán', detail: `${jmeno} (${role.toLowerCase()})`, ip: s.ip });
-  return { pin: n.pin };
+  if (obnoven) await q.exec(`UPDATE dbo.A_KP_Pin SET Aktivni = 0 WHERE PinID = @i AND PacientID = @p`, { i: obnoven, p: id });
+  await q.exec(`INSERT INTO dbo.A_KP_Pin (PacientID, Jmeno, Role, PoskytovatelID, Salt, Hash, Iterace, VytvorilUzivatelID, PinSifrovany) VALUES (@p, @j, @r, @ps, @s, @h, @i, @u, @psf)`,
+    { p: id, j: jmeno, r: role, ps, s: n.salt, h: n.hash, i: n.iterace, u: s.uzivatelId, psf: zasifruj(n.pin) });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: obnoven ? 'PIN vydán znovu' : 'PIN vydán', detail: `${jmeno} (${role.toLowerCase()})`, ip: s.ip });
+  return { pin: n.pin, jmeno, role };
+}));
+
+/** zobrazení platného PINu rodiny / jednorázového PINu (0.11.31) – jen PINy vydané od této verze; kontrola shody s otiskem jako u osobních PINů. Zapisuje se do logu. */
+central.post('/pacient/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('PIN zobrazí garant nebo lékař v týmu', 403);
+  const o = await q.one(`SELECT PinID, Jmeno, Role, PinSifrovany, Salt, Hash, Iterace, CONVERT(char(16), Vytvoreno, 120) AS vydan FROM dbo.A_KP_Pin WHERE PinID = @i AND PacientID = @p AND Aktivni = 1`, { i: cislo(req.body.pinId), p: id });
+  if (!o) throw chyba('PIN nenalezen', 404);
+  const pin = desifruj(o.PinSifrovany);
+  if (!pin) throw chyba('Tento PIN byl vydán před verzí, která ho umí znovu zobrazit – vydejte držiteli nový PIN (tlačítko Nový PIN).', 409);
+  if (hashPin(pin, o.Salt, o.Iterace || undefined) !== o.Hash) {
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení PINu selhalo', detail: `${o.Jmeno}: uložený PIN neodpovídá ověřovacímu otisku`, ip: s.ip });
+    throw chyba('Uložený PIN neodpovídá otisku, kterým telefon PIN ověřuje – vydejte držiteli nový PIN (tlačítko Nový PIN).', 409);
+  }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení PINu', detail: `${o.Jmeno} (${String(o.Role).toLowerCase()})`, ip: s.ip });
+  return { pin, jmeno: o.Jmeno, role: o.Role, vydan: o.vydan };
 }));
 
 central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
