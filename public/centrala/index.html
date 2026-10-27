@@ -764,10 +764,10 @@ function renderNovy() {
       <div class="panel"><div class="panel-h"><h2>3. Cíl péče a limitace</h2><span class="chip acc">potvrzuje lékař</span></div><div style="padding:14px">${planForm(w.d.plan, w.d.platnostDo || new Date(Date.now() + (S.interval || 3) * 30 * 864e5).toISOString().slice(0, 10), false, 'f', { leky: true })}</div></div>
       <div class="panel"><div class="panel-h"><h2>4. Kontakty</h2></div><div style="padding:14px;display:grid;gap:8px" id="n_kont">${w.d.kontakty.map((k, i) => kontRow(k, i)).join('')}</div><div style="padding:0 14px 14px"><button class="btn sm" id="n_kplus">+ Kontakt</button></div></div>
       <div class="panel"><div class="panel-h"><h2>5. Garant a tým</h2></div><div class="form" style="padding:14px">
-        <div class="field"><label>Garant průkazu</label><select id="n_g">${garanti.map((p) => `<option value="${p.id}" ${p.id === S.ja.poskytovatelId ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Nemocnice je garantem dočasně (max. 30 dní) – pak garanci předá hospici, ambulanci nebo PL.</span></div>
-        <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="n_t" multiple>${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div>
+        <div class="field"><label>Garant průkazu</label><select id="n_g">${garanti.map((p) => `<option value="${p.id}" ${p.id === ((S.wizDalsi && S.wizDalsi.garant) || S.ja.poskytovatelId) ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Nemocnice je garantem dočasně (max. 30 dní) – pak garanci předá hospici, ambulanci nebo PL.</span></div>
+        <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="n_t" multiple>${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}" ${S.wizDalsi && S.wizDalsi.tym.includes(p.id) ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select></div>
       </div></div>
-      <div class="quick"><button class="btn" id="n_zpet">Zpět ke zprávě</button><button class="btn primary ulozit" id="n_ok">Založit průkaz</button></div>
+      <div class="quick"><button class="btn" id="n_zpet">Zpět ke zprávě</button><button class="btn primary ulozit" id="n_ok" title="Založí průkaz a otevře ho (záložka Telefon a PINy)">Uložit</button><button class="btn ulozit" id="n_dalsi" title="Založí průkaz a hned otevře prázdný formulář pro dalšího pacienta – garant a tým zůstanou předvybrané">Uložit a další</button></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
@@ -786,14 +786,20 @@ function renderNovy() {
   $('n_kplus').onclick = () => { ulozVse(); w.d.kontakty.push({ jmeno: '', tel: '', skupina: 'INFORMOVAT' }); renderNovy(); };
   document.querySelectorAll('[data-kx]').forEach((b) => (b.onclick = () => { ulozVse(); w.d.kontakty.splice(Number(b.dataset.kx), 1); renderNovy(); }));
   $('n_zpet').onclick = () => { ulozVse(); w.krok = 1; renderNovy(); };
-  $('n_ok').onclick = async () => {
+  // 0.11.36: Uložit = založit a otevřít průkaz; Uložit a další = založit a rovnou prázdný formulář pro dalšího pacienta (hromadný ruční zápis)
+  const zaloz = async (dalsi) => {
     ulozVse();
-    $('n_ok').disabled = true;
+    $('n_ok').disabled = true; $('n_dalsi').disabled = true;
+    const garant = Number($('n_g').value), tym = [...$('n_t').selectedOptions].map((o) => Number(o.value));
     try {
-      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: Number($('n_g').value), tym: [...$('n_t').selectedOptions].map((o) => Number(o.value)), aiPouzito: !!w.ai } });
-      toast(`Průkaz ${r.kod} založen`); S.wiz = null; otevri(r.id, 'telefon');
-    } catch (e) { toast(e.message); $('n_ok').disabled = false; }
+      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: garant, tym, aiPouzito: !!w.ai } });
+      S.wiz = null;
+      if (dalsi) { S.wizDalsi = { garant, tym }; toast(`Průkaz ${r.kod} založen – další pacient`, 4000); S.wiz = { krok: 2, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', limity: ['KPR'] }, kontakty: [] } }; renderNovy(); scrollTo(0, 0); }
+      else { toast(`Průkaz ${r.kod} založen`); otevri(r.id, 'telefon'); }
+    } catch (e) { toast(e.message); $('n_ok').disabled = false; $('n_dalsi').disabled = false; }
   };
+  $('n_ok').onclick = () => zaloz(false);
+  $('n_dalsi').onclick = () => zaloz(true);
 }
 const kontRow = (k, i) => `<div class="kontrow"><input data-k="j" value="${esc(k.jmeno)}" placeholder="jméno, vztah"><input data-k="t" value="${esc(k.tel)}" placeholder="telefon"><select data-k="s">${['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].map((s) => `<option value="${s}" ${k.skupina === s ? 'selected' : ''}>${s.toLowerCase()}</option>`).join('')}</select><button class="btn sm" data-kx="${i}" aria-label="Odebrat">×</button></div>`;
 
