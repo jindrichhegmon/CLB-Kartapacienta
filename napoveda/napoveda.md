@@ -348,6 +348,8 @@ Kdo už v pracovišti je (stejné jméno), se jen aktualizuje a PIN mu zůstane.
 
 ### Osobní PINy
 
+Tlačítko **Zobrazit PIN** je u člena všude, kde ho vidíte: v seznamu lidí (sloupec PIN; kdo PIN nemá, má tam **Vydat PIN**), v okně člověka, u pacienta v záložce Tým a garance → Týmy u pacienta i v Telefon a PINy → Lidé, kteří odemknou kartu. Každé zobrazení se zapíše do logu přístupů.
+
 Po načtení se zobrazí seznam nových lidí s PINy. **Vytisknout kartičky** připraví kartičky k rozstříhání (jméno, role, PIN); nebo je pošlete SMS. PINy se zobrazují jen jednou.
 
 ![Vydané osobní PINy – tisk kartiček](/napoveda/img/c-piny.png)
