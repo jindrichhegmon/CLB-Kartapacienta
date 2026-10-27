@@ -21,8 +21,10 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "=== Docker nainstalován ==="
 fi
 if [ ! -d /opt/jitsi ]; then
-  git clone -q --depth 1 https://github.com/jitsi/docker-jitsi-meet /opt/jitsi
-  echo "=== docker-jitsi-meet stažen do /opt/jitsi ==="
+  # poslední stabilní vydání (větev master = obrazy „unstable“)
+  TAG=\$(git ls-remote --tags --refs https://github.com/jitsi/docker-jitsi-meet 'stable-*' | sed 's#.*/##' | sort -t- -k2 -n | tail -1)
+  git clone -q --depth 1 \${TAG:+--branch \$TAG} https://github.com/jitsi/docker-jitsi-meet /opt/jitsi
+  echo "=== docker-jitsi-meet \${TAG:-master} stažen do /opt/jitsi ==="
 fi
 cd /opt/jitsi
 if [ ! -f .env ]; then
@@ -42,6 +44,8 @@ if [ ! -f .env ]; then
   echo "=== /opt/jitsi/.env připraven ==="
 fi
 mkdir -p ~/.jitsi-meet-cfg/{web,transcripts,prosody/config,prosody/prosody-plugins-custom,jicofo,jvb,jigasi,jibri}
+# kontejnery běží pod uživatelem 1000 – bez tohoto web a prosody padají („directory is not writable by the container user“)
+chown -R 1000:1000 ~/.jitsi-meet-cfg
 docker compose up -d
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then ufw allow 10000/udp >/dev/null; fi
 if ! grep -q "$DOMENA" /etc/caddy/Caddyfile; then
