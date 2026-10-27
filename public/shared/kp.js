@@ -14,12 +14,18 @@
   KP.toast = (m) => { let t = document.getElementById('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); } t.textContent = m; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => (t.hidden = true), 3200); };
   KP.modal = (html, bind) => {
     let m = document.getElementById('modal'); if (!m) { m = document.createElement('div'); m.id = 'modal'; document.body.appendChild(m); }
-    m.innerHTML = `<div class="modal"><div class="box"><div class="grab"></div>${html}</div></div>`;
+    // 0.11.44: každé okno má vpravo nahoře křížek (data-close) – zavře ho stejně jako klepnutí mimo okno
+    m.innerHTML = `<div class="modal"><div class="box"><div class="grab"></div><button type="button" class="mzav" data-close aria-label="Zavřít" title="Zavřít">×</button>${html}</div></div>`;
     m.querySelector('.modal').onclick = (e) => { if (e.target.classList.contains('modal')) KP.closeModal(); };
     m.querySelectorAll('[data-close]').forEach((b) => (b.onclick = KP.closeModal));
     if (bind) bind(m);
   };
-  KP.closeModal = () => { const m = document.getElementById('modal'); if (m) m.innerHTML = ''; };
+  KP.closeModal = () => {
+    const m = document.getElementById('modal'); if (!m) return;
+    // běžící fotoaparát (čtení QR) při zavření vypnout, ať nesvítí dál
+    m.querySelectorAll('video').forEach((v) => { try { if (v.srcObject) { v.srcObject.getTracks().forEach((t) => t.stop()); v.srcObject = null; } } catch { /* */ } });
+    m.innerHTML = '';
+  };
   KP.confirm = (titulek, text, ok = 'Potvrdit', crit = false) => new Promise((res) => {
     KP.modal(`<h2>${KP.esc(titulek)}</h2><p>${text}</p><div class="quick"><button class="btn ${crit ? 'crit' : 'primary'}" id="kpOk">${KP.esc(ok)}</button><button class="btn" data-close>Zpět</button></div>`,
       (m) => { m.querySelector('#kpOk').onclick = () => { KP.closeModal(); res(true); }; m.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => { KP.closeModal(); res(false); })); });

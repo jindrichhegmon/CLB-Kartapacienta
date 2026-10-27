@@ -1,5 +1,5 @@
 /* Service worker aplikace Průkaz pro plán péče: aplikace běží bez signálu i bez serveru (data jsou v IndexedDB, žádné API). */
-const CACHE = 'kp-prukaz-0.1.1';
+const CACHE = 'kp-prukaz-0.1.2';
 const SHELL = ['/prukaz/', '/shared/kp.css', '/shared/kp.js', '/shared/kp-napoveda.js', '/icons/icon.svg', '/icons/icon-192.png', '/prukaz/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
