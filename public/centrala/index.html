@@ -340,7 +340,17 @@ function tabKarta(d) {
       ${pdPanel(d, { jen: 'navsteva' })}
       ${odPacientaHTML(d)}
       ${d.zarizeni.filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
+      ${zzsPanelC(d)}
     </div></div>`;
+}
+/* 0.11.51: výjezdy záchranné služby u pacienta (posledních 10, nejnovější nahoře) – stejné zápisy, které posádka vidí na zamčené kartě */
+function zzsPanelC(d) {
+  const vse = (d.denik || []).filter((e) => e.typ === 'Výjezd ZZS');
+  const vyjezdy = vse.slice(0, 10);
+  return `<div class="panel"><div class="panel-h"><h2>Výjezdy záchranné služby</h2><span class="chip ${vse.length ? 'crit' : ''}">${vse.length}</span></div>
+    ${vyjezdy.length ? `<div style="padding:4px 14px 8px">${KP.denikSeznam([...vyjezdy].reverse(), { role: false })}</div>${vse.length > 10 ? `<div class="lbl" style="padding:0 14px 10px">Starších ${vse.length - 10} výjezdů je v záložce Deník.</div>` : ''}`
+      : '<div class="muted" style="padding:12px 14px">Zatím žádný výjezd ZZS.</div>'}
+    <div class="note">Zápisy posádek z telefonu u pacienta (výsledek zásahu, posádka, poznámka) – označené jako neověřené. Posádka je vidí i na zamčené kartě.</div></div>`;
 }
 /* ---- diagnóza (první agenda) ---- */
 function tabDg(d) {

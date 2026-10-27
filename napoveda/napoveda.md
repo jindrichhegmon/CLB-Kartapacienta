@@ -119,6 +119,8 @@ Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (zá
 
 ### Krizová karta
 
+Vpravo pod telefonem u pacienta je panel **Výjezdy záchranné služby** – posledních 10 zápisů posádek (nejnovější nahoře), starší jsou v Deníku. Stejné zápisy vidí posádka na zamčené kartě.
+
 V detailu pacienta jsou vysvětlující poznámky sbalené na konci každé záložky v bloku **ⓘ Vysvětlivky** (rozbalí se klepnutím), aby záložky ukazovaly jen údaje a tlačítka.
 
 ![Detail pacienta – krizová karta](/napoveda/img/c-karta.png)
