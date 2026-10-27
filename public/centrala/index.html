@@ -19,6 +19,21 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
   .anon{white-space:pre-wrap;font-family:var(--mono);font-size:12px;max-height:260px;overflow:auto;background:var(--surface-2);border-radius:10px;padding:10px}
   .kontrow{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;align-items:center}
   @media (max-width:640px){.kontrow{grid-template-columns:1fr 1fr}}
+  /* 0.11.46: centrála na mobilu – kompaktní hlavička, záložky ve dvou řadách, záhlaví panelů a akce se zalamují */
+  @media (max-width:640px){
+    .top .who,.top .verbadge,.top .ttl .meta{display:none}
+    .top .ttl h1{font-size:15px}
+    .nav button{height:32px;padding:0 10px;font-size:12px}
+    .tabs{flex-wrap:wrap;gap:3px;border-bottom:0}
+    .tabs button{padding:7px 10px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+    .tabs button.on{border-color:var(--accent);border-bottom:1px solid var(--accent)}
+    .panel-h{flex-wrap:wrap;row-gap:6px}
+    .actions{flex-wrap:wrap;overflow:visible}
+    .actions .btn{flex:1 1 auto}
+    .row>h2{font-size:18px!important}
+    .modal .box{max-height:92vh}
+    .tbl td,.tbl th{padding:6px 7px}
+  }
   @media print{ .top,.nav,.tabs,.actions,.noprint,#modal,#toast{display:none!important} .card{box-shadow:none} }
 </style>
 </head>

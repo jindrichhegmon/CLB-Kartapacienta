@@ -25,6 +25,8 @@ Jak to funguje v kostce:
 
 ## 2. Přihlášení a můj účet
 
+Centrální aplikace funguje i na mobilu (od 0.11.46): hlavička je kompaktní, záložky pacienta jsou ve dvou řadách a tlačítka se zalamují. Videohovor na telefon u pacienta jde zahájit i z mobilu – otevře se v nové záložce prohlížeče.
+
 Centrální aplikaci otevřete odkazem, který dostanete od správce organizace (`…/centrala/?t=KÓD_ORGANIZACE`) – kód organizace se pak vyplní sám. Zadáte **přihlašovací jméno** a **heslo**.
 
 ![Přihlášení do centrální aplikace](/napoveda/img/c-prihlaseni.png)
