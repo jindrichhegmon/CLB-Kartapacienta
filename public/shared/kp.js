@@ -56,8 +56,10 @@
     return l && l.typ === 'Zhoršení stavu' ? l : null;
   };
 
-  /** Krizová karta z balíku (stejný tvar posílá server telefonu i centrální aplikaci). */
-  KP.kartaHTML = (b, { tlacitka = '' } = {}) => {
+  /** Krizová karta z balíku (stejný tvar posílá server telefonu i centrální aplikaci).
+   *  `zamceno`: telefon bez přihlášení (ZZS) – termín příští návštěvy / revize plánu („platí do“) se neukazuje,
+   *  vidí ho až lékař nebo člen týmu po odemknutí. */
+  KP.kartaHTML = (b, { tlacitka = '', zamceno = false } = {}) => {
     const p = b.pacient || {}; const plan = (b.plan && b.plan.data) || {}; const platnost = b.plan && b.plan.platnostDo;
     const kontakty = (b.kontakty || []).map((k) => ({ ...k, skupina: String(k.skupina || '').toLowerCase() }));
     const g = b.garant || {};
@@ -73,7 +75,7 @@
     const lekarTel = g.lekarTelefon || g.telefon24 || '';
     const e = KP.esc;
     return `<div class="card">
-      <div class="hdr"><div class="row" style="justify-content:space-between"><span>KRIZOVÝ PLÁN PÉČE · ${e(p.kod || '')}</span><span class="valid ${exp ? 'exp' : ''}">${!b.plan ? 'BEZ PLÁNU' : exp ? 'ČEKÁ NA REVIZI' : 'platí do ' + KP.fmtD(platnost)}</span></div>
+      <div class="hdr"><div class="row" style="justify-content:space-between"><span>KRIZOVÝ PLÁN PÉČE · ${e(p.kod || '')}</span>${!b.plan ? '<span class="valid exp">BEZ PLÁNU</span>' : zamceno ? '' : `<span class="valid ${exp ? 'exp' : ''}">${exp ? 'ČEKÁ NA REVIZI' : 'platí do ' + KP.fmtD(platnost)}</span>`}</div>
         <div class="name">${e(p.prijmeni || '')} ${e(p.jmeno || '')}${p.rok ? ', ' + e(p.rok) : ''}</div></div>
       <div class="body">
         <section class="sec red"><h3>LIMITACE PÉČE</h3>

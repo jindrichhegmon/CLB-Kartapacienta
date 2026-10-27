@@ -63,7 +63,7 @@ Limitace a cíl péče může zapsat **jen lékař** (nelze „vyplní sestra, p
 
 | Obrazovka | Kdo ji vidí | Co obsahuje | Co lze udělat |
 |---|---|---|---|
-| **A. Krizová karta** | kdokoli, bez přihlášení | Jméno, rok narození, KPR ano/ne, cíl péče jednou větou, čím doloženo, alergie, SOS léky, koho volat, kdo rozhoduje | Číst, zavolat, zapsat výjezd ZZS |
+| **A. Krizová karta** | kdokoli, bez přihlášení | Jméno, rok narození, KPR ano/ne, cíl péče jednou větou, čím doloženo, alergie, SOS léky, koho volat, kdo rozhoduje (termín příští návštěvy / revize plánu až po přihlášení lékaře nebo člena týmu) | Číst, zavolat, zapsat výjezd ZZS |
 | **B. Plán péče** | pečující čtou, lékař zapisuje | Cíl péče, limitace, odkaz na lékařskou zprávu a dříve vyslovené přání, funkční stav, platnost, lékař | Lékař: upravit, potvrdit revizi |
 | **C. Deník** | pečující, lékař | Chronologie zápisů: kdy, kdo, role, text | Rychlé zápisy; nelze mazat |
 | **D. Zhoršení stavu** | sestra, rodina, hospic | Průvodce: co se děje, co jsem udělal, komu volám | Shrnutí pro ZZS, upozornění sestře garanta |

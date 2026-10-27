@@ -159,8 +159,8 @@ function kresli() {
   let html = `<div class="syncbar" id="syncbar"></div>${stare ? `<div class="banner crit">Data jsou starší než 24 h (${esc(textStari())}). Připojte telefon k síti – mohou chybět změny plánu.</div>` : ''}`;
   if (b.pacient.stav === 'UZAVRENY') html += '<div class="banner warn">Průkaz byl uzavřen.</div>';
   if (!U.role) {
-    html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – bez přihlášení je vidět jen krizová karta.</div>
-      ${KP.kartaHTML(bb, { tlacitka: '<button class="btn" id="unCarer">Jsem pečující</button><button class="btn primary" id="unDoc">Jsem lékař</button>' })}
+    html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – bez přihlášení je vidět jen krizová karta (bez termínu příští návštěvy).</div>
+      ${KP.kartaHTML(bb, { zamceno: true, tlacitka: '<button class="btn" id="unCarer">Jsem pečující</button><button class="btn primary" id="unDoc">Jsem lékař</button>' })}
       <div class="panel"><div class="panel-h"><h2>Výjezd ZZS</h2></div><div class="form" style="padding:14px">
         <div class="field"><label>Výsledek zásahu</label><select id="zzs_v"><option>ošetřen, ponechán na místě</option><option>konzultováno s lékařem plánu, bez transportu</option><option>transport do nemocnice</option><option>konstatováno úmrtí</option></select></div>
         <div class="field"><label>Posádka / poznámka</label><input id="zzs_p" placeholder="např. RZP Zlín 12"></div>
