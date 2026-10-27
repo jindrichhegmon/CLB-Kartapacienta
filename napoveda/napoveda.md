@@ -73,7 +73,7 @@ Tři možnosti:
 
 1. **Načíst klienta z PéčeDoma** (nejrychlejší): když správce nastavil propojení s PéčeDoma (kapitola 12), klikněte na **Vybrat klienta z PéčeDoma**, napište část jména nebo rodné číslo, stiskněte **Hledat** a klienta vyberte. Nad seznamem jsou stejná tlačítka skupin jako v PéčeDoma v Klientech – **🏥 Pacienti hospic (926)**, **🩺 Pacienti odbornost 720** a **📞 Linka paliativní podpory** (u tlačítka je počet klientů ve skupině); zapnuté tlačítko omezí seznam na skupinu, víc tlačítek najednou ukáže kohokoli z nich a klient má štítky skupin i v seznamu – údaje, diagnózy, léky, funkční stav a kontakty se načtou rovnou. Pacient zůstane s klientem PéčeDoma **propojený** (léky a návštěvy se pak přebírají dál, kapitola 9). Bez propojení: v portálu PéčeDoma v Datech klienta uložte **Export pro Kartu pacienta** (soubor JSON) a tady ho načtěte tlačítkem **Načíst soubor JSON**. Vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty; číslo telefonu s kartou se předvyplní telefonem klienta.
 2. **Propouštěcí zpráva**: vložte text, nahrajte textový soubor nebo vyfoťte zprávu (fotka se převede na text přímo v prohlížeči) a klikněte na **Anonymní rozbor zprávy**. Text projde anonymizační bránou – jména, rodná čísla, data, adresy a telefony se nahradí značkami – a teprve pak ho rozebere AI. Když by v textu zůstal identifikátor, dotaz se neodešle.
-3. **Vyplnit ručně bez zprávy** – rovnou krok 2 s prázdným formulářem.
+3. **Zapsat pacienta ručně** (vlastní panel, tlačítko **Zapsat ručně**) – rovnou krok 2 s prázdným formulářem bez PéčeDoma a bez zprávy. Tlačítko **Pokračovat bez rozboru** pod propouštěcí zprávou udělá totéž, jen si text zprávy ponechá k ručnímu opsání.
 
 ### Krok 2 – kontrola a doplnění
 

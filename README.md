@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.37: Nový pacient – samostatný panel **Zapsat pacienta ručně** s tlačítkem Zapsat ručně (dřív jen malé tlačítko pod propouštěcí zprávou).
 - 0.11.36: Nový pacient – tlačítka **Uložit** (založí a otevře průkaz) a **Uložit a další** (založí a otevře prázdný formulář pro dalšího pacienta, garant a tým předvybrané).
 - 0.11.35: karta týmu – lékař a praktický lékař zprávy PéčeDoma na telefonu jen čtou (server odmítne odeslání); odpovídají z portálu nebo centrály za Tým PéčeDoma.
 - 0.11.34: karta týmu – dlaždice Zprávy: celé vlákno chatu PéčeDoma s pacientem a rodinou (u propojeného pacienta), tlačítko Odpovědět; v telefonu se drží posledních 100 zpráv.

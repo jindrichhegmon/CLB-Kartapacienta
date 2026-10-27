@@ -725,10 +725,13 @@ function renderNovy() {
         <div class="muted" style="font-size:13.5px">V portálu PéčeDoma (Data klienta → <b>Export pro Kartu pacienta</b>) uložte soubor JSON a tady ho načtěte – vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty. Cíl péče, limitace a číslo telefonu s kartou pak zkontroluje a doplní lékař.</div>
         <div class="row">${S.pecedoma && S.pecedoma.nastaveno ? '<button class="btn primary" id="w_pd">Vybrat klienta z PéčeDoma</button>' : ''}<label class="btn ${S.pecedoma && S.pecedoma.nastaveno ? '' : 'primary'}">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div>
         ${S.pecedoma && S.pecedoma.nastaveno ? '' : '<div class="hint">Přímý výběr klienta z PéčeDoma zapne správce v Správa organizace → Nastavení → Propojení s PéčeDoma.</div>'}</div></div>
-      <div class="panel"><div class="panel-h"><h2>1. Propouštěcí zpráva (volitelně)</h2></div><div class="form" style="padding:14px">
+      <div class="panel"><div class="panel-h"><h2>Zapsat pacienta ručně</h2><span class="chip">bez PéčeDoma a bez zprávy</span></div><div class="form" style="padding:14px">
+        <div class="muted" style="font-size:13.5px">Otevře prázdný formulář: údaje pacienta, telefon s kartou, cíl péče a limitace, kontakty, garant a tým. Na konci <b>Uložit</b>, nebo <b>Uložit a další</b> pro zápis více pacientů za sebou.</div>
+        <div class="row"><button class="btn primary" id="w_rucne">Zapsat ručně</button></div></div></div>
+      <div class="panel"><div class="panel-h"><h2>Propouštěcí zpráva (volitelně)</h2></div><div class="form" style="padding:14px">
       <div class="field"><label>Text zprávy</label><textarea id="w_t" style="min-height:280px" placeholder="Vložte text propouštěcí zprávy…">${esc(w.text)}</textarea></div>
       <div class="row"><label class="btn sm">Fotka / sken zprávy<input type="file" id="w_img" accept="image/*" capture="environment" hidden></label><label class="btn sm">Textový soubor<input type="file" id="w_txt" accept=".txt,text/plain" hidden></label><span class="muted" id="w_ocr" style="font-size:13px"></span></div>
-      <div class="quick"><button class="btn primary" id="w_ai">Anonymní rozbor zprávy</button><button class="btn" id="w_skip">Vyplnit ručně bez zprávy</button></div></div></div></div>
+      <div class="quick"><button class="btn primary" id="w_ai">Anonymní rozbor zprávy</button><button class="btn" id="w_skip">Pokračovat bez rozboru</button></div></div></div></div>
       <div style="display:grid;gap:12px;align-content:start"><div class="ai"><h3><span class="spark">AI</span>Rozbor je vždy anonymní</h3><div class="muted" style="font-size:13.5px">Než text odejde k AI, anonymizační brána na serveru odstraní jméno, rodné číslo, data, adresu, telefony, e-maily a jména příbuzných i lékařů a nahradí je značkami ([PACIENT], [OSOBA_1]…). Pokud by v textu cokoli z toho zůstalo, dotaz se neodešle. Fotka se převádí na text přímo v tomto prohlížeči. Výsledek se k pacientovi přiřadí zpět až na serveru. AI nic nerozhoduje – jen předvyplní formulář, potvrzuje lékař.${S.ai ? '' : ' <b>Na serveru není nastaven klíč AI – použije se lokální rozbor.</b>'}</div></div></div></div>`;
     bindNav();
     const prevezmi = (j, klientId) => { const r = zPeceDoma(j); w.ai = null; w.import = r.info; w.d = r.d; w.pecedoma = { klientId: klientId || (j.puvod && j.puvod.famicuraKlientId) || '', portalKlientId: (j.puvod && j.puvod.portalKlientId) || null }; w.krok = 2; renderNovy(); toast('Načteno z PéčeDoma – zkontrolujte a doplňte údaje'); };
@@ -741,6 +744,7 @@ function renderNovy() {
     $('w_txt').onchange = async (e) => { const f = e.target.files[0]; if (f) $('w_t').value = await f.text(); };
     $('w_img').onchange = (e) => ocr(e.target.files[0]);
     $('w_skip').onclick = () => { w.text = $('w_t').value; w.krok = 2; renderNovy(); };
+    $('w_rucne').onclick = () => { w.text = ''; w.ai = null; w.import = null; w.krok = 2; renderNovy(); scrollTo(0, 0); };
     $('w_ai').onclick = async () => {
       w.text = $('w_t').value; if (w.text.trim().length < 40) return toast('Vložte text zprávy');
       $('w_ai').disabled = true; $('w_ai').textContent = 'Anonymizuji a rozebírám…';
