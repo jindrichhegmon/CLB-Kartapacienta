@@ -405,7 +405,7 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 
 Každé okno (PIN, kód lékaře, potvrzení, čtení QR) jde zavřít křížkem vpravo nahoře. Systémové tlačítko **Zpět** na Androidu kartu nezavře: zavře otevřené okno, jinak vrátí na dlaždici Karta. Z aplikace se odchází jen tlačítkem Domů. Když chcete, aby telefon u lůžka zůstal jen v Kartě, zapněte v Androidu **Připnutí obrazovky** (Nastavení → Zabezpečení → Připnout aplikaci, s PINem před odepnutím) a Kartu připněte přes tlačítko Nedávné aplikace.
 
-Bez přihlášení je vidět **krizová karta**, která začíná oddílem **DIAGNÓZA** (diagnózy a funkční stav): cíl péče, limitace s dokladem, SOS léky, alergie, kontakty a telefon na garanta. **Záchranná služba** nepotřebuje PIN ani žádný seznam lidí: bez přihlášení zapíše **výjezd** – výsledek zásahu, **své jméno a posádku** (povinné) a poznámku. V deníku je výjezd označený jako neověřený.
+Bez přihlášení je vidět **krizová karta**, která začíná oddílem **DIAGNÓZA** (diagnózy a funkční stav): cíl péče, limitace s dokladem, SOS léky, alergie, kontakty a telefon na garanta. **Záchranná služba** nepotřebuje PIN ani žádný seznam lidí: bez přihlášení zapíše **výjezd** – výsledek zásahu, **své jméno a posádku** (povinné) a poznámku. V deníku je výjezd označený jako neověřený. Pod formulářem je panel **Předchozí výjezdy ZZS** – posádka bez přihlášení vidí, s čím se u pacienta minule vyjíždělo a jak zásah skončil (posledních 5, starší rozbalí). Ostatní zápisy deníku vidí jen tým po odemknutí.
 
 ![Telefon – zápis výjezdu záchranné služby](/napoveda/img/k-zzs.png)
 

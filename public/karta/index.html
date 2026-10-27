@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.49';
+const APP_VERZE = 'karta-0.11.50';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -219,7 +219,8 @@ function kresli() {
         <div class="field"><label>Vaše jméno a posádka *</label><input id="zzs_p" placeholder="např. Jan Novák, RZP Zlín 12" autocomplete="name"></div>
         <div class="field"><label>Poznámka (volitelně)</label><input id="zzs_n" placeholder="co bylo provedeno, podané léky…"></div>
         <button class="btn primary" id="btnZZS">Zapsat výjezd do deníku</button>
-        <div class="note">Záchranná služba nepotřebuje PIN – krizovou kartu vidí bez přihlášení. Jméno se zapisuje jen k výjezdu. Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený).</div></div></div>`;
+        <div class="note">Záchranná služba nepotřebuje PIN – krizovou kartu vidí bez přihlášení. Jméno se zapisuje jen k výjezdu. Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený).</div></div></div>
+      ${zzsHistorieHTML(denik)}`;
   } else {
     // 0.11.33: Interní poznámky (deník týmu) jsou jen pro tým – rodina dlaždici nevidí (zhoršení zapisuje průvodcem v dlaždici Zhoršení)
     if (U.role === 'rodina' && tab === 'denik') tab = 'karta';
@@ -469,6 +470,16 @@ async function videoAkce(akce) {
   } catch (e) { toast(e.message); }
 }
 
+/* 0.11.50: předchozí výjezdy ZZS u tohoto pacienta – vidí je posádka bez přihlášení (co se řešilo minule, čím to skončilo);
+   zdroj je deník (posledních 100 zápisů v telefonu, včetně těch, které ještě čekají na odeslání) */
+function zzsHistorieHTML(denik) {
+  const vyjezdy = (denik || []).filter((e) => e.typ === 'Výjezd ZZS');
+  const poslednich = vyjezdy.slice(-5), starsi = vyjezdy.slice(0, -5);
+  return `<div class="panel"><div class="panel-h"><h2>Předchozí výjezdy ZZS</h2><span class="chip ${vyjezdy.length ? 'crit' : ''}">${vyjezdy.length}</span></div>
+    ${vyjezdy.length ? `<div style="padding:4px 14px 10px">${KP.denikSeznam(poslednich, { role: false })}${starsi.length ? `<details class="vysv"><summary>Starší výjezdy <span class="chip">${starsi.length}</span></summary><div class="vysv-b">${KP.denikSeznam(starsi, { role: false })}</div></details>` : ''}</div>`
+      : '<div class="muted" style="padding:12px 14px">U tohoto pacienta zatím žádný výjezd ZZS zapsaný není.</div>'}
+    <div class="note keep">Zápisy posádek z dřívějších výjezdů (výsledek zásahu, posádka, poznámka) – nejnovější nahoře. Ostatní zápisy deníku vidí jen tým po odemknutí.</div></div>`;
+}
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('pdChat', chatPd);

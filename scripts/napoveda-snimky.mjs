@@ -48,6 +48,7 @@ const denik = [
   { uuid: 'a2', typ: 'Systém', text: 'Průkaz nahrán do telefonu u pacienta (+420 777 000 123).', autor: 'telefon 7', role: 'system', cas: cas(-21, '09:32'), overeno: true },
   { uuid: 'a3', typ: 'Návštěva hospice', text: 'Kontrola bolesti, úprava dávky MST na 30 mg 1-0-1.', autor: 'Sestra Lucie Příkladná', role: 'sestra', cas: cas(-7, '10:05'), overeno: true },
   { uuid: 'a4', typ: 'Podán SOS lék', text: 'V noci bolest 7/10, podán Morphin 10 mg s.c., po 30 min úleva.', autor: 'Jana Zkušební', role: 'rodina', cas: cas(-2, '02:40'), overeno: true },
+  { uuid: 'a9', typ: 'Výjezd ZZS', text: 'Výjezd ZZS: konzultováno s lékařem plánu, bez transportu. Dušnost, podán kyslík, po SOS medikaci úleva.', autor: 'Jan Rychlý, RZP Zlín 12', role: 'zzs', cas: cas(-9, '03:15'), overeno: false },
   { uuid: 'a5', typ: 'Pozorování rodiny', text: 'Klidný den, pila čaj, chvíli seděla v křesle.', autor: 'Jana Zkušební', role: 'rodina', cas: cas(-1, '18:15'), overeno: true },
 ];
 const tym = [
