@@ -686,6 +686,7 @@ function hromadneOkno(polozky, nazevSouboru) {
       <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="hr_t" multiple size="3">${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div></div></div>
     <div class="tblwrap" style="max-height:50vh;overflow:auto"><table class="tbl"><thead><tr><th><input type="checkbox" id="hr_vse" checked></th><th>Pacient</th><th>Rodné číslo</th><th>Narození</th><th>Telefon s kartou</th><th>Cíl péče · limitace</th><th>Kontakty</th><th>Stav</th></tr></thead><tbody id="hr_b">${naHtml()}</tbody></table></div>
     <div class="quick"><button class="btn primary ulozit" id="hr_ok">Založit vybrané</button><button class="btn" data-close id="hr_zavrit">Zavřít</button></div>`, (m) => {
+    m.querySelector('.box').classList.add('wide');
     const prekresli = () => { $('hr_b').innerHTML = naHtml(); };
     $('hr_vse').onchange = () => document.querySelectorAll('[data-hr]:not(:disabled)').forEach((c) => (c.checked = $('hr_vse').checked));
     $('hr_ok').onclick = async () => {
