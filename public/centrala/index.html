@@ -511,6 +511,16 @@ function bindTab() {
   on('tl_ok', async () => { const sel = $('tl_sel'); if (!sel || !sel.value) return toast('Vyberte tým'); try { const r = await akce('/tym-lidi', { pridatTymId: Number(sel.value) }, 'Tým přiřazen'); if (r && r.pracovistePridano) toast('Pracoviště členů týmu byla přidána do týmu kolem pacienta s rolí péče', 7000); } catch (e) { /* hláška v akce() */ } });
   document.querySelectorAll('[data-tlodeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat tým', 'Členové týmu už kartu tohoto pacienta neodemknou (při nejbližší synchronizaci telefonu).', 'Odebrat', true)) akce('/tym-lidi', { odebratTymId: Number(b.dataset.tlodeb) }, 'Tým odebrán'); }));
   document.querySelectorAll('[data-tlcl]').forEach((b) => (b.onclick = () => { const [tymId, osobaId, akt] = b.dataset.tlcl.split('|').map(Number); akce('/tym-lidi', { tymId, osobaId, aktivni: !!akt }, akt ? 'Člen aktivován' : 'Člen deaktivován u pacienta'); }));
+  document.querySelectorAll('[data-ozpin]').forEach((b) => (b.onclick = async () => {
+    const id = Number(b.dataset.ozpin);
+    const o = [...(S.pac.tymyLidi || []).flatMap((t) => t.clenove), ...(S.pac.lide || [])].find((x) => x.osobaId === id) || { jmeno: '' };
+    try { const r = await C(`/osoba/${id}/pin/zobrazit`, { method: 'POST', body: {} }); pinyOkno([{ id, jmeno: o.jmeno, role: String(o.role || '').toLowerCase(), pracoviste: o.poskytovatel, pin: r.pin }]); }
+    catch (e) {
+      if (e.status === 409 && await KP.confirm('PIN nejde zobrazit', `${esc(e.message)}<br><br>Vydat ${esc(o.jmeno)} nový PIN teď? Platí pak u všech jeho pacientů, starý přestane platit.`, 'Vydat nový PIN')) {
+        try { const r = await C(`/osoba/${id}/pin`, { method: 'POST', body: {} }); await nactiDetail(); kresliDetail(); pinyOkno([{ id, jmeno: o.jmeno, role: String(o.role || '').toLowerCase(), pracoviste: o.poskytovatel, pin: r.pin, novy: true }]); } catch (e2) { toast(e2.message); }
+      } else if (e.status !== 409) toast(e.message, 7000);
+    }
+  }));
   document.querySelectorAll('[data-lodeb]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Odebrat přístup', 'Tento člověk už kartu tohoto pacienta neodemkne (při nejbližší synchronizaci telefonu).', 'Odebrat', true)) akce('/lide', { odebrat: [Number(b.dataset.lodeb)] }, 'Odebráno'); }));
   on('u_ok', () => akce('/udaje', ctiUdaje('u'), 'Údaje uloženy'));
   on('souhlas', () => akce('/souhlas', {}, 'Potvrzeno'));
@@ -1081,7 +1091,8 @@ function tymyPanel(d) {
 function lidePanel(d) {
   const zTymu = (d.tymyLidi || []).flatMap((t) => t.clenove.filter((c) => c.aktivni).map((c) => ({ ...c, tym: t.nazev, poskytovatel: t.poskytovatel })));
   const jednotlive = (d.lide || []).filter((o) => !o.tymId);
-  const radek = (o, akce) => `<tr><td><b>${esc(o.jmeno)}</b><div class="lbl">${esc(ROLE_OS[o.role] || o.role)} · ${esc(o.tym || o.poskytovatel)}${o.maPin ? '' : ' · <span style="color:var(--warn)">nemá PIN</span>'}</div></td><td style="text-align:right">${akce}</td></tr>`;
+  // 0.11.32: Zobrazit PIN přímo tady (stejná akce jako v Lidé a týmy – PIN ukáže pracoviště člověka nebo správce, zapíše se do logu)
+  const radek = (o, akce) => `<tr><td><b>${esc(o.jmeno)}</b><div class="lbl">${esc(ROLE_OS[o.role] || o.role)} · ${esc(o.tym || o.poskytovatel)}${o.maPin ? '' : ' · <span style="color:var(--warn)">nemá PIN</span>'}</div></td><td style="text-align:right;white-space:nowrap"><button class="btn sm" data-ozpin="${o.osobaId}" title="Ukáže platný osobní PIN tohoto člověka (zapíše se do logu přístupů)">Zobrazit PIN</button>${akce ? ' ' + akce : ''}</td></tr>`;
   return `<div class="panel"><div class="panel-h"><h2>Lidé, kteří odemknou kartu</h2><span class="chip ${zTymu.length + jednotlive.length ? 'ok' : 'warn'}">${zTymu.length + jednotlive.length}</span></div>
     ${zTymu.length || jednotlive.length ? `<div class="tblwrap"><table class="tbl"><tbody>${zTymu.map((o) => radek(o, '')).join('')}
       ${jednotlive.length ? `<tr><td colspan="2" style="background:var(--surface-2);font-weight:600;font-size:13px">Přiřazení jednotlivě (před zavedením týmů)</td></tr>${jednotlive.map((o) => radek(o, smiPriradit(d, o.poskytovatelId) ? `<button class="btn sm" data-lodeb="${o.osobaId}">Odebrat</button>` : '')).join('')}` : ''}</tbody></table></div>` : '<div class="note" style="margin:12px 14px">Zatím nikdo. Přidejte tým v záložce Tým a garance.</div>'}

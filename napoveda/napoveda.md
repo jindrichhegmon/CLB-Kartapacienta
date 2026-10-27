@@ -204,6 +204,8 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
 
+V panelu **Lidé, kteří odemknou kartu** je u každého člověka tlačítko **Zobrazit PIN** – ukáže jeho platný osobní PIN (zapíše se do logu přístupů); u PINu vydaného před verzí 0.11.6 nabídne vydání nového.
+
 ### Spárování telefonu
 
 Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacienta (pole **Telefon s kartou** v Detailu pacienta). Jeden telefon ale může nést průkazy **více pacientů** (typicky domov seniorů s jedním telefonem na oddělení): u každého pacienta uvedete stejné číslo a telefon spárujete pro každého zvlášť; okno Spárovat telefon ukáže, čí průkazy už na tom čísle jsou. Párovat smí garant nebo lékař v týmu.
@@ -488,7 +490,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Lékař na pohotovosti nemá PIN.** Kód lékaře pro dnešek najde v PéčeDoma v Datech klienta (🪪 Kód lékaře na kartu) nebo mu ho nadiktuje lékař z týmu z centrální aplikace. Na telefonu zvolí Lékař bez PINu (kapitola 8).
 
-**Pečující zapomněl PIN.** Člověku z Lidí a týmů ukáže **Zobrazit PIN** platný PIN (u PINů vydaných od verze 0.11.6), jinak mu vydejte **Nový PIN** (platí pak u všech jeho pacientů); PIN rodiny ukáže **Zobrazit PIN** u pacienta v Telefon a PINy (od 0.11.31), jinak tam vydejte **Nový PIN**; celému týmu jdou kartičky s PINem vytisknout najednou. Rodinný PIN u pacienta zrušte a vydejte nový.
+**Pečující zapomněl PIN.** Člověku z Lidí a týmů ukáže **Zobrazit PIN** platný PIN (u PINů vydaných od verze 0.11.6), jinak mu vydejte **Nový PIN** (platí pak u všech jeho pacientů); u pacienta v Telefon a PINy je **Zobrazit PIN** i u každého člověka v panelu Lidé, kteří odemknou kartu (od 0.11.32); PIN rodiny ukáže **Zobrazit PIN** v panelu Rodina a jednorázové PINy (od 0.11.31), jinak tam vydejte **Nový PIN**; celému týmu jdou kartičky s PINem vytisknout najednou. Rodinný PIN u pacienta zrušte a vydejte nový.
 
 **Musím každou sestru domova zapisovat ke každému pacientovi?** Ne. Domov (nebo správce) své sestry zapíše jednou v Lidech a týmech, rozdělí do oddělení a k pacientovi přiřadíte celé oddělení jedním zaškrtnutím.
 
