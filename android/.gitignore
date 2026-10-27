@@ -1,0 +1,12 @@
+# obsahuje servisní PIN a cestu k SDK – nikdy necommitovat
+local.properties
+*.jks
+*.keystore
+.gradle/
+.idea/
+.kotlin/
+build/
+app/build/
+app/release/
+*.iml
+captures/

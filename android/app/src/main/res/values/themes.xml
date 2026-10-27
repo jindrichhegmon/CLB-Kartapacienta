@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Karta" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/pozadi</item>
+        <item name="android:colorPrimary">@color/modra</item>
+        <item name="android:colorAccent">@color/modra</item>
+        <item name="android:statusBarColor">@color/modra</item>
+    </style>
+    <color name="pozadi">#F3F5F8</color>
+    <color name="modra">#1D6FD6</color>
+</resources>
