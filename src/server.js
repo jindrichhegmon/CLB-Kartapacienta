@@ -4,6 +4,7 @@
  *   /centrala/  centrální aplikace (garant, tým kolem pacienta)
  *   /karta/     karta pacienta na zapůjčeném telefonu (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
  *   /pacient/   Můj průkaz – pacient ve vlastním telefonu (PWA): data od lékaře jen ke čtení, vlastní přání a léky jen v telefonu
+ *   /prukaz/    Průkaz pro plán péče (prototyp, zadání MUDr. Kabelky): pacientem řízená karta bez serveru – jen statické soubory, žádné API
  *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
  * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/partner/* (PéčeDoma: kód lékaře dne), /api/health
  */

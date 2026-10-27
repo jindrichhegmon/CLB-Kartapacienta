@@ -81,7 +81,7 @@ test('nápověda: kapitoly, obrázky a lokální odpověď bez AI', async () => 
   const { textNapovedy, lokalne } = await import('../src/routes/napoveda.js');
   const t = textNapovedy();
   const kapitoly = t.match(/^## \d+\. .+$/gm);
-  assert.equal(kapitoly.length, 19);
+  assert.equal(kapitoly.length, 20);
   kapitoly.forEach((k, i) => assert.ok(k.startsWith(`## ${i + 1}. `), `pořadí kapitol: ${k}`));
   for (const [, src] of t.matchAll(/!\[[^\]]*\]\((\/napoveda\/img\/[^)]+)\)/g)) {
     assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), `chybí obrázek ${src}`);

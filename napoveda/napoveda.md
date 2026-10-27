@@ -581,3 +581,35 @@ Do zamčeného telefonu se záchranka nedostane. Telefon ale umí ukázat **Zdra
 - Po 5 špatných pokusech je nutné chvíli počkat.
 - **Zapomenutý PIN nikdo neobnoví** – ani lékař, ani provozovatel. Zvolte **Zapomněl(a) jsem PIN → Smazat vše a začít znovu** a požádejte lékaře o nový kód. Údaje od lékaře se vrátí, vaše vlastní záznamy ne – proto je občas vytiskněte nebo pošlete týmu.
 - Když lékař ukončí přístup, údaje od lékaře se přestanou aktualizovat; vše, co v telefonu máte, zůstává.
+
+## 20. Průkaz pro plán péče – prototyp pacientem řízené karty
+
+Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus, verze 0.1, říjen 2026). Na rozdíl od Mého průkazu (kapitola 19) **nemá žádný server ani garanta**: kartu si pacient založí sám, všechno zůstává jen v jeho telefonu, šifrované PINem, a o každém sdílení rozhoduje pacient. Je to prototyp k diskusi, ne součást ostré sítě Karty pacienta.
+
+![Průkaz pro plán péče – úvod](/napoveda/img/q-uvod.png)
+
+- **Úvod**: Vytvořit moji kartu (zvolíte PIN), Obnovit ze zálohy (soubor .prukaz + heslo), Otevřít ukázku (smyšlená data, nic se neukládá).
+- **Přehled**: údaje, stav karty (kolik údajů je bez ověření, dokumenty po platnosti, zda existuje DVP), hlavní kontakty.
+- **Zdraví a dokumenty**: diagnózy, alergie, léky a kontakty; u každého údaje **odkud je** (zapsal jsem, od lékaře, opsáno ze zprávy, rodina), **datum** a **ověřeno / neověřeno** (tlačítko Lékař potvrdil). Dokumenty s typem (zpráva, lékařský krizový plán, DVP, záznam rozhovoru, moje přání, jiný), vydavatelem, datem, platností, stavem podpisu a místem originálu; k dokumentu jde přiložit fotka nebo PDF (do 4 MB), zůstává jen v telefonu. Dokument po platnosti je viditelně označený.
+
+![Průkaz – zdraví a dokumenty](/napoveda/img/q-zdravi.png)
+
+- **Co je pro mě důležité**: krátké otázky (důležité, obavy, přijatelná zátěž léčby, co zohlednit, koho chci u rozhodování), kteroukoli lze přeskočit. Jsou to osobní preference, ne lékařský pokyn.
+- **Rozhovor s lékařem**: před návštěvou otázky, po ní možnosti, přínosy a rizika, na čem jsme se domluvili, kdo byl přítomen a kdy to přehodnotit.
+- **Budoucí péče**: čtyři oddělené záznamy – **moje přání** (osobní), **záznam rozhovoru o péči (ACP)**, **dříve vyslovené přání** (jen evidence, že existuje, s datem, stavem podpisu a místem originálu) a **lékařský krizový plán** (cíl péče, limitace, pokyny – opsané ze zprávy, označené ověřeno / neověřeno).
+
+![Průkaz – budoucí péče](/napoveda/img/q-budouci.png)
+
+- **Krizová karta**: pacient zaškrtne, co bude vidět bez PINu. Ve výchozím stavu jen jméno, rok, kontakty a lékař; diagnózy, limitace a DVP jsou označené jako citlivé a vypnuté. Neověřené údaje jsou na kartě vždy označené. Dole je náhled zamčené obrazovky.
+
+![Průkaz – krizová karta](/napoveda/img/q-krize.png) ![Průkaz – zamčená obrazovka](/napoveda/img/q-zamek.png)
+
+- **Sdílet a exportovat**: výběr oddílů (citlivé označené), **náhled přesně toho, co odejde**, upozornění na citlivost, potvrzení zaškrtnutím, pak **Uložit jako PDF / tisk** (tisk telefonu) nebo **Sdílet jako soubor** (systémové sdílení, jinak stažení). Každé sdílení se zapíše do historie v telefonu (rozsah, čas, způsob).
+
+![Průkaz – náhled před sdílením](/napoveda/img/q-sdilet.png)
+
+- **Bezpečnost a obnova**: změna PINu, **šifrovaná záloha** do souboru .prukaz s vlastním heslem (bez centrální kopie), obnova na jiném telefonu, smazání všeho. Karta se sama zamkne po 5 minutách nečinnosti.
+
+![Průkaz – bezpečnost a obnova](/napoveda/img/q-bezpecnost.png)
+
+Co prototyp zatím neumí a je k rozhodnutí: biometrie místo PINu, zobrazení na zamčené obrazovce iPhonu a Androidu (webová aplikace tam nemůže – zůstává Zdravotní ID systému telefonu nebo tištěná karta), pomoc pověřené blízké osoby v rozsahu oprávnění, předání ověřeného dokumentu od zdravotníka přímo do karty (QR nebo soubor s podpisem) a jakékoli propojení s poskytovatelským systémem (Karta pacienta, PéčeDoma) – to je podle zadání až pozdější etapa a musí mít nové posouzení.

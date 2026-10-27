@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Průkaz pro plán péče</title>
+<link rel="manifest" href="/prukaz/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Průkaz">
+<meta name="theme-color" content="#1d6fd6">
+<script>try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-barva', _v); } } catch (e) {}</script>
+<link rel="stylesheet" href="/shared/kp.css">
+<style>
+  .tiles.p8{grid-template-columns:repeat(4,1fr)}
+  .chip.pac{background:var(--violet-soft);color:var(--violet)}
+  .chip.lek{background:var(--accent-soft);color:var(--accent-ink)}
+  .chip.neov{background:var(--warn-soft);color:var(--warn)}
+  .meta{font-size:12px;color:var(--muted)}
+  .zaznam{padding:10px 14px;border-top:1px solid var(--line)}
+  .zaznam:first-of-type{border-top:0}
+  .zaznam .t{white-space:pre-wrap;line-height:1.45}
+  .zaznam .quick{margin-top:6px}
+  .vyber label{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+  .vyber label:first-child{border-top:0}
+  .vyber input{width:20px;height:20px;margin-top:2px;flex:none}
+  .souhrn{background:#fff;color:#16213a;border:1px solid var(--line);border-radius:14px;padding:16px;font-size:14px;line-height:1.45}
+  .souhrn h3{font-size:15px;margin:14px 0 2px}
+  .souhrn h3:first-of-type{margin-top:8px}
+  .souhrn .pv{font-size:12px;color:#5a6577;margin-bottom:4px}
+  .souhrn .tx{white-space:pre-wrap}
+  .souhrn .hl{font-size:18px;font-weight:800;margin:0}
+  .souhrn .zap{font-size:11.5px;color:#5a6577;border-top:1px solid #dce3ec;margin-top:14px;padding-top:8px}
+  #tisk{display:none}
+  @media print { body > .app, #modal, #toast { display:none !important } #tisk { display:block !important } #tisk .souhrn { border:0; padding:0 } }
+  .pinpad input{font-size:26px;letter-spacing:.35em;text-align:center}
+  .krize{border:2px solid var(--accent);border-radius:14px;overflow:hidden;background:var(--surface)}
+  .krize .hdr{background:var(--accent);color:#fff;padding:12px 14px}
+  .krize .hdr b{font-size:20px;display:block}
+  .krize .sek{padding:10px 14px;border-top:1px solid var(--line)}
+  .krize .sek h4{margin:0 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink)}
+  .krize .sek.crit h4{color:var(--crit)}
+  .krize .sek .v{font-size:17px;line-height:1.4}
+  .krize .sek .meta{margin-top:2px}
+  .prazdne{color:var(--muted);font-size:13.5px;padding:12px 14px}
+  .uvod-volba{display:grid;gap:10px}
+  .uvod-volba .btn{min-height:52px;font-size:16px}
+  .stav-ok{color:var(--ok)}.stav-warn{color:var(--warn)}
+  .dok-ikona{width:40px;height:40px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-size:18px;flex:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top" id="top"></header>
+  <div class="rezim rodina" id="rezim">Průkaz pro plán péče <span class="chip">moje karta · jen v tomto telefonu</span></div>
+  <main class="content" id="work"></main>
+</div>
+<div id="tisk"></div>
+<div id="modal"></div><div id="toast" class="toast" hidden></div>
+<script src="/shared/kp.js"></script>
+<script>
+/*
+ * Průkaz pro plán péče – prototyp pacientem řízené karty (zadání MUDr. Kabelky, verze 0.1, 27. 10. 2026).
+ *  - vše je JEN v tomto telefonu: IndexedDB, šifrováno klíčem z PINu (PBKDF2) a klíčem zařízení; žádný server, žádná synchronizace
+ *  - pacient sám volí, co je vidět na zamčené obrazovce (krizová karta); ve výchozím stavu jen jméno, rok, kontakty a lékař
+ *  - každý údaj nese zdroj, datum a stav ověření; osobní přání, záznam rozhovoru, klinický plán a DVP jsou oddělené typy
+ *  - sdílení = výběr položek, náhled přesného obsahu, potvrzení, PDF (tisk) nebo soubor přes systémové sdílení; lokální historie
+ *  - záloha = šifrovaný soubor s heslem, obnova na jiném telefonu bez centrální databáze
+ */
+const APP_VERZE = 'prukaz-0.1.0';
+const $ = (id) => document.getElementById(id);
+const esc = KP.esc, fmtDT = KP.fmtDT, fmtD = KP.fmtD, toast = KP.toast, modal = KP.modal, closeModal = KP.closeModal;
+const dnes = () => new Date().toISOString().slice(0, 10);
+const ted = () => KP.casLokalni();
+
+/* ---------------- úložiště: IndexedDB + dvojí šifrování ---------------- */
+const IDB = {
+  db: null,
+  async open() {
+    if (this.db) return this.db;
+    this.db = await new Promise((res, rej) => { const r = indexedDB.open('kp-prukaz', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    return this.db;
+  },
+  async get(k) { const db = await this.open(); return new Promise((res, rej) => { const r = db.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
+  async clear() { const db = await this.open(); return new Promise((res) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').clear(); t.oncomplete = () => res(); }); },
+};
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+const unhex = (h) => new Uint8Array(h.match(/../g).map((x) => parseInt(x, 16)));
+const b64 = (u8) => btoa(String.fromCharCode(...u8));
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const ITERACE = 310000;
+async function klicTelefonu() {
+  let k = await IDB.get('klic');
+  if (!k) { k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']); await IDB.set('klic', k); }
+  return k;
+}
+async function klicZHesla(heslo, saltHex, iterace) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(heslo), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: unhex(saltHex), iterations: iterace }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function sifruj(klic, data) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, klic, data)); const o = new Uint8Array(12 + ct.length); o.set(iv); o.set(ct, 12); return o; }
+async function desifruj(klic, data) { return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.slice(0, 12) }, klic, data.slice(12))); }
+
+let D = null, pinKlic = null, ukazka = false, tab = 'prehled', zamceno = true, posledniAktivita = Date.now();
+async function uloz() {
+  if (!D) return;
+  D.aktualizovano = ted();
+  if (ukazka || !pinKlic) return;
+  try { const vnitrni = await sifruj(pinKlic, new TextEncoder().encode(JSON.stringify(D))); await IDB.set('data', await sifruj(await klicTelefonu(), vnitrni)); }
+  catch (e) { toast('Data se nepodařilo uložit do telefonu'); }
+}
+async function odemkniUloziste(pin) {
+  const z = await IDB.get('zamek'); const data = await IDB.get('data');
+  if (!z || !data) return null;
+  const k = await klicZHesla(pin, z.salt, z.iterace);
+  try { const vnitrni = await desifruj(await klicTelefonu(), data); const d = JSON.parse(new TextDecoder().decode(await desifruj(k, vnitrni))); pinKlic = k; return d; } catch { return null; }
+}
+async function nastavPin(pin) {
+  const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+  pinKlic = await klicZHesla(pin, salt, ITERACE);
+  await IDB.set('zamek', { salt, iterace: ITERACE });
+  await uloz();
+}
+
+/* ---------------- datový model ---------------- */
+function prazdnaKarta() {
+  return { format: 'prukaz-plan-pece/1', verze: 1, vytvoreno: ted(), aktualizovano: ted(),
+    profil: { jmeno: '', prijmeni: '', rok: '', datumNarozeni: '', pojistovna: '', adresa: '', telefon: '', poznamka: '' },
+    zdravi: { dg: [], alergie: [], leky: [], funkce: '' },
+    kontakty: [], dokumenty: [],
+    hodnoty: { dulezite: '', obavy: '', zatez: '', rozhodovani: '', kdo: '', aktualizovano: '' },
+    rozhovory: [],
+    budouci: { acp: { text: '', datum: '' }, prani: { text: '', datum: '' }, dvp: { ma: false, datum: '', original: '', podpis: 'neoveren', text: '' }, plan: { cil: '', limity: [], text: '', zdroj: '', datum: '', overeno: false } },
+    krize: { povolene: { jmeno: true, rok: true, kontakty: true, lekar: true, dg: false, alergie: false, leky: false, cil: false, limity: false, dvp: false, hodnoty: false }, zprava: '' },
+    sdileni: [] };
+}
+const CILE = { symptom: 'Symptomatická (úleva od obtíží)', limited: 'Omezená (léčba bez resuscitace a intenzivní péče)', full: 'Plná léčba' };
+const LIMITY = ['KPR', 'Umělá plicní ventilace', 'Hospitalizace', 'Antibiotika i.v.', 'Infuze / i.v. výživa', 'Sonda / PEG', 'Dialýza', 'Transfuze'];
+const ZDROJE = { pacient: 'zapsal(a) jsem', lekar: 'od lékaře', zprava: 'opsáno ze zprávy', rodina: 'zapsala rodina' };
+const TYPY_DOK = { ZPRAVA: 'lékařská zpráva', PLAN: 'lékařský krizový plán', DVP: 'dříve vyslovené přání', ACP: 'záznam rozhovoru o péči', PRANI: 'moje přání (osobní)', JINY: 'jiný dokument' };
+const PODPIS = { neoveren: 'bez ověření', lekar: 'podepsal lékař', uredne: 'úředně ověřený podpis' };
+const SKUPINY = { rozhoduje: 'Rozhoduje za mě', informovat: 'Informovat', pecuje: 'Pečuje', lekar: 'Můj lékař' };
+function ukazkovaKarta() {
+  const k = prazdnaKarta();
+  k.profil = { jmeno: 'Marie', prijmeni: 'Vzorová', rok: '1946', datumNarozeni: '1946-05-12', pojistovna: '111', adresa: 'Dlouhá 12, Zlín', telefon: '+420 777 000 123', poznamka: '' };
+  k.zdravi = { dg: [{ text: 'Chronické srdeční selhání (NYHA III)', zdroj: 'zprava', datum: '2026-09-10', overeno: true }, { text: 'Diabetes 2. typu, CHOPN', zdroj: 'pacient', datum: '2026-10-01', overeno: false }],
+    alergie: [{ text: 'penicilin', zdroj: 'lekar', datum: '2026-09-10', overeno: true }],
+    leky: [{ nazev: 'Furosemid 40 mg', davka: '1-0-0', zdroj: 'zprava', datum: '2026-09-10', overeno: true }, { nazev: 'Metformin 500 mg', davka: '1-0-1', zdroj: 'zprava', datum: '2026-09-10', overeno: true }, { nazev: 'Ibalgin 400 (sama při bolesti zad)', davka: 'podle potřeby', zdroj: 'pacient', datum: '2026-10-20', overeno: false }],
+    funkce: 'Chodím s chodítkem, doma se obsloužím, nakupuje dcera.' };
+  k.kontakty = [{ jmeno: 'Jana Vzorová', vztah: 'dcera', tel: '+420 777 000 321', skupina: 'rozhoduje' }, { jmeno: 'Petr Vzorový', vztah: 'syn', tel: '+420 777 000 654', skupina: 'informovat' }, { jmeno: 'MUDr. Petra Ukázková', vztah: 'praktická lékařka', tel: '+420 577 000 111', skupina: 'lekar' }];
+  k.dokumenty = [{ id: 'd1', nazev: 'Propouštěcí zpráva – interna', typ: 'ZPRAVA', vydal: 'KNTB Zlín, interní oddělení', datum: '2026-09-10', platnostDo: '', podpis: 'lekar', original: 'mám doma ve složce', pozn: '', soubor: null },
+    { id: 'd2', nazev: 'Dříve vyslovené přání', typ: 'DVP', vydal: 'sepsáno s MUDr. Ukázkovou', datum: '2026-09-17', platnostDo: '2031-09-17', podpis: 'uredne', original: 'u dcery, obálka na lednici', pozn: '', soubor: null }];
+  k.hodnoty = { dulezite: 'Být doma, mít kolem sebe rodinu, nemít bolesti.', obavy: 'Dušení, dlouhý pobyt v nemocnici, že budu na obtíž.', zatez: 'Nechci být napojená na přístroje. Antibiotika a infuze ano, pokud mi uleví.', rozhodovani: 'Raději úleva než prodlužování života za každou cenu.', kdo: 'dcera Jana', aktualizovano: '2026-10-05 10:20' };
+  k.rozhovory = [{ datum: '2026-10-05', lekar: 'MUDr. Petra Ukázková', pritomni: 'dcera Jana', otazky: 'Co mě čeká při zhoršení dušnosti? Kdy volat záchranku?', moznosti: 'Léky na dušnost doma (morfin v kapkách), případně krátká hospitalizace na odvodnění.', domluva: 'Zůstávám doma, při dušnosti nejdřív kapky a volat sestru hospice, ne 155.', prehodnotit: 'za 3 měsíce nebo při zhoršení' }];
+  k.budouci = { acp: { text: 'Cíl: zůstat doma, úleva od obtíží. Nemocnice jen krátce na odvodnění, pokud to doma nepůjde.', datum: '2026-10-05' }, prani: { text: 'Nechci resuscitaci ani umělou plicní ventilaci.', datum: '2026-10-05' },
+    dvp: { ma: true, datum: '2026-09-17', original: 'u dcery, obálka na lednici', podpis: 'uredne', text: 'Odmítám KPR a UPV.' }, plan: { cil: 'symptom', limity: ['KPR', 'Umělá plicní ventilace'], text: 'Při dušnosti Morphin 10 mg s.c., volat hospic.', zdroj: 'MUDr. Petra Ukázková', datum: '2026-10-05', overeno: true } };
+  k.krize = { povolene: { jmeno: true, rok: true, kontakty: true, lekar: true, dg: true, alergie: true, leky: false, cil: true, limity: true, dvp: true, hodnoty: false }, zprava: 'Chci zůstat doma. Volejte prosím nejdřív dceru.' };
+  k.sdileni = [{ cas: '2026-10-05 11:02', rozsah: ['Zdraví a léky', 'Budoucí péče'], zpusob: 'PDF' }];
+  return k;
+}
+const jmenoCele = () => [D.profil.jmeno, D.profil.prijmeni].filter(Boolean).join(' ') || 'Moje karta';
+const stavOvereni = (o) => o.overeno ? '<span class="chip lek">ověřeno</span>' : '<span class="chip neov">neověřeno</span>';
+const metaZdroj = (o) => `${esc(ZDROJE[o.zdroj] || o.zdroj || '')}${o.datum ? ' · ' + esc(fmtD(o.datum)) : ''}`;
+
+/* ---------------- obrazovky ---------------- */
+function render() {
+  if (!D) return renderUvod();
+  if (zamceno) return renderZamek();
+  $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>${esc(jmenoCele())}</h1><div class="meta">Průkaz pro plán péče${ukazka ? ' · ukázka' : ''}</div></div>${KP.tlacitkaHlavicky({ vzhled: true })}<button class="rolebtn" id="t_zamk" style="--c:var(--ok)"><span class="dot"></span>zamknout</button>`;
+  $('rezim').innerHTML = `Průkaz pro plán péče <span class="chip">moje karta · jen v tomto telefonu</span>${ukazka ? '<span class="chip warn">ukázková data</span>' : ''}`;
+  const tiles = [['prehled', 'Přehled'], ['zdravi', 'Zdraví a dokumenty'], ['hodnoty', 'Co je pro mě důležité'], ['rozhovor', 'Rozhovor s lékařem'], ['budouci', 'Budoucí péče'], ['krize', 'Krizová karta'], ['sdilet', 'Sdílet a exportovat'], ['bezpecnost', 'Bezpečnost a obnova']];
+  const IK = { prehled: KP.ICON.karta, zdravi: KP.ICON.leky, hodnoty: KP.ICON.odpac, rozhovor: KP.ICON.zpravy, budouci: KP.ICON.plan, krize: KP.ICON.zhorseni, sdilet: KP.ICON.kontakty, bezpecnost: KP.ICON.udaje };
+  let html = `<div class="tiles p8">${tiles.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${IK[id] || KP.ICON.udaje}<span>${n}</span></button>`).join('')}</div>`;
+  html += ({ prehled: prehledHTML, zdravi: zdraviHTML, hodnoty: hodnotyHTML, rozhovor: rozhovorHTML, budouci: budouciHTML, krize: krizeHTML, sdilet: sdiletHTML, bezpecnost: bezpecnostHTML })[tab]();
+  html += `<div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')} · data jsou jen v tomto telefonu, šifrovaná · poslední změna ${esc(fmtDT(D.aktualizovano))}</div>`;
+  $('work').innerHTML = html;
+  KP.sbalVysvetlivky($('work'), { pred: '.footer' });
+  bind();
+}
+function renderUvod() {
+  $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Průkaz pro plán péče</h1><div class="meta">vaše zdravotní karta ve vašem telefonu</div></div>${KP.tlacitkaHlavicky({ vzhled: true })}`;
+  $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Vítejte</h2></div><div style="padding:14px;line-height:1.5">
+      <p style="margin:0 0 10px"><b>Tato karta je vaše.</b> Všechno, co do ní zapíšete, zůstává <b>jen v tomto telefonu</b>, zašifrované vaším PINem. Nikam se to neposílá. Co z ní ukážete lékaři, rodině nebo záchrance, rozhodujete vy – při každém sdílení uvidíte přesně, co odchází.</p>
+      <p style="margin:0">Hodí se lidem s dlouhodobou nemocí, kteří chtějí mít po ruce diagnózy, léky, zprávy, kontakty a svá přání, připravit se na rozhovor s lékařem a mít jasno, co má kdo vědět v krizi.</p></div></div>
+    <div class="panel"><div class="panel-h"><h2>Začít</h2></div><div class="uvod-volba" style="padding:14px">
+      <button class="btn primary" id="u_nova">Vytvořit moji kartu</button>
+      <label class="btn">Obnovit ze zálohy<input type="file" id="u_obnova" accept=".prukaz,application/json" hidden></label>
+      <button class="btn" id="u_ukazka">Otevřít ukázku (smyšlená data)</button></div></div>
+    <div class="note">Záloha je soubor, který jste si dříve uložili v části Bezpečnost a obnova. Je chráněný heslem, bez něj ho nikdo nepřečte. Ukázka nic neukládá – slouží k prohlédnutí, jak karta vypadá.</div>
+    <div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')} · prototyp k diskusi</div>`;
+  $('u_nova').onclick = () => pinOkno('Zvolte PIN', 'PIN chrání kartu v tomto telefonu. Zapamatujte si ho – bez něj se do karty nedostanete (pomůže jen záloha s heslem).', async (pin) => { D = prazdnaKarta(); ukazka = false; zamceno = false; await nastavPin(pin); tab = 'prehled'; render(); profilOkno(); });
+  $('u_ukazka').onclick = () => { D = ukazkovaKarta(); ukazka = true; zamceno = false; tab = 'prehled'; render(); toast('Ukázka – data se neukládají'); };
+  $('u_obnova').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) obnovZeZalohy(f); };
+}
+function renderZamek() {
+  $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>${esc(D.krize.povolene.jmeno ? jmenoCele() : 'Průkaz')}</h1><div class="meta">zamčeno · krizová karta</div></div><button class="rolebtn" id="z_odemk" style="--c:var(--accent)"><span class="dot"></span>odemknout</button>`;
+  $('work').innerHTML = `<div class="lockbar"><span class="chip">zamčeno</span> Vidíte jen to, co jste v Krizové kartě povolil(a). Ostatní je pod PINem.</div>${krizovaKartaHTML()}
+    <div class="quick"><button class="btn primary block" id="z_odemk2">Odemknout PINem</button></div>
+    <div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')}</div>`;
+  const od = () => pinOkno('Odemknout', '', async (pin) => { if (ukazka) { zamceno = false; render(); return; } const d = await odemkniUloziste(pin); if (!d) { toast('Nesprávný PIN'); return false; } D = d; zamceno = false; posledniAktivita = Date.now(); render(); });
+  $('z_odemk').onclick = od; $('z_odemk2').onclick = od;
+}
+function pinOkno(titulek, popis, cb, { potvrdit = false } = {}) {
+  modal(`<h2>${esc(titulek)}</h2>${popis ? `<p class="muted" style="margin:0;font-size:13.5px">${esc(popis)}</p>` : ''}<div class="form pinpad"><div class="field"><label>PIN (4–6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+    ${potvrdit || titulek !== 'Odemknout' ? '<div class="field"><label>PIN znovu</label><input id="pin2" inputmode="numeric" maxlength="6" autocomplete="off"></div>' : ''}</div>
+    <div class="quick"><button class="btn primary" id="pin_ok">Pokračovat</button><button class="btn" data-close>Zrušit</button></div>`, () => {
+    $('pin').focus();
+    const go = async () => { const p = $('pin').value.trim(); if (!/^\d{4,6}$/.test(p)) return toast('PIN má 4 až 6 číslic'); if ($('pin2') && $('pin2').value.trim() !== p) return toast('PINy se neshodují'); $('pin_ok').disabled = true; const r = await cb(p); if (r === false) { $('pin_ok').disabled = false; $('pin').value = ''; $('pin').focus(); return; } closeModal(); };
+    $('pin_ok').onclick = go; ($('pin2') || $('pin')).onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  });
+}
+
+/* 02 Přehled */
+function prehledHTML() {
+  const p = D.profil, stari = (d) => d ? Math.round((Date.now() - new Date(d.replace(' ', 'T')).getTime()) / 864e5) : null;
+  const sStari = stari(D.aktualizovano);
+  const lekar = D.kontakty.find((k) => k.skupina === 'lekar'), rozh = D.kontakty.find((k) => k.skupina === 'rozhoduje');
+  const neov = D.zdravi.dg.filter((x) => !x.overeno).length + D.zdravi.leky.filter((x) => !x.overeno).length + D.zdravi.alergie.filter((x) => !x.overeno).length;
+  const stareDok = D.dokumenty.filter((d) => d.platnostDo && d.platnostDo < dnes()).length;
+  return `<div class="panel"><div class="panel-h"><h2>${esc(jmenoCele())}</h2><button class="btn sm" id="p_profil">Upravit údaje</button></div><dl class="kv" style="padding:12px 14px">
+      <dt>Narození</dt><dd>${esc(p.datumNarozeni ? fmtD(p.datumNarozeni) : p.rok || '—')}</dd><dt>Pojišťovna</dt><dd>${esc(p.pojistovna || '—')}</dd><dt>Adresa</dt><dd>${esc(p.adresa || '—')}</dd><dt>Telefon</dt><dd>${esc(p.telefon || '—')}</dd></dl></div>
+    <div class="panel"><div class="panel-h"><h2>Stav karty</h2><span class="chip ${sStari > 90 ? 'warn' : 'ok'}">aktualizováno ${esc(fmtDT(D.aktualizovano))}</span></div><div style="padding:12px 14px;line-height:1.5">
+      <div>${D.zdravi.dg.length} diagnóz, ${D.zdravi.leky.length} léků, ${D.dokumenty.length} dokumentů, ${D.kontakty.length} kontaktů, ${D.rozhovory.length} záznamů rozhovoru.</div>
+      ${neov ? `<div class="stav-warn">${neov} údajů bez ověření lékařem – při další návštěvě je nechte potvrdit.</div>` : '<div class="stav-ok">Všechny zdravotní údaje mají ověření.</div>'}
+      ${stareDok ? `<div class="stav-warn">${stareDok} dokument(y) po platnosti.</div>` : ''}
+      ${D.budouci.dvp.ma ? `<div class="stav-ok">Dříve vyslovené přání: ${esc(PODPIS[D.budouci.dvp.podpis])}${D.budouci.dvp.original ? ', originál ' + esc(D.budouci.dvp.original) : ''}.</div>` : '<div class="muted">Formální dříve vyslovené přání nemám zaznamenané.</div>'}
+      ${D.hodnoty.aktualizovano ? '' : '<div class="muted">Moje hodnoty zatím nejsou vyplněné – dlaždice Co je pro mě důležité.</div>'}</div></div>
+    <div class="panel"><div class="panel-h"><h2>Hlavní kontakty</h2></div><div class="tblwrap"><table class="tbl"><tbody>
+      ${rozh ? `<tr><td><b>${esc(rozh.jmeno)}</b><div class="lbl">rozhoduje za mě${rozh.vztah ? ' · ' + esc(rozh.vztah) : ''}</div></td><td class="mono">${esc(rozh.tel)}</td></tr>` : ''}
+      ${lekar ? `<tr><td><b>${esc(lekar.jmeno)}</b><div class="lbl">${esc(lekar.vztah || 'lékař')}</div></td><td class="mono">${esc(lekar.tel)}</td></tr>` : ''}
+      ${!rozh && !lekar ? '<tr><td class="muted">Zatím žádný kontakt – doplňte v Zdraví a dokumenty.</td></tr>' : ''}</tbody></table></div></div>
+    <div class="note">Tato karta je váš osobní nástroj. Lékařský pokyn je jen to, co napsal a podepsal lékař (dokumenty s ověřením). Co zapíšete sami, je označené jako neověřené, aby to nikdo nezaměnil za ordinaci. Při akutních potížích volejte 155 – karta nenahrazuje lékařskou péči.</div>`;
+}
+function profilOkno() {
+  const p = D.profil;
+  modal(`<h2>Moje údaje</h2><div class="form"><div class="frow"><div class="field"><label>Jméno</label><input id="pr_j" value="${esc(p.jmeno)}"></div><div class="field"><label>Příjmení</label><input id="pr_p" value="${esc(p.prijmeni)}"></div></div>
+    <div class="frow"><div class="field"><label>Datum narození</label><input type="date" id="pr_dn" value="${esc(p.datumNarozeni)}"></div><div class="field"><label>Rok narození</label><input type="number" id="pr_r" value="${esc(p.rok)}"></div></div>
+    <div class="frow"><div class="field"><label>Pojišťovna</label><input id="pr_poj" value="${esc(p.pojistovna)}" maxlength="3"></div><div class="field"><label>Můj telefon</label><input id="pr_t" type="tel" value="${esc(p.telefon)}"></div></div>
+    <div class="field"><label>Adresa</label><input id="pr_a" value="${esc(p.adresa)}"></div></div>
+    <div class="quick"><button class="btn primary ulozit" id="pr_ok">Uložit</button><button class="btn" data-close>Zavřít</button></div>`, () => {
+    $('pr_ok').onclick = async () => { D.profil = { ...p, jmeno: $('pr_j').value.trim(), prijmeni: $('pr_p').value.trim(), datumNarozeni: $('pr_dn').value, rok: $('pr_r').value || ($('pr_dn').value || '').slice(0, 4), pojistovna: $('pr_poj').value.trim(), telefon: $('pr_t').value.trim(), adresa: $('pr_a').value.trim() }; await uloz(); closeModal(); render(); };
+  });
+}
+
+/* 03 Zdraví a dokumenty */
+function zdraviHTML() {
+  const z = D.zdravi;
+  const seznam = (pole, nazev, kl) => `<div class="panel"><div class="panel-h"><h2>${nazev}</h2><button class="btn sm" data-pridat="${kl}">+ Přidat</button></div>
+    ${pole.length ? pole.map((x, i) => `<div class="zaznam"><div class="t"><b>${esc(x.nazev || x.text)}</b>${x.davka ? ' · ' + esc(x.davka) : ''}</div><div class="meta">${metaZdroj(x)} · ${stavOvereni(x)}</div><div class="quick"><button class="btn sm" data-upr="${kl}:${i}">Upravit</button><button class="btn sm" data-over="${kl}:${i}">${x.overeno ? 'Zrušit ověření' : 'Lékař potvrdil'}</button><button class="btn sm" data-smaz="${kl}:${i}">Smazat</button></div></div>`).join('') : '<div class="prazdne">Zatím nic.</div>'}</div>`;
+  return seznam(z.dg, 'Diagnózy', 'dg') + seznam(z.alergie, 'Alergie', 'alergie') + seznam(z.leky, 'Léky', 'leky') +
+    `<div class="panel"><div class="panel-h"><h2>Jak se mi daří (funkční stav)</h2></div><div class="form" style="padding:14px"><textarea id="zd_fun" style="min-height:70px;font-family:var(--font)" placeholder="např. chodím s chodítkem, doma se obsloužím…">${esc(z.funkce)}</textarea><button class="btn ulozit" id="zd_fun_ok" style="margin-top:8px">Uložit</button></div></div>
+    <div class="panel"><div class="panel-h"><h2>Kontakty</h2><button class="btn sm" id="k_pridat">+ Přidat</button></div>
+      ${D.kontakty.length ? `<div class="tblwrap"><table class="tbl"><tbody>${D.kontakty.map((k, i) => `<tr><td><b>${esc(k.jmeno)}</b><div class="lbl">${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ' · ' + esc(k.vztah) : ''}</div></td><td class="mono">${esc(k.tel)}</td><td><button class="btn sm" data-kupr="${i}">Upravit</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="prazdne">Zatím žádný kontakt.</div>'}</div>
+    <div class="panel"><div class="panel-h"><h2>Dokumenty</h2><button class="btn sm" id="d_pridat">+ Přidat dokument</button></div>
+      ${D.dokumenty.length ? D.dokumenty.map((d, i) => `<div class="zaznam" style="display:flex;gap:10px"><div class="dok-ikona">${d.soubor ? (d.soubor.typ.startsWith('image/') ? '🖼' : '📄') : '📝'}</div><div style="flex:1;min-width:0"><div class="t"><b>${esc(d.nazev)}</b></div><div class="meta">${esc(TYPY_DOK[d.typ] || d.typ)}${d.vydal ? ' · ' + esc(d.vydal) : ''}${d.datum ? ' · ' + esc(fmtD(d.datum)) : ''}${d.platnostDo ? (d.platnostDo < dnes() ? ` · <span class="chip crit">po platnosti ${esc(fmtD(d.platnostDo))}</span>` : ' · platí do ' + esc(fmtD(d.platnostDo))) : ''} · <span class="chip ${d.podpis === 'neoveren' ? 'neov' : 'lek'}">${esc(PODPIS[d.podpis] || d.podpis)}</span>${d.original ? ' · originál: ' + esc(d.original) : ''}</div>
+        <div class="quick">${d.soubor ? `<button class="btn sm" data-dok="${i}">Otevřít soubor</button>` : ''}<button class="btn sm" data-dupr="${i}">Upravit</button><button class="btn sm" data-dsmaz="${i}">Smazat</button></div></div></div>`).join('') : '<div class="prazdne">Zatím žádný dokument – vyfoťte zprávu nebo přidejte PDF.</div>'}</div>
+    <div class="note">U každého údaje je, odkud je a kdy jste ho zapsal(a). „Neověřeno“ znamená, že údaj nepotvrdil lékař – a nikdo ho nesmí brát jako platnou ordinaci. Dokument po platnosti zůstává, ale je viditelně označený; z něj se neodvozuje aktuální dávka léku.</div>`;
+}
+function polozkaOkno(kl, i) {
+  const pole = D.zdravi[kl]; const x = i == null ? { text: '', nazev: '', davka: '', zdroj: 'pacient', datum: dnes(), overeno: false } : { ...pole[i] };
+  const lek = kl === 'leky';
+  modal(`<h2>${i == null ? 'Přidat' : 'Upravit'} – ${{ dg: 'diagnóza', alergie: 'alergie', leky: 'lék' }[kl]}</h2><div class="form">
+    ${lek ? `<div class="field"><label>Lék</label><input id="po_n" value="${esc(x.nazev)}" placeholder="název a síla"></div><div class="field"><label>Dávkování</label><input id="po_d" value="${esc(x.davka)}" placeholder="1-0-1"></div>` : `<div class="field"><label>Text</label><input id="po_n" value="${esc(x.text)}"></div>`}
+    <div class="frow"><div class="field"><label>Odkud údaj je</label><select id="po_z">${Object.entries(ZDROJE).map(([k, n]) => `<option value="${k}" ${x.zdroj === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div><div class="field"><label>Datum</label><input type="date" id="po_dt" value="${esc(x.datum)}"></div></div>
+    <div class="row"><label class="row"><input type="checkbox" id="po_o" ${x.overeno ? 'checked' : ''}> potvrdil lékař (ověřeno)</label></div></div>
+    <div class="quick"><button class="btn primary ulozit" id="po_ok">Uložit</button><button class="btn" data-close>Zavřít</button></div>`, () => {
+    $('po_ok').onclick = async () => { const v = $('po_n').value.trim(); if (!v) return toast('Vyplňte text'); const n = { ...x, zdroj: $('po_z').value, datum: $('po_dt').value, overeno: $('po_o').checked }; if (lek) { n.nazev = v; n.davka = $('po_d').value.trim(); } else n.text = v; if (i == null) pole.push(n); else pole[i] = n; await uloz(); closeModal(); render(); };
+  });
+}
+function kontaktOkno(i) {
+  const k = i == null ? { jmeno: '', vztah: '', tel: '', skupina: 'informovat' } : { ...D.kontakty[i] };
+  modal(`<h2>${i == null ? 'Přidat kontakt' : 'Upravit kontakt'}</h2><div class="form"><div class="field"><label>Jméno</label><input id="ko_j" value="${esc(k.jmeno)}"></div><div class="frow"><div class="field"><label>Vztah</label><input id="ko_v" value="${esc(k.vztah)}" placeholder="dcera, soused, praktický lékař"></div><div class="field"><label>Telefon</label><input id="ko_t" type="tel" value="${esc(k.tel)}"></div></div>
+    <div class="field"><label>Role</label><select id="ko_s">${Object.entries(SKUPINY).map(([kk, n]) => `<option value="${kk}" ${k.skupina === kk ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="hint">„Rozhoduje za mě“ je pověřená blízká osoba; o rozsahu jejího zastupování rozhodujete vy a zákon, karta to sama nezařídí.</span></div></div>
+    <div class="quick"><button class="btn primary ulozit" id="ko_ok">Uložit</button>${i != null ? '<button class="btn" id="ko_smaz">Smazat</button>' : ''}<button class="btn" data-close>Zavřít</button></div>`, () => {
+    $('ko_ok').onclick = async () => { const n = { jmeno: $('ko_j').value.trim(), vztah: $('ko_v').value.trim(), tel: $('ko_t').value.trim(), skupina: $('ko_s').value }; if (!n.jmeno) return toast('Vyplňte jméno'); if (i == null) D.kontakty.push(n); else D.kontakty[i] = n; await uloz(); closeModal(); render(); };
+    if ($('ko_smaz')) $('ko_smaz').onclick = async () => { D.kontakty.splice(i, 1); await uloz(); closeModal(); render(); };
+  });
+}
+function dokumentOkno(i) {
+  const d = i == null ? { id: 'd' + Date.now(), nazev: '', typ: 'ZPRAVA', vydal: '', datum: dnes(), platnostDo: '', podpis: 'neoveren', original: '', pozn: '', soubor: null } : { ...D.dokumenty[i] };
+  modal(`<h2>${i == null ? 'Přidat dokument' : 'Upravit dokument'}</h2><div class="form"><div class="field"><label>Název</label><input id="dk_n" value="${esc(d.nazev)}"></div>
+    <div class="frow"><div class="field"><label>Typ</label><select id="dk_t">${Object.entries(TYPY_DOK).map(([k, n]) => `<option value="${k}" ${d.typ === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div><div class="field"><label>Kdo vydal / s kým sepsáno</label><input id="dk_v" value="${esc(d.vydal)}"></div></div>
+    <div class="frow"><div class="field"><label>Datum</label><input type="date" id="dk_d" value="${esc(d.datum)}"></div><div class="field"><label>Platí do</label><input type="date" id="dk_p" value="${esc(d.platnostDo)}"></div></div>
+    <div class="frow"><div class="field"><label>Podpis / ověření</label><select id="dk_s">${Object.entries(PODPIS).map(([k, n]) => `<option value="${k}" ${d.podpis === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div><div class="field"><label>Kde je originál</label><input id="dk_o" value="${esc(d.original)}"></div></div>
+    <div class="field"><label>Soubor (fotka nebo PDF, do 4 MB)</label><input type="file" id="dk_f" accept="image/*,application/pdf">${d.soubor ? `<span class="hint">Uložený soubor: ${esc(d.soubor.jmeno)}</span>` : ''}</div></div>
+    <div class="quick"><button class="btn primary ulozit" id="dk_ok">Uložit</button><button class="btn" data-close>Zavřít</button></div>`, () => {
+    $('dk_ok').onclick = async () => {
+      const n = { ...d, nazev: $('dk_n').value.trim(), typ: $('dk_t').value, vydal: $('dk_v').value.trim(), datum: $('dk_d').value, platnostDo: $('dk_p').value, podpis: $('dk_s').value, original: $('dk_o').value.trim() };
+      if (!n.nazev) return toast('Vyplňte název');
+      const f = $('dk_f').files[0];
+      if (f) { if (f.size > 4 * 1024 * 1024) return toast('Soubor je větší než 4 MB'); n.soubor = { jmeno: f.name, typ: f.type || 'application/octet-stream', data: await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); }) }; }
+      if (i == null) D.dokumenty.push(n); else D.dokumenty[i] = n; await uloz(); closeModal(); render();
+    };
+  });
+}
+
+/* 04 Co je pro mě důležité */
+function hodnotyHTML() {
+  const h = D.hodnoty;
+  const pole = (id, n, ph) => `<div class="field"><label>${n}</label><textarea id="h_${id}" style="min-height:70px;font-family:var(--font)" placeholder="${ph}">${esc(h[id] || '')}</textarea></div>`;
+  return `<div class="panel"><div class="panel-h"><h2>Co je pro mě důležité</h2><span class="chip pac">moje slova</span></div><div class="form" style="padding:14px">
+      <div class="muted" style="font-size:13.5px;margin-bottom:6px">Krátké otázky, kteroukoli můžete přeskočit. Není to právní dokument – je to podklad pro rozhovor s lékařem a s rodinou.</div>
+      ${pole('dulezite', 'Co je pro mě důležité', 'např. být doma, mít kolem sebe rodinu, nemít bolesti…')}
+      ${pole('obavy', 'Čeho se obávám', 'např. dušení, pobytu v nemocnici, že budu na obtíž…')}
+      ${pole('zatez', 'Jaká zátěž léčby je pro mě ještě přijatelná', 'např. infuze ano, přístroje ne, operace jen pokud…')}
+      ${pole('rozhodovani', 'Co chci, aby lékaři zohlednili, až se bude rozhodovat', 'např. raději úleva než prodlužování života za každou cenu…')}
+      ${pole('kdo', 'Koho chci mít u rozhodování', 'jméno, vztah')}
+      <button class="btn primary ulozit" id="h_ok">Uložit do telefonu</button>${h.aktualizovano ? `<div class="note keep">Naposledy upraveno ${esc(fmtDT(h.aktualizovano))}.</div>` : ''}</div></div>
+    <div class="note">Vaše hodnoty a přání jsou osobní preference. Lékařský krizový plán ani formální dříve vyslovené přání nenahrazují – ty jsou v dlaždici Budoucí péče zvlášť.</div>`;
+}
+
+/* 05 Rozhovor s lékařem */
+function rozhovorHTML() {
+  return `<div class="panel"><div class="panel-h"><h2>Moje rozhovory s lékařem</h2><button class="btn sm" id="r_pridat">+ Připravit rozhovor</button></div>
+      ${D.rozhovory.length ? [...D.rozhovory].reverse().map((r, ri) => { const i = D.rozhovory.length - 1 - ri; return `<div class="zaznam"><div class="t"><b>${esc(fmtD(r.datum) || 'bez data')}</b>${r.lekar ? ' · ' + esc(r.lekar) : ''}${r.pritomni ? ' · přítomni: ' + esc(r.pritomni) : ''}</div>
+        ${r.otazky ? `<div class="meta">Otázky</div><div class="t">${esc(r.otazky)}</div>` : ''}${r.moznosti ? `<div class="meta">Možnosti, přínosy a rizika</div><div class="t">${esc(r.moznosti)}</div>` : ''}${r.domluva ? `<div class="meta">Na čem jsme se domluvili</div><div class="t">${esc(r.domluva)}</div>` : ''}${r.prehodnotit ? `<div class="meta">Přehodnotit: ${esc(r.prehodnotit)}</div>` : ''}
+        <div class="quick"><button class="btn sm" data-rupr="${i}">Upravit</button></div></div>`; }).join('') : '<div class="prazdne">Před návštěvou si sem napište otázky; po ní, co lékař nabídl a na čem jste se domluvili.</div>'}</div>
+    <div class="note">Záznam rozhovoru je váš zápis. Lékařský závěr platí tak, jak je ve zprávě od lékaře (dokument s ověřením).</div>`;
+}
+function rozhovorOkno(i) {
+  const r = i == null ? { datum: dnes(), lekar: '', pritomni: '', otazky: '', moznosti: '', domluva: '', prehodnotit: '' } : { ...D.rozhovory[i] };
+  const ta = (id, n, ph) => `<div class="field"><label>${n}</label><textarea id="ro_${id}" style="min-height:60px;font-family:var(--font)" placeholder="${ph}">${esc(r[id])}</textarea></div>`;
+  modal(`<h2>${i == null ? 'Příprava rozhovoru' : 'Rozhovor'}</h2><div class="form"><div class="frow"><div class="field"><label>Datum</label><input type="date" id="ro_datum" value="${esc(r.datum)}"></div><div class="field"><label>Lékař</label><input id="ro_lekar" value="${esc(r.lekar)}"></div></div>
+    <div class="field"><label>Kdo byl přítomen</label><input id="ro_pritomni" value="${esc(r.pritomni)}"></div>
+    ${ta('otazky', 'Otázky, které chci položit', 'Co mě čeká? Jaké mám možnosti? Co se stane, když…')}${ta('moznosti', 'Možnosti, přínosy a rizika (co lékař řekl)', '')}${ta('domluva', 'Na čem jsme se domluvili – další krok', '')}
+    <div class="field"><label>Kdy to přehodnotit</label><input id="ro_prehodnotit" value="${esc(r.prehodnotit)}" placeholder="za 3 měsíce, při zhoršení…"></div></div>
+    <div class="quick"><button class="btn primary ulozit" id="ro_ok">Uložit</button>${i != null ? '<button class="btn" id="ro_smaz">Smazat</button>' : ''}<button class="btn" data-close>Zavřít</button></div>`, () => {
+    $('ro_ok').onclick = async () => { const n = {}; for (const k of ['datum', 'lekar', 'pritomni', 'otazky', 'moznosti', 'domluva', 'prehodnotit']) n[k] = $('ro_' + k).value.trim(); if (i == null) D.rozhovory.push(n); else D.rozhovory[i] = n; await uloz(); closeModal(); render(); };
+    if ($('ro_smaz')) $('ro_smaz').onclick = async () => { D.rozhovory.splice(i, 1); await uloz(); closeModal(); render(); };
+  });
+}
+
+/* 06 Budoucí péče – čtyři oddělené typy záznamu */
+function budouciHTML() {
+  const b = D.budouci;
+  const blok = (nazev, chip, obsah, tl) => `<div class="panel"><div class="panel-h"><h2>${nazev}</h2>${chip}</div><div style="padding:12px 14px">${obsah}</div><div class="quick" style="padding:0 14px 14px">${tl}</div></div>`;
+  return blok('Moje přání (osobní)', '<span class="chip pac">moje slova</span>', b.prani.text ? `<div style="white-space:pre-wrap">${esc(b.prani.text)}</div><div class="meta">${esc(fmtD(b.prani.datum))}</div>` : '<span class="muted">Zatím nevyplněno.</span>', '<button class="btn sm" data-bu="prani">Upravit</button>')
+    + blok('Záznam rozhovoru o budoucí péči (ACP)', '<span class="chip pac">zapsáno s lékařem</span>', b.acp.text ? `<div style="white-space:pre-wrap">${esc(b.acp.text)}</div><div class="meta">${esc(fmtD(b.acp.datum))}</div>` : '<span class="muted">Zatím nevyplněno.</span>', '<button class="btn sm" data-bu="acp">Upravit</button>')
+    + blok('Dříve vyslovené přání (DVP)', b.dvp.ma ? `<span class="chip ${b.dvp.podpis === 'uredne' ? 'lek' : 'neov'}">${esc(PODPIS[b.dvp.podpis])}</span>` : '<span class="chip">nemám</span>', b.dvp.ma ? `<div style="white-space:pre-wrap">${esc(b.dvp.text || '')}</div><div class="meta">sepsáno ${esc(fmtD(b.dvp.datum))}${b.dvp.original ? ' · originál: ' + esc(b.dvp.original) : ''}</div>` : '<span class="muted">Platné DVP se sepisuje písemně s poučením lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče). Karta ho nenahrazuje – jen eviduje, že existuje a kde je originál.</span>', '<button class="btn sm" data-bu="dvp">Upravit</button>')
+    + blok('Lékařský krizový plán', b.plan.overeno ? '<span class="chip lek">od lékaře</span>' : '<span class="chip neov">neověřeno</span>', b.plan.cil || b.plan.text ? `<div><b>${esc(CILE[b.plan.cil] || b.plan.cil || '')}</b></div>${b.plan.limity.length ? `<div>Neprovádět: ${esc(b.plan.limity.join(', '))}</div>` : ''}${b.plan.text ? `<div style="white-space:pre-wrap;margin-top:4px">${esc(b.plan.text)}</div>` : ''}<div class="meta">${esc(b.plan.zdroj || '')}${b.plan.datum ? ' · ' + esc(fmtD(b.plan.datum)) : ''}</div>` : '<span class="muted">Zatím žádný. Opište ho ze zprávy od lékaře a nechte označit jako ověřený.</span>', '<button class="btn sm" data-bu="plan">Upravit</button>')
+    + '<div class="note">Čtyři různé věci: <b>moje přání</b> (osobní preference), <b>záznam rozhovoru</b> (co jsme si s lékařem řekli), <b>DVP</b> (formální právní dokument) a <b>lékařský krizový plán</b> (ordinace lékaře, např. neprovádět KPR). Nezaměňujte je – záchranka se řídí jen platným DVP nebo ověřeným plánem.</div>';
+}
+function budouciOkno(co) {
+  const b = D.budouci;
+  if (co === 'prani' || co === 'acp') { const x = b[co]; modal(`<h2>${co === 'prani' ? 'Moje přání' : 'Záznam rozhovoru o budoucí péči'}</h2><div class="form"><div class="field"><label>Text</label><textarea id="bu_t" style="min-height:120px;font-family:var(--font)">${esc(x.text)}</textarea></div><div class="field"><label>Datum</label><input type="date" id="bu_d" value="${esc(x.datum || dnes())}"></div></div><div class="quick"><button class="btn primary ulozit" id="bu_ok">Uložit</button><button class="btn" data-close>Zavřít</button></div>`, () => { $('bu_ok').onclick = async () => { b[co] = { text: $('bu_t').value.trim(), datum: $('bu_d').value }; await uloz(); closeModal(); render(); }; }); return; }
+  if (co === 'dvp') { const x = b.dvp; modal(`<h2>Dříve vyslovené přání</h2><div class="form"><div class="row"><label class="row"><input type="checkbox" id="bu_ma" ${x.ma ? 'checked' : ''}> mám sepsané DVP</label></div><div class="field"><label>Co v něm je (stručně)</label><textarea id="bu_t" style="min-height:70px;font-family:var(--font)">${esc(x.text)}</textarea></div>
+    <div class="frow"><div class="field"><label>Datum sepsání</label><input type="date" id="bu_d" value="${esc(x.datum)}"></div><div class="field"><label>Podpis</label><select id="bu_p">${Object.entries(PODPIS).map(([k, n]) => `<option value="${k}" ${x.podpis === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div><div class="field"><label>Kde je originál</label><input id="bu_o" value="${esc(x.original)}"></div></div>
+    <div class="quick"><button class="btn primary ulozit" id="bu_ok">Uložit</button><button class="btn" data-close>Zavřít</button></div>`, () => { $('bu_ok').onclick = async () => { b.dvp = { ma: $('bu_ma').checked, text: $('bu_t').value.trim(), datum: $('bu_d').value, podpis: $('bu_p').value, original: $('bu_o').value.trim() }; await uloz(); closeModal(); render(); }; }); return; }
+  const x = b.plan;
+  modal(`<h2>Lékařský krizový plán</h2><p class="muted" style="margin:0;font-size:13.5px">Opište ze zprávy od lékaře. Označte jako ověřený jen to, co lékař napsal nebo potvrdil.</p><div class="form"><div class="field"><label>Cíl péče</label><select id="bu_c"><option value="">— neurčeno —</option>${Object.entries(CILE).map(([k, n]) => `<option value="${k}" ${x.cil === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <div class="field"><label>Neprovádět (limitace)</label><div class="checks">${LIMITY.map((l) => `<label><input type="checkbox" name="bu_lim" value="${esc(l)}" ${x.limity.includes(l) ? 'checked' : ''}>${esc(l)}</label>`).join('')}</div></div>
+    <div class="field"><label>Pokyny při zhoršení</label><textarea id="bu_t" style="min-height:70px;font-family:var(--font)">${esc(x.text)}</textarea></div>
+    <div class="frow"><div class="field"><label>Kdo stanovil</label><input id="bu_z" value="${esc(x.zdroj)}" placeholder="jméno lékaře"></div><div class="field"><label>Datum</label><input type="date" id="bu_d" value="${esc(x.datum || dnes())}"></div></div>
+    <div class="row"><label class="row"><input type="checkbox" id="bu_ov" ${x.overeno ? 'checked' : ''}> ověřeno lékařem (mám to ve zprávě)</label></div></div>
+    <div class="quick"><button class="btn primary ulozit" id="bu_ok">Uložit</button><button class="btn" data-close>Zavřít</button></div>`, () => { $('bu_ok').onclick = async () => { b.plan = { cil: $('bu_c').value, limity: [...document.querySelectorAll('input[name=bu_lim]:checked')].map((i) => i.value), text: $('bu_t').value.trim(), zdroj: $('bu_z').value.trim(), datum: $('bu_d').value, overeno: $('bu_ov').checked }; await uloz(); closeModal(); render(); }; });
+}
+
+/* 07 Krizová karta – pacient povoluje jednotlivé položky */
+const KRIZE_POLOZKY = [['jmeno', 'Jméno a příjmení', false], ['rok', 'Rok narození', false], ['kontakty', 'Koho volat (rozhoduje, informovat, pečuje)', false], ['lekar', 'Můj lékař', false], ['dg', 'Diagnózy', true], ['alergie', 'Alergie', true], ['leky', 'Léky', true], ['cil', 'Cíl péče z lékařského plánu', true], ['limity', 'Co neprovádět (limitace) z lékařského plánu', true], ['dvp', 'Že mám DVP a kde je originál', true], ['hodnoty', 'Co je pro mě důležité (moje slova)', true]];
+function krizovaKartaHTML(vse = false) {
+  const p = D.krize.povolene, pov = (k) => vse || p[k];
+  const b = D.budouci, z = D.zdravi;
+  const sek = (nazev, obsah, meta, crit) => `<div class="sek ${crit ? 'crit' : ''}"><h4>${nazev}</h4><div class="v">${obsah}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</div>`;
+  const kontakty = D.kontakty.filter((k) => k.skupina !== 'lekar'), lekar = D.kontakty.find((k) => k.skupina === 'lekar');
+  let s = `<div class="krize"><div class="hdr"><div class="meta" style="color:#dbe8fb">KRIZOVÁ KARTA · co jsem povolil(a) ukázat bez PINu</div><b>${pov('jmeno') ? esc(jmenoCele()) : 'Pacient'}${pov('rok') && D.profil.rok ? ', ' + esc(D.profil.rok) : ''}</b></div>`;
+  if (D.krize.zprava) s += sek('Můj vzkaz', esc(D.krize.zprava), '', false);
+  if (pov('limity') && b.plan.limity.length) s += sek('Neprovádět', b.plan.limity.map((l) => `<span class="pill">${esc(l)}</span>`).join(' '), `${b.plan.overeno ? 'lékařský plán' : 'NEOVĚŘENO – zapsal pacient'}${b.plan.zdroj ? ' · ' + esc(b.plan.zdroj) : ''}${b.plan.datum ? ' · ' + esc(fmtD(b.plan.datum)) : ''}`, true);
+  if (pov('cil') && b.plan.cil) s += sek('Cíl péče', esc(CILE[b.plan.cil] || b.plan.cil), b.plan.overeno ? 'lékařský plán' : 'NEOVĚŘENO – zapsal pacient', false);
+  if (pov('dvp') && b.dvp.ma) s += sek('Dříve vyslovené přání', `${esc(PODPIS[b.dvp.podpis])}${b.dvp.original ? ' · originál: ' + esc(b.dvp.original) : ''}`, b.dvp.datum ? 'sepsáno ' + esc(fmtD(b.dvp.datum)) : '', false);
+  if (pov('dg') && z.dg.length) s += sek('Diagnózy', z.dg.map((x) => esc(x.text) + (x.overeno ? '' : ' <span class="chip neov">neověřeno</span>')).join('<br>'), '', false);
+  if (pov('alergie') && z.alergie.length) s += sek('Alergie', z.alergie.map((x) => esc(x.text)).join(', '), '', true);
+  if (pov('leky') && z.leky.length) s += sek('Léky', z.leky.map((x) => esc(x.nazev) + (x.davka ? ' – ' + esc(x.davka) : '') + (x.overeno ? '' : ' <span class="chip neov">neověřeno</span>')).join('<br>'), 'seznam vedený pacientem – ověřte proti aktuální zprávě', false);
+  if (pov('kontakty') && kontakty.length) s += sek('Koho volat', kontakty.map((k) => `<div class="callrow"><span>${esc(k.jmeno)}<span class="lbl" style="margin:0"> · ${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ', ' + esc(k.vztah) : ''}</span></span><a class="num" href="tel:${esc(String(k.tel).replace(/\s/g, ''))}">${esc(k.tel)}</a></div>`).join(''), '', false);
+  if (pov('lekar') && lekar) s += sek('Můj lékař', `${esc(lekar.jmeno)}${lekar.vztah ? ' · ' + esc(lekar.vztah) : ''} <a class="num" href="tel:${esc(String(lekar.tel).replace(/\s/g, ''))}">${esc(lekar.tel)}</a>`, '', false);
+  if (pov('hodnoty') && D.hodnoty.dulezite) s += sek('Co je pro mě důležité', esc(D.hodnoty.dulezite), 'osobní přání pacienta, ne lékařský pokyn', false);
+  s += `<div class="sek"><div class="meta">Karta aktualizována ${esc(fmtDT(D.aktualizovano))}. Neověřené údaje zapsal pacient sám. V akutním stavu volejte 155.</div></div></div>`;
+  return s;
+}
+function krizeHTML() {
+  const p = D.krize.povolene;
+  return `<div class="panel"><div class="panel-h"><h2>Co bude vidět bez PINu</h2><span class="chip">volíte vy</span></div><div class="vyber" style="padding:4px 14px">
+      ${KRIZE_POLOZKY.map(([k, n, citl]) => `<label><input type="checkbox" data-kr="${k}" ${p[k] ? 'checked' : ''}><span>${n}${citl ? ' <span class="chip warn" style="font-size:11px">citlivé</span>' : ''}</span></label>`).join('')}</div>
+      <div class="form" style="padding:0 14px 14px"><div class="field"><label>Můj vzkaz pro toho, kdo kartu uvidí</label><input id="kr_z" value="${esc(D.krize.zprava)}" placeholder="např. Volejte nejdřív dceru."></div><button class="btn primary ulozit" id="kr_ok">Uložit</button></div></div>
+    <div class="panel"><div class="panel-h"><h2>Náhled zamčené obrazovky</h2></div><div style="padding:12px 14px">${krizovaKartaHTML()}</div></div>
+    <div class="note">Záchranka nebo kdokoli, kdo vezme telefon do ruky, uvidí jen zaškrtnuté položky. Citlivé věci (diagnózy, limitace, DVP) jsou ve výchozím stavu skryté – zapněte je jen, pokud chcete, aby je v krizi viděl každý. Neověřené údaje se na kartě vždy označí, aby je nikdo nebral jako ordinaci. Na zamčeném telefonu (iPhone, Android) tuto kartu nikdo neuvidí – tam pomůže Zdravotní ID v systému telefonu nebo tištěná karta z části Sdílet.</div>`;
+}
+
+/* 08 Sdílet a exportovat */
+const SDILET_ODDILY = [['profil', 'Moje údaje a kontakty', false], ['zdravi', 'Zdraví a léky', true], ['dokumenty', 'Seznam dokumentů (bez souborů)', true], ['hodnoty', 'Co je pro mě důležité', true], ['rozhovory', 'Rozhovory s lékařem', true], ['budouci', 'Budoucí péče (přání, ACP, DVP, plán)', true], ['krize', 'Krizová karta (vše, i skryté položky)', true]];
+function sdiletHTML() {
+  return `<div class="panel"><div class="panel-h"><h2>Co chci předat</h2></div><div class="vyber" style="padding:4px 14px">${SDILET_ODDILY.map(([k, n, c]) => `<label><input type="checkbox" data-sd="${k}" ${k === 'profil' || k === 'krize' ? 'checked' : ''}><span>${n}${c ? ' <span class="chip warn" style="font-size:11px">citlivé</span>' : ''}</span></label>`).join('')}</div>
+      <div class="quick" style="padding:0 14px 14px"><button class="btn primary" id="sd_nahled">Zobrazit náhled</button></div></div>
+    <div class="panel"><div class="panel-h"><h2>Historie sdílení</h2><span class="chip">${D.sdileni.length}</span></div>${D.sdileni.length ? [...D.sdileni].reverse().map((s) => `<div class="zaznam"><div class="t">${esc(fmtDT(s.cas))} · ${esc(s.zpusob)}</div><div class="meta">${esc(s.rozsah.join(', '))}</div></div>`).join('') : '<div class="prazdne">Zatím jste nic nesdílel(a).</div>'}</div>
+    <div class="note">Nic neodchází samo. Vyberete, co předat, uvidíte přesně stejný text, jaký dostane druhá strana, a teprve po potvrzení vznikne PDF (přes tisk telefonu) nebo soubor, který pošlete, čím chcete. Každé sdílení se zapíše sem do historie – jen do telefonu.</div>`;
+}
+function souhrnHTML(oddily) {
+  const p = D.profil, z = D.zdravi, b = D.budouci, h = D.hodnoty;
+  const sekce = (n, t) => `<h3>${n}</h3>${t}`;
+  const polozky = (pole, f) => pole.length ? pole.map((x) => `<div class="tx">• ${f(x)} <span class="pv">(${ZDROJE[x.zdroj] || x.zdroj}${x.datum ? ', ' + fmtD(x.datum) : ''}, ${x.overeno ? 'ověřeno' : 'neověřeno'})</span></div>`).join('') : '<div class="pv">nic</div>';
+  let s = `<div class="souhrn"><p class="hl">${esc(jmenoCele())}${p.rok ? ', ' + esc(p.rok) : ''}</p><div class="pv">Průkaz pro plán péče · výpis vytvořil pacient ${esc(fmtDT(ted()))} · údaje zapsané pacientem jsou označené jako neověřené a nejsou lékařskou ordinací</div>`;
+  if (oddily.includes('profil')) s += sekce('Údaje a kontakty', `<div class="tx">Narození: ${esc(p.datumNarozeni ? fmtD(p.datumNarozeni) : p.rok || '—')} · pojišťovna ${esc(p.pojistovna || '—')} · ${esc(p.adresa || '')} · tel. ${esc(p.telefon || '—')}</div>${D.kontakty.map((k) => `<div class="tx">• ${esc(k.jmeno)} (${esc(SKUPINY[k.skupina] || k.skupina)}${k.vztah ? ', ' + esc(k.vztah) : ''}) ${esc(k.tel)}</div>`).join('')}`);
+  if (oddily.includes('zdravi')) s += sekce('Diagnózy', polozky(z.dg, (x) => esc(x.text))) + sekce('Alergie', polozky(z.alergie, (x) => esc(x.text))) + sekce('Léky', polozky(z.leky, (x) => esc(x.nazev) + (x.davka ? ' – ' + esc(x.davka) : ''))) + (z.funkce ? sekce('Funkční stav', `<div class="tx">${esc(z.funkce)}</div>`) : '');
+  if (oddily.includes('dokumenty')) s += sekce('Dokumenty', D.dokumenty.length ? D.dokumenty.map((d) => `<div class="tx">• ${esc(d.nazev)} – ${esc(TYPY_DOK[d.typ] || d.typ)}${d.vydal ? ', ' + esc(d.vydal) : ''}${d.datum ? ', ' + esc(fmtD(d.datum)) : ''}, ${esc(PODPIS[d.podpis])}${d.original ? ', originál: ' + esc(d.original) : ''}${d.platnostDo && d.platnostDo < dnes() ? ' – PO PLATNOSTI' : ''}</div>`).join('') : '<div class="pv">žádné</div>');
+  if (oddily.includes('hodnoty')) s += sekce('Co je pro mě důležité (osobní preference)', ['dulezite', 'obavy', 'zatez', 'rozhodovani', 'kdo'].filter((k) => h[k]).map((k) => `<div class="tx"><b>${{ dulezite: 'Důležité', obavy: 'Obavy', zatez: 'Přijatelná zátěž léčby', rozhodovani: 'Při rozhodování zohlednit', kdo: 'U rozhodování chci' }[k]}:</b> ${esc(h[k])}</div>`).join('') || '<div class="pv">nevyplněno</div>');
+  if (oddily.includes('rozhovory')) s += sekce('Rozhovory s lékařem', D.rozhovory.length ? D.rozhovory.map((r) => `<div class="tx"><b>${esc(fmtD(r.datum))}${r.lekar ? ' · ' + esc(r.lekar) : ''}</b>${r.otazky ? '<br>Otázky: ' + esc(r.otazky) : ''}${r.moznosti ? '<br>Možnosti: ' + esc(r.moznosti) : ''}${r.domluva ? '<br>Domluva: ' + esc(r.domluva) : ''}</div>`).join('') : '<div class="pv">žádné</div>');
+  if (oddily.includes('budouci')) s += sekce('Budoucí péče', `<div class="tx"><b>Moje přání (osobní):</b> ${esc(b.prani.text || '—')}</div><div class="tx"><b>Záznam rozhovoru o péči:</b> ${esc(b.acp.text || '—')}</div><div class="tx"><b>DVP:</b> ${b.dvp.ma ? esc(PODPIS[b.dvp.podpis]) + (b.dvp.datum ? ', ' + esc(fmtD(b.dvp.datum)) : '') + (b.dvp.original ? ', originál: ' + esc(b.dvp.original) : '') + (b.dvp.text ? ' – ' + esc(b.dvp.text) : '') : 'nemám'}</div><div class="tx"><b>Lékařský krizový plán (${b.plan.overeno ? 'ověřeno' : 'NEOVĚŘENO'}):</b> ${esc(CILE[b.plan.cil] || '—')}${b.plan.limity.length ? '; neprovádět: ' + esc(b.plan.limity.join(', ')) : ''}${b.plan.text ? '; ' + esc(b.plan.text) : ''}${b.plan.zdroj ? ' (' + esc(b.plan.zdroj) + (b.plan.datum ? ', ' + esc(fmtD(b.plan.datum)) : '') + ')' : ''}</div>`);
+  if (oddily.includes('krize')) s += sekce('Krizová karta', krizovaKartaHTML(true));
+  s += `<div class="zap">Vytvořeno v aplikaci Průkaz pro plán péče (prototyp). Údaje jsou z telefonu pacienta; platnost lékařských dokumentů ověřte podle originálu.</div></div>`;
+  return s;
+}
+function sdiletNahled() {
+  const oddily = [...document.querySelectorAll('[data-sd]:checked')].map((c) => c.dataset.sd);
+  if (!oddily.length) return toast('Vyberte, co chcete předat');
+  const nazvy = oddily.map((k) => SDILET_ODDILY.find(([kk]) => kk === k)[1]);
+  const citlive = oddily.some((k) => SDILET_ODDILY.find(([kk]) => kk === k)[2]);
+  const html = souhrnHTML(oddily);
+  modal(`<h2>Náhled – přesně toto odejde</h2>${citlive ? '<div class="banner warn keep" style="display:block">Obsahuje citlivé zdravotní údaje. Předávejte jen tomu, komu důvěřujete.</div>' : ''}<div style="max-height:50vh;overflow:auto">${html}</div>
+    <div class="row"><label class="row"><input type="checkbox" id="sd_potvrd"> Zkontroloval(a) jsem obsah a chci ho předat</label></div>
+    <div class="quick"><button class="btn primary" id="sd_pdf">Uložit jako PDF / tisk</button><button class="btn" id="sd_soubor">Sdílet jako soubor</button><button class="btn" data-close>Zrušit</button></div>`, () => {
+    const ok = () => { if (!$('sd_potvrd').checked) { toast('Nejdřív potvrďte, že jste obsah zkontroloval(a)'); return false; } return true; };
+    const zapis = async (zpusob) => { D.sdileni.push({ cas: ted(), rozsah: nazvy, zpusob }); await uloz(); };
+    $('sd_pdf').onclick = async () => { if (!ok()) return; $('tisk').innerHTML = html; await zapis('PDF / tisk'); closeModal(); render(); setTimeout(() => window.print(), 200); };
+    $('sd_soubor').onclick = async () => {
+      if (!ok()) return;
+      const doc = `<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Průkaz – ${esc(jmenoCele())}</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:720px;margin:20px auto;padding:0 16px}.souhrn h3{margin:14px 0 2px}.pv{font-size:12px;color:#5a6577}.tx{white-space:pre-wrap}.hl{font-size:18px;font-weight:800;margin:0}.zap{font-size:11.5px;color:#5a6577;border-top:1px solid #dce3ec;margin-top:14px;padding-top:8px}.krize{border:2px solid #1b4f8a;border-radius:12px;overflow:hidden}.krize .hdr{background:#1b4f8a;color:#fff;padding:10px 14px}.krize .sek{padding:8px 14px;border-top:1px solid #dce3ec}.krize h4{margin:0 0 2px;font-size:12px;text-transform:uppercase}.meta{font-size:12px;color:#5a6577}.chip{font-size:11px;border:1px solid #ccc;border-radius:8px;padding:0 5px}.pill{display:inline-block;border:2px solid #d64545;color:#d64545;border-radius:8px;padding:2px 10px;font-weight:800}.callrow{display:flex;justify-content:space-between;gap:8px}.num{font-family:monospace}</style></head><body>${html}</body></html>`;
+      const f = new File([doc], `prukaz-${bezDia(jmenoCele()).replace(/\s+/g, '-')}-${dnes()}.html`, { type: 'text/html' });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Průkaz pro plán péče' }); await zapis('soubor přes sdílení'); }
+        else { const a = document.createElement('a'); a.download = f.name; a.href = URL.createObjectURL(f); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); await zapis('soubor ke stažení'); }
+        closeModal(); render(); toast('Soubor předán');
+      } catch (e) { if (e && e.name !== 'AbortError') toast('Sdílení se nepodařilo: ' + e.message); }
+    };
+  });
+}
+const bezDia = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/* 09 Bezpečnost a obnova */
+function bezpecnostHTML() {
+  return `<div class="panel"><div class="panel-h"><h2>Přístupový PIN</h2></div><div class="quick" style="padding:14px"><button class="btn" id="b_pin">Změnit PIN</button></div></div>
+    <div class="panel"><div class="panel-h"><h2>Záloha</h2><span class="chip">šifrovaná souborem</span></div><div style="padding:12px 14px;line-height:1.5">Záloha je jeden soubor <b>.prukaz</b> chráněný heslem, které si zvolíte. Uložte ho např. do iCloudu, na Disk Google nebo si ho pošlete e-mailem. Bez hesla ho nikdo nepřečte, ani my. Z něj kartu obnovíte na novém telefonu (úvodní obrazovka → Obnovit ze zálohy).</div>
+      <div class="quick" style="padding:0 14px 14px"><button class="btn primary" id="b_zaloha">Vytvořit zálohu</button><label class="btn">Obnovit ze zálohy<input type="file" id="b_obnova" accept=".prukaz,application/json" hidden></label></div></div>
+    <div class="panel"><div class="panel-h"><h2>Smazat kartu z telefonu</h2></div><div style="padding:12px 14px">Smaže všechna data této karty v tomto telefonu. Nedá se vrátit – bez zálohy bude karta pryč.</div><div class="quick" style="padding:0 14px 14px"><button class="btn crit" id="b_smazat">Smazat všechno</button></div></div>
+    <div class="note">Karta se sama zamkne po 5 minutách nečinnosti. Data jsou v telefonu šifrovaná dvakrát – klíčem z vašeho PINu a klíčem telefonu. Nic se neposílá na žádný server; aplikace nemá ani kam.</div>`;
+}
+async function zalohuj(heslo) {
+  const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+  const k = await klicZHesla(heslo, salt, ITERACE);
+  const data = await sifruj(k, new TextEncoder().encode(JSON.stringify(D)));
+  const soubor = JSON.stringify({ format: 'prukaz-zaloha/1', vytvoreno: ted(), salt, iterace: ITERACE, data: b64(data) });
+  const a = document.createElement('a'); a.download = `prukaz-zaloha-${dnes()}.prukaz`; a.href = URL.createObjectURL(new Blob([soubor], { type: 'application/json' })); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function hesloOkno(titulek, popis, cb) {
+  modal(`<h2>${esc(titulek)}</h2><p class="muted" style="margin:0;font-size:13.5px">${esc(popis)}</p><div class="form"><div class="field"><label>Heslo zálohy (aspoň 8 znaků)</label><input id="he" type="password" autocomplete="off"></div></div><div class="quick"><button class="btn primary" id="he_ok">Pokračovat</button><button class="btn" data-close>Zrušit</button></div>`, () => {
+    $('he').focus(); const go = async () => { const h = $('he').value; if (h.length < 8) return toast('Heslo má mít aspoň 8 znaků'); $('he_ok').disabled = true; const r = await cb(h); if (r === false) { $('he_ok').disabled = false; return; } closeModal(); };
+    $('he_ok').onclick = go; $('he').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  });
+}
+async function obnovZeZalohy(f) {
+  let j; try { j = JSON.parse(await f.text()); } catch { return toast('Toto není soubor zálohy'); }
+  if (!j || j.format !== 'prukaz-zaloha/1') return toast('Toto není soubor zálohy Průkazu');
+  hesloOkno('Obnovit ze zálohy', `Záloha z ${fmtDT(j.vytvoreno)}. Zadejte heslo, kterým byla chráněna.`, async (h) => {
+    try { const k = await klicZHesla(h, j.salt, j.iterace); const d = JSON.parse(new TextDecoder().decode(await desifruj(k, unb64(j.data)))); if (!d || d.format !== 'prukaz-plan-pece/1') throw new Error('x');
+      D = d; ukazka = false; zamceno = false; closeModal();
+      pinOkno('Zvolte PIN pro tento telefon', 'Karta je obnovená. Zvolte PIN, kterým ji budete v tomto telefonu odemykat.', async (pin) => { await nastavPin(pin); tab = 'prehled'; render(); toast('Karta obnovena ze zálohy'); });
+    } catch { toast('Nesprávné heslo nebo poškozená záloha'); return false; }
+  });
+}
+
+/* ---------------- vazby ---------------- */
+function bind() {
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  document.querySelectorAll('.tile[data-tab]').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; render(); scrollTo(0, 0); }));
+  on('t_zamk', () => { zamceno = true; render(); });
+  on('p_profil', profilOkno);
+  document.querySelectorAll('[data-pridat]').forEach((b) => (b.onclick = () => polozkaOkno(b.dataset.pridat, null)));
+  document.querySelectorAll('[data-upr]').forEach((b) => (b.onclick = () => { const [kl, i] = b.dataset.upr.split(':'); polozkaOkno(kl, Number(i)); }));
+  document.querySelectorAll('[data-over]').forEach((b) => (b.onclick = async () => { const [kl, i] = b.dataset.over.split(':'); const x = D.zdravi[kl][Number(i)]; x.overeno = !x.overeno; if (x.overeno && x.zdroj === 'pacient') x.zdroj = 'lekar'; await uloz(); render(); }));
+  document.querySelectorAll('[data-smaz]').forEach((b) => (b.onclick = async () => { const [kl, i] = b.dataset.smaz.split(':'); if (!await KP.confirm('Smazat záznam', 'Záznam se z karty odstraní.', 'Smazat')) return; D.zdravi[kl].splice(Number(i), 1); await uloz(); render(); }));
+  on('zd_fun_ok', async () => { D.zdravi.funkce = $('zd_fun').value.trim(); await uloz(); toast('Uloženo'); });
+  on('k_pridat', () => kontaktOkno(null));
+  document.querySelectorAll('[data-kupr]').forEach((b) => (b.onclick = () => kontaktOkno(Number(b.dataset.kupr))));
+  on('d_pridat', () => dokumentOkno(null));
+  document.querySelectorAll('[data-dupr]').forEach((b) => (b.onclick = () => dokumentOkno(Number(b.dataset.dupr))));
+  document.querySelectorAll('[data-dsmaz]').forEach((b) => (b.onclick = async () => { if (!await KP.confirm('Smazat dokument', 'Dokument i jeho soubor se z telefonu odstraní.', 'Smazat')) return; D.dokumenty.splice(Number(b.dataset.dsmaz), 1); await uloz(); render(); }));
+  document.querySelectorAll('[data-dok]').forEach((b) => (b.onclick = () => { const d = D.dokumenty[Number(b.dataset.dok)]; if (!d.soubor) return; const w = window.open(); if (w) { w.document.write(d.soubor.typ.startsWith('image/') ? `<img src="${d.soubor.data}" style="max-width:100%">` : `<iframe src="${d.soubor.data}" style="border:0;width:100%;height:100vh"></iframe>`); w.document.title = d.nazev; } }));
+  on('h_ok', async () => { for (const k of ['dulezite', 'obavy', 'zatez', 'rozhodovani', 'kdo']) D.hodnoty[k] = $('h_' + k).value.trim(); D.hodnoty.aktualizovano = ted(); await uloz(); render(); toast('Uloženo do telefonu'); });
+  on('r_pridat', () => rozhovorOkno(null));
+  document.querySelectorAll('[data-rupr]').forEach((b) => (b.onclick = () => rozhovorOkno(Number(b.dataset.rupr))));
+  document.querySelectorAll('[data-bu]').forEach((b) => (b.onclick = () => budouciOkno(b.dataset.bu)));
+  on('kr_ok', async () => { KRIZE_POLOZKY.forEach(([k]) => { D.krize.povolene[k] = document.querySelector(`[data-kr="${k}"]`).checked; }); D.krize.zprava = $('kr_z').value.trim(); await uloz(); render(); toast('Krizová karta uložena'); });
+  on('sd_nahled', sdiletNahled);
+  on('b_pin', () => { if (ukazka) return toast('V ukázce PIN není'); pinOkno('Nový PIN', 'Zvolte nový PIN; karta se jím přešifruje.', async (pin) => { await nastavPin(pin); toast('PIN změněn'); }); });
+  on('b_zaloha', () => hesloOkno('Vytvořit zálohu', 'Zvolte heslo zálohy. Bez něj soubor nikdo nepřečte – ani vy. Uložte si ho bezpečně.', async (h) => { await zalohuj(h); toast('Záloha vytvořena – uložte soubor na bezpečné místo'); }));
+  const ob = $('b_obnova'); if (ob) ob.onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) obnovZeZalohy(f); };
+  on('b_smazat', async () => { if (!await KP.confirm('Smazat kartu z telefonu', 'Všechna data této karty v tomto telefonu se nenávratně smažou. Máte zálohu?', 'Smazat všechno')) return; if (!ukazka) await IDB.clear(); D = null; pinKlic = null; ukazka = false; zamceno = true; render(); toast('Karta smazána'); });
+}
+/* automatické zamčení po 5 minutách nečinnosti */
+['click', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => { posledniAktivita = Date.now(); }, { passive: true }));
+setInterval(() => { if (D && !zamceno && !ukazka && Date.now() - posledniAktivita > 5 * 60e3) { zamceno = true; closeModal(); render(); } }, 15e3);
+
+/* ---------------- start ---------------- */
+(async () => {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/prukaz/sw.js').catch(() => {});
+  if (new URLSearchParams(location.search).get('ukazka')) { D = ukazkovaKarta(); ukazka = true; zamceno = new URLSearchParams(location.search).get('ukazka') === 'zamek'; tab = new URLSearchParams(location.search).get('tab') || 'prehled'; render(); return; }
+  const z = await IDB.get('zamek');
+  if (z) { D = prazdnaKarta(); zamceno = true; /* krizová karta bez PINu se ukáže až po odemčení – před ním jen jméno není známé; proto se nejdřív pokusíme načíst veřejnou část */ const ver = await IDB.get('verejne'); if (ver) D = { ...D, ...ver }; render(); }
+  else render();
+})();
+/* veřejná (nešifrovaná) část pro zamčenou obrazovku = jen to, co pacient v Krizové kartě povolil; ukládá se při každém uložení */
+const _uloz = uloz;
+uloz = async function () { await _uloz(); if (D && !ukazka) { const ver = { profil: { jmeno: D.krize.povolene.jmeno ? D.profil.jmeno : '', prijmeni: D.krize.povolene.jmeno ? D.profil.prijmeni : '', rok: D.krize.povolene.rok ? D.profil.rok : '' }, kontakty: D.krize.povolene.kontakty || D.krize.povolene.lekar ? D.kontakty.filter((k) => (k.skupina === 'lekar' ? D.krize.povolene.lekar : D.krize.povolene.kontakty)) : [], zdravi: { dg: D.krize.povolene.dg ? D.zdravi.dg : [], alergie: D.krize.povolene.alergie ? D.zdravi.alergie : [], leky: D.krize.povolene.leky ? D.zdravi.leky : [], funkce: '' }, budouci: { ...prazdnaKarta().budouci, plan: { ...D.budouci.plan, cil: D.krize.povolene.cil ? D.budouci.plan.cil : '', limity: D.krize.povolene.limity ? D.budouci.plan.limity : [], text: '' }, dvp: D.krize.povolene.dvp ? { ...D.budouci.dvp, text: '' } : prazdnaKarta().budouci.dvp }, hodnoty: { ...prazdnaKarta().hodnoty, dulezite: D.krize.povolene.hodnoty ? D.hodnoty.dulezite : '' }, krize: D.krize, aktualizovano: D.aktualizovano }; try { await IDB.set('verejne', ver); } catch { /* */ } } };
+</script>
+</body>
+</html>

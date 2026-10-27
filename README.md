@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.39: **Průkaz pro plán péče** (`/prukaz/`, prototyp 0.1.0 podle zadání MUDr. Kabelky): pacientem řízená karta bez serveru – založení s PINem, zdraví a dokumenty s metadaty (zdroj, datum, ověření), hodnoty, rozhovor s lékařem, budoucí péče (přání / ACP / DVP / lékařský plán odděleně), krizová karta s volbou položek bez PINu, sdílení s náhledem a potvrzením (PDF / soubor), šifrovaná záloha a obnova; nápověda kap. 20.
 - 0.11.38: Nový pacient – **více pacientů ze souboru**: CSV / JSON s náhledem a hromadným založením (`hromadneOkno`, `csvNaPacienty`), šablona CSV a vzorový JSON, **export všech pacientů** do CSV / JSON (`GET /pacienti/export?format=csv|json[&vzor=1]`, jen lékař / správce, audit).
 - 0.11.37: Nový pacient – samostatný panel **Zapsat pacienta ručně** s tlačítkem Zapsat ručně (dřív jen malé tlačítko pod propouštěcí zprávou).
 - 0.11.36: Nový pacient – tlačítka **Uložit** (založí a otevře průkaz) a **Uložit a další** (založí a otevře prázdný formulář pro dalšího pacienta, garant a tým předvybrané).

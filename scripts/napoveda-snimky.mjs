@@ -169,7 +169,7 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.38', ai: true, pecedoma: pdNast }));
+app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: '0.11.39', ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
@@ -538,6 +538,18 @@ if (await p.$('.tile[data-tab]')) chyby.push('špatný PIN odemkl Můj průkaz')
 await p.fill('#pin', '258147'); await klik(p, '#pinOk'); await p.waitForSelector('.tile[data-tab="leky"]', { timeout: 20000 });
 await klik(p, '.tile[data-tab="leky"]');
 if (!(await p.textContent('#work')).includes('Furosemid')) chyby.push('po odemknutí chybí vlastní léky pacienta');
+await p.close();
+
+console.log('Průkaz pro plán péče (prototyp)');
+p = await stranka({ mobil: true });
+await p.goto(`${URL}/prukaz/`); await p.waitForSelector('#u_nova'); await foto(p, 'q-uvod');
+await p.goto(`${URL}/prukaz/?ukazka=zamek`); await p.waitForSelector('#z_odemk'); await foto(p, 'q-zamek');
+await p.goto(`${URL}/prukaz/?ukazka=1&tab=prehled`); await p.waitForSelector('#p_profil'); await foto(p, 'q-prehled');
+await p.goto(`${URL}/prukaz/?ukazka=1&tab=zdravi`); await p.waitForSelector('#d_pridat'); await foto(p, 'q-zdravi');
+await p.goto(`${URL}/prukaz/?ukazka=1&tab=budouci`); await p.waitForSelector('[data-bu="plan"]'); await foto(p, 'q-budouci');
+await p.goto(`${URL}/prukaz/?ukazka=1&tab=krize`); await p.waitForSelector('#kr_ok'); await foto(p, 'q-krize');
+await p.goto(`${URL}/prukaz/?ukazka=1&tab=sdilet`); await p.waitForSelector('#sd_nahled'); await klik(p, '#sd_nahled'); await p.waitForSelector('#sd_potvrd'); await p.waitForTimeout(300); await foto(p, 'q-sdilet'); await p.evaluate(() => closeModal());
+await p.goto(`${URL}/prukaz/?ukazka=1&tab=bezpecnost`); await p.waitForSelector('#b_zaloha'); await foto(p, 'q-bezpecnost');
 await p.close();
 
 console.log('Správa tenantů');
