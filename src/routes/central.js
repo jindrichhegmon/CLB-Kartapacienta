@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
-import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, kodDne, konecDnePraha } from '../crypto.js';
+import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
@@ -896,11 +896,16 @@ central.post('/osoba/:id/pin', sUzivatelem(async (q, s, req) => {
 
 /** zobrazení platného osobního PINu (0.11.6) – jen PINy vydané od této verze (uložené šifrovaně); starší se zobrazit nedají, vydá se nový. Zapisuje se do logu přístupů. */
 central.post('/osoba/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
-  const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, PinSifrovany, CONVERT(char(16), PinVydan, 120) AS vydan FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(req.params.id) });
+  const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, PinSifrovany, Salt, Hash, Iterace, CONVERT(char(16), PinVydan, 120) AS vydan FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(req.params.id) });
   if (!o) throw chyba('Člověk nenalezen', 404);
   if (!smiSpravovatLidi(s, o.PoskytovatelID)) throw chyba('PIN zobrazí pracoviště člověka nebo správce organizace', 403);
   const pin = desifruj(o.PinSifrovany);
   if (!pin) throw chyba('Tento PIN byl vydán před verzí, která ho umí znovu zobrazit – vydejte nový PIN (tlačítko Nový PIN).', 409);
+  // 0.11.30: kontrola, že zobrazený PIN je ten, kterým telefon ověřuje (stejný PBKDF2 jako v telefonu) – jinak by se uživatel marně přihlašoval
+  if (!o.Salt || !o.Hash || hashPin(pin, o.Salt, o.Iterace || undefined) !== o.Hash) {
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zobrazení osobního PINu selhalo', detail: `${o.Jmeno}: uložený PIN neodpovídá ověřovacímu otisku`, ip: s.ip });
+    throw chyba('Uložený PIN neodpovídá otisku, kterým telefon PIN ověřuje – vydejte tomuto člověku nový PIN (tlačítko Nový PIN).', 409);
+  }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zobrazení osobního PINu', detail: o.Jmeno, ip: s.ip });
   return { pin, vydan: o.vydan, sms: req.body && req.body.sms ? await pinSms(o.Telefon, pin) : null };
 }));
