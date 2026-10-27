@@ -84,6 +84,50 @@ central.post('/heslo', sUzivatelem(async (q, s, req) => {
 const VIDITELNI = `(@admin = 1 OR EXISTS (SELECT 1 FROM dbo.A_KP_Tym t WHERE t.PacientID = p.PacientID AND t.PoskytovatelID = @ps AND t.Aktivni = 1)
   OR EXISTS (SELECT 1 FROM dbo.A_KP_Garance g2 WHERE g2.PacientID = p.PacientID AND g2.PoskytovatelID = @ps AND g2.Stav = 'NAVRZENO'))`;
 
+/** export pacientů (0.11.38): všichni aktivní pacienti, které uživatel vidí – JSON (formát 'CLB-Kartapacienta/pacienti', každá položka je formát
+ *  importu 'CLB-Kartapacienta/pacient') nebo CSV se stejnými sloupci jako šablona; ?vzor=1 vrátí jen smyšlený vzorový záznam. Jen lékař nebo správce. */
+const CSV_SLOUPCE = ['kod', 'jmeno', 'prijmeni', 'rodne_cislo', 'datum_narozeni', 'rok_narozeni', 'pohlavi', 'pojistovna', 'pobyt', 'adresa', 'telefon_karty', 'email', 'cil', 'limity', 'dg', 'funkcni_stav', 'alergie',
+  'sos_leky', 'opioidy', 'medikace', 'doklad_dvp', 'doklad_datum', 'doklad_original', 'doklad_zprava', 'platnost_do', 'garant',
+  'kontakt1_jmeno', 'kontakt1_telefon', 'kontakt1_skupina', 'kontakt2_jmeno', 'kontakt2_telefon', 'kontakt2_skupina', 'kontakt3_jmeno', 'kontakt3_telefon', 'kontakt3_skupina'];
+const VZOR_PACIENT = { format: 'CLB-Kartapacienta/pacient', zdroj: 'vzor', kod: '', pacient: { jmeno: 'Marie', prijmeni: 'Vzorová', rc: '460512/1234', datumNarozeni: '1946-05-12', rok: 1946, pohlavi: 'žena', pojistovna: '111', pobyt: 'doma', adresa: 'Dlouhá 12, 760 01 Zlín', telefonKarty: '+420 777 000 123', email: '' },
+  plan: { cil: 'symptom', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'], doklad: { dvp: true, datum: '2026-09-17', original: 'u dcery, obálka na lednici', zprava: '', pouceni: true, overenyPodpis: true, prijeti: '' },
+    dg: 'C50 karcinom prsu s metastázami do kostí a jater', funkce: 'PPS 40 % – většinu dne na lůžku', alergie: 'penicilin', sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Dexamethason 4 mg ráno'], platnostDo: '' },
+  kontakty: [{ jmeno: 'Jana Vzorová, dcera', tel: '+420 777 000 321', skupina: 'ROZHODUJE', pozn: '' }, { jmeno: 'Petr Vzorový, syn', tel: '+420 777 000 654', skupina: 'INFORMOVAT', pozn: '' }], garant: '' };
+function pacientDoCsvRadku(x) {
+  const pl = x.plan || {}, dk = pl.doklad || {}, k = (i, pole) => ((x.kontakty || [])[i] || {})[pole] || '';
+  const sez = (v) => (Array.isArray(v) ? v : []).join(' | ');
+  const r = { kod: x.kod || '', jmeno: x.pacient.jmeno, prijmeni: x.pacient.prijmeni, rodne_cislo: x.pacient.rc, datum_narozeni: x.pacient.datumNarozeni, rok_narozeni: x.pacient.rok, pohlavi: x.pacient.pohlavi, pojistovna: x.pacient.pojistovna, pobyt: x.pacient.pobyt, adresa: x.pacient.adresa, telefon_karty: x.pacient.telefonKarty, email: x.pacient.email,
+    cil: pl.cil, limity: sez(pl.limity), dg: pl.dg, funkcni_stav: pl.funkce, alergie: pl.alergie, sos_leky: sez(pl.sos), opioidy: sez(pl.opioidy), medikace: sez(pl.medikace), doklad_dvp: dk.dvp ? 'ano' : 'ne', doklad_datum: dk.datum, doklad_original: dk.original, doklad_zprava: dk.zprava, platnost_do: pl.platnostDo, garant: x.garant,
+    kontakt1_jmeno: k(0, 'jmeno'), kontakt1_telefon: k(0, 'tel'), kontakt1_skupina: k(0, 'skupina'), kontakt2_jmeno: k(1, 'jmeno'), kontakt2_telefon: k(1, 'tel'), kontakt2_skupina: k(1, 'skupina'), kontakt3_jmeno: k(2, 'jmeno'), kontakt3_telefon: k(2, 'tel'), kontakt3_skupina: k(2, 'skupina') };
+  const bunka = (v) => { const t = String(v == null ? '' : v).replace(/\r?\n/g, ' '); return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  return CSV_SLOUPCE.map((c) => bunka(r[c])).join(';');
+}
+const csvText = (polozky) => '﻿' + CSV_SLOUPCE.join(';') + '\n' + polozky.map(pacientDoCsvRadku).join('\n') + '\n';
+central.get('/pacienti/export', sUzivatelem(async (q, s, req) => {
+  if (!s.role.includes('lekar') && !s.role.includes('admin')) throw chyba('Export pacientů smí lékař nebo správce organizace', 403);
+  const format = req.query.format === 'csv' ? 'csv' : 'json';
+  const ted = new Date().toISOString().slice(0, 16);
+  if (req.query.vzor) return format === 'csv' ? { format: 'csv', vzor: true, csv: csvText([VZOR_PACIENT]) } : { ...VZOR_PACIENT, vytvoreno: ted };
+  const rows = await q.all(`SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, p.RodneCislo AS rc, CONVERT(char(10), p.DatumNarozeni, 23) AS datumNarozeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok,
+      p.Pohlavi AS pohlavi, p.Pojistovna AS pojistovna, p.Pobyt AS pobyt, p.Adresa AS adresa, p.TelefonKarty AS telefonKarty, p.Email AS email, pv.Data AS planData, CONVERT(char(10), pv.PlatnostDo, 23) AS platnostDo, gp.Nazev AS garant
+    FROM dbo.A_KP_Pacient p
+    OUTER APPLY (SELECT TOP 1 * FROM dbo.A_KP_PlanVerze v WHERE v.PacientID = p.PacientID ORDER BY v.Verze DESC) pv
+    LEFT JOIN dbo.A_KP_Garance g ON g.PacientID = p.PacientID AND g.Stav = 'PLATNA'
+    LEFT JOIN dbo.A_KP_Poskytovatel gp ON gp.PoskytovatelID = g.PoskytovatelID
+    WHERE p.Stav = 'AKTIVNI' AND ${VIDITELNI}
+    ORDER BY p.Prijmeni, p.Jmeno`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
+  const kontakty = await q.all(`SELECT PacientID AS pacientId, Jmeno AS jmeno, Telefon AS tel, Skupina AS skupina, ISNULL(Poznamka, '') AS pozn FROM dbo.A_KP_Kontakt WHERE Aktivni = 1 ORDER BY PacientID, Poradi, KontaktID`);
+  const polozky = rows.map((r) => {
+    let pl = {}; try { pl = JSON.parse(r.planData) || {}; } catch { /* bez plánu */ }
+    return { format: 'CLB-Kartapacienta/pacient', zdroj: 'Karta pacienta', vytvoreno: ted, kod: r.kod,
+      pacient: { jmeno: r.jmeno || '', prijmeni: r.prijmeni || '', rc: r.rc || '', datumNarozeni: r.datumNarozeni || '', rok: r.rok || '', pohlavi: r.pohlavi || '', pojistovna: r.pojistovna || '', pobyt: r.pobyt || '', adresa: r.adresa || '', telefonKarty: r.telefonKarty || '', email: r.email || '' },
+      plan: { cil: pl.cil || '', limity: Array.isArray(pl.limity) ? pl.limity : [], doklad: pl.doklad || {}, dg: pl.dg || '', funkce: pl.funkce || '', alergie: pl.alergie || '', sos: pl.sos || [], opioidy: pl.opioidy || [], medikace: pl.medikace || [], platnostDo: r.platnostDo || '' },
+      kontakty: kontakty.filter((k) => k.pacientId === r.id).map((k) => ({ jmeno: k.jmeno, tel: k.tel || '', skupina: k.skupina, pozn: k.pozn })), garant: r.garant || '' };
+  });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'export pacientů', detail: `${polozky.length} pacientů (${format.toUpperCase()})`, ip: s.ip });
+  return format === 'csv' ? { format: 'csv', pocet: polozky.length, csv: csvText(polozky) } : { format: 'CLB-Kartapacienta/pacienti', zdroj: 'Karta pacienta', vytvoreno: ted, pocet: polozky.length, pacienti: polozky };
+}));
+
 central.get('/prehled', sUzivatelem(async (q, s, req) => {
   const stav = req.query.stav === 'UZAVRENY' ? 'UZAVRENY' : 'AKTIVNI';
   const pacienti = await q.all(`

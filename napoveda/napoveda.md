@@ -75,6 +75,16 @@ Tři možnosti:
 2. **Propouštěcí zpráva**: vložte text, nahrajte textový soubor nebo vyfoťte zprávu (fotka se převede na text přímo v prohlížeči) a klikněte na **Anonymní rozbor zprávy**. Text projde anonymizační bránou – jména, rodná čísla, data, adresy a telefony se nahradí značkami – a teprve pak ho rozebere AI. Když by v textu zůstal identifikátor, dotaz se neodešle.
 3. **Zapsat pacienta ručně** (vlastní panel, tlačítko **Zapsat ručně**) – rovnou krok 2 s prázdným formulářem bez PéčeDoma a bez zprávy. Tlačítko **Pokračovat bez rozboru** pod propouštěcí zprávou udělá totéž, jen si text zprávy ponechá k ručnímu opsání.
 
+### Více pacientů najednou (CSV / JSON) a export
+
+Panel **Více pacientů ze souboru · export** v kroku 1:
+
+- **Načíst CSV s pacienty** – soubor např. z Excelu (oddělovač středník, čárka nebo tabulátor; názvy sloupců jako v šabloně, pořadí libovolné, diakritika nevadí). **Načíst JSON s pacienty** – export z Karty pacienta nebo soubor z PéčeDoma. Otevře se **náhled**: každý řádek s rodným číslem, narozením, telefonem s kartou, cílem péče a počtem kontaktů; řádky s chybou (chybí jméno, telefon s kartou nebo rok narození) jsou odškrtnuté a u stavu je napsáno proč. Nahoře vyberete garanta a pracoviště v týmu, tlačítkem **Založit vybrané** se pacienti založí jeden po druhém – u každého se ukáže kód průkazu nebo chyba (např. duplicitní rodné číslo). Cíl péče a limitace pak lékař potvrdí v průkazu jako u ručního zápisu.
+- **Stáhnout šablonu CSV** a **Stáhnout vzorový JSON** – soubor s jedním smyšleným pacientem a všemi sloupci (jméno, příjmení, rodné číslo, narození, pohlaví, pojišťovna, pobyt, adresa, telefon s kartou, e-mail, cíl péče, limitace, diagnózy, funkční stav, alergie, SOS léky, opioidy, medikace, doklad, platnost plánu, až tři kontakty). Seznamy v CSV oddělujte svislítkem `|`.
+![Náhled načteného CSV před založením](/napoveda/img/c-novy-csv.png)
+
+- **Exportovat všechny pacienty do CSV / JSON** – všichni aktivní pacienti, které vidíte, ve stejných sloupcích (lékař nebo správce; export se zapisuje do logu přístupů). Export jde upravit a načíst zpět; při načtení vznikají noví pacienti, kód průkazu se nepřenáší.
+
 ### Krok 2 – kontrola a doplnění
 
 ![Nový pacient – kontrola údajů po načtení z PéčeDoma](/napoveda/img/c-novy-2.png)

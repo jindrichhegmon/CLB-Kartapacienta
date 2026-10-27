@@ -47,6 +47,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- 0.11.38: Nový pacient – **více pacientů ze souboru**: CSV / JSON s náhledem a hromadným založením (`hromadneOkno`, `csvNaPacienty`), šablona CSV a vzorový JSON, **export všech pacientů** do CSV / JSON (`GET /pacienti/export?format=csv|json[&vzor=1]`, jen lékař / správce, audit).
 - 0.11.37: Nový pacient – samostatný panel **Zapsat pacienta ručně** s tlačítkem Zapsat ručně (dřív jen malé tlačítko pod propouštěcí zprávou).
 - 0.11.36: Nový pacient – tlačítka **Uložit** (založí a otevře průkaz) a **Uložit a další** (založí a otevře prázdný formulář pro dalšího pacienta, garant a tým předvybrané).
 - 0.11.35: karta týmu – lékař a praktický lékař zprávy PéčeDoma na telefonu jen čtou (server odmítne odeslání); odpovídají z portálu nebo centrály za Tým PéčeDoma.

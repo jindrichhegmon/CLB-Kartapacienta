@@ -637,6 +637,76 @@ function dokladText(dk) {
 }
 /* soubor z portálu PéčeDoma (Data klienta → Export pro Kartu pacienta): { format: 'CLB-Kartapacienta/pacient', pacient, plan, kontakty, doplnit, puvod }
    → data průvodce; cíl péče a limitace PéčeDoma nemá – zůstanou výchozí a potvrzuje je lékař */
+/* stažení souboru z prohlížeče */
+function stahni(nazev, obsah, typ) { const a = document.createElement('a'); a.download = nazev; a.href = URL.createObjectURL(new Blob([obsah], { type: typ })); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+/* hromadné načtení pacientů (0.11.38): CSV se sloupci šablony (názvy bez diakritiky, pořadí libovolné) → stejný tvar jako JSON importu → zPeceDoma */
+function csvTabulka(t) {
+  const radky = String(t || '').replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+  if (radky.length < 2) return [];
+  const odd = [';', '\t', ','].sort((a, b) => radky[0].split(b).length - radky[0].split(a).length)[0];
+  const deleni = (l) => { const o = []; let c = '', uv = false; for (let i = 0; i < l.length; i++) { const z = l[i]; if (z === '"') { if (uv && l[i + 1] === '"') { c += '"'; i++; } else uv = !uv; } else if (z === odd && !uv) { o.push(c.trim()); c = ''; } else c += z; } o.push(c.trim()); return o; };
+  const klic = (h) => bezDia(h).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const hlava = deleni(radky[0]).map(klic);
+  return radky.slice(1).map((l) => { const v = deleni(l); const o = {}; hlava.forEach((k, i) => { if (k) o[k] = v[i] || ''; }); return o; });
+}
+const CSV_ALIAS = { jmeno: ['jmeno', 'krestni_jmeno'], prijmeni: ['prijmeni'], rodne_cislo: ['rodne_cislo', 'rc', 'r_c'], datum_narozeni: ['datum_narozeni', 'narozen', 'narozeni'], rok_narozeni: ['rok_narozeni', 'rok'], pohlavi: ['pohlavi'], pojistovna: ['pojistovna', 'zp'], pobyt: ['pobyt', 'kde_pobyva'], adresa: ['adresa', 'bydliste'],
+  telefon_karty: ['telefon_karty', 'telefon_s_kartou', 'telefon', 'tel'], email: ['email', 'e_mail'], cil: ['cil', 'cil_pece'], limity: ['limity', 'limitace'], dg: ['dg', 'diagnoza', 'diagnozy'], funkcni_stav: ['funkcni_stav', 'funkce'], alergie: ['alergie'], sos_leky: ['sos_leky', 'sos'], opioidy: ['opioidy'], medikace: ['medikace', 'pravidelna_medikace'],
+  doklad_dvp: ['doklad_dvp', 'dvp'], doklad_datum: ['doklad_datum'], doklad_original: ['doklad_original'], doklad_zprava: ['doklad_zprava'], platnost_do: ['platnost_do'] };
+function csvNaPacienty(t) {
+  const seznam = (v) => String(v || '').split(/\s*[|;\n]\s*/).map((x) => x.trim()).filter(Boolean);
+  const CIL = { symptom: 'symptom', symptomaticka: 'symptom', limited: 'limited', omezena: 'limited', full: 'full', plna: 'full' };
+  return csvTabulka(t).map((o) => {
+    const g = (k) => { for (const a of CSV_ALIAS[k] || [k]) if (o[a] !== undefined && o[a] !== '') return o[a]; return ''; };
+    const limity = seznam(g('limity')).map((l) => LIMITY.find((x) => bezDia(x).startsWith(bezDia(l).slice(0, 4))) || null).filter(Boolean);
+    const kont = [1, 2, 3].map((i) => ({ jmeno: o[`kontakt${i}_jmeno`] || '', tel: o[`kontakt${i}_telefon`] || o[`kontakt${i}_tel`] || '', skupina: String(o[`kontakt${i}_skupina`] || 'INFORMOVAT').toUpperCase().replace(/^PECUJ.*/, 'PECUJE').replace(/^ROZHOD.*/, 'ROZHODUJE').replace(/^INFORM.*/, 'INFORMOVAT') })).filter((k) => k.jmeno);
+    const dvp = /^(ano|a|1|true|x)$/i.test(g('doklad_dvp'));
+    return { format: 'CLB-Kartapacienta/pacient', zdroj: 'CSV', kod: o.kod || '',
+      pacient: { jmeno: g('jmeno'), prijmeni: g('prijmeni'), rc: g('rodne_cislo'), datumNarozeni: g('datum_narozeni'), rok: g('rok_narozeni'), pohlavi: /^(z|ž|f)/i.test(g('pohlavi')) ? 'žena' : 'muž', pojistovna: g('pojistovna'), pobyt: g('pobyt'), adresa: g('adresa'), telefonKarty: g('telefon_karty'), email: g('email') },
+      plan: { cil: CIL[bezDia(g('cil')).replace(/[^a-z]/g, '').slice(0, 13)] || CIL[bezDia(g('cil')).split(' ')[0]] || '', limity, doklad: { dvp, datum: g('doklad_datum'), original: g('doklad_original'), zprava: g('doklad_zprava'), pouceni: dvp, overenyPodpis: false, prijeti: '' },
+        dg: g('dg'), funkce: g('funkcni_stav'), alergie: g('alergie'), sos: seznam(g('sos_leky')), opioidy: seznam(g('opioidy')), medikace: seznam(g('medikace')), platnostDo: g('platnost_do') },
+      kontakty: kont };
+  }).filter((x) => x.pacient.jmeno || x.pacient.prijmeni);
+}
+function jsonNaPacienty(j) {
+  const pole = j && j.format === 'CLB-Kartapacienta/pacienti' ? (Array.isArray(j.pacienti) ? j.pacienti : []) : Array.isArray(j) ? j : j && j.pacient ? [j] : [];
+  if (!pole.length) throw new Error('V souboru nejsou žádní pacienti (čekám export z Karty pacienta nebo z PéčeDoma)');
+  return pole.map((x) => ({ ...x, format: 'CLB-Kartapacienta/pacient' }));
+}
+/* náhled a hromadné založení: každý řádek projde stejnou kontrolou jako ruční formulář (zPeceDoma), založí se postupně přes /pacient */
+function hromadneOkno(polozky, nazevSouboru) {
+  const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
+  const radky = polozky.map((j) => { let d = null, chyby = []; try { d = zPeceDoma(j).d; } catch (e) { chyby.push(e.message); }
+    if (d) { if (!d.pacient.jmeno || !d.pacient.prijmeni) chyby.push('chybí jméno nebo příjmení'); if (!d.pacient.telefonKarty) chyby.push('chybí telefon s kartou'); if (!d.pacient.rok && !d.pacient.datumNarozeni) chyby.push('chybí rok narození'); if (d.pacient.rc && !/^\d{6}\/?\d{3,4}$/.test(d.pacient.rc.replace(/\s/g, ''))) chyby.push('rodné číslo má tvar 123456/7890'); if (j.plan && j.plan.cil && !CILE[j.plan.cil]) chyby.push('neznámý cíl péče – použije se symptomatická'); }
+    return { d, chyby, stav: null, kod: (j.kod || '').trim() }; });
+  const naHtml = () => radky.map((r, i) => `<tr><td><input type="checkbox" data-hr="${i}" ${r.chyby.some((c) => !/použije se/.test(c)) || r.stav ? '' : 'checked'} ${r.stav ? 'disabled' : ''}></td><td><b>${esc(r.d ? r.d.pacient.prijmeni + ' ' + r.d.pacient.jmeno : '?')}</b>${r.kod ? `<div class="lbl">dřív ${esc(r.kod)}</div>` : ''}</td><td class="mono">${esc(r.d ? r.d.pacient.rc : '')}</td><td>${esc(r.d ? (r.d.pacient.datumNarozeni || r.d.pacient.rok) : '')}</td><td class="mono">${esc(r.d ? r.d.pacient.telefonKarty : '')}</td><td>${r.d ? esc(CILE[r.d.plan.cil] || r.d.plan.cil) + `<div class="lbl">${esc(r.d.plan.limity.join(', '))}</div>` : ''}</td><td>${r.d ? r.d.kontakty.length : 0}</td>
+    <td id="hr_s${i}">${r.stav === 'ok' ? `<span class="chip ok">založen ${esc(r.vysledek)}</span>` : r.stav === 'chyba' ? `<span class="chip crit">${esc(r.vysledek)}</span>` : r.chyby.length ? `<span class="chip warn">${esc(r.chyby.join('; '))}</span>` : '<span class="chip">připraven</span>'}</td></tr>`).join('');
+  modal(`<h2>Náhled: ${esc(nazevSouboru || 'soubor')} · ${radky.length} ${radky.length === 1 ? 'pacient' : radky.length < 5 ? 'pacienti' : 'pacientů'}</h2>
+    <p class="muted" style="margin:0;font-size:13.5px">Zkontrolujte řádky a vyberte, koho založit. Každý se založí stejně jako ručně: s první verzí plánu a kontakty; cíl péče a limitace pak lékař potvrdí v průkazu. Řádky s chybou jsou odškrtnuté.</p>
+    <div class="form"><div class="frow"><div class="field"><label>Garant průkazu</label><select id="hr_g">${garanti.map((p) => `<option value="${p.id}" ${p.id === S.ja.poskytovatelId ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select></div>
+      <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="hr_t" multiple size="3">${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}">${esc(p.nazev)}</option>`).join('')}</select></div></div></div>
+    <div class="tblwrap" style="max-height:50vh;overflow:auto"><table class="tbl"><thead><tr><th><input type="checkbox" id="hr_vse" checked></th><th>Pacient</th><th>Rodné číslo</th><th>Narození</th><th>Telefon s kartou</th><th>Cíl péče · limitace</th><th>Kontakty</th><th>Stav</th></tr></thead><tbody id="hr_b">${naHtml()}</tbody></table></div>
+    <div class="quick"><button class="btn primary ulozit" id="hr_ok">Založit vybrané</button><button class="btn" data-close id="hr_zavrit">Zavřít</button></div>`, (m) => {
+    const prekresli = () => { $('hr_b').innerHTML = naHtml(); };
+    $('hr_vse').onchange = () => document.querySelectorAll('[data-hr]:not(:disabled)').forEach((c) => (c.checked = $('hr_vse').checked));
+    $('hr_ok').onclick = async () => {
+      const vybrane = [...document.querySelectorAll('[data-hr]:checked')].map((c) => Number(c.dataset.hr)).filter((i) => radky[i].d && !radky[i].stav);
+      if (!vybrane.length) return toast('Nic není vybráno');
+      const garant = Number($('hr_g').value), tym = [...$('hr_t').selectedOptions].map((o) => Number(o.value));
+      $('hr_ok').disabled = true; $('hr_ok').textContent = 'Zakládám…';
+      let ok = 0;
+      for (const i of vybrane) {
+        const r = radky[i];
+        try { const res = await C('/pacient', { method: 'POST', body: { pacient: r.d.pacient, plan: r.d.plan, platnostDo: r.d.platnostDo || '', kontakty: r.d.kontakty, pecedoma: null, garantPoskytovatelId: garant, tym, aiPouzito: false } }); r.stav = 'ok'; r.vysledek = res.kod; ok++; }
+        catch (e) { r.stav = 'chyba'; r.vysledek = e.message; }
+        const b = $(`hr_s${i}`); if (b) b.innerHTML = r.stav === 'ok' ? `<span class="chip ok">založen ${esc(r.vysledek)}</span>` : `<span class="chip crit">${esc(r.vysledek)}</span>`;
+      }
+      prekresli();
+      $('hr_ok').textContent = `Založeno ${ok} z ${vybrane.length}`; $('hr_zavrit').textContent = 'Hotovo';
+      $('hr_zavrit').onclick = () => { closeModal(); S.wiz = null; S.view = 'pacienti'; render(); };
+      toast(`Založeno ${ok} ${ok === 1 ? 'pacient' : ok < 5 ? 'pacienti' : 'pacientů'}${ok < vybrane.length ? `, ${vybrane.length - ok} s chybou` : ''}`, 6000);
+    };
+  });
+}
 function zPeceDoma(j) {
   if (!j || j.format !== 'CLB-Kartapacienta/pacient' || !j.pacient) throw new Error('Toto není soubor z PéčeDoma (Data klienta → Export pro Kartu pacienta)');
   const p = j.pacient, pl = j.plan || {}, dk = pl.doklad || {};
@@ -649,6 +719,7 @@ function zPeceDoma(j) {
         pohlavi: p.pohlavi === 'žena' ? 'žena' : 'muž', pojistovna: t(p.pojistovna, 3), adresa: t(p.adresa, 300), pobyt: t(p.pobyt, 200), telefonKarty: t(p.telefonKarty || p.telefon, 20), email: t(p.email, 150) },
       plan: { cil: CILE[pl.cil] ? pl.cil : 'symptom', limity: limity.length ? limity : ['KPR'], doklad: { dvp: !!dk.dvp, datum: t(dk.datum, 10), original: t(dk.original, 200), zprava: t(dk.zprava, 200), pouceni: !!dk.pouceni, overenyPodpis: !!dk.overenyPodpis, prijeti: t(dk.prijeti, 200) },
         dg: t(pl.dg, 2000), funkce: t(pl.funkce, 1000), alergie: t(pl.alergie, 300), sos: seznam(pl.sos), opioidy: seznam(pl.opioidy), medikace: seznam(pl.medikace) },
+      platnostDo: /^\d{4}-\d{2}-\d{2}$/.test(pl.platnostDo || '') ? pl.platnostDo : '',
       kontakty: (Array.isArray(j.kontakty) ? j.kontakty : []).slice(0, 30).map((k) => ({ jmeno: [t(k.jmeno, 100), t(k.pozn, 60)].filter(Boolean).join(' – '), tel: t(k.tel, 40),
         skupina: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(k.skupina) ? k.skupina : 'INFORMOVAT', pozn: '' })).filter((k) => k.jmeno),
     },
@@ -728,6 +799,11 @@ function renderNovy() {
       <div class="panel"><div class="panel-h"><h2>Zapsat pacienta ručně</h2><span class="chip">bez PéčeDoma a bez zprávy</span></div><div class="form" style="padding:14px">
         <div class="muted" style="font-size:13.5px">Otevře prázdný formulář: údaje pacienta, telefon s kartou, cíl péče a limitace, kontakty, garant a tým. Na konci <b>Uložit</b>, nebo <b>Uložit a další</b> pro zápis více pacientů za sebou.</div>
         <div class="row"><button class="btn primary" id="w_rucne">Zapsat ručně</button></div></div></div>
+      <div class="panel"><div class="panel-h"><h2>Více pacientů ze souboru · export</h2><span class="chip">CSV · JSON</span></div><div class="form" style="padding:14px">
+        <div class="muted" style="font-size:13.5px">Načtěte CSV (např. z Excelu) nebo JSON s více pacienty – před založením uvidíte <b>náhled</b> a vyberete, koho založit. Šablona a vzor mají stejné sloupce jako export, takže export jde upravit a načíst zpět. Načte se i JSON jednoho pacienta z PéčeDoma.</div>
+        <div class="row"><label class="btn primary">Načíst CSV s pacienty<input type="file" id="w_csvp" accept=".csv,text/csv" hidden></label><label class="btn">Načíst JSON s pacienty<input type="file" id="w_jsonp" accept=".json,application/json" hidden></label></div>
+        <div class="row"><button class="btn sm" id="w_vzor_csv">Stáhnout šablonu CSV</button><button class="btn sm" id="w_vzor_json">Stáhnout vzorový JSON</button><button class="btn sm" id="w_exp_csv">Exportovat všechny pacienty do CSV</button><button class="btn sm" id="w_exp_json">Exportovat všechny pacienty do JSON</button></div>
+      </div></div>
       <div class="panel"><div class="panel-h"><h2>Propouštěcí zpráva (volitelně)</h2></div><div class="form" style="padding:14px">
       <div class="field"><label>Text zprávy</label><textarea id="w_t" style="min-height:280px" placeholder="Vložte text propouštěcí zprávy…">${esc(w.text)}</textarea></div>
       <div class="row"><label class="btn sm">Fotka / sken zprávy<input type="file" id="w_img" accept="image/*" capture="environment" hidden></label><label class="btn sm">Textový soubor<input type="file" id="w_txt" accept=".txt,text/plain" hidden></label><span class="muted" id="w_ocr" style="font-size:13px"></span></div>
@@ -737,7 +813,7 @@ function renderNovy() {
     const prevezmi = (j, klientId) => { const r = zPeceDoma(j); w.ai = null; w.import = r.info; w.d = r.d; w.pecedoma = { klientId: klientId || (j.puvod && j.puvod.famicuraKlientId) || '', portalKlientId: (j.puvod && j.puvod.portalKlientId) || null }; w.krok = 2; renderNovy(); toast('Načteno z PéčeDoma – zkontrolujte a doplňte údaje'); };
     $('w_json').onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      try { prevezmi(JSON.parse(await f.text())); }
+      try { const j = JSON.parse(await f.text()); if (j && j.format === 'CLB-Kartapacienta/pacienti') hromadneOkno(jsonNaPacienty(j), f.name); else prevezmi(j); }
       catch (err) { toast(err.message || 'Soubor se nepodařilo přečíst'); }
     };
     if ($('w_pd')) $('w_pd').onclick = () => vyberKlientaPd(async (k) => { try { toast('Načítám klienta z PéčeDoma…'); const r = await C('/pecedoma/klient/' + k.id); prevezmi(r.karta, r.klientId); } catch (e) { toast(e.message); } });
@@ -745,6 +821,12 @@ function renderNovy() {
     $('w_img').onchange = (e) => ocr(e.target.files[0]);
     $('w_skip').onclick = () => { w.text = $('w_t').value; w.krok = 2; renderNovy(); };
     $('w_rucne').onclick = () => { w.text = ''; w.ai = null; w.import = null; w.krok = 2; renderNovy(); scrollTo(0, 0); };
+    // 0.11.38: více pacientů ze souboru (CSV / JSON) s náhledem, šablona, vzor a export všech pacientů
+    $('w_csvp').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const r = csvNaPacienty(await textSouboru(f)); if (!r.length) return toast('V souboru nejsou žádní pacienti (chybí jméno a příjmení)'); hromadneOkno(r, f.name); } catch (err) { toast(err.message); } };
+    $('w_jsonp').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const j = JSON.parse(await f.text()); hromadneOkno(jsonNaPacienty(j), f.name); } catch (err) { toast(err.message || 'Soubor se nepodařilo přečíst'); } };
+    const stahniExport = async (format, vzor) => { try { const r = await C(`/pacienti/export?format=${format}${vzor ? '&vzor=1' : ''}`); const den = KP.dnes(); if (format === 'csv') stahni(vzor ? 'pacienti-sablona.csv' : `pacienti-${den}.csv`, r.csv, 'text/csv;charset=utf-8'); else stahni(vzor ? 'pacient-vzor.json' : `pacienti-${den}.json`, JSON.stringify(r, null, 2), 'application/json'); if (!vzor) toast(`Exportováno ${r.pocet} pacientů`); } catch (err) { toast(err.message); } };
+    $('w_vzor_csv').onclick = () => stahniExport('csv', true); $('w_vzor_json').onclick = () => stahniExport('json', true);
+    $('w_exp_csv').onclick = () => stahniExport('csv', false); $('w_exp_json').onclick = () => stahniExport('json', false);
     $('w_ai').onclick = async () => {
       w.text = $('w_t').value; if (w.text.trim().length < 40) return toast('Vložte text zprávy');
       $('w_ai').disabled = true; $('w_ai').textContent = 'Anonymizuji a rozebírám…';
