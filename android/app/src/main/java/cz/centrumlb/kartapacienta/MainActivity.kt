@@ -60,10 +60,6 @@ class MainActivity : Activity() {
 
         // Kreslíme pod systémové lišty a odsadíme sami (Android 15 to vynucuje, na starších sjednotíme).
         window.setDecorFitsSystemWindows(false)
-        window.insetsController?.setSystemBarsAppearance(
-            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-        )
 
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -93,6 +89,15 @@ class MainActivity : Activity() {
             }
         }
         setContentView(koren)
+
+        // Světlé lišty s tmavými ikonami – až po setContentView: před ním některé telefony ještě nemají
+        // vytvořené okno (DecorView) a insetsController spadne na NullPointerException (0.1.2).
+        runCatching {
+            window.decorView.windowInsetsController?.setSystemBarsAppearance(
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+            )
+        }
 
         web.loadUrl(BuildConfig.KARTA_URL)
     }
