@@ -336,6 +336,7 @@ a.num{text-decoration:none}
 .videocall iframe{flex:1;border:0;width:100%;background:#000}
 @media (min-width:900px){.videocall{inset:20px;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45)}.videocall-bar{padding-top:8px}}
 .vidzvoni{animation:vidblik 1s infinite alternate}@keyframes vidblik{from{box-shadow:0 0 0 0 rgba(214,69,69,.0)}to{box-shadow:0 0 0 4px rgba(214,69,69,.35)}}
+.vzdot{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.9);box-shadow:0 0 0 1px var(--line);vertical-align:-2px}
 .callblk{margin-top:8px}.callblk .lbl{margin-top:0}.callblk .val{margin-top:1px}
 .callblk.first{border:1.5px solid var(--accent);border-radius:10px;padding:8px 10px 10px;background:var(--surface)}.callblk.first .telbtn{background:var(--accent);color:#fff;border-color:var(--accent)}.callblk.first .telbtn svg{color:#fff}
 .kontlist{padding:4px 14px 12px}.kontlist .kont{padding:8px 0 2px;border-bottom:1px solid var(--accent-soft)}.kontlist .kont:last-child{border-bottom:0}

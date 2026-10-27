@@ -1,6 +1,6 @@
 /* Service worker aplikace Můj průkaz: aplikace funguje bez signálu (data jsou v IndexedDB, API se nekešuje). */
-const CACHE = 'kp-pacient-0.11.51';
-const SHELL = ['/pacient/', '/shared/kp.css', '/shared/kp.js', '/icons/icon.svg', '/icons/icon-192.png', '/pacient/manifest.webmanifest', '/shared/kp-napoveda.js', '/shared/jsqr.min.js', '/api/napoveda'];
+const CACHE = 'kp-pacient-0.11.52';
+const SHELL = ['/pacient/', '/shared/kp.css', '/shared/kp.js', '/shared/kp-ikony.js', '/icons/icon.svg', '/icons/icon-192.png', '/pacient/manifest.webmanifest', '/shared/kp-napoveda.js', '/shared/jsqr.min.js', '/api/napoveda'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x.startsWith('kp-pacient-') && x !== CACHE).map((x) => caches.delete(x)))).then(() => self.clients.claim())); });

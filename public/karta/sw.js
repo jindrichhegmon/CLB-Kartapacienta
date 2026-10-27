@@ -1,6 +1,6 @@
 /* Service worker karty: aplikace funguje bez signálu (data jsou v IndexedDB, API se nekešuje). */
-const CACHE = 'kp-karta-0.11.51';
-const SHELL = ['/karta/', '/shared/kp.css', '/shared/kp.js', '/icons/icon.svg', '/icons/icon-192.png', '/karta/manifest.webmanifest', '/shared/kp-napoveda.js', '/api/napoveda'];
+const CACHE = 'kp-karta-0.11.52';
+const SHELL = ['/karta/', '/shared/kp.css', '/shared/kp.js', '/shared/kp-ikony.js', '/icons/icon.svg', '/icons/icon-192.png', '/karta/manifest.webmanifest', '/shared/kp-napoveda.js', '/api/napoveda'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x.startsWith('kp-karta-') && x !== CACHE).map((x) => caches.delete(x)))).then(() => self.clients.claim())); });

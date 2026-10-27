@@ -1,4 +1,5 @@
 /* Standard aplikací (jako PéčeDoma): 🎨 Vzhled – barevná schémata, 📖 Nápověda – návod s obrázky a 💬 chat nad návodem.
+   Emotikony jsou jen značky – kp-ikony.js je ve stránce vykreslí jako SVG ikony (od 0.11.52).
  * Společné pro centrální aplikaci, kartu na mobilu a správu tenantů. Každá aplikace zavolá:
  *   KP.napoveda.nastav({ aplikace: 'centrala' | 'karta' | 'pacient' | 'tenanti', kapitola: 2, auth: () => ({ token, typ }), obrazovka: () => 'Pacienti', fab: true })
  * a do hlavičky vloží KP.tlacitkaHlavicky() – tlačítka obsluhuje jeden delegovaný posluchač, takže přežijí překreslení hlavičky.
@@ -11,16 +12,16 @@
 
   /* ---------------- Vzhled ---------------- */
   const VZHLEDY = [ // id, název, emoji, popis, [pozadí, hlavní, tmavá]
-    ['modra', 'Karta modrá', '💙', 'Výchozí – v noci tmavá podle nastavení systému', ['#f3f5f8', '#1d6fd6', '#124a95']],
-    ['zelena', 'PéčeDoma Plus zelená', '🌿', 'Zdravotnická zelená', ['#f1f8f4', '#1f8a5b', '#166b46']],
-    ['datec', 'Datec modrá', '🔷', 'Firemní modrá', ['#f2f7fb', '#0060a8', '#004a82']],
-    ['vesela', 'Veselá', '🎉', 'Oranžová radost', ['#fdf6f1', '#c9500f', '#9a3c0a']],
-    ['konzervativni', 'Konzervativní', '🎩', 'Klidná tmavá zelená', ['#f2f2ee', '#1f4e3d', '#163a2d']],
-    ['letni', 'Letní', '🏖️', 'Moře a obloha', ['#f0f8fb', '#007aa6', '#005a7a']],
-    ['zimni', 'Zimní', '❄️', 'Mrazivě modrá', ['#f3f5f9', '#2b4c7e', '#1e3760']],
-    ['podzimni', 'Podzimní', '🍂', 'Listí a dýně', ['#fbf5ec', '#b5541b', '#8a3f12']],
-    ['jarni', 'Jarní', '🌸', 'Rozkvetlé třešně', ['#fbf4f7', '#b8436b', '#8f3051']],
-    ['tmava', 'Tmavá', '🌙', 'Tmavé pozadí, světlé písmo', ['#12161d', '#5a9cf0', '#1a1f28']],
+    ['modra', 'Karta modrá', '', 'Výchozí – v noci tmavá podle nastavení systému', ['#f3f5f8', '#1d6fd6', '#124a95']],
+    ['zelena', 'PéčeDoma Plus zelená', '', 'Zdravotnická zelená', ['#f1f8f4', '#1f8a5b', '#166b46']],
+    ['datec', 'Datec modrá', '', 'Firemní modrá', ['#f2f7fb', '#0060a8', '#004a82']],
+    ['vesela', 'Veselá', '', 'Oranžová radost', ['#fdf6f1', '#c9500f', '#9a3c0a']],
+    ['konzervativni', 'Konzervativní', '', 'Klidná tmavá zelená', ['#f2f2ee', '#1f4e3d', '#163a2d']],
+    ['letni', 'Letní', '', 'Moře a obloha', ['#f0f8fb', '#007aa6', '#005a7a']],
+    ['zimni', 'Zimní', '', 'Mrazivě modrá', ['#f3f5f9', '#2b4c7e', '#1e3760']],
+    ['podzimni', 'Podzimní', '', 'Listí a dýně', ['#fbf5ec', '#b5541b', '#8a3f12']],
+    ['jarni', 'Jarní', '', 'Rozkvetlé třešně', ['#fbf4f7', '#b8436b', '#8f3051']],
+    ['tmava', 'Tmavá', '', 'Tmavé pozadí, světlé písmo', ['#12161d', '#5a9cf0', '#1a1f28']],
   ];
   const vzhledAkt = () => { try { const v = localStorage.getItem('kp_vzhled'); return VZHLEDY.some((x) => x[0] === v) ? v : 'modra'; } catch { return 'modra'; } };
   function vzhledPouzij(id) {
@@ -37,7 +38,7 @@
       <div class="vzhledy">${VZHLEDY.map(([id, nazev, e, popis, [bg, hl, tm]]) => `<button class="vzhled${akt === id ? ' on' : ''}" data-vz="${id}" title="${esc(popis)}">
         <div class="nahled" style="background:${bg}"><div class="h" style="background:${hl}"><i style="width:22px;background:rgba(255,255,255,.85)"></i><i style="width:12px;background:rgba(255,255,255,.5)"></i></div>
           <div class="b"><i style="width:70%;background:${tm}"></i><i style="width:90%;background:${id === 'tmava' ? '#2a313d' : '#fff'}"></i><i style="width:40%;height:9px;background:${hl}"></i></div></div>
-        <span class="jm"><span>${e}</span><span>${esc(nazev)}</span></span><span class="ps">${esc(popis)}${akt === id ? ' · ✔ vybráno' : ''}</span></button>`).join('')}</div>
+        <span class="jm"><span class="vzdot" style="background:${hl}"></span><span>${esc(nazev)}</span></span><span class="ps">${esc(popis)}${akt === id ? ' · ✔ vybráno' : ''}</span></button>`).join('')}</div>
       <div class="quick"><button class="btn" data-close>Hotovo</button></div>`, (m) => {
       m.querySelectorAll('[data-vz]').forEach((b) => (b.onclick = () => { try { localStorage.setItem('kp_vzhled', b.dataset.vz); } catch { /* */ } vzhledPouzij(b.dataset.vz); vzhledOkno(); }));
     });
