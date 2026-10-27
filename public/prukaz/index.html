@@ -49,6 +49,10 @@
   .uvod-volba{display:grid;gap:10px}
   .uvod-volba .btn{min-height:52px;font-size:16px}
   .stav-ok{color:var(--ok)}.stav-warn{color:var(--warn)}
+  .partner{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px 4px}
+  .partner img{height:64px;width:auto}
+  .partner small{font-size:12px;color:var(--muted);text-align:left;line-height:1.3}
+  .footer img.dlg{height:28px;width:auto;vertical-align:middle;margin-left:8px;opacity:.85}
   .dok-ikona{width:40px;height:40px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-size:18px;flex:none}
 </style>
 </head>
@@ -177,14 +181,14 @@ function render() {
   const IK = { prehled: KP.ICON.karta, zdravi: KP.ICON.leky, hodnoty: KP.ICON.odpac, rozhovor: KP.ICON.zpravy, budouci: KP.ICON.plan, krize: KP.ICON.zhorseni, sdilet: KP.ICON.kontakty, bezpecnost: KP.ICON.udaje };
   let html = `<div class="tiles p8">${tiles.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${IK[id] || KP.ICON.udaje}<span>${n}</span></button>`).join('')}</div>`;
   html += ({ prehled: prehledHTML, zdravi: zdraviHTML, hodnoty: hodnotyHTML, rozhovor: rozhovorHTML, budouci: budouciHTML, krize: krizeHTML, sdilet: sdiletHTML, bezpecnost: bezpecnostHTML })[tab]();
-  html += `<div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')} · data jsou jen v tomto telefonu, šifrovaná · poslední změna ${esc(fmtDT(D.aktualizovano))}</div>`;
+  html += `<div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')} · data jsou jen v tomto telefonu, šifrovaná · poslední změna ${esc(fmtDT(D.aktualizovano))}<br><img class="dlg" src="/prukaz/dialogus.png" alt="Dialogus" onerror="this.remove()"></div>`;
   $('work').innerHTML = html;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   bind();
 }
 function renderUvod() {
   $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Průkaz pro plán péče</h1><div class="meta">vaše zdravotní karta ve vašem telefonu</div></div>${KP.tlacitkaHlavicky({ vzhled: true })}`;
-  $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Vítejte</h2></div><div style="padding:14px;line-height:1.5">
+  $('work').innerHTML = `<div class="panel"><div class="partner"><img src="/prukaz/dialogus.png" alt="Dialogus" onerror="this.parentElement.remove()"><small>Průkaz pro plán péče vzniká s klinickým garantem a institutem <b>Dialogus</b>.</small></div><div class="panel-h"><h2>Vítejte</h2></div><div style="padding:14px;line-height:1.5">
       <p style="margin:0 0 10px"><b>Tato karta je vaše.</b> Všechno, co do ní zapíšete, zůstává <b>jen v tomto telefonu</b>, zašifrované vaším PINem. Nikam se to neposílá. Co z ní ukážete lékaři, rodině nebo záchrance, rozhodujete vy – při každém sdílení uvidíte přesně, co odchází.</p>
       <p style="margin:0">Hodí se lidem s dlouhodobou nemocí, kteří chtějí mít po ruce diagnózy, léky, zprávy, kontakty a svá přání, připravit se na rozhovor s lékařem a mít jasno, co má kdo vědět v krizi.</p></div></div>
     <div class="panel"><div class="panel-h"><h2>Začít</h2></div><div class="uvod-volba" style="padding:14px">
@@ -201,7 +205,7 @@ function renderZamek() {
   $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>${esc(D.krize.povolene.jmeno ? jmenoCele() : 'Průkaz')}</h1><div class="meta">zamčeno · krizová karta</div></div><button class="rolebtn" id="z_odemk" style="--c:var(--accent)"><span class="dot"></span>odemknout</button>`;
   $('work').innerHTML = `<div class="lockbar"><span class="chip">zamčeno</span> Vidíte jen to, co jste v Krizové kartě povolil(a). Ostatní je pod PINem.</div>${krizovaKartaHTML()}
     <div class="quick"><button class="btn primary block" id="z_odemk2">Odemknout PINem</button></div>
-    <div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')}</div>`;
+    <div class="footer">Průkaz pro plán péče ${APP_VERZE.replace('prukaz-', 'v')}<br><img class="dlg" src="/prukaz/dialogus.png" alt="Dialogus" onerror="this.remove()"></div>`;
   const od = () => pinOkno('Odemknout', '', async (pin) => { if (ukazka) { zamceno = false; render(); return; } const d = await odemkniUloziste(pin); if (!d) { toast('Nesprávný PIN'); return false; } D = d; zamceno = false; posledniAktivita = Date.now(); render(); });
   $('z_odemk').onclick = od; $('z_odemk2').onclick = od;
 }
@@ -410,7 +414,7 @@ function souhrnHTML(oddily) {
   if (oddily.includes('rozhovory')) s += sekce('Rozhovory s lékařem', D.rozhovory.length ? D.rozhovory.map((r) => `<div class="tx"><b>${esc(fmtD(r.datum))}${r.lekar ? ' · ' + esc(r.lekar) : ''}</b>${r.otazky ? '<br>Otázky: ' + esc(r.otazky) : ''}${r.moznosti ? '<br>Možnosti: ' + esc(r.moznosti) : ''}${r.domluva ? '<br>Domluva: ' + esc(r.domluva) : ''}</div>`).join('') : '<div class="pv">žádné</div>');
   if (oddily.includes('budouci')) s += sekce('Budoucí péče', `<div class="tx"><b>Moje přání (osobní):</b> ${esc(b.prani.text || '—')}</div><div class="tx"><b>Záznam rozhovoru o péči:</b> ${esc(b.acp.text || '—')}</div><div class="tx"><b>DVP:</b> ${b.dvp.ma ? esc(PODPIS[b.dvp.podpis]) + (b.dvp.datum ? ', ' + esc(fmtD(b.dvp.datum)) : '') + (b.dvp.original ? ', originál: ' + esc(b.dvp.original) : '') + (b.dvp.text ? ' – ' + esc(b.dvp.text) : '') : 'nemám'}</div><div class="tx"><b>Lékařský krizový plán (${b.plan.overeno ? 'ověřeno' : 'NEOVĚŘENO'}):</b> ${esc(CILE[b.plan.cil] || '—')}${b.plan.limity.length ? '; neprovádět: ' + esc(b.plan.limity.join(', ')) : ''}${b.plan.text ? '; ' + esc(b.plan.text) : ''}${b.plan.zdroj ? ' (' + esc(b.plan.zdroj) + (b.plan.datum ? ', ' + esc(fmtD(b.plan.datum)) : '') + ')' : ''}</div>`);
   if (oddily.includes('krize')) s += sekce('Krizová karta', krizovaKartaHTML(true));
-  s += `<div class="zap">Vytvořeno v aplikaci Průkaz pro plán péče (prototyp). Údaje jsou z telefonu pacienta; platnost lékařských dokumentů ověřte podle originálu.</div></div>`;
+  s += `<div class="zap">Vytvořeno v aplikaci Průkaz pro plán péče (Dialogus, prototyp). Údaje jsou z telefonu pacienta; platnost lékařských dokumentů ověřte podle originálu.</div></div>`;
   return s;
 }
 function sdiletNahled() {
