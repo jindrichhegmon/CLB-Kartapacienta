@@ -156,7 +156,7 @@
     const exp = !b.plan || KP.prosly(platnost);
     const lekarJm = (b.plan && b.plan.podepsal) || g.lekar || '—';
     const lekarTel = g.lekarTelefon || g.telefon24 || '';
-    const pd = b.pecedoma || null;   // propojení s PéčeDoma: nejbližší plánovaná návštěva patří do karty (vidí ji i ZZS a tisk)
+    const pd = b.pecedoma || null;   // propojení s PéčeDoma: nejbližší plánovaná návštěva (`navsteva`) – jen po odemknutí lékařem / členem týmu a v centrále; zamčená karta (ZZS), rodina a Můj průkaz ji nevidí (0.11.40)
     const leky = KP.leky(b);
     const e = KP.esc;
     return `<div class="card">

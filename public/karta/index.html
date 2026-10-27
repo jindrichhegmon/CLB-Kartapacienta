@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.39';
+const APP_VERZE = 'karta-0.11.40';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -212,7 +212,7 @@ function kresli() {
   if (b.pacient.stav === 'UZAVRENY') html += '<div class="banner warn">Průkaz byl uzavřen.</div>';
   if (!U.role) {
     html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – krizová karta</div>
-      ${KP.kartaHTML(bb, { tlacitka: '<button class="btn primary" id="unRodina">Přístup rodina</button><button class="btn primary" id="unCarer">Přístup tým</button><button class="btn" id="unDoc">Lékař bez PINu</button>' })}
+      ${KP.kartaHTML(bb, { navsteva: false, tlacitka: '<button class="btn primary" id="unRodina">Přístup rodina</button><button class="btn primary" id="unCarer">Přístup tým</button><button class="btn" id="unDoc">Lékař bez PINu</button>' })}
       <div class="note" style="margin-top:-4px"><b>Přístup rodina</b> – PIN, který rodině vydal garant. <b>Přístup tým</b> – osobní PIN: sestra domova, hospic, praktický lékař, lékař. <b>Lékař bez PINu</b> – kód lékaře pro dnešní den (z centrální aplikace nebo z PéčeDoma). <b>Záchranná služba</b> – krizovou kartu vidí bez odemykání, zápis výjezdu je níže.</div>
       <div class="panel"><div class="panel-h"><h2>Záchranná služba – zápis výjezdu</h2></div><div class="form" style="padding:14px">
         <div class="field"><label>Výsledek zásahu</label><select id="zzs_v"><option>ošetřen, ponechán na místě</option><option>konzultováno s lékařem plánu, bez transportu</option><option>transport do nemocnice</option><option>konstatováno úmrtí</option></select></div>
@@ -231,7 +231,8 @@ function kresli() {
     html += `<div class="tiles" style="grid-template-columns:repeat(3,1fr)">${tabs.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${KP.ICON[id] || KP.ICON.udaje}<span>${n}</span>${badge(id)}</button>`).join('')}</div>`;
     const rk = ROLE_KARTA[U.role];
     if ((tab === 'karta' || tab === 'dg') && rk) html += `<div class="lbl" style="padding:2px 6px;border-left:4px solid ${rk.c}"><b>${esc(U.jmeno || '')}</b> · ${esc(rk.nazev)}</div><div class="note"><b>${esc(rk.nazev)}:</b> ${esc(rk.popis)}</div>`;
-    html += ({ karta: () => KP.kartaHTML(bb) + (zh ? '<div class="banner crit">Probíhá zhoršení stavu.<button class="btn sm" id="btnStab">Stav stabilizován</button></div>' : '') + navstevaHTML(b) + `<div class="panel"><div class="panel-h"><h2>Diagnózy</h2></div><div class="rolehelp" style="color:var(--fg)">${esc((b.plan && b.plan.data.dg) || '—')}</div></div>`,
+    // 0.11.40: oddíl Příští návštěva · PéčeDoma jen po odemknutí lékařem nebo členem týmu (zamčená karta a rodina ho nevidí; termín rodině sděluje tým)
+    html += ({ karta: () => KP.kartaHTML(bb, { navsteva: U.role !== 'rodina' }) + (zh ? '<div class="banner crit">Probíhá zhoršení stavu.<button class="btn sm" id="btnStab">Stav stabilizován</button></div>' : '') + navstevaHTML(b) + `<div class="panel"><div class="panel-h"><h2>Diagnózy</h2></div><div class="rolehelp" style="color:var(--fg)">${esc((b.plan && b.plan.data.dg) || '—')}</div></div>`,
       dg: () => dgHTML(b), leky: () => lekyHTML(b), plan: () => planHTML(b), denik: () => denikHTML(denik), odpac: () => odPacientaHTML(b), zpravy: () => zpravyHTML(b), zhorseni: () => zhorseniHTML(b, zh), kontakty: () => kontaktyHTML(b), udaje: () => tymHTML(b) })[tab]();
   }
   html += `<div class="footer">Karta pacienta ${APP_VERZE.replace('karta-', 'v')} · šifrovaná kopie, plán vede garant v centrální aplikaci</div>`;
