@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Čtečka QR kódu v kartě (párování): v kiosku si aplikace oprávnění přidělí sama jako správce zařízení. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Videohovor (0.1.3): mikrofon a nastavení zvuku pro hovor vložený v kartě (Jitsi). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Kvůli volání z karty (odkazy tel:) – aby se dialer našel i na Androidu 11+. -->

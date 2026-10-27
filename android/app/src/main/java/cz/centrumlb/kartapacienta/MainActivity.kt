@@ -67,6 +67,7 @@ class MainActivity : Activity() {
         web = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true // IndexedDB a localStorage karty
+            settings.mediaPlaybackRequiresUserGesture = false // zvonění příchozího videohovoru a zvuk hovoru bez klepnutí
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.setSupportMultipleWindows(false)
@@ -151,20 +152,24 @@ class MainActivity : Activity() {
 
     // ---- web ----
 
-    /** Fotoaparát jen pro kartu (čtení párovacího QR kódu); jiné zdroje a cizí původ se zamítnou. */
+    /** Fotoaparát a mikrofon jen pro kartu: čtení párovacího QR kódu a videohovor (0.1.3 – hovor běží ve vloženém
+     *  rámu serveru videohovorů, takže se povolí každý https původ, pokud je nahoře stránka karty; v kiosku nic jiného být nemůže). */
     private inner class Chrome : WebChromeClient() {
         override fun onPermissionRequest(request: PermissionRequest) {
             runOnUiThread {
-                val kamera = request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-                if (!kamera || puvodUrl(request.origin) != puvod) {
+                val chce = request.resources.filter { it == PermissionRequest.RESOURCE_VIDEO_CAPTURE || it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                val naKarte = web.url?.startsWith(puvod) == true
+                if (chce.isEmpty() || request.origin.scheme != "https" || !naKarte) {
                     request.deny()
                     return@runOnUiThread
                 }
-                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                    request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                val potrebna = chce.map { if (it == PermissionRequest.RESOURCE_VIDEO_CAPTURE) Manifest.permission.CAMERA else Manifest.permission.RECORD_AUDIO }
+                    .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+                if (potrebna.isEmpty()) {
+                    request.grant(chce.toTypedArray())
                 } else {
                     cekajiciKamera = request
-                    requestPermissions(arrayOf(Manifest.permission.CAMERA), KAMERA)
+                    requestPermissions(potrebna.toTypedArray(), KAMERA)
                 }
             }
         }
@@ -175,10 +180,10 @@ class MainActivity : Activity() {
         if (requestCode != KAMERA) return
         val r = cekajiciKamera ?: return
         cekajiciKamera = null
-        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            r.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            r.grant(r.resources.filter { it == PermissionRequest.RESOURCE_VIDEO_CAPTURE || it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }.toTypedArray())
         } else {
-            r.deny() // karta sama nabídne ruční opsání kódu
+            r.deny() // karta sama nabídne ruční opsání kódu / hlásí, že hovor nejde spustit
         }
     }
 

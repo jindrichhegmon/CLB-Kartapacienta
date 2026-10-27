@@ -41,9 +41,11 @@ export const config = {
     tajemstvi: tw('TWILIO_API_KEY_SECRET', 'TWILIO_API_SECRET'),
     from: tw('TWILIO_SMS_FROM', 'TWILIO_FROM') || '+420736354150',   // odesílací číslo jako v jhn-apps
   },
+  // server videohovorů Jitsi Meet (od 0.11.45): např. https://jitsi.95-216-201-2.sslip.io (deploy/vps-jitsi.sh); prázdné = videohovory vypnuté
+  video: { server: env('KP_JITSI_URL') },
   // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
   partnerKlic: env('KP_PARTNER_KLIC'),
-  verze: '0.11.44',
+  verze: '0.11.45',
 };
 
 export function zkontrolujKonfiguraci() {

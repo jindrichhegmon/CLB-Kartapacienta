@@ -134,3 +134,20 @@ test('PéčeDoma: odpověď sync → řádek A_KP_PdSync (léky, nejbližší n�
   const bez = normalizujSync({ leky: {}, pristiNavsteva: null, kalendarChyba: 'Kalendář FK neodpovídá' });
   assert.deepEqual([bez.sos, bez.opioidy, bez.medikace, bez.pristiNavsteva, bez.pristiKdo, bez.kalendarChyba], [[], [], [], null, null, 'Kalendář FK neodpovídá']);
 });
+
+test('videohovor: název místnosti a odkaz do Jitsi', async () => {
+  process.env.KP_JITSI_URL = 'https://jitsi.example.org/';
+  const { novaMistnost, odkazDoHovoru, videoServer } = await import('../src/video.js');
+  const { config } = await import('../src/config.js');
+  config.video.server = 'https://jitsi.example.org/';
+  assert.equal(videoServer(), 'https://jitsi.example.org');
+  const m = novaMistnost('P-0017');
+  assert.match(m, /^kp-p0017-[a-z0-9]{10}$/);
+  assert.notEqual(m, novaMistnost('P-0017'));
+  const o = odkazDoHovoru(m, 'MUDr. Petra "Ukázková"');
+  assert.ok(o.startsWith('https://jitsi.example.org/' + m + '#config.prejoinPageEnabled=false'));
+  assert.ok(o.includes('userInfo.displayName=' + encodeURIComponent(JSON.stringify('MUDr. Petra "Ukázková"'))));
+  assert.equal(odkazDoHovoru('../x', 'a'), null);
+  config.video.server = '';
+  assert.equal(odkazDoHovoru(m, 'a'), null);
+});

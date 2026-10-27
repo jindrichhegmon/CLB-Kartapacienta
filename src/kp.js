@@ -8,7 +8,7 @@ import { stavSync, nastaveniPd } from './pecedoma.js';
 
 export const ROLE_UZIVATELE = ['admin', 'lekar', 'sestra', 'ctenar'];
 export const TYPY_POSKYTOVATELE = { NEMOCNICE: 'Nemocnice', HOSPIC: 'Mobilní hospic', AMBULANCE: 'Paliativní ambulance', PL: 'Praktický lékař', DOMOV: 'Domov / pobytová služba', ZZS: 'Záchranná služba', JINY: 'Jiný' };
-export const TYPY_DENIKU = ['Založení', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Revize', 'Úprava údajů', 'Předání garance', 'Ukončení', 'Systém'];
+export const TYPY_DENIKU = ['Založení', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Revize', 'Úprava údajů', 'Předání garance', 'Ukončení', 'Videohovor', 'Systém'];
 
 /** Role lidí pracovišť na kartě (jako v demu): lékař, praktický lékař, hospic, sestra DPS. Rodina má PIN u konkrétního pacienta, ZZS žádný. */
 export const ROLE_OSOBY = { LEKAR: 'Lékař a spec. sestra', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' };

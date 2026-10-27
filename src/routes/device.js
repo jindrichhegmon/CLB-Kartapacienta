@@ -18,6 +18,7 @@ import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
 import { normTel, hezkyTel } from '../telefon.js';
+import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { nastaveniPd, zaznamyPd, DRUHY_PRO_PD, predejZhorseniPd, TYPY_ZHORSENI, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
 
 export const device = Router();
@@ -285,5 +286,58 @@ device.post('/sdilet', h(async (req) => {
       }
     }
     return { ok: true, cas: new Date().toISOString(), pecedoma };
+  });
+}));
+
+/* ---------------- videohovor (0.11.45) ----------------
+   GET  /video                     → { server, hovor }   telefon se ptá každých ~20 s (zvonění z centrály); server = adresa Jitsi nebo null
+   POST /video { akce, role, jmeno, id }  akce: zahajit (po odemknutí PINem – rodina i tým) | prijmout | ukoncit
+   Odkaz do místnosti se telefonu posílá hotový (odkazDoHovoru), obsah hovoru přes server Karty nejde. */
+const ROLE_VIDEO = ['rodina', 'sestra', 'hospic', 'pl', 'lekar'];
+const JMENO_TELEFONU = (role, jmeno) => [ROLE_CHAT[role] || role || '', jmeno || ''].filter(Boolean).join(' ') || 'Telefon u pacienta';
+function odpovedVideo(hovor, jmeno) {
+  return { server: videoServer() || null, hovor: hovor ? { ...hovor, odkaz: odkazDoHovoru(hovor.mistnost, jmeno) } : null };
+}
+device.get('/video', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('video:' + zid, 600, 3600e3);
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    if (z.Rezim !== 'ZAPUJCENY' || z.Stav !== 'SPAROVANO' || !videoServer()) return { server: null, hovor: null };
+    return odpovedVideo(await aktivniHovor(q, z.PacientID), 'Telefon u pacienta');
+  });
+}));
+device.post('/video', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('video-akce:' + zid, 60, 3600e3);
+  const b = req.body || {};
+  const akce = String(b.akce || '');
+  const role = String(b.role || '').toLowerCase();
+  if (!videoServer()) throw chyba('Videohovory nejsou na serveru zapnuté (KP_JITSI_URL)');
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    if (z.Rezim !== 'ZAPUJCENY') throw chyba('Videohovor je jen na telefonu u pacienta (karta týmu)', 403);
+    if (z.Stav !== 'SPAROVANO') throw chyba('Telefon není spárovaný', 401);
+    const pac = await q.one(`SELECT Stav, KodPrukazu FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: z.PacientID });
+    if (!pac || pac.Stav !== 'AKTIVNI') throw chyba('Průkaz je uzavřený');
+    const jmeno = JMENO_TELEFONU(role, text(b.jmeno, 100));
+    const id = Number(b.id) || null;
+    if (akce === 'zahajit') {
+      if (!ROLE_VIDEO.includes(role)) throw chyba('Videohovor zahájí jen rodina nebo člen týmu po odemknutí PINem', 403);
+      const hovor = await zahajHovor(q, { pacientId: z.PacientID, kodPrukazu: pac.KodPrukazu, zahajil: 'TELEFON', jmeno, role, zarizeniId: zid });
+      await audit(q, { zarizeniId: zid, kdo: jmeno, pacientId: z.PacientID, akce: hovor.novy ? 'videohovor zahájen z telefonu' : 'připojení k videohovoru', detail: hovor.mistnost, ip: ip(req) });
+      return odpovedVideo(hovor, jmeno);
+    }
+    if (akce === 'prijmout') {
+      if (!id) throw chyba('Chybí hovor');
+      const hovor = await prijmiHovor(q, z.PacientID, id);
+      await audit(q, { zarizeniId: zid, kdo: jmeno, pacientId: z.PacientID, akce: 'videohovor přijat na telefonu', detail: hovor ? hovor.mistnost : String(id), ip: ip(req) });
+      return odpovedVideo(hovor, jmeno);
+    }
+    if (akce === 'ukoncit') {
+      if (!id) throw chyba('Chybí hovor');
+      return odpovedVideo(await ukonciHovor(q, z.PacientID, id, { jmeno, role: ROLE_VIDEO.includes(role) ? role : null, zarizeniId: zid }), jmeno);
+    }
+    throw chyba('Neznámá akce');
   });
 }));

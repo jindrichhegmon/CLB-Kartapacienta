@@ -173,7 +173,7 @@ app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.uk
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
-app.get('/api/c/pacient/:id', j(detail));
+app.get('/api/c/pacient/:id', j(() => ({ ...detail, video: { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null } })));
 // důležité kontakty (0.9.6): přidání, úprava, odebrání i přeřazení šipkami nad polem kontakty (seřazené jako server: Poradi, id)
 app.post('/api/c/pacient/:id/kontakt', j((req) => { const b = req.body || {}; const por = b.poradi === '' || b.poradi == null ? null : Number(b.poradi);
   if (b.id) { const k = kontakty.find((x) => x.id === Number(b.id)); if (!k) return { ok: false, error: 'Kontakt nenalezen' };
@@ -191,6 +191,14 @@ let pdLeky = [
 app.get('/api/c/pacient/:id/leky', j({ zdroj: 'pecedoma', leky: pdLeky }));
 app.post('/api/c/pacient/:id/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky, sync: pdSync }; }));
 app.post('/api/c/pacient/:id/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky, sync: pdSync }; }));
+// videohovor (0.11.45): napodobený server – stav hovoru v paměti, odkaz vede na stránku bez obsahu
+let videoHovor = null;
+const videoOdpoved = () => ({ server: 'https://jitsi.example.org', hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null });
+app.get('/api/d/video', j(videoOdpoved));
+app.post('/api/d/video', j((req) => { const b = req.body || {}; if (b.akce === 'zahajit' && !videoHovor) videoHovor = { id: 1, mistnost: 'kp-p0007-abc', stav: 'ZVONI', zahajil: 'TELEFON', zahajilJmeno: 'hospic Sestra Lucie', zahajeno: cas(0, '09:10') };
+  else if (b.akce === 'prijmout' && videoHovor) videoHovor = { ...videoHovor, stav: 'PROBIHA', prijato: cas(0, '09:11') }; else if (b.akce === 'ukoncit') videoHovor = null; return videoOdpoved(); }));
+app.post('/__mock/video', (req, res) => { videoHovor = req.body && req.body.id ? req.body : null; res.json({ ok: true }); });
+app.get('/api/c/pacient/:id/video', j(() => ({ server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null })));
 app.get('/api/d/leky', j({ leky: pdLeky }));
 app.post('/api/d/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky }; }));
 app.post('/api/d/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky }; }));
@@ -326,6 +334,12 @@ await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam tabl
 await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.fill('#lk_n', 'Paracetamol'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce'); await p.selectOption('#lk_t', 'ZACHRANNA');
 await foto(p, 'c-leky-pridat', { vyska: 900 }); await p.evaluate(() => KP.closeModal());
 await zalozka('karta', 'c-karta', { vyska: 1000 });
+// videohovor (0.11.45): z telefonu volá sestra → červený pruh s Připojit se
+if (!(await p.$('#vidZahajit'))) chyby.push('centrála: chybí tlačítko Videohovor na telefon');
+await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 3, mistnost: 'kp-p0007-sestra', stav: 'ZVONI', zahajil: 'TELEFON', zahajilJmeno: 'hospic Sestra Lucie Příkladná', zahajeno: '2026-10-27 09:12' }) }); S.pac.video = await C(`/pacient/${S.pacId}/video`); kresliDetail(); });
+await p.waitForSelector('#vidPripojit'); await foto(p, 'c-video', { vyska: 700 });
+await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); S.pac.video = await C(`/pacient/${S.pacId}/video`); kresliDetail(); });
+await p.waitForSelector('#vidZahajit');
 await klik(p, '#pd_chat'); await p.waitForSelector('#chat_l .msg');
 await foto(p, 'c-chat-pecedoma', { vyska: 900 });
 await p.evaluate(() => KP.closeModal());
@@ -482,6 +496,14 @@ await foto(p, 'k-denik');
 await klik(p, '.tile[data-tab="zhorseni"]'); await p.waitForSelector('#btnZ');
 await p.click('#z_sym input[value="dušnost"]'); await p.click('#z_akce input[value="podán SOS lék"]');
 await foto(p, 'k-zhorseni', { vyska: 1150 });
+// videohovor (0.11.45): dlaždice po odemknutí, pak příchozí hovor z centrály na zamčené kartě
+await p.evaluate(() => videoPoll()); await p.waitForTimeout(400);
+if (!(await p.$('.tile[data-tab="video"]'))) chyby.push('karta: chybí dlaždice Videohovor');
+await klik(p, '.tile[data-tab="video"]'); await p.waitForSelector('#vidZahajit'); await foto(p, 'k-video');
+await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
+await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 2, mistnost: 'kp-p0007-xyz', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: '2026-10-27 09:20' }) }); await videoPoll(); });
+await p.waitForSelector('#vidPrijmout', { timeout: 5000 }); await p.evaluate(() => zvonit(false)); await foto(p, 'k-video-zvoni');
+await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); await videoPoll(); });
 await p.close();
 
 console.log('Můj průkaz (telefon pacienta)');

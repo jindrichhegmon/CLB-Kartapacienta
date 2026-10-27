@@ -181,6 +181,7 @@ function kresliDetail() {
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
       <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}</div></div></div>
     ${navrh && op.prijmoutGaranci ? `<div class="banner crit">Bylo vám navrženo převzetí garance (navrhl ${esc(navrh.navrhl || '—')}, ${esc(fmtDT(navrh.navrzeno))}).<button class="btn sm primary" id="prevzit">Převzít garanci</button><button class="btn sm" id="odmitnout">Odmítnout</button></div>` : navrh ? `<div class="banner warn">Předání garance na ${esc(navrh.nazev)} čeká na potvrzení (od ${esc(fmtDT(navrh.navrzeno))}). Do potvrzení zůstává garantem ${esc(g ? g.nazev : '—')}.</div>` : ''}
+    ${videoBannerC(d)}
     ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
     <div class="tabs noprint">${tabs.map(([k, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div id="tabbody">${body(d)}</div>`;
@@ -191,8 +192,39 @@ function kresliDetail() {
   if ($('prevzit')) $('prevzit').onclick = () => akce('/prevzit', { prijmout: true }, 'Garance převzata');
   if ($('odmitnout')) $('odmitnout').onclick = () => modal(`<h2>Odmítnout převzetí garance</h2><div class="field"><label>Důvod</label><input id="od_d"></div><div class="quick"><button class="btn crit" id="od_ok">Odmítnout</button><button class="btn" data-close>Zpět</button></div>`, () => { $('od_ok').onclick = () => { closeModal(); akce('/prevzit', { prijmout: false, duvod: $('od_d').value }, 'Odmítnuto'); }; });
   if ($('revize2')) $('revize2').onclick = revize;
+  if ($('vidPripojit')) $('vidPripojit').onclick = () => otevriHovorC(d.video.hovor);
+  if ($('vidUkoncit')) $('vidUkoncit').onclick = () => akce('/video', { akce: 'ukoncit', id: d.video.hovor.id }, 'Videohovor ukončen');
   bindTab();
 }
+/* ---- videohovor (0.11.45): telefon u pacienta ↔ centrála přes server Jitsi; centrála se každých 20 s ptá na stav ---- */
+function videoBannerC(d) {
+  const v = d.video; if (!v || !v.server || !v.hovor) return '';
+  const h = v.hovor;
+  if (h.stav === 'ZVONI' && h.zahajil === 'TELEFON') return `<div class="banner crit">📹 Z telefonu u pacienta volá <b>${esc(h.zahajilJmeno)}</b> (${esc(fmtDT(h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Připojit se</button><button class="btn sm" id="vidUkoncit">Odmítnout</button></div>`;
+  if (h.stav === 'ZVONI') return `<div class="banner warn">📹 Telefon u pacienta zvoní (volá ${esc(h.zahajilJmeno)}, ${esc(fmtDT(h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Otevřít hovor</button><button class="btn sm" id="vidUkoncit">Zrušit</button></div>`;
+  return `<div class="banner ok">📹 Probíhá videohovor (zahájil ${esc(h.zahajilJmeno)}, přijat ${esc(fmtDT(h.prijato || h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Připojit se</button><button class="btn sm" id="vidUkoncit">Ukončit</button></div>`;
+}
+function videoTlacitkoC(d) {
+  const v = d.video; if (!v || !v.server || !d.op.aktivni || (S.ja && S.ja.role.every((r) => r === 'ctenar'))) return '';
+  if (v.hovor) return '';
+  return `<button class="btn sm" id="vidZahajit" title="${v.telefon ? 'Telefon u pacienta zazvoní, kdokoli u něj hovor přijme' : 'Pacient zatím nemá spárovaný telefon u lůžka'}">📹 Videohovor na telefon</button>`;
+}
+function otevriHovorC(h) {
+  if (!h || !h.odkaz) return toast('Hovor nemá odkaz');
+  const w = window.open(h.odkaz, '_blank'); if (!w) toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
+}
+async function videoZahajitC() {
+  if (!S.pac.video.telefon && !(await KP.confirm('Telefon u pacienta není spárovaný', 'Pacient nemá spárovaný telefon u lůžka, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
+  try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor); toast('Telefon u pacienta zvoní'); } catch (e) { toast(e.message); }
+}
+setInterval(async () => {
+  if (S.view !== 'detail' || !S.pac || !S.pac.video || !S.pac.video.server || document.visibilityState !== 'visible') return;
+  try {
+    const r = await C(`/pacient/${S.pacId}/video`);
+    const klic = (v) => JSON.stringify(v.hovor && { id: v.hovor.id, stav: v.hovor.stav });
+    if (klic(r) !== klic(S.pac.video)) { S.pac.video = r; if (!document.querySelector('#modal .modal')) kresliDetail(); }
+  } catch { /* bez připojení */ }
+}, 20000);
 async function akce(cesta, body, hlaska, tab) {
   try { const r = await C(`/pacient/${S.pacId}${cesta}`, { method: 'POST', body }); if (hlaska) toast(hlaska); await nactiDetail(); if (tab) S.tab = tab; kresliDetail(); return r; } catch (e) { toast(e.message); throw e; }
 }
@@ -209,7 +241,7 @@ function odPacientaHTML(d) {
 function tabKarta(d) {
   return `<div class="grid2 l"><div>${KP.kartaHTML(balikZDetailu(d))}</div>
     <div style="display:grid;gap:12px;align-content:start">
-      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button></div>
+      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button>${videoTlacitkoC(d)}</div>
       <div class="note"><b>Toto vidí posádka ZZS bez přihlášení</b> na telefonu u pacienta. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad a telefon na lékaře.</div>
       ${d.plan ? `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${d.plan.verze}</span></div><dl class="kv" style="padding:12px 14px"><dt>Stanovil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd><dt>Platnost</dt><dd>${fmtD(d.plan.platnostDo)}</dd><dt>Diagnózy</dt><dd>${esc(d.plan.data.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(d.plan.data.funkce || '—')}</dd></dl></div>` : ''}
       ${pdPanel(d, { jen: 'navsteva' })}
@@ -450,6 +482,7 @@ function bindTab() {
   if ($('lk_seznam')) nactiLeky(d);
   on('revize', revize);
   on('tisk', () => window.print());
+  on('vidZahajit', videoZahajitC);
   on('naTelefon', () => { S.tab = 'telefon'; kresliDetail(); });
   on('vypis', vypis);
   on('ulozPlan', async () => { const p = ctiPlan('f', (d.plan && d.plan.data) || {}); await akce('/plan', { ...p, typ: 'ZMENA', poznamka: $('f_poz').value }, 'Plán uložen jako nová verze'); });

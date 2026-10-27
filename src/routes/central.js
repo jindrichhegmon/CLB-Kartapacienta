@@ -13,6 +13,7 @@ import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI } from '../pecedoma.js';
 
+import { videoServer, aktivniHovor, zahajHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 export const central = Router();
 
 const TTL = 12 * 3600;
@@ -143,6 +144,7 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
       (SELECT TOP 1 CONVERT(char(16), g3.Navrzeno, 120) FROM dbo.A_KP_Garance g3 WHERE g3.PacientID = p.PacientID AND g3.Stav = 'NAVRZENO') AS predavaSe,
       (SELECT TOP 1 g4.PoskytovatelID FROM dbo.A_KP_Garance g4 WHERE g4.PacientID = p.PacientID AND g4.Stav = 'NAVRZENO') AS predavaSeKomu,
       (SELECT TOP 1 dps.Nazev FROM dbo.A_KP_Tym td JOIN dbo.A_KP_Poskytovatel dps ON dps.PoskytovatelID = td.PoskytovatelID WHERE td.PacientID = p.PacientID AND td.Aktivni = 1 AND dps.Typ = 'DOMOV' ORDER BY td.Od) AS domov
+      , (SELECT TOP 1 v.Zahajil + '|' + v.Stav FROM dbo.A_KP_Videohovor v WHERE v.PacientID = p.PacientID AND v.Stav IN ('ZVONI', 'PROBIHA') AND v.Zahajeno > DATEADD(hour, -3, SYSDATETIME()) ORDER BY v.VideohovorID DESC) AS videohovor
     FROM dbo.A_KP_Pacient p
     OUTER APPLY (SELECT TOP 1 * FROM dbo.A_KP_PlanVerze v WHERE v.PacientID = p.PacientID ORDER BY v.Verze DESC) pv
     LEFT JOIN dbo.A_KP_Garance g ON g.PacientID = p.PacientID AND g.Stav = 'PLATNA'
@@ -161,6 +163,8 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
       else if (dni <= 14) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: revize plánu do ${dni} dní` });
     } else upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: chybí plán péče` });
     if (p.posledniKrize === 'Zhoršení stavu') upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: probíhá zhoršení stavu` });
+    if (p.videohovor === 'TELEFON|ZVONI') upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: z telefonu u pacienta zvoní videohovor – otevřete pacienta a připojte se` });
+    else if (p.videohovor && p.videohovor.endsWith('|PROBIHA')) upozorneni.push({ uroven: 'info', pacientId: p.id, text: `${jm}: probíhá videohovor` });
     if (p.telefonu > 0 && p.sync && (dnes - d(p.sync)) > 12 * 3600e3) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: telefon se nepřipojil od ${p.sync}` });
     if (p.telefonu > 0 && p.baterie != null && p.baterie < 20) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: baterie telefonu ${p.baterie} %` });
     if (p.telefonu === 0) upozorneni.push({ uroven: 'info', pacientId: p.id, text: `${jm}: průkaz zatím není v žádném telefonu` });
@@ -295,7 +299,8 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení průkazu', ip: s.ip });
   const pdNast = await nastaveniPd(q);
   const pecedoma = { klientId: pacient.pdKlientId, portalKlientId: pacient.pdPortalKlientId, odkaz: pdNast.odkaz, nastaveno: pdNast.nastaveno, autoSync: pdNast.sync, sync: pacient.pdKlientId ? await stavSync(q, id) : null };
-  return { pacient, plan, verze, kontakty, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, pecedoma, op, smsDostupne: smsDostupne() };
+  const video = await videoProPacienta(q, s, id);
+  return { pacient, plan, verze, kontakty, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, pecedoma, op, video, smsDostupne: smsDostupne() };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {
@@ -1217,3 +1222,42 @@ central.post('/nastaveni', sUzivatelem(async (q, s, req) => {
       WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });
   }
 }, { admin: true }));
+
+/* ---------------- videohovor (0.11.45) ----------------
+   GET  /pacient/:id/video              → { server, hovor }  (hovor i s odkazem pro přihlášeného – centrála se ptá každých 20 s)
+   POST /pacient/:id/video { akce }     akce: zahajit (telefon u pacienta začne zvonit) | ukoncit
+   Smí každý, kdo pacienta vidí a není jen čtenář. Hovor vede server Jitsi (KP_JITSI_URL); Karta drží jen záznam a odkaz. */
+async function videoProPacienta(q, s, id) {
+  const server = videoServer() || null;
+  if (!server) return { server: null, hovor: null };
+  const hovor = await aktivniHovor(q, id);
+  const telefon = await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = 'ZAPUJCENY'`, { p: id });
+  return { server, telefon: telefon.n > 0, hovor: hovor ? { ...hovor, odkaz: odkazDoHovoru(hovor.mistnost, s.jmeno) } : null };
+}
+central.get('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
+  const id = pid(req);
+  await opravneni(q, s, id);
+  return videoProPacienta(q, s, id);
+}));
+central.post('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
+  const id = pid(req);
+  const op = await opravneni(q, s, id);
+  if (!videoServer()) throw chyba('Videohovory nejsou na serveru zapnuté (KP_JITSI_URL)');
+  if (s.role.every((r) => r === 'ctenar')) throw chyba('Videohovor smí zahájit jen člen týmu, ne čtenář', 403);
+  const akce = String((req.body || {}).akce || '');
+  if (akce === 'zahajit') {
+    if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+    const pac = await q.one(`SELECT KodPrukazu FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+    const hovor = await zahajHovor(q, { pacientId: id, kodPrukazu: pac.KodPrukazu, zahajil: 'CENTRALA', jmeno: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: hovor.novy ? 'videohovor zahájen z centrály' : 'připojení k videohovoru', detail: hovor.mistnost, ip: s.ip });
+    return videoProPacienta(q, s, id);
+  }
+  if (akce === 'ukoncit') {
+    const id2 = Number((req.body || {}).id) || null;
+    if (!id2) throw chyba('Chybí hovor');
+    await ukonciHovor(q, id, id2, { jmeno: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'videohovor ukončen z centrály', detail: String(id2), ip: s.ip });
+    return videoProPacienta(q, s, id);
+  }
+  throw chyba('Neznámá akce');
+}));

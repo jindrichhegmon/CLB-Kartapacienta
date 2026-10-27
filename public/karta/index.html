@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.44';
+const APP_VERZE = 'karta-0.11.45';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -147,8 +147,8 @@ function pridejZapis(typ, text, role, autor) {
 /* ---------------- zamykání ---------------- */
 const ZAMEK_MS = 2 * 60 * 1000;
 ['pointerdown', 'keydown', 'scroll'].forEach((ev) => addEventListener(ev, () => { if (U.role) U.posledni = Date.now(); }, { passive: true }));
-setInterval(() => { if (U.role && Date.now() - U.posledni > ZAMEK_MS) { zamkni(); toast('Průkaz se zamkl'); } }, 10000);
-function zamkni() { U = { role: null }; tab = 'karta'; closeModal(); if (KARTY.length > 1) D = null; kresli(); }
+setInterval(() => { if (U.role && !VID.okno && Date.now() - U.posledni > ZAMEK_MS) { zamkni(); toast('Průkaz se zamkl'); } }, 10000);
+function zamkni() { if (VID.okno) zavriHovor(true); U = { role: null }; tab = 'karta'; closeModal(); if (KARTY.length > 1) D = null; kresli(); }
 
 /* ---------------- vykreslení ---------------- */
 const ROLE_NAZ = { lekar: 'lékař / spec. sestra', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS' };
@@ -208,7 +208,7 @@ function kresli() {
   const bb = { ...b, denik };
   const stare = stariSync() > 24 * 3600e3;
   const zh = KP.aktivniZhorseni(denik);
-  let html = `<div class="syncbar" id="syncbar"></div>${stare ? `<div class="banner crit">Data jsou starší než 24 h (${esc(textStari())}). Připojte telefon k síti – mohou chybět změny plánu.</div>` : ''}`;
+  let html = `<div class="syncbar" id="syncbar"></div>${videoBannerHTML()}${stare ? `<div class="banner crit">Data jsou starší než 24 h (${esc(textStari())}). Připojte telefon k síti – mohou chybět změny plánu.</div>` : ''}`;
   if (b.pacient.stav === 'UZAVRENY') html += '<div class="banner warn">Průkaz byl uzavřen.</div>';
   if (!U.role) {
     html += `<div class="lockbar">${KP.ICON.zamek} Zamčeno – krizová karta</div>
@@ -226,14 +226,14 @@ function kresli() {
     // 0.11.34: dlaždice Zprávy = celé vlákno chatu PéčeDoma (zprávy rodiny a pacienta z Mého průkazu i aplikace PéčeDoma) – jen u propojeného pacienta
     const chatJe = !!(b.pecedoma && b.pecedoma.chat);
     if (tab === 'zpravy' && !chatJe) tab = 'karta';
-    const tabs = [['karta', 'Karta'], ['dg', 'Diagnóza'], ['plan', 'Plán'], ['leky', 'Léky'], ['denik', 'Interní poznámky'], ['odpac', 'Poznámky pacienta'], ['zpravy', 'Zprávy'], ['zhorseni', 'Zhoršení'], ['kontakty', 'Kontakty'], ['udaje', 'Tým']].filter(([id]) => !(U.role === 'rodina' && id === 'denik') && !(id === 'zpravy' && !chatJe));
-    const badge = (id) => (id === 'zhorseni' && zh ? '<span class="bdg">!</span>' : id === 'denik' && D.fronta.length ? `<span class="bdg">${D.fronta.length}</span>` : id === 'plan' && (!b.plan || KP.prosly(b.plan.platnostDo)) ? '<span class="bdg">!</span>' : '');
+    const tabs = [['karta', 'Karta'], ['dg', 'Diagnóza'], ['plan', 'Plán'], ['leky', 'Léky'], ['denik', 'Interní poznámky'], ['odpac', 'Poznámky pacienta'], ['zpravy', 'Zprávy'], ['video', 'Videohovor'], ['zhorseni', 'Zhoršení'], ['kontakty', 'Kontakty'], ['udaje', 'Tým']].filter(([id]) => !(U.role === 'rodina' && id === 'denik') && !(id === 'zpravy' && !chatJe) && !(id === 'video' && (VID.server === null || !VIDEO_ROLE.includes(U.role))));
+    const badge = (id) => (id === 'video' && VID.hovor ? '<span class="bdg">!</span>' : id === 'zhorseni' && zh ? '<span class="bdg">!</span>' : id === 'denik' && D.fronta.length ? `<span class="bdg">${D.fronta.length}</span>` : id === 'plan' && (!b.plan || KP.prosly(b.plan.platnostDo)) ? '<span class="bdg">!</span>' : '');
     html += `<div class="tiles" style="grid-template-columns:repeat(3,1fr)">${tabs.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${KP.ICON[id] || KP.ICON.udaje}<span>${n}</span>${badge(id)}</button>`).join('')}</div>`;
     const rk = ROLE_KARTA[U.role];
     if ((tab === 'karta' || tab === 'dg') && rk) html += `<div class="lbl" style="padding:2px 6px;border-left:4px solid ${rk.c}"><b>${esc(U.jmeno || '')}</b> · ${esc(rk.nazev)}</div><div class="note"><b>${esc(rk.nazev)}:</b> ${esc(rk.popis)}</div>`;
     // 0.11.40: oddíl Příští návštěva · PéčeDoma jen po odemknutí lékařem nebo členem týmu (zamčená karta a rodina ho nevidí; termín rodině sděluje tým)
     html += ({ karta: () => KP.kartaHTML(bb, { navsteva: U.role !== 'rodina' }) + (zh ? '<div class="banner crit">Probíhá zhoršení stavu.<button class="btn sm" id="btnStab">Stav stabilizován</button></div>' : '') + navstevaHTML(b) + `<div class="panel"><div class="panel-h"><h2>Diagnózy</h2></div><div class="rolehelp" style="color:var(--fg)">${esc((b.plan && b.plan.data.dg) || '—')}</div></div>`,
-      dg: () => dgHTML(b), leky: () => lekyHTML(b), plan: () => planHTML(b), denik: () => denikHTML(denik), odpac: () => odPacientaHTML(b), zpravy: () => zpravyHTML(b), zhorseni: () => zhorseniHTML(b, zh), kontakty: () => kontaktyHTML(b), udaje: () => tymHTML(b) })[tab]();
+      dg: () => dgHTML(b), leky: () => lekyHTML(b), plan: () => planHTML(b), denik: () => denikHTML(denik), odpac: () => odPacientaHTML(b), zpravy: () => zpravyHTML(b), video: () => videoHTML(b), zhorseni: () => zhorseniHTML(b, zh), kontakty: () => kontaktyHTML(b), udaje: () => tymHTML(b) })[tab]();
   }
   html += `<div class="footer">Karta pacienta ${APP_VERZE.replace('karta-', 'v')} · šifrovaná kopie, plán vede garant v centrální aplikaci</div>`;
   $('work').innerHTML = html;
@@ -378,9 +378,105 @@ function tymHTML(b) {
     <div class="panel"><div class="panel-h"><h2>Tento telefon</h2></div><dl class="kv" style="padding:12px 14px"><dt>Spárován</dt><dd>${esc(fmtDT(D.parovano))}</dd><dt>Poslední spojení</dt><dd>${esc(textStari())}</dd><dt>Čeká na odeslání</dt><dd>${D.fronta.length}</dd><dt>Úložiště</dt><dd>${pametOnly ? '<span class="chip warn">jen v paměti</span>' : 'šifrované (AES-GCM)'}</dd></dl></div>`;
 }
 
+
+/* ---------------- videohovor (0.11.45) ----------------
+   Dlaždice Videohovor po odemknutí PINem (rodina i tým): hovor vede server Jitsi (adresu dává server Karty, KP_JITSI_URL),
+   Karta jen založí místnost a otevře ji v okně přes celou obrazovku. Telefon se každých 20 s ptá serveru – když z centrály
+   zavolá lékař, karta zazvoní (i zamčená) a nabídne Přijmout. Obsah hovoru nikam do Karty nejde. */
+let VID = { server: undefined, hovor: null, zvoniOd: 0, okno: null, zvonek: null };
+const VIDEO_ROLE = ['rodina', 'sestra', 'hospic', 'pl', 'lekar'];
+function jmenoProHovor() { return U.role ? [ROLE_NAZ[U.role] || U.role, U.jmeno || ''].filter(Boolean).join(' ') : 'Telefon u pacienta'; }
+async function videoApi(body) {
+  const o = { token: D.token, typ: 'Device' };
+  return body ? KP.api('/api/d/video', { ...o, method: 'POST', body }) : KP.api('/api/d/video', o);
+}
+function nastavHovor(r) {
+  const pred = VID.hovor;
+  VID.server = r.server || null; VID.hovor = r.hovor || null;
+  const h = VID.hovor;
+  // lékař volá z centrály a nikdo ještě nepřijal → zvonit (i na zamčené kartě)
+  if (h && h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' && !VID.okno) { if (!pred || pred.id !== h.id) zvonit(true); }
+  else zvonit(false);
+  // druhá strana hovor ukončila, zatímco je okno otevřené
+  if (VID.okno && (!h || h.id !== VID.okno.id)) { zavriHovor(false); toast('Videohovor byl ukončen'); }
+  const zmena = JSON.stringify(pred && { id: pred.id, stav: pred.stav }) !== JSON.stringify(h && { id: h.id, stav: h.stav });
+  if (zmena && !VID.okno) kresli();
+}
+async function videoPoll() {
+  if (!D || !D.token || !navigator.onLine || document.visibilityState !== 'visible' || (D.balik && D.balik.rezim === 'PACIENT')) return;
+  try { nastavHovor(await videoApi()); } catch (e) { if (VID.server === undefined) VID.server = null; }
+}
+function zvonit(zap) {
+  if (!zap) { if (VID.zvonek) { clearInterval(VID.zvonek); VID.zvonek = null; } return; }
+  if (VID.zvonek) return;
+  VID.zvoniOd = Date.now();
+  const tón = () => {
+    try { if (navigator.vibrate) navigator.vibrate([300, 200, 300]); } catch { /* */ }
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.25; o.connect(g); g.connect(ac.destination);
+      o.start(); o.frequency.setValueAtTime(660, ac.currentTime + 0.35); o.stop(ac.currentTime + 0.7); o.onended = () => ac.close();
+    } catch { /* bez zvuku */ }
+  };
+  tón(); VID.zvonek = setInterval(() => { if (Date.now() - VID.zvoniOd > 3 * 60e3) zvonit(false); else tón(); }, 2500);
+}
+function videoBannerHTML() {
+  const h = VID.hovor; if (!h || VID.okno) return '';
+  if (h.stav === 'ZVONI' && h.zahajil === 'CENTRALA') return `<div class="banner crit vidzvoni">📹 <span><b>Volá ${esc(h.zahajilJmeno)}</b> (videohovor z centrální aplikace)</span><button class="btn sm primary" id="vidPrijmout">Přijmout</button><button class="btn sm" id="vidOdmitnout">Odmítnout</button></div>`;
+  if (!U.role) return '';
+  if (h.stav === 'PROBIHA') return `<div class="banner ok">📹 Probíhá videohovor (${esc(h.zahajilJmeno)})<button class="btn sm primary" id="vidPripojit">Připojit se</button></div>`;
+  if (h.stav === 'ZVONI' && h.zahajil === 'TELEFON') return `<div class="banner warn">📹 Videohovor z tohoto telefonu čeká na tým<button class="btn sm primary" id="vidPripojit">Otevřít</button><button class="btn sm" id="vidUkoncit">Zrušit</button></div>`;
+  return '';
+}
+function videoHTML(b) {
+  if (VID.server === null) return '<div class="panel"><div class="panel-h"><h2>Videohovor</h2></div><div class="note keep" style="margin:12px 14px">Videohovory nejsou na serveru zapnuté. Zapne je správce Karty (adresa serveru videohovorů v nastavení serveru, KP_JITSI_URL).</div></div>';
+  if (VID.server === undefined) return '<div class="panel"><div class="panel-h"><h2>Videohovor</h2></div><div class="muted" style="padding:14px">Zjišťuji stav…</div></div>';
+  const h = VID.hovor;
+  const stav = !h ? '<div class="muted">Žádný hovor neprobíhá.</div>'
+    : h.stav === 'PROBIHA' ? `<div class="banner ok">Probíhá videohovor (zahájil ${esc(h.zahajilJmeno)}, ${esc(fmtDT(h.prijato || h.zahajeno))})</div>`
+    : h.zahajil === 'TELEFON' ? `<div class="banner warn">Hovor z tohoto telefonu čeká na tým (od ${esc(fmtDT(h.zahajeno))}). Lékař ho vidí v centrální aplikaci u pacienta.</div>`
+    : `<div class="banner crit">Volá ${esc(h.zahajilJmeno)}.</div>`;
+  const tlacitka = !h ? '<button class="btn primary block" id="vidZahajit">📹 Zavolat týmu</button>'
+    : `<button class="btn primary block" id="vidPripojit">📹 ${h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' ? 'Přijmout hovor' : 'Otevřít hovor'}</button><button class="btn block" id="vidUkoncit" style="margin-top:8px">Ukončit hovor</button>`;
+  return `<div class="panel"><div class="panel-h"><h2>Videohovor</h2><span class="chip acc">${esc(jmenoProHovor())}</span></div><div style="padding:14px;display:grid;gap:10px">${stav}${tlacitka}</div></div>
+    <div class="note">Hovor se otevře přes celou obrazovku; na konci klepněte na <b>Ukončit</b>. Lékař nebo sestra se připojí z centrální aplikace (u pacienta tlačítko Videohovor). Když lékař zavolá sám, telefon zazvoní i zamčený a stačí klepnout na Přijmout. Hovor se nikam nenahrává, do deníku jde jen čas zahájení a ukončení.</div>`;
+}
+function otevriHovor(h) {
+  if (!h || !h.odkaz) return toast('Hovor nemá odkaz – zkuste znovu');
+  zvonit(false);
+  if (VID.okno) VID.okno.el.remove();
+  const el = document.createElement('div'); el.className = 'videocall';
+  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}</span><button class="btn sm crit" id="vidKonec">Ukončit</button></div>
+    <iframe src="${esc(h.odkaz)}" allow="camera; microphone; autoplay; display-capture; fullscreen" allowfullscreen title="Videohovor"></iframe>`;
+  document.body.appendChild(el);
+  VID.okno = { id: h.id, el };
+  el.querySelector('#vidKonec').onclick = () => zavriHovor(true);
+  U.posledni = Date.now();
+}
+async function zavriHovor(ukoncit) {
+  const o = VID.okno; if (!o) return;
+  VID.okno = null; o.el.remove();
+  if (ukoncit) { try { nastavHovor(await videoApi({ akce: 'ukoncit', id: o.id, role: U.role, jmeno: U.jmeno })); } catch (e) { toast(e.message); } }
+  if (U.role) U.posledni = Date.now();
+  kresli();
+}
+async function videoAkce(akce) {
+  if (!navigator.onLine) return toast('Videohovor potřebuje připojení k internetu');
+  try {
+    const r = await videoApi({ akce, id: VID.hovor && VID.hovor.id, role: U.role, jmeno: U.jmeno });
+    nastavHovor(r);
+    if (akce !== 'ukoncit' && r.hovor) otevriHovor(r.hovor); else kresli();
+  } catch (e) { toast(e.message); }
+}
+
 function bind() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('pdChat', chatPd);
+  on('vidZahajit', () => videoAkce('zahajit'));
+  on('vidPrijmout', () => videoAkce('prijmout'));
+  on('vidPripojit', () => (VID.hovor && VID.hovor.stav === 'ZVONI' && VID.hovor.zahajil === 'CENTRALA' ? videoAkce('prijmout') : otevriHovor(VID.hovor)));
+  on('vidOdmitnout', () => videoAkce('ukoncit'));
+  on('vidUkoncit', () => videoAkce('ukoncit'));
   on('pdVse', () => { tab = 'zpravy'; kresli(); scrollTo(0, 0); });
   on('lk_novy', () => lekOknoTel());
   if ($('lk_seznam')) nactiLekyTel();
@@ -389,14 +485,14 @@ function bind() {
   /* oba PINy ověřuje stejný seznam (rodina = PIN vydaný u pacienta, tým = osobní PINy přiřazených lidí) – tlačítka se liší jen tím, komu jsou určená */
   const pinOkno = (titulek, popis, poznamka) => modal(`<h2>${titulek}</h2><p class="muted" style="margin:0;font-size:13.5px">${popis}</p><div class="field"><label>PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div><button class="btn primary block" id="pinOk">Odemknout</button><div class="note">${poznamka} Ověří se i bez signálu.</div>`, () => {
     $('pin').focus(); let pokusy = 0;
-    const go = async () => { const p = await overPin($('pin').value.trim()); if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); };
+    const go = async () => { const p = await overPin($('pin').value.trim()); if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
     $('pinOk').onclick = go; $('pin').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   });
   on('unRodina', () => pinOkno('Přístup rodina', 'Pro blízké pacienta: PIN, který vám vydal garant (hospic nebo lékař) při předání průkazu.', 'Zapomenutý PIN vám garant vydá znovu.'));
   on('unCarer', () => pinOkno('Přístup tým', 'Pro sestru domova, hospic, praktického lékaře a lékaře: váš <b>osobní PIN</b> z agendy Lidé a týmy – platí u všech pacientů, ke kterým jste přiřazeni.', 'Nový PIN vám vydá vaše pracoviště v Lidé a týmy.'));
   on('unDoc', () => modal(`<h2>Lékař bez PINu</h2><p class="muted" style="margin:0;font-size:13.5px">Pro lékaře, který k pacientovi není přiřazený (pohotovost, zástup). Kód lékaře platí <b>celý dnešní den</b> a najdete ho v centrální aplikaci (Telefon a PINy → Kód lékaře) nebo v PéčeDoma v Datech klienta.</p><div class="field"><label>Kód lékaře pro dnešek (6 číslic)</label><input id="kod" inputmode="numeric" maxlength="7" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div><div class="field"><label>Jméno lékaře</label><input id="kodJ" placeholder="MUDr. …"></div><button class="btn primary block" id="kodOk">Odemknout</button><div class="note">Kód se mění o půlnoci. Ověří se i bez signálu; odemknutí se zapíše se jménem.</div>`, () => {
     $('kod').focus();
-    $('kodOk').onclick = async () => { const k = $('kod').value.replace(/\s/g, ''); if (!$('kodJ').value.trim()) return toast('Vyplňte jméno'); if (!(await overKodLekare(k))) return toast('Neplatný nebo prošlý kód'); U = { role: 'lekar', jmeno: $('kodJ').value.trim(), posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); };
+    $('kodOk').onclick = async () => { const k = $('kod').value.replace(/\s/g, ''); if (!$('kodJ').value.trim()) return toast('Vyplňte jméno'); if (!(await overKodLekare(k))) return toast('Neplatný nebo prošlý kód'); U = { role: 'lekar', jmeno: $('kodJ').value.trim(), posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
   }));
   on('btnZZS', () => { const v = $('zzs_v').value, p = $('zzs_p').value.trim(), n = $('zzs_n').value.trim(); if (p.length < 3) { $('zzs_p').focus(); return toast('Vyplňte své jméno a posádku'); } pridejZapis('Výjezd ZZS', `Výjezd ZZS: ${v}.${n ? ' ' + n : ''}`, 'zzs', p); toast('Výjezd zapsán'); });
   if ($('qtypes')) {
@@ -532,6 +628,8 @@ async function parovat(tenant, kod, telefon) {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncVse(); });
   setInterval(() => { if (document.visibilityState === 'visible') syncVse(); }, 5 * 60 * 1000);
   setInterval(kresliSyncBar, 30000);
+  videoPoll(); setInterval(videoPoll, 20000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') videoPoll(); });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/karta/sw.js', { scope: '/karta/' }).catch(() => {});
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch { /* */ }
 })();

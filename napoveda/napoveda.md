@@ -214,6 +214,10 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
 
+**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefon u pacienta, hovor se vám otevře v nové záložce prohlížeče (povolte fotoaparát a mikrofon). Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; centrála se na hovory ptá každých 20 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
+
+![Centrála – z telefonu u pacienta volá sestra](/napoveda/img/c-video.png)
+
 V panelu **Lidé, kteří odemknou kartu** je u každého člověka tlačítko **Zobrazit PIN** – ukáže jeho platný osobní PIN (zapíše se do logu přístupů); u PINu vydaného před verzí 0.11.6 nabídne vydání nového.
 
 ### Spárování telefonu
@@ -439,6 +443,16 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Interní poznámk
 
 - **Plán** – cíl péče, limitace, doklad, kdo plán stanovil a do kdy platí (léky jsou na dlaždici **Léky**: SOS léky, Opioidy, Pravidelná medikace). Plán mění jen lékař v centrální aplikaci.
 - **Kontakty** a **Tým** – kontakty po skupinách, garant, tým a údaje o tomto telefonu (kdy byl spárován, poslední spojení, co čeká na odeslání).
+
+### Videohovor
+
+![Telefon – dlaždice Videohovor](/napoveda/img/k-video.png)
+
+Po odemknutí PINem (rodina i tým) je na kartě dlaždice **Videohovor**. Tlačítko **Zavolat týmu** otevře hovor přes celou obrazovku; lékař nebo sestra ho vidí v centrální aplikaci u pacienta (červený pruh *Z telefonu u pacienta volá…*) a klepnutím **Připojit se** se přidá. Na konci klepněte na **Ukončit**. Hovor vede server videohovorů Jitsi, který provozuje vaše organizace (nastavuje správce, `deploy/vps-jitsi.sh`); nikam se nenahrává, do deníku jde jen zápis *Videohovor zahájen / ukončen (x min)*.
+
+![Telefon – příchozí videohovor z centrály](/napoveda/img/k-video-zvoni.png)
+
+Když lékař zavolá z centrály (u pacienta tlačítko **Videohovor na telefon**), telefon u pacienta **zazvoní i zamčený**: nahoře bliká červený pruh *Volá MUDr. …* s tlačítky **Přijmout** a **Odmítnout**. Přijmout může kdokoli u lůžka bez PINu. Nepřijatý hovor po 3 minutách skončí sám. Dlaždice se neukáže, dokud správce server videohovorů nenastaví.
 
 Při ohrožení života volejte **155** – karta nenahrazuje záchrannou službu.
 

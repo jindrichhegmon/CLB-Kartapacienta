@@ -6,6 +6,7 @@ aplikace jen:
 - po zapnutí telefonu spustí kartu a nedovolí z ní odejít (Lock Task, aplikace je domovská obrazovka),
 - pustí volání z karty (`tel:` → vytáčení, telefonní aplikace je v kiosku povolená),
 - pustí fotoaparát jen pro kartu (čtečka párovacího QR kódu); v kiosku si oprávnění přidělí sama (0.1.1),
+- pustí mikrofon a fotoaparát pro videohovor vložený v kartě (Jitsi) a přehraje zvonění příchozího hovoru (0.1.3),
 - bez signálu ukáže kartu z mezipaměti, při úplně prvním spuštění bez internetu nabídne „Zkusit znovu“,
 - po servisním PINu nabídne Wi-Fi, obnovení, vypnutí kiosku a vrácení telefonu.
 
