@@ -216,9 +216,11 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
 
-**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefon u pacienta, hovor se vám otevře v nové záložce prohlížeče (povolte fotoaparát a mikrofon). Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; centrála se na hovory ptá každých 20 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
+**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefon u pacienta, hovor se vám otevře v nové záložce prohlížeče (povolte fotoaparát a mikrofon). Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
 
 ![Centrála – z telefonu u pacienta volá sestra](/napoveda/img/c-video.png)
+
+![Centrála – zvonící hovor je vidět v každé agendě](/napoveda/img/c-video-pruh.png)
 
 V panelu **Lidé, kteří odemknou kartu** je u každého člověka tlačítko **Zobrazit PIN** – ukáže jeho platný osobní PIN (zapíše se do logu přístupů); u PINu vydaného před verzí 0.11.6 nabídne vydání nového.
 

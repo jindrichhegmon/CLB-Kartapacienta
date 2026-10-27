@@ -32,7 +32,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.46';
+const APP_VERZE = 'karta-0.11.47';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -446,7 +446,7 @@ function otevriHovor(h) {
   zvonit(false);
   if (VID.okno) VID.okno.el.remove();
   const el = document.createElement('div'); el.className = 'videocall';
-  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}</span><button class="btn sm crit" id="vidKonec">Ukončit</button></div>
+  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}<br><small style="font-weight:400;opacity:.75">místnost ${esc(h.mistnost)}</small></span><button class="btn sm crit" id="vidKonec">Ukončit</button></div>
     <iframe src="${esc(h.odkaz)}" allow="camera; microphone; autoplay; display-capture; fullscreen" allowfullscreen title="Videohovor"></iframe>`;
   document.body.appendChild(el);
   VID.okno = { id: h.id, el };

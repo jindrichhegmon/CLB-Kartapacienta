@@ -200,6 +200,8 @@ app.post('/api/d/video', j((req) => { const b = req.body || {}; if (b.akce === '
   else if (b.akce === 'prijmout' && videoHovor) videoHovor = { ...videoHovor, stav: 'PROBIHA', prijato: cas(0, '09:11') }; else if (b.akce === 'ukoncit') videoHovor = null; return videoOdpoved(); }));
 app.post('/__mock/video', (req, res) => { videoHovor = req.body && req.body.id ? req.body : null; res.json({ ok: true }); });
 app.get('/api/c/pacient/:id/video', j(() => ({ server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null })));
+app.post('/api/c/pacient/:id/video', j((req) => { const b = req.body || {}; if (b.akce === 'prijmout' && videoHovor) videoHovor = { ...videoHovor, stav: 'PROBIHA' }; else if (b.akce === 'ukoncit') videoHovor = null; else if (b.akce === 'zahajit' && !videoHovor) videoHovor = { id: 4, mistnost: 'kp-p0007-centrala', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: cas(0, '09:30') }; return { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null }; }));
+app.get('/api/c/video/aktivni', j(() => ({ server: 'https://jitsi.example.org', hovory: videoHovor ? [{ ...videoHovor, pacientId: 7, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', odkaz: 'about:blank' }] : [] })));
 app.get('/api/d/leky', j({ leky: pdLeky }));
 app.post('/api/d/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky }; }));
 app.post('/api/d/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky }; }));
@@ -339,6 +341,10 @@ await zalozka('karta', 'c-karta', { vyska: 1000 });
 if (!(await p.$('#vidZahajit'))) chyby.push('centrála: chybí tlačítko Videohovor na telefon');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 3, mistnost: 'kp-p0007-sestra', stav: 'ZVONI', zahajil: 'TELEFON', zahajilJmeno: 'hospic Sestra Lucie Příkladná', zahajeno: '2026-10-27 09:12' }) }); S.pac.video = await C(`/pacient/${S.pacId}/video`); kresliDetail(); });
 await p.waitForSelector('#vidPripojit'); await foto(p, 'c-video', { vyska: 700 });
+// pruh v každé agendě (0.11.47): hovor zvoní i na přehledu pacientů
+await p.evaluate(async () => { await videoGlobalPoll(); vidZvonit(false); S.view = 'pacienti'; render(); }); await p.waitForSelector('#vidglobal [data-vidjoin]'); await p.waitForSelector('tr[data-id]'); await p.waitForTimeout(300);
+await foto(p, 'c-video-pruh', { vyska: 600 });
+await p.evaluate(() => { S.view = 'detail'; render(); }); await p.waitForSelector('.tabs');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); S.pac.video = await C(`/pacient/${S.pacId}/video`); kresliDetail(); });
 await p.waitForSelector('#vidZahajit');
 await klik(p, '#pd_chat'); await p.waitForSelector('#chat_l .msg');

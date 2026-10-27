@@ -19,6 +19,9 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
   .anon{white-space:pre-wrap;font-family:var(--mono);font-size:12px;max-height:260px;overflow:auto;background:var(--surface-2);border-radius:10px;padding:10px}
   .kontrow{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;align-items:center}
   @media (max-width:640px){.kontrow{grid-template-columns:1fr 1fr}}
+  /* 0.11.47: zvonící / probíhající videohovory v každé agendě (pod hlavičkou) */
+  #vidglobal{display:grid;gap:6px;padding:0 max(16px,env(safe-area-inset-left,0px))}#vidglobal:not(:empty){padding-top:10px}
+  #vidglobal .banner{margin:0}
   /* 0.11.46: centrála na mobilu – kompaktní hlavička, záložky ve dvou řadách, záhlaví panelů a akce se zalamují */
   @media (max-width:640px){
     .top .who,.top .verbadge,.top .ttl .meta{display:none}
@@ -40,6 +43,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
 <body>
 <div class="app wide">
   <header class="top" id="top"></header>
+  <div id="vidglobal" class="noprint"></div>
   <main class="content" id="work"></main>
 </div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
@@ -105,6 +109,7 @@ async function render() {
     try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
   }
   hlavicka();
+  videoGlobalPoll();
   if (S.ja.musiZmenitHeslo) return renderUcet(true);
   ({ pacienti: renderPacienti, detail: renderDetail, novy: renderNovy, lide: renderLide, sprava: renderSprava, ucet: () => renderUcet(false) }[S.view] || renderPacienti)();
 }
@@ -207,8 +212,8 @@ function kresliDetail() {
   if ($('prevzit')) $('prevzit').onclick = () => akce('/prevzit', { prijmout: true }, 'Garance převzata');
   if ($('odmitnout')) $('odmitnout').onclick = () => modal(`<h2>Odmítnout převzetí garance</h2><div class="field"><label>Důvod</label><input id="od_d"></div><div class="quick"><button class="btn crit" id="od_ok">Odmítnout</button><button class="btn" data-close>Zpět</button></div>`, () => { $('od_ok').onclick = () => { closeModal(); akce('/prevzit', { prijmout: false, duvod: $('od_d').value }, 'Odmítnuto'); }; });
   if ($('revize2')) $('revize2').onclick = revize;
-  if ($('vidPripojit')) $('vidPripojit').onclick = () => otevriHovorC(d.video.hovor);
-  if ($('vidUkoncit')) $('vidUkoncit').onclick = () => akce('/video', { akce: 'ukoncit', id: d.video.hovor.id }, 'Videohovor ukončen');
+  if ($('vidPripojit')) $('vidPripojit').onclick = () => pripojitSeC(S.pacId, d.video.hovor.id);
+  if ($('vidUkoncit')) $('vidUkoncit').onclick = () => ukoncitHovorC(S.pacId, d.video.hovor.id);
   bindTab();
 }
 /* ---- videohovor (0.11.45): telefon u pacienta ↔ centrála přes server Jitsi; centrála se každých 20 s ptá na stav ---- */
@@ -228,9 +233,61 @@ function otevriHovorC(h) {
   if (!h || !h.odkaz) return toast('Hovor nemá odkaz');
   const w = window.open(h.odkaz, '_blank'); if (!w) toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
 }
+/* připojení k hovoru: vždy čerstvý stav ze serveru (ne starý odkaz) a u hovoru z telefonu označit jako přijatý – jinak by ho server po 3 min zavřel */
+async function pripojitSeC(pacientId, hovorId) {
+  try {
+    let r = await C(`/pacient/${pacientId}/video`);
+    if (!r.hovor) return toast('Hovor už skončil');
+    if (r.hovor.stav === 'ZVONI') r = await C(`/pacient/${pacientId}/video`, { method: 'POST', body: { akce: 'prijmout', id: r.hovor.id } });
+    if (S.view === 'detail' && S.pac && S.pacId === pacientId) { S.pac.video = r; kresliDetail(); }
+    otevriHovorC(r.hovor); videoGlobalPoll();
+  } catch (e) { toast(e.message); }
+}
+async function ukoncitHovorC(pacientId, hovorId) {
+  try { const r = await C(`/pacient/${pacientId}/video`, { method: 'POST', body: { akce: 'ukoncit', id: hovorId } }); if (S.view === 'detail' && S.pac && S.pacId === pacientId) { S.pac.video = r; kresliDetail(); } videoGlobalPoll(); toast('Videohovor ukončen'); } catch (e) { toast(e.message); }
+}
+/* ---- globální signalizace (0.11.47): každých 15 s seznam zvonících a probíhajících hovorů, pruh pod hlavičkou v každé agendě, zvonění ---- */
+const VIDG = { hovory: [], klic: '', zvonek: null, zvoniOd: 0 };
+function vidTon() {
+  try { const ac = new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(); const g = ac.createGain(); o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(ac.destination); o.start(); o.frequency.setValueAtTime(660, ac.currentTime + 0.3); o.stop(ac.currentTime + 0.6); o.onended = () => ac.close(); } catch { /* bez zvuku */ }
+}
+function vidZvonit(zap) {
+  if (!zap) { if (VIDG.zvonek) { clearInterval(VIDG.zvonek); VIDG.zvonek = null; } return; }
+  if (VIDG.zvonek) return;
+  VIDG.zvoniOd = Date.now(); vidTon();
+  VIDG.zvonek = setInterval(() => { if (Date.now() - VIDG.zvoniOd > 3 * 60e3) vidZvonit(false); else vidTon(); }, 3000);
+}
+function kresliVidGlobal() {
+  const el = $('vidglobal'); if (!el) return;
+  el.innerHTML = VIDG.hovory.map((h) => {
+    const kdo = `<b>${esc(h.prijmeni)} ${esc(h.jmeno)}</b> (${esc(h.kod)})`;
+    const otevrit = `<button class="btn sm" data-vidpac="${h.pacientId}">Otevřít pacienta</button>`;
+    if (h.stav === 'ZVONI' && h.zahajil === 'TELEFON') return `<div class="banner crit">📹 Z telefonu u pacienta ${kdo} volá ${esc(h.zahajilJmeno)} (${esc(fmtDT(h.zahajeno))}).<button class="btn sm primary" data-vidjoin="${h.pacientId}" data-vid="${h.id}">Připojit se</button><button class="btn sm" data-vidend="${h.pacientId}" data-vid="${h.id}">Odmítnout</button>${otevrit}</div>`;
+    if (h.stav === 'ZVONI') return `<div class="banner warn">📹 Telefon u pacienta ${kdo} zvoní (volá ${esc(h.zahajilJmeno)}).<button class="btn sm primary" data-vidjoin="${h.pacientId}" data-vid="${h.id}">Otevřít hovor</button><button class="btn sm" data-vidend="${h.pacientId}" data-vid="${h.id}">Zrušit</button>${otevrit}</div>`;
+    return `<div class="banner ok">📹 Probíhá videohovor s pacientem ${kdo} (${esc(h.zahajilJmeno)}).<button class="btn sm primary" data-vidjoin="${h.pacientId}" data-vid="${h.id}">Připojit se</button><button class="btn sm" data-vidend="${h.pacientId}" data-vid="${h.id}">Ukončit</button>${otevrit}</div>`;
+  }).join('');
+  el.querySelectorAll('[data-vidjoin]').forEach((b) => (b.onclick = () => pripojitSeC(Number(b.dataset.vidjoin), Number(b.dataset.vid))));
+  el.querySelectorAll('[data-vidend]').forEach((b) => (b.onclick = () => ukoncitHovorC(Number(b.dataset.vidend), Number(b.dataset.vid))));
+  el.querySelectorAll('[data-vidpac]').forEach((b) => (b.onclick = () => otevri(Number(b.dataset.vidpac), 'karta')));
+}
+async function videoGlobalPoll() {
+  if (!S.session || !S.ja || document.visibilityState !== 'visible') return;
+  try {
+    const r = await C('/video/aktivni');
+    if (!r.server) { if (VIDG.hovory.length) { VIDG.hovory = []; kresliVidGlobal(); } return; }
+    const klic = JSON.stringify(r.hovory.map((h) => [h.id, h.stav]));
+    const zvoniZTelefonu = r.hovory.some((h) => h.stav === 'ZVONI' && h.zahajil === 'TELEFON');
+    const nove = r.hovory.some((h) => h.stav === 'ZVONI' && h.zahajil === 'TELEFON' && !VIDG.hovory.some((x) => x.id === h.id));
+    VIDG.hovory = r.hovory;
+    if (klic !== VIDG.klic) { VIDG.klic = klic; kresliVidGlobal(); }
+    if (nove) vidZvonit(true); else if (!zvoniZTelefonu) vidZvonit(false);
+  } catch { /* bez připojení */ }
+}
+setInterval(videoGlobalPoll, 15000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') videoGlobalPoll(); });
 async function videoZahajitC() {
   if (!S.pac.video.telefon && !(await KP.confirm('Telefon u pacienta není spárovaný', 'Pacient nemá spárovaný telefon u lůžka, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
-  try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor); toast('Telefon u pacienta zvoní'); } catch (e) { toast(e.message); }
+  try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor); toast('Telefon u pacienta zvoní'); videoGlobalPoll(); } catch (e) { toast(e.message); }
 }
 setInterval(async () => {
   if (S.view !== 'detail' || !S.pac || !S.pac.video || !S.pac.video.server || document.visibilityState !== 'visible') return;

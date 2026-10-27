@@ -13,7 +13,7 @@ import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI } from '../pecedoma.js';
 
-import { videoServer, aktivniHovor, zahajHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
+import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 export const central = Router();
 
 const TTL = 12 * 3600;
@@ -1252,6 +1252,14 @@ central.post('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
     await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: hovor.novy ? 'videohovor zahájen z centrály' : 'připojení k videohovoru', detail: hovor.mistnost, ip: s.ip });
     return videoProPacienta(q, s, id);
   }
+  if (akce === 'prijmout') {
+    // lékař se připojuje k hovoru zahájenému z telefonu – bez toho by server hovor po 3 minutách zavřel jako nepřijatý
+    const id2 = Number((req.body || {}).id) || null;
+    if (!id2) throw chyba('Chybí hovor');
+    await prijmiHovor(q, id, id2);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'videohovor přijat v centrále', detail: String(id2), ip: s.ip });
+    return videoProPacienta(q, s, id);
+  }
   if (akce === 'ukoncit') {
     const id2 = Number((req.body || {}).id) || null;
     if (!id2) throw chyba('Chybí hovor');
@@ -1260,4 +1268,17 @@ central.post('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
     return videoProPacienta(q, s, id);
   }
   throw chyba('Neznámá akce');
+}));
+/* GET /video/aktivni → { server, hovory:[{ pacientId, kod, jmeno, prijmeni, id, stav, zahajil, zahajilJmeno, zahajeno, odkaz }] }
+   – zvonící a probíhající hovory všech pacientů, které uživatel vidí; centrála se ptá každých 15 s v každé agendě (0.11.47) */
+central.get('/video/aktivni', sUzivatelem(async (q, s) => {
+  const server = videoServer() || null;
+  if (!server) return { server: null, hovory: [] };
+  await q.exec(`UPDATE dbo.A_KP_Videohovor SET Stav = 'NEPRIJAT', Ukonceno = SYSDATETIME() WHERE Stav = 'ZVONI' AND Zahajeno < DATEADD(minute, -3, SYSDATETIME())`);
+  await q.exec(`UPDATE dbo.A_KP_Videohovor SET Stav = 'UKONCEN', Ukonceno = SYSDATETIME() WHERE Stav = 'PROBIHA' AND Prijato < DATEADD(hour, -3, SYSDATETIME())`);
+  const rows = await q.all(`SELECT v.VideohovorID AS id, v.PacientID AS pacientId, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, v.Mistnost AS mistnost, v.Stav AS stav, v.Zahajil AS zahajil,
+      v.ZahajilJmeno AS zahajilJmeno, CONVERT(char(16), v.Zahajeno, 120) AS zahajeno, CONVERT(char(16), v.Prijato, 120) AS prijato
+    FROM dbo.A_KP_Videohovor v JOIN dbo.A_KP_Pacient p ON p.PacientID = v.PacientID
+    WHERE v.Stav IN ('ZVONI', 'PROBIHA') AND ${VIDITELNI} ORDER BY v.VideohovorID DESC`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
+  return { server, hovory: rows.map((r) => ({ ...r, odkaz: odkazDoHovoru(r.mistnost, s.jmeno) })) };
 }));
