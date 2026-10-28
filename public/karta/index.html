@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.52';
+const APP_VERZE = 'karta-0.11.53';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -438,10 +438,26 @@ function videoHTML(b) {
     : h.stav === 'PROBIHA' ? `<div class="banner ok">Probíhá videohovor (zahájil ${esc(h.zahajilJmeno)}, ${esc(fmtDT(h.prijato || h.zahajeno))})</div>`
     : h.zahajil === 'TELEFON' ? `<div class="banner warn">Hovor z tohoto telefonu čeká na tým (od ${esc(fmtDT(h.zahajeno))}). Lékař ho vidí v centrální aplikaci u pacienta.</div>`
     : `<div class="banner crit">Volá ${esc(h.zahajilJmeno)}.</div>`;
-  const tlacitka = !h ? '<button class="btn primary block" id="vidZahajit">📹 Zavolat týmu</button>'
+  const tlacitka = !h ? '<button class="btn primary block" id="vidZahajit">📹 Spustit videokonferenci</button>'
     : `<button class="btn primary block" id="vidPripojit">📹 ${h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' ? 'Přijmout hovor' : 'Otevřít hovor'}</button><button class="btn block" id="vidUkoncit" style="margin-top:8px">Ukončit hovor</button>`;
   return `<div class="panel"><div class="panel-h"><h2>Videohovor</h2><span class="chip acc">${esc(jmenoProHovor())}</span></div><div style="padding:14px;display:grid;gap:10px">${stav}${tlacitka}</div></div>
+    ${clenoveTymuHTML(b)}
     <div class="note">Hovor se otevře přes celou obrazovku; na konci klepněte na <b>Ukončit</b>. Lékař nebo sestra se připojí z centrální aplikace (u pacienta tlačítko Videohovor). Když lékař zavolá sám, telefon zazvoní i zamčený a stačí klepnout na Přijmout. Hovor se nikam nenahrává, do deníku jde jen čas zahájení a ukončení.</div>`;
+}
+/* 0.11.53: členové týmu u pacienta – zavolat, nebo poslat SMS s výzvou k připojení (text s jménem pacienta a kolegy, odešle se z aplikace SMS telefonu) */
+function smsVyzva(b) {
+  const p = b.pacient || {};
+  return `Dobrý den, kolega se s Vámi potřebuje propojit přes videokonferenci. Přihlašte se do aplikace Karta pacienta - centrála, tam naleznete výzvu k připojení. Jedná se o pacienta ${[p.prijmeni, p.jmeno].filter(Boolean).join(' ')}${p.rok ? ' (' + p.rok + ')' : ''} a propojit se potřebuje ${jmenoProHovor()}.`;
+}
+function smsOdkaz(tel, text) { return `sms:${String(tel).replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(text)}`; }
+function clenoveTymuHTML(b) {
+  const lide = b.lide || [];
+  const text = smsVyzva(b);
+  return `<div class="panel"><div class="panel-h"><h2>Členové týmu u pacienta</h2><span class="chip ${lide.length ? 'ok' : ''}">${lide.length}</span></div>
+    ${lide.length ? `<div class="kontlist">${lide.map((o) => `<div class="kont"><b>${esc(o.jmeno)}</b><div class="lbl" style="margin-top:0">${esc(ROLE_NAZ[o.role] || o.role)} · ${esc(o.tym || o.poskytovatel || '')}</div>
+      ${o.tel ? `${KP.telHTML(o.tel)}<a class="btn block" style="margin-top:6px" href="${esc(smsOdkaz(o.tel, text))}">${KP.ICON.zpravy} Poslat SMS s výzvou k připojení</a>` : '<div class="muted" style="font-size:13px;padding:4px 0">bez telefonu</div>'}</div>`).join('')}</div>`
+      : '<div class="muted" style="padding:12px 14px">U pacienta zatím není přiřazený žádný člen týmu s telefonem (centrála → Tým a garance → Týmy u pacienta).</div>'}
+    <div class="note keep">Nejdřív spusťte videokonferenci, pak kolegovi zavolejte nebo pošlete SMS: <i>„${esc(text)}“</i></div></div>`;
 }
 function otevriHovor(h) {
   if (!h || !h.odkaz) return toast('Hovor nemá odkaz – zkuste znovu');

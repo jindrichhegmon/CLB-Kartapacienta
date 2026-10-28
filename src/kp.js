@@ -107,6 +107,10 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 AND o.Hash IS NOT NULL`, { p: pacientId });
   piny.push(...lide);
   const pacientuv = rezim === 'PACIENT';
+  // 0.11.53: členové týmu u pacienta s telefonem – dlaždice Videohovor nabídne zavolat / poslat SMS (jen karta týmu, po odemknutí PINem)
+  const clenove = pacientuv ? [] : await q.all(`SELECT o.OsobaID AS id, o.Jmeno AS jmeno, LOWER(o.Role) AS role, o.Telefon AS tel, ps.Nazev AS poskytovatel, o.Tym AS tym
+    FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
+    WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 ORDER BY ps.Nazev, o.Tym, o.Jmeno`, { p: pacientId });
   // co pacient sám poslal z Mého průkazu (A_KP_Sdileni) – do karty týmu jen ke čtení (0.11.24); do telefonu pacienta se nevrací
   const odPacienta = pacientuv ? [] : (await q.all(`SELECT TOP 30 SdileniID AS id, CONVERT(char(16), Vytvoreno, 120) AS cas, Polozky AS polozky FROM dbo.A_KP_Sdileni WHERE PacientID = @p ORDER BY SdileniID DESC`, { p: pacientId }))
     .flatMap((x) => { let pol = []; try { pol = JSON.parse(x.polozky) || []; } catch { /* poškozený záznam přeskočit */ } return pol.map((p) => ({ druh: p.druh, nazev: p.nazev, obsah: p.obsah, puvod: p.puvod, aktualizovano: p.aktualizovano, cas: x.cas })); });
@@ -122,7 +126,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     garant: g ? { poskytovatel: g.Poskytovatel, typ: g.Typ, telefon24: g.Telefon24, lekar: g.Lekar, lekarTelefon: g.LekarTelefon } : null,
     // vlastní telefon pacienta: odemyká jen pacient svým PINem (PINy týmu ani rodiny do něj nepatří) a deník týmu
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
-    kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(), odPacienta,
+    kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(), odPacienta, lide: clenove,
     rezim,
     pecedoma: pd || chat ? { sos: pd ? pd.sos : [], opioidy: pd ? pd.opioidy : [], medikace: pd ? pd.medikace : [], pristiNavsteva: pd ? pd.pristiNavsteva : null, pristiKdo: pd ? pd.pristiKdo : null, pristiPozn: pd ? pd.pristiPozn : null, aktualizovano: pd ? pd.aktualizovano : null, chat, propojeno: !!p.PdKlientID } : null,
     serverCas: new Date().toISOString(),

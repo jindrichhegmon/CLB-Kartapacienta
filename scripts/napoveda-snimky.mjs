@@ -145,6 +145,7 @@ const balik = {
   plan, garant: { poskytovatel: 'Hospic Ukázka', typ: 'HOSPIC', telefon24: '777 100 200', lekar: 'MUDr. Petra Ukázková', lekarTelefon: '777 100 201' },
   kontakty: kontakty.map((k) => ({ id: k.id, jmeno: k.jmeno, tel: k.tel, skupina: k.skupina.toLowerCase(), pozn: k.pozn })),
   tym: tym.map((t) => ({ nazev: t.nazev, typ: t.typ, role: t.role, tel: t.telefon24 })),
+  get lide() { return lide.slice(0, 4).map((o) => ({ id: o.id, jmeno: o.jmeno, role: String(o.role || '').toLowerCase(), tel: o.telefon || o.tel || '', poskytovatel: o.poskytovatel, tym: o.tym })); },
   piny: [{ id: 'o2', jmeno: 'Sestra Lucie Příkladná', role: 'hospic', salt, hash: pbkdf2Sync('123456', Buffer.from(salt, 'hex'), 120000, 32, 'sha256').toString('hex'), iterace: 120000 }],
   denik, serverCas: new Date().toISOString(),
   get odPacienta() { return detail.odPacienta.flatMap((x) => x.polozky.map((p) => ({ ...p, cas: x.cas }))); },
