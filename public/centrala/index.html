@@ -37,6 +37,20 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
     .row>h2{font-size:18px!important}
     .modal .box{max-height:92vh}
     .tbl td,.tbl th{padding:6px 7px}
+    /* 0.11.58: tabulky na mobilu – každý řádek je karta pod sebou, buňky s popiskem sloupce (data-l doplní oznacTabulky), tlačítka se zalamují;
+       nic nepřetéká přes okraj a není třeba posouvat do strany */
+    .tblwrap{overflow:visible}
+    .tbl{display:block;width:100%}
+    .tbl thead{display:none}
+    .tbl tbody,.tbl tr{display:block;width:100%}
+    .tbl tr{border-bottom:1px solid var(--line);padding:8px 10px}
+    .tbl tr:last-child{border-bottom:0}
+    .tbl tr>td,.lkskup .tbl td{display:block;width:100%;box-sizing:border-box;border:0;padding:2px 0;white-space:normal!important;text-align:left!important}
+    .tbl tr>td:empty{display:none}
+    .tbl tr>td[data-l]:not(:first-child):not([data-l=""])::before{content:attr(data-l) ': ';color:var(--muted);font-size:12px}
+    .tbl tr>td .btn{margin:4px 6px 0 0;white-space:normal}
+    .tbl tr>td .btn.sm{min-height:34px}
+    .tbl tr>td[colspan]{padding:6px 0 2px}
     /* 0.11.49: agendy na celou šířku obrazovky */
     .content{padding-left:4px;padding-right:4px;gap:8px}
     #vidglobal{padding-left:4px;padding-right:4px}
@@ -110,6 +124,17 @@ function nav() {
   return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 }
 function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.view = b.dataset.v; if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
+
+/* 0.11.58: popisky sloupců pro mobil – buňkám doplní data-l z hlavičky tabulky (CSS je ukáže jen do 640 px); běží po každém překreslení */
+function oznacTabulky() {
+  document.querySelectorAll('table.tbl:not([data-l-ok])').forEach((t) => {
+    t.dataset.lOk = '1';
+    const hl = t.tHead ? [...t.tHead.rows[0].cells].map((c) => c.textContent.trim().replace(/\s+/g, ' ')) : [];
+    if (!hl.length) return;
+    [...t.tBodies].forEach((tb) => [...tb.rows].forEach((r) => [...r.cells].forEach((c, i) => { if (!c.hasAttribute('colspan') && hl[i] != null) c.dataset.l = hl[i].length > 28 ? '' : hl[i]; })));
+  });
+}
+new MutationObserver(() => oznacTabulky()).observe(document.documentElement, { childList: true, subtree: true });
 
 /* ================= přihlášení ================= */
 async function render() {
