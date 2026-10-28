@@ -92,7 +92,7 @@ const pdTym = [
   { id: 14, jmeno: 'MUDr. Ondřej Příklad', role: 'lekar', telefon: '777 100 207', login: 'ondrej', externiId: 'pd:14', nacteno: false },
   { id: 15, jmeno: 'Jindřich Správce', role: 'admin', telefon: '', login: 'spravce', externiId: 'pd:15', nacteno: false },
 ];
-const garance = [{ id: 1, poskytovatelId: 1, nazev: 'Hospic Ukázka', stav: 'PLATNA', lekar: 'MUDr. Petra Ukázková', navrhl: null, navrzeno: null, od: cas(-21, '09:10'), do: null, poznamka: null }];
+const garance = [{ id: 1, poskytovatelId: 1, nazev: 'Hospic Ukázka', stav: 'PLATNA', lekar: 'MUDr. Petra Ukázková', lekarTelefon: '+420777000900', navrhl: null, navrzeno: null, od: cas(-21, '09:10'), do: null, poznamka: null }];
 const pacient = { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rc: '415203/1234', datumNarozeni: '1941-02-03', rok: 1941, pohlavi: 'žena', pojistovna: '111',
   adresa: 'Lipová 12, Zlín', pobyt: 'doma', telefonKarty: '+420 777 000 123', email: 'marie.zkusebni@example.cz', stav: 'AKTIVNI', souhlas: `potvrzeno ${den(-21)} · MUDr. Petra Ukázková`, zalozeno: cas(-21, '09:10'), uzavreno: null, duvodUzavreni: null };
 // propojení s PéčeDoma (0.7.0): nastavení tenanta, stav synchronizace pacienta, seznam klientů pro výběr
