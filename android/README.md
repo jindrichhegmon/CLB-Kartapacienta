@@ -6,7 +6,7 @@ aplikace jen:
 - po zapnutí telefonu spustí kartu a nedovolí z ní odejít (Lock Task, aplikace je domovská obrazovka),
 - pustí volání z karty (`tel:` → vytáčení, telefonní aplikace je v kiosku povolená),
 - pustí fotoaparát jen pro kartu (čtečka párovacího QR kódu); v kiosku si oprávnění přidělí sama (0.1.1),
-- pustí mikrofon a fotoaparát pro videohovor vložený v kartě (Jitsi) a přehraje zvonění příchozího hovoru (0.1.3); oprávnění obnoví při každém startu, takže stačí aktualizovat APK (0.1.4); na Androidu 12+ zavedeném kabelem (`dpm set-device-owner`) správce mikrofon přidělit nesmí – aplikace se pak při startu zeptá běžným dialogem, stačí klepnout na Povolit; QR zavedení má opt-out, aby šlo přidělit rovnou (0.1.5),
+- pustí mikrofon a fotoaparát pro videohovor vložený v kartě (Jitsi) a přehraje zvonění příchozího hovoru (0.1.3); oprávnění obnoví při každém startu, takže stačí aktualizovat APK (0.1.4); na Androidu 12+ zavedeném kabelem (`dpm set-device-owner`) správce mikrofon přidělit nesmí – aplikace se pak při startu zeptá běžným dialogem, stačí klepnout na Povolit; QR zavedení má opt-out, aby šlo přidělit rovnou (0.1.5); zvuk hovoru jde na hlasitý reproduktor a hlasitost se při začátku hovoru zvedne aspoň na 85 % (0.1.6),
 - bez signálu ukáže kartu z mezipaměti, při úplně prvním spuštění bez internetu nabídne „Zkusit znovu“,
 - po servisním PINu nabídne Wi-Fi, obnovení, vypnutí kiosku a vrácení telefonu.
 

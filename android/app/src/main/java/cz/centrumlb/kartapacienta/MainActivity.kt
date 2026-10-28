@@ -8,6 +8,8 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
@@ -173,10 +175,25 @@ class MainActivity : Activity() {
                     .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
                 if (potrebna.isEmpty()) {
                     request.grant(chce.toTypedArray())
+                    if (chce.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) zvukHovoru() // začíná hovor (0.1.6)
                 } else {
                     cekajiciKamera = request
                     requestPermissions(potrebna.toTypedArray(), KAMERA)
                 }
+            }
+        }
+    }
+
+    /** Zvuk videohovoru na hlasitý reproduktor a slyšitelnou hlasitost (0.1.6): WebView vede hovor jako telefonát – bez tohoto hrál
+     *  do sluchátka u ucha (telefon leží u lůžka) a hlasitost hovoru / médií mohla být v kiosku na nule. */
+    private fun zvukHovoru() {
+        val am = getSystemService(AudioManager::class.java) ?: return
+        runCatching {
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            am.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }?.let { am.setCommunicationDevice(it) }
+            for (proud in intArrayOf(AudioManager.STREAM_VOICE_CALL, AudioManager.STREAM_MUSIC)) {
+                val chci = (am.getStreamMaxVolume(proud) * 0.85).toInt()
+                if (am.getStreamVolume(proud) < chci) am.setStreamVolume(proud, chci, 0)
             }
         }
     }
@@ -188,6 +205,7 @@ class MainActivity : Activity() {
         cekajiciKamera = null
         if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
             r.grant(r.resources.filter { it == PermissionRequest.RESOURCE_VIDEO_CAPTURE || it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }.toTypedArray())
+            if (r.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) zvukHovoru()
         } else {
             r.deny() // karta sama nabídne ruční opsání kódu / hlásí, že hovor nejde spustit
         }
