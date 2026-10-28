@@ -224,7 +224,7 @@
     const last = zh || (b.denik || []).filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).slice(-1)[0];
     const exp = !b.plan || KP.prosly(platnost);
     const lekarJm = (b.plan && b.plan.podepsal) || g.lekar || '—';
-    const lekarTel = g.lekarTelefon || g.telefon24 || '';
+    const lekarTel = g.telefon24 || '';   // 0.11.64: vždy hlavní číslo organizace (telefon 24/7); osobní číslo lékaře na kartu nikdy nejde
     const pd = b.pecedoma || null;   // propojení s PéčeDoma: nejbližší plánovaná návštěva (`navsteva`) – jen po odemknutí lékařem / členem týmu a v centrále; zamčená karta (ZZS), rodina a Můj průkaz ji nevidí (0.11.40)
     const leky = KP.leky(b);
     const e = KP.esc;

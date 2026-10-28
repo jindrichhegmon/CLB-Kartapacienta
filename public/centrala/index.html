@@ -230,7 +230,7 @@ async function renderDetail() {
 function balikZDetailu(d) {
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const gp = g && S.posk.find((p) => p.id === g.poskytovatelId);
-  return { pacient: { kod: d.pacient.kod, jmeno: d.pacient.jmeno, prijmeni: d.pacient.prijmeni, rok: d.pacient.rok }, plan: d.plan, garant: g ? { poskytovatel: g.nazev, lekar: g.lekar, lekarTelefon: g.lekarTelefon, telefon24: gp && gp.telefon24 } : null,   // 0.11.63: stejný zdroj jako telefon (číslo lékaře z jeho účtu, jinak telefon 24/7 pracoviště)
+  return { pacient: { kod: d.pacient.kod, jmeno: d.pacient.jmeno, prijmeni: d.pacient.prijmeni, rok: d.pacient.rok }, plan: d.plan, garant: g ? { poskytovatel: g.nazev, lekar: g.lekar, telefon24: gp && gp.telefon24 } : null,   // na kartě je u lékaře vždy hlavní číslo organizace (telefon 24/7)
     kontakty: d.kontakty.map((k) => ({ ...k, skupina: k.skupina.toLowerCase() })), denik: d.denikAsc, pecedoma: d.pecedoma && d.pecedoma.klientId ? { ...(d.pecedoma.sync || {}), propojeno: true } : null };
 }
 function kresliDetail() {

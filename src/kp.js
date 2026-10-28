@@ -55,7 +55,7 @@ export async function planAktualni(q, pacientId) {
 }
 
 export async function garant(q, pacientId) {
-  return q.one(`SELECT TOP 1 g.GaranceID, g.PoskytovatelID, ps.Nazev AS Poskytovatel, ps.Typ, ps.Telefon24, g.LekarUzivatelID, u.Jmeno AS Lekar, u.Telefon AS LekarTelefon,
+  return q.one(`SELECT TOP 1 g.GaranceID, g.PoskytovatelID, ps.Nazev AS Poskytovatel, ps.Typ, ps.Telefon24, g.LekarUzivatelID, u.Jmeno AS Lekar,
       CONVERT(char(16), g.Od, 120) AS Od
     FROM dbo.A_KP_Garance g JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = g.PoskytovatelID
     LEFT JOIN dbo.A_KP_Uzivatel u ON u.UzivatelID = g.LekarUzivatelID
@@ -123,7 +123,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
   return {
     pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, rok: p.RokNarozeni || (p.DatumNarozeni ? Number(p.DatumNarozeni.slice(0, 4)) : null), pohlavi: p.Pohlavi, pobyt: p.Pobyt, stav: p.Stav },
     plan,
-    garant: g ? { poskytovatel: g.Poskytovatel, typ: g.Typ, telefon24: g.Telefon24, lekar: g.Lekar, lekarTelefon: g.LekarTelefon } : null,
+    garant: g ? { poskytovatel: g.Poskytovatel, typ: g.Typ, telefon24: g.Telefon24, lekar: g.Lekar } : null,
     // vlastní telefon pacienta: odemyká jen pacient svým PINem (PINy týmu ani rodiny do něj nepatří) a deník týmu
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
     kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(), odPacienta, lide: clenove,

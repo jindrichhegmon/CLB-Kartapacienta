@@ -255,7 +255,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const kontakty = await q.all(`SELECT KontaktID AS id, Jmeno AS jmeno, Telefon AS tel, Skupina AS skupina, Poznamka AS pozn, Poradi AS poradi FROM dbo.A_KP_Kontakt WHERE PacientID = @p AND Aktivni = 1 ORDER BY Poradi, KontaktID`, { p: id });
   const tym = await q.all(`SELECT t.TymID AS id, t.PoskytovatelID AS poskytovatelId, ps.Nazev AS nazev, ps.Typ AS typ, ps.Telefon24 AS telefon24, t.Role AS role, CONVERT(char(10), t.Od, 23) AS od
     FROM dbo.A_KP_Tym t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.PacientID = @p AND t.Aktivni = 1 ORDER BY CASE t.Role WHEN 'GARANT' THEN 0 ELSE 1 END, ps.Nazev`, { p: id });
-  const garance = await q.all(`SELECT g.GaranceID AS id, g.PoskytovatelID AS poskytovatelId, ps.Nazev AS nazev, g.Stav AS stav, u.Jmeno AS lekar, u.Telefon AS lekarTelefon, n.Jmeno AS navrhl,
+  const garance = await q.all(`SELECT g.GaranceID AS id, g.PoskytovatelID AS poskytovatelId, ps.Nazev AS nazev, g.Stav AS stav, u.Jmeno AS lekar, n.Jmeno AS navrhl,
       CONVERT(char(16), g.Navrzeno, 120) AS navrzeno, CONVERT(char(16), g.Od, 120) AS od, CONVERT(char(16), g.Do, 120) AS do, g.Poznamka AS poznamka
     FROM dbo.A_KP_Garance g JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = g.PoskytovatelID
     LEFT JOIN dbo.A_KP_Uzivatel u ON u.UzivatelID = g.LekarUzivatelID LEFT JOIN dbo.A_KP_Uzivatel n ON n.UzivatelID = g.NavrhlUzivatelID

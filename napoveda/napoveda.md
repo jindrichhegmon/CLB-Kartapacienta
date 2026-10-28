@@ -364,7 +364,7 @@ Menu **Správa organizace** (jen správce) má záložky:
 
 ![Správa organizace – pracoviště](/napoveda/img/c-pracoviste.png)
 
-- **Pracoviště**: **+ Pracoviště** – název, typ (nemocnice, hospic, ambulance, praktický lékař, domov, ZZS, jiný), telefon 24/7, IČO / IČP, adresa. Garantem může být jen nemocnice, hospic, ambulance nebo PL. Každý partner, který má s pacienty pracovat, musí být pracovištěm v této organizaci. Klik na řádek pracoviště upraví nebo vypne.
+- **Pracoviště**: **+ Pracoviště** – název, typ (nemocnice, hospic, ambulance, praktický lékař, domov, ZZS, jiný), telefon 24/7 (toto číslo je na krizové kartě u Lékaře plánu – osobní číslo lékaře se na kartu nikdy nedává), IČO / IČP, adresa. Garantem může být jen nemocnice, hospic, ambulance nebo PL. Každý partner, který má s pacienty pracovat, musí být pracovištěm v této organizaci. Klik na řádek pracoviště upraví nebo vypne.
 - **Uživatelé** (přihlášení do centrální aplikace – lidé s PINem pro telefon jsou v agendě Lidé a týmy): **+ Uživatel** – jméno, přihlašovací jméno, pracoviště, role (lékař, sestra, jen čtení, správce), telefon, e-mail, číslo ČLK. Po uložení se zobrazí **první heslo**, které uživateli předáte; dokud si ho nezmění, vidíte ho v seznamu. Tlačítko pro nové heslo slouží i při zapomenutém hesle.
 
 ![Správa organizace – uživatelé](/napoveda/img/c-uzivatele.png)
