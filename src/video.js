@@ -30,7 +30,7 @@ export function novaMistnost(kodPrukazu = '') {
 export function odkazDoHovoru(mistnost, jmeno) {
   const server = videoServer();
   if (!server || !/^[a-z0-9-]{3,80}$/.test(mistnost)) return null;
-  const nastaveni = ['config.prejoinPageEnabled=false', 'config.disableDeepLinking=true', 'config.startWithVideoMuted=false', 'config.startWithAudioMuted=false',
+  const nastaveni = ['config.prejoinPageEnabled=false', 'config.disableDeepLinking=true', 'config.startWithVideoMuted=false', 'config.startWithAudioMuted=false', 'config.hideConferenceSubject=true', 'config.p2p.enabled=false',
     `userInfo.displayName=${encodeURIComponent(JSON.stringify(String(jmeno || 'Karta pacienta').slice(0, 60)))}`];
   return `${server}/${mistnost}#${nastaveni.join('&')}`;
 }

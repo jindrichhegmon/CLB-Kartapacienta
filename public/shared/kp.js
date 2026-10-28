@@ -56,7 +56,9 @@
     };
     const spust = () => {
       try {
-        stav.api = new window.JitsiMeetExternalAPI(u.host, { roomName, parentNode: parent, width: '100%', height: '100%', userInfo: displayName ? { displayName } : undefined, configOverwrite: cfg });
+        // 0.11.61: bez nadpisu s názvem místnosti; média vždy přes server (JVB) – přímé spojení P2P mezi dvěma účastníky se na některých telefonech nenaváže pro zvuk
+        stav.api = new window.JitsiMeetExternalAPI(u.host, { roomName, parentNode: parent, width: '100%', height: '100%', userInfo: displayName ? { displayName } : undefined,
+          configOverwrite: { ...cfg, hideConferenceSubject: true, p2p: { enabled: false } } });
         stav.api.addListener('readyToClose', konec);
         stav.api.addListener('videoConferenceLeft', konec);
       } catch { nahradni(); }
