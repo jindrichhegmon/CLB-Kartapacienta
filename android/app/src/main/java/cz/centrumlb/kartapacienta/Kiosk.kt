@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.UserManager
+import android.provider.Settings
 import android.telecom.TelecomManager
 import java.security.MessageDigest
 
@@ -91,6 +92,14 @@ object Kiosk {
     /** Dočasné uvolnění (např. kvůli Wi-Fi). Při návratu do aplikace se kiosk zase zamkne. */
     fun pustitNaChvili(a: Activity) {
         runCatching { a.stopLockTask() }
+    }
+
+    /** Čas zhasnutí displeje v ms (systémové nastavení); správce ho smí měnit přímo (setSystemSetting), hodnota přežije restart. */
+    fun zhasinani(c: Context): Int = runCatching { Settings.System.getInt(c.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT) }.getOrDefault(-1)
+
+    fun nastavZhasinani(c: Context, ms: Int): Boolean {
+        if (!jeSpravce(c)) return false
+        return runCatching { dpm(c).setSystemSetting(admin(c), Settings.System.SCREEN_OFF_TIMEOUT, ms.toString()); true }.getOrDefault(false)
     }
 
     /** Servis: kiosk vypnutý do restartu aplikace. */

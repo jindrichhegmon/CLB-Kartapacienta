@@ -44,7 +44,8 @@ Co má který řádek vypsat:
 
 1. **Restartovat telefon.** Po startu naběhne rovnou Karta s obrazovkou párování. Domů a Přehled nefungují, Zpět jen vrací na Kartu.
 2. **Spárovat:** v centrální aplikaci u pacienta Telefon a PINy → Spárovat telefon → QR kód. Na telefonu „Načíst QR kód fotoaparátem“ (fotoaparát je v kiosku povolený), nebo kódy opsat.
-3. **Vyzkoušet:** volání z krizové karty (klepnutí na číslo otevře vytáčení), servis (5× rychle klepnout do levého horního rohu → servisní PIN → Wi‑Fi, Obnovit kartu, Ukončit kiosk, Vrátit telefon).
+3. **Vyzkoušet:** volání z krizové karty (klepnutí na číslo otevře vytáčení), servis (5× rychle klepnout do levého horního rohu → servisní PIN → Wi‑Fi, Obnovit kartu, Zhasínání displeje, Ukončit kiosk, Vrátit telefon).
+4. **Zhasínání displeje** nastavte v servisu (např. 30 minut nebo Nikdy) – není třeba kiosk opouštět. **Vrátit telefon** kiosk ruší natrvalo (po restartu se nevrátí; obnovit ho jde jen znovu kabelem, část A, krok 2). Dočasně kiosk pustí jen **Ukončit kiosk (do restartu)**.
 4. **Před předáním k pacientovi vypnout ladění USB:** servis → Nastavení Wi‑Fi → do celého Nastavení → Možnosti pro vývojáře → Ladění USB vypnout.
 
 ## B. Nahrání QR kódem (bez kabelu)

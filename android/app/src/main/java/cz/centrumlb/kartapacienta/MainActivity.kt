@@ -377,6 +377,7 @@ class MainActivity : Activity() {
                     otevrit(Intent(Settings.Panel.ACTION_WIFI))
                 },
                 "Obnovit kartu" to { nacistZnovu() },
+                "Zhasínání displeje" to { zhasinaniDispleje() },
                 "Ukončit kiosk (do restartu)" to { Kiosk.uvolnit(this); zprava("Kiosk je vypnutý do restartu telefonu") },
                 "Vrátit telefon (zrušit správu zařízení)" to { potvrditZruseni() },
             )
@@ -384,6 +385,21 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Servis")
             .setItems(volby.map { it.first }.toTypedArray()) { _, i -> volby[i].second() }
+            .setNegativeButton("Zavřít", null)
+            .show()
+    }
+
+    /** Servis → Zhasínání displeje (0.1.9): správce zařízení nastaví systémový čas zhasnutí přímo, bez opouštění kiosku; platí i po restartu. */
+    private fun zhasinaniDispleje() {
+        val volby = listOf("1 minuta" to 60_000, "2 minuty" to 120_000, "5 minut" to 300_000, "15 minut" to 900_000, "30 minut" to 1_800_000, "Nikdy (displej svítí stále)" to Int.MAX_VALUE)
+        val ted = Kiosk.zhasinani(this)
+        val vybrano = volby.indexOfFirst { it.second == ted }.let { if (it < 0) -1 else it }
+        AlertDialog.Builder(this)
+            .setTitle("Displej zhasne po")
+            .setSingleChoiceItems(volby.map { it.first }.toTypedArray(), vybrano) { d, i ->
+                zprava(if (Kiosk.nastavZhasinani(this, volby[i].second)) "Nastaveno: ${volby[i].first}" else "Nejde nastavit – aplikace není správcem zařízení")
+                d.dismiss()
+            }
             .setNegativeButton("Zavřít", null)
             .show()
     }
