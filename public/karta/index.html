@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.53';
+const APP_VERZE = 'karta-0.11.54';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -457,7 +457,7 @@ function clenoveTymuHTML(b) {
     ${lide.length ? `<div class="kontlist">${lide.map((o) => `<div class="kont"><b>${esc(o.jmeno)}</b><div class="lbl" style="margin-top:0">${esc(ROLE_NAZ[o.role] || o.role)} · ${esc(o.tym || o.poskytovatel || '')}</div>
       ${o.tel ? `${KP.telHTML(o.tel)}<a class="btn block" style="margin-top:6px" href="${esc(smsOdkaz(o.tel, text))}">${KP.ICON.zpravy} Poslat SMS s výzvou k připojení</a>` : '<div class="muted" style="font-size:13px;padding:4px 0">bez telefonu</div>'}</div>`).join('')}</div>`
       : '<div class="muted" style="padding:12px 14px">U pacienta zatím není přiřazený žádný člen týmu s telefonem (centrála → Tým a garance → Týmy u pacienta).</div>'}
-    <div class="note keep">Nejdřív spusťte videokonferenci, pak kolegovi zavolejte nebo pošlete SMS: <i>„${esc(text)}“</i></div></div>`;
+    <div class="note keep"><b>Nejdříve informujte kolegu, že s ním chcete hovořit přes videokonferenci</b> – zavolejte mu, nebo mu pošlete SMS. Pak klepněte na <b>Spustit videokonferenci</b>. Text SMS: <i>„${esc(text)}“</i></div></div>`;
 }
 function otevriHovor(h) {
   if (!h || !h.odkaz) return toast('Hovor nemá odkaz – zkuste znovu');
