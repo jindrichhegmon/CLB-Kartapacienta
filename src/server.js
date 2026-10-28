@@ -20,6 +20,7 @@ import { device } from './routes/device.js';
 import { napoveda } from './routes/napoveda.js';
 import { partner } from './routes/partner.js';
 import { spustSynchronizaci } from './pecedoma.js';
+import { videoServer } from './video.js';
 
 const koren = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = express();
@@ -30,7 +31,11 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=()');
+  // 0.11.60: mikrofon a fotoaparát smí stránka Karty a vložený hovor ze serveru videohovorů (Jitsi v iframe) – dřív „microphone=()“
+  // zakazovalo mikrofon i vloženému hovoru („Permissions policy violation: microphone is not allowed in this document“), telefon nebylo slyšet
+  const jitsi = videoServer();
+  const puvody = jitsi ? `(self "${jitsi}")` : '(self)';
+  res.setHeader('Permissions-Policy', `geolocation=(), microphone=${puvody}, camera=${puvody}, display-capture=${puvody}`);
   if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
   next();
 });
