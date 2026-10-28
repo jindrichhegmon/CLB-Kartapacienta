@@ -336,6 +336,8 @@ a.num{text-decoration:none}
 .videocall{position:fixed;inset:0;z-index:50;background:#0b1220;display:flex;flex-direction:column}
 .videocall-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));color:#fff;font-weight:600;font-size:14px;background:#13203a}
 .videocall iframe{flex:1;border:0;width:100%;background:#000}
+.videocall-body{flex:1;min-height:0;position:relative;background:#000}
+.videocall-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 @media (min-width:900px){.videocall{inset:20px;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45)}.videocall-bar{padding-top:8px}}
 .vidvyzva{position:fixed;inset:0;z-index:40;background:rgba(10,15,25,.6);display:flex;align-items:center;justify-content:center;padding:20px}
 .vidvyzva-box{background:var(--surface);color:var(--fg);border:2px solid var(--crit);border-radius:16px;width:100%;max-width:380px;padding:24px 20px;display:grid;gap:10px;text-align:center;animation:vidblik 1s infinite alternate}

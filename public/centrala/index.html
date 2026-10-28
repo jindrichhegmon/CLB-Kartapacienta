@@ -224,6 +224,7 @@ function kresliDetail() {
   if ($('revize2')) $('revize2').onclick = revize;
   if ($('vidPripojit')) $('vidPripojit').onclick = () => pripojitSeC(S.pacId, d.video.hovor.id);
   if ($('vidUkoncit')) $('vidUkoncit').onclick = () => ukoncitHovorC(S.pacId, d.video.hovor.id);
+  if ($('vidZnovu')) $('vidZnovu').onclick = () => videoZnovuC(d.video.hovor.id);
   bindTab();
 }
 /* ---- videohovor (0.11.45): telefon u pacienta ↔ centrála přes server Jitsi; centrála se každých 20 s ptá na stav ---- */
@@ -232,7 +233,7 @@ function videoBannerC(d) {
   const h = v.hovor;
   if (h.stav === 'ZVONI' && h.zahajil === 'TELEFON') return `<div class="banner crit">📹 Z telefonu u pacienta volá <b>${esc(h.zahajilJmeno)}</b> (${esc(fmtDT(h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Připojit se</button><button class="btn sm" id="vidUkoncit">Odmítnout</button></div>`;
   if (h.stav === 'ZVONI') return `<div class="banner warn">📹 Telefon u pacienta zvoní (volá ${esc(h.zahajilJmeno)}, ${esc(fmtDT(h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Otevřít hovor</button><button class="btn sm" id="vidUkoncit">Zrušit</button></div>`;
-  return `<div class="banner ok">📹 Probíhá videohovor (zahájil ${esc(h.zahajilJmeno)}, přijat ${esc(fmtDT(h.prijato || h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Připojit se</button><button class="btn sm" id="vidUkoncit">Ukončit</button></div>`;
+  return `<div class="banner ok">📹 Probíhá videohovor (zahájil ${esc(h.zahajilJmeno)}, přijat ${esc(fmtDT(h.prijato || h.zahajeno))}).<button class="btn sm primary" id="vidPripojit">Připojit se</button><button class="btn sm" id="vidUkoncit">Ukončit</button><button class="btn sm" id="vidZnovu" title="Ukončí tento hovor a telefon u pacienta znovu rozezvoní">Zavolat na telefon znovu</button></div>`;
 }
 function videoTlacitkoC(d) {
   const v = d.video; if (!v || !v.server || !d.op.aktivni || (S.ja && S.ja.role.every((r) => r === 'ctenar'))) return '';
@@ -247,13 +248,14 @@ function otevriHovorC(h, pacientId) {
   const el = document.createElement('div'); el.className = 'videocall';
   el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}<br><small style="font-weight:400;opacity:.75">místnost ${esc(h.mistnost)}</small></span>
     <span class="row" style="flex-wrap:nowrap"><button class="btn sm" id="vidMin" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.4)">Zavřít okno</button><button class="btn sm crit" id="vidKonecC">Ukončit hovor</button></span></div>
-    <iframe src="${esc(h.odkaz)}" allow="camera; microphone; autoplay; display-capture; fullscreen" allowfullscreen title="Videohovor"></iframe>`;
+    <div class="videocall-body"></div>`;
   document.body.appendChild(el);
-  VIDG.okno = { id: h.id, pacientId, el };
+  // zavěšení uvnitř Jitsi (červené sluchátko) = Ukončit hovor i pro telefon (0.11.57)
+  VIDG.okno = { id: h.id, pacientId, el, jitsi: KP.jitsiOkno(h.odkaz, el.querySelector('.videocall-body'), { naKonec: () => { if (VIDG.okno && VIDG.okno.id === h.id) { zavriOknoHovoruC(); ukoncitHovorC(pacientId, h.id); } } }) };
   el.querySelector('#vidMin').onclick = () => { zavriOknoHovoruC(); toast('Hovor běží dál – znovu ho otevřete tlačítkem Připojit se'); };
   el.querySelector('#vidKonecC').onclick = () => { zavriOknoHovoruC(); ukoncitHovorC(pacientId, h.id); };
 }
-function zavriOknoHovoruC() { if (VIDG.okno) { VIDG.okno.el.remove(); VIDG.okno = null; } }
+function zavriOknoHovoruC() { if (VIDG.okno) { const o = VIDG.okno; VIDG.okno = null; if (o.jitsi) o.jitsi.zavri(); o.el.remove(); } }
 /* připojení k hovoru: vždy čerstvý stav ze serveru (ne starý odkaz) a u hovoru z telefonu označit jako přijatý – jinak by ho server po 15 min zavřel */
 async function pripojitSeC(pacientId, hovorId) {
   try {
@@ -309,6 +311,12 @@ async function videoGlobalPoll() {
 }
 setInterval(videoGlobalPoll, 15000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') videoGlobalPoll(); });
+/* 0.11.57: hovor na serveru „probíhá“ (např. obě strany zavěsily jen uvnitř Jitsi) – ukončit ho a telefon rozezvonit znovu */
+async function videoZnovuC(hovorId) {
+  if (VIDG.okno) zavriOknoHovoruC();
+  try { await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'ukoncit', id: hovorId } }); } catch (e) { return toast(e.message); }
+  return videoZahajitC();
+}
 async function videoZahajitC() {
   if (!S.pac.video.telefon && !(await KP.confirm('Pacient nemá žádný telefon', 'Pacient nemá spárovanou kartu u lůžka ani Můj průkaz, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
   try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor, S.pacId); toast('Telefon u pacienta zvoní'); videoGlobalPoll(); } catch (e) { toast(e.message); }

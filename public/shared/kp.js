@@ -34,6 +34,38 @@
     el.querySelector('#vidOdmitnout').onclick = () => { KP.zavriVyzvu(); odmitnout(); };
   };
   KP.zavriVyzvu = () => { const el = document.getElementById('vidvyzva'); if (el) el.remove(); };
+  /* 0.11.57: okno hovoru přes Jitsi External API – aplikace se dozví, když se hovor zavěsí tlačítkem uvnitř Jitsi (červené sluchátko),
+     a ukončí ho i u sebe a na serveru (dřív okno zůstalo viset a server hovor dál vedl jako probíhající, další volání pak nezvonilo).
+     Když se external_api.js z serveru videohovorů nenačte (bez sítě), použije se obyčejný iframe jako dřív. */
+  KP.jitsiOkno = (odkaz, parent, { naKonec } = {}) => {
+    const stav = { api: null, iframe: null, hotovo: false, zavri() { if (this.api) { try { this.api.dispose(); } catch { /* */ } this.api = null; } if (this.iframe) { this.iframe.remove(); this.iframe = null; } } };
+    const konec = () => { if (stav.hotovo) return; stav.hotovo = true; if (naKonec) naKonec(); };
+    let u; try { u = new URL(odkaz); } catch { return stav; }
+    const roomName = u.pathname.replace(/^\/+/, '');
+    const cfg = {}; let displayName = '';
+    for (const part of u.hash.replace(/^#/, '').split('&')) {
+      const i = part.indexOf('='); if (i < 0) continue;
+      const k = part.slice(0, i); let v = part.slice(i + 1); try { v = decodeURIComponent(v); } catch { /* */ }
+      if (k === 'userInfo.displayName') { try { displayName = JSON.parse(v); } catch { displayName = v; } }
+      else if (k.startsWith('config.')) cfg[k.slice(7)] = v === 'true' ? true : v === 'false' ? false : v;
+    }
+    const nahradni = () => {
+      if (stav.api || stav.iframe) return;
+      const f = document.createElement('iframe'); f.src = odkaz; f.allow = 'camera; microphone; autoplay; display-capture; fullscreen'; f.allowFullscreen = true; f.title = 'Videohovor';
+      parent.appendChild(f); stav.iframe = f;
+    };
+    const spust = () => {
+      try {
+        stav.api = new window.JitsiMeetExternalAPI(u.host, { roomName, parentNode: parent, width: '100%', height: '100%', userInfo: displayName ? { displayName } : undefined, configOverwrite: cfg });
+        stav.api.addListener('readyToClose', konec);
+        stav.api.addListener('videoConferenceLeft', konec);
+      } catch { nahradni(); }
+    };
+    if (!/^https?:$/.test(u.protocol)) nahradni();
+    else if (window.JitsiMeetExternalAPI) spust();
+    else { const s = document.createElement('script'); s.src = `${u.origin}/external_api.js`; s.onload = spust; s.onerror = nahradni; document.head.appendChild(s); }
+    return stav;
+  };
   KP.closeModal = () => {
     const m = document.getElementById('modal'); if (!m) return;
     // běžící fotoaparát (čtení QR) při zavření vypnout, ať nesvítí dál

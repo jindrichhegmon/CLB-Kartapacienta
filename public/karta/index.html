@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.56';
+const APP_VERZE = 'karta-0.11.57';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -396,13 +396,13 @@ function nastavHovor(r) {
   const pred = VID.hovor;
   VID.server = r.server || null; VID.hovor = r.hovor || null;
   const h = VID.hovor;
+  // druhá strana hovor ukončila, zatímco je okno otevřené (nebo už volá znovu – pak hned zvonit)
+  if (VID.okno && (!h || h.id !== VID.okno.id)) { zavriHovor(false); toast('Videohovor byl ukončen'); }
   // lékař volá z centrály a nikdo ještě nepřijal → zvonit a ukázat výzvu uprostřed obrazovky (i na zamčené kartě), dokud někdo hovor nevezme
   if (h && h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' && !VID.okno) {
     zvonit(true);
     KP.vyzvaHovoru({ id: h.id, jmeno: h.zahajilJmeno, popis: 'volá z centrální aplikace', prijmout: () => videoAkce('prijmout'), odmitnout: () => videoAkce('ukoncit') });
   } else { zvonit(false); KP.zavriVyzvu(); }
-  // druhá strana hovor ukončila, zatímco je okno otevřené
-  if (VID.okno && (!h || h.id !== VID.okno.id)) { zavriHovor(false); toast('Videohovor byl ukončen'); }
   const zmena = JSON.stringify(pred && { id: pred.id, stav: pred.stav }) !== JSON.stringify(h && { id: h.id, stav: h.stav });
   if (zmena && !VID.okno) kresli();
 }
@@ -474,16 +474,16 @@ function otevriHovor(h) {
   zvonit(false);
   if (VID.okno) VID.okno.el.remove();
   const el = document.createElement('div'); el.className = 'videocall';
-  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}<br><small style="font-weight:400;opacity:.75">místnost ${esc(h.mistnost)}</small></span><button class="btn sm crit" id="vidKonec">Ukončit</button></div>
-    <iframe src="${esc(h.odkaz)}" allow="camera; microphone; autoplay; display-capture; fullscreen" allowfullscreen title="Videohovor"></iframe>`;
+  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}<br><small style="font-weight:400;opacity:.75">místnost ${esc(h.mistnost)}</small></span><button class="btn sm crit" id="vidKonec">Ukončit</button></div><div class="videocall-body"></div>`;
   document.body.appendChild(el);
-  VID.okno = { id: h.id, el };
+  // zavěšení uvnitř Jitsi (červené sluchátko) ukončí hovor i v Kartě a na serveru (0.11.57)
+  VID.okno = { id: h.id, el, jitsi: KP.jitsiOkno(h.odkaz, el.querySelector('.videocall-body'), { naKonec: () => zavriHovor(true) }) };
   el.querySelector('#vidKonec').onclick = () => zavriHovor(true);
   U.posledni = Date.now();
 }
 async function zavriHovor(ukoncit) {
   const o = VID.okno; if (!o) return;
-  VID.okno = null; o.el.remove();
+  VID.okno = null; if (o.jitsi) o.jitsi.zavri(); o.el.remove();
   if (ukoncit) { try { nastavHovor(await videoApi({ akce: 'ukoncit', id: o.id, role: U.role, jmeno: U.jmeno })); } catch (e) { toast(e.message); } }
   if (U.role) U.posledni = Date.now();
   kresli();
