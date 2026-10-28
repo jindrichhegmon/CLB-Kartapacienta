@@ -23,7 +23,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
@@ -82,7 +84,10 @@ class MainActivity : Activity() {
             settings.userAgentString = settings.userAgentString + " KartaPacientaAndroid/" + BuildConfig.VERSION_NAME
             webViewClient = Klient()
             webChromeClient = Chrome() // alert()/confirm() a fotoaparát pro čtečku QR
+            addJavascriptInterface(Most(), "KartaAndroid") // karta předá klíč pro zvonění a drží obrazovku při hovoru (0.1.8)
         }
+        setShowWhenLocked(true); setTurnScreenOn(true)
+        Zvoneni.spustit(this)
 
         chyba = obrazovkaChyby()
         val koren = FrameLayout(this).apply {
@@ -114,6 +119,25 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         Kiosk.zamknout(this) // i po návratu z Wi-Fi nebo z hovoru
+        // po probuzení (služba zvonění rozsvítila displej) se karta hned zeptá serveru a zazvoní; jinak by čekala až 20 s
+        if (::web.isInitialized) web.evaluateJavascript("typeof videoPoll === 'function' && videoPoll()", null)
+    }
+
+    /** Most z karty (window.KartaAndroid) – jen dvě bezpečné věci: klíč pro zvonění a držení obrazovky při zvonění / hovoru. */
+    private inner class Most {
+        @JavascriptInterface
+        fun nastavZvoneni(adresa: String?, token: String?) {
+            if (adresa.isNullOrBlank() || token.isNullOrBlank() || !adresa.startsWith("https://")) return
+            Zvoneni.uloz(this@MainActivity, adresa.trimEnd('/'), token)
+        }
+
+        @JavascriptInterface
+        fun zrusZvoneni() { Zvoneni.zapomen(this@MainActivity) }
+
+        @JavascriptInterface
+        fun drzObrazovku(zap: Boolean) {
+            runOnUiThread { if (zap) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        }
     }
 
     override fun onStart() {

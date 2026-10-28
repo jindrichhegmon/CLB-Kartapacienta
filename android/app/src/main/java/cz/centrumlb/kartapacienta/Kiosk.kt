@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.UserManager
 import android.telecom.TelecomManager
 import java.security.MessageDigest
@@ -73,6 +74,8 @@ object Kiosk {
         d.setKeyguardDisabled(a, true) // bez zámku obrazovky (vrací false, pokud je nastaven PIN telefonu)
         opravneni(c)
         d.addUserRestriction(a, UserManager.DISALLOW_SAFE_BOOT) // nouzový režim by kiosk obešel
+        // Zvonění při zhasnuté obrazovce (0.1.8): bez výjimky z úspor energie by telefon v klidu (Doze) službě odpojil síť
+        if (Build.VERSION.SDK_INT >= 34) runCatching { d.setApplicationExemptions(c.packageName, setOf(DevicePolicyManager.EXEMPT_FROM_POWER_RESTRICTIONS)) }
     }
 
     /** Zamkne aktivitu do kiosku, pokud to jde a není zapnutý servis. */
@@ -92,6 +95,7 @@ object Kiosk {
 
     /** Servis: kiosk vypnutý do restartu aplikace. */
     fun uvolnit(a: Activity) {
+        Zvoneni.zapomen(a); runCatching { a.stopService(Intent(a, ZvoneniService::class.java)) }
         servisniRezim = true
         runCatching { a.stopLockTask() }
     }

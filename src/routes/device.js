@@ -297,7 +297,14 @@ device.post('/sdilet', h(async (req) => {
    uložený bez PINu, takže zvoní i na zamčené obrazovce; k datům pacienta s ním nejde. Vydává se při párování a každé synchronizaci. */
 const ROLE_VIDEO = ['rodina', 'sestra', 'hospic', 'pl', 'lekar'];
 const JMENO_TELEFONU = (role, jmeno) => [ROLE_CHAT[role] || role || '', jmeno || ''].filter(Boolean).join(' ') || 'Telefon u pacienta';
-function videoToken(tenant, zid) { return podepis({ typ: 'video', tenant, zid }, 400 * 86400); }
+const videoTokeny = new Map();   // tenant.zid → { token, do }: stejný klíč celý den, aby ho telefon (aplikace kiosku) nemusel pořád přepisovat
+function videoToken(tenant, zid) {
+  const k = `${tenant}.${zid}`, v = videoTokeny.get(k), nyni = Date.now();
+  if (v && v.do > nyni) return v.token;
+  const token = podepis({ typ: 'video', tenant, zid }, 400 * 86400);
+  videoTokeny.set(k, { token, do: nyni + 86400e3 });
+  return token;
+}
 /** Device token, nebo Video token: { tenant, zid, raw|null, plny } */
 function videoAuth(req) {
   const hl = String(req.headers.authorization || '');

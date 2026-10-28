@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.61';
+const APP_VERZE = 'karta-0.11.62';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -85,7 +85,7 @@ async function nacti() {
 async function odeberKartu(k) {
   KARTY = KARTY.filter((x) => x !== k);
   if (D === k) { D = null; U = { role: null }; tab = 'karta'; }
-  if (!KARTY.length) { try { await IDB.clear(); } catch { /* */ } } else await uloz();
+  if (!KARTY.length) { try { await IDB.clear(); } catch { /* */ } if (window.KartaAndroid) { try { window.KartaAndroid.zrusZvoneni(); } catch { /* */ } } } else await uloz();
 }
 const jmenoKarty = (k) => { const p = (k && k.balik && k.balik.pacient) || {}; return `${p.prijmeni || ''} ${p.jmeno || ''}`.trim() || 'pacient'; };
 
@@ -385,13 +385,18 @@ function tymHTML(b) {
    Dlaždice Videohovor po odemknutí PINem (rodina i tým): hovor vede server Jitsi (adresu dává server Karty, KP_JITSI_URL),
    Karta jen založí místnost a otevře ji v okně přes celou obrazovku. Telefon se každých 20 s ptá serveru – když z centrály
    zavolá lékař, karta zazvoní (i zamčená) a nabídne Přijmout. Obsah hovoru nikam do Karty nejde. */
-let VID = { server: undefined, hovor: null, zvoniOd: 0, okno: null, zvonek: null };
+let VID = { server: undefined, hovor: null, zvoniOd: 0, okno: null, zvonek: null, token: null };
 const VIDEO_ROLE = ['rodina', 'sestra', 'hospic', 'pl', 'lekar'];
 function jmenoProHovor() { return U.role ? [ROLE_NAZ[U.role] || U.role, U.jmeno || ''].filter(Boolean).join(' ') : 'Telefon u pacienta'; }
 async function videoApi(body, karta = D) {
   const o = { token: karta.token, typ: 'Device' };
-  return body ? KP.api('/api/d/video', { ...o, method: 'POST', body }) : KP.api('/api/d/video', o);
+  const r = body ? await KP.api('/api/d/video', { ...o, method: 'POST', body }) : await KP.api('/api/d/video', o);
+  // 0.11.62: aplikace v kiosku (Android) dostane klíč jen pro zvonění – při zhasnuté obrazovce se ptá serveru sama a hovor z centrály telefon probudí
+  if (r.videoToken && r.videoToken !== VID.token) { VID.token = r.videoToken; if (window.KartaAndroid) { try { window.KartaAndroid.nastavZvoneni(location.origin, r.videoToken); } catch { /* */ } } }
+  return r;
 }
+/* obrazovka telefonu nesmí zhasnout, dokud zvoní nebo běží hovor (jen v aplikaci kiosku) */
+function drzObrazovku() { if (window.KartaAndroid) { try { window.KartaAndroid.drzObrazovku(!!VID.zvonek || !!VID.okno); } catch { /* */ } } }
 function nastavHovor(r) {
   const pred = VID.hovor;
   VID.server = r.server || null; VID.hovor = r.hovor || null;
@@ -419,7 +424,7 @@ async function videoPoll() {
   try { nastavHovor(await videoApi()); } catch (e) { if (VID.server === undefined) VID.server = null; }
 }
 function zvonit(zap) {
-  if (!zap) { if (VID.zvonek) { clearInterval(VID.zvonek); VID.zvonek = null; } return; }
+  if (!zap) { if (VID.zvonek) { clearInterval(VID.zvonek); VID.zvonek = null; drzObrazovku(); } return; }
   if (VID.zvonek) return;
   VID.zvoniOd = Date.now();
   const tón = () => {
@@ -431,6 +436,7 @@ function zvonit(zap) {
     } catch { /* bez zvuku */ }
   };
   tón(); VID.zvonek = setInterval(tón, 2500);   // zvoní, dokud hovor zvoní (server ho po 15 min sám uzavře jako nepřijatý)
+  drzObrazovku();
 }
 function videoBannerHTML() {
   const h = VID.hovor; if (!h || VID.okno) return '';
@@ -480,10 +486,11 @@ function otevriHovor(h) {
   VID.okno = { id: h.id, el, jitsi: KP.jitsiOkno(h.odkaz, el.querySelector('.videocall-body'), { naKonec: () => zavriHovor(true) }) };
   el.querySelector('#vidKonec').onclick = () => zavriHovor(true);
   U.posledni = Date.now();
+  drzObrazovku();
 }
 async function zavriHovor(ukoncit) {
   const o = VID.okno; if (!o) return;
-  VID.okno = null; if (o.jitsi) o.jitsi.zavri(); o.el.remove();
+  VID.okno = null; if (o.jitsi) o.jitsi.zavri(); o.el.remove(); drzObrazovku();
   if (ukoncit) { try { nastavHovor(await videoApi({ akce: 'ukoncit', id: o.id, role: U.role, jmeno: U.jmeno })); } catch (e) { toast(e.message); } }
   if (U.role) U.posledni = Date.now();
   kresli();
