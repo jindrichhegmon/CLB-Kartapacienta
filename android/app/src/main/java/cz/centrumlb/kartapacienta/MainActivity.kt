@@ -187,10 +187,20 @@ class MainActivity : Activity() {
     /** Zvuk videohovoru na hlasitý reproduktor a slyšitelnou hlasitost (0.1.6): WebView vede hovor jako telefonát – bez tohoto hrál
      *  do sluchátka u ucha (telefon leží u lůžka) a hlasitost hovoru / médií mohla být v kiosku na nule. */
     private fun zvukHovoru() {
+        naReproduktor()
+        // WebView si režim hovoru nastaví sám až po spuštění zvuku a může trasu přepnout zpět – proto se reproduktor vynutí znovu při každé změně režimu (0.1.7)
+        val am = getSystemService(AudioManager::class.java) ?: return
+        if (!sledujiZvuk) {
+            sledujiZvuk = true
+            runCatching { am.addOnModeChangedListener(mainExecutor) { rezim -> if (rezim == AudioManager.MODE_IN_COMMUNICATION) web.postDelayed({ naReproduktor() }, 400) } }
+        }
+    }
+    private var sledujiZvuk = false
+    private fun naReproduktor() {
         val am = getSystemService(AudioManager::class.java) ?: return
         runCatching {
-            am.mode = AudioManager.MODE_IN_COMMUNICATION
             am.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }?.let { am.setCommunicationDevice(it) }
+            @Suppress("DEPRECATION") am.isSpeakerphoneOn = true
             for (proud in intArrayOf(AudioManager.STREAM_VOICE_CALL, AudioManager.STREAM_MUSIC)) {
                 val chci = (am.getStreamMaxVolume(proud) * 0.85).toInt()
                 if (am.getStreamVolume(proud) < chci) am.setStreamVolume(proud, chci, 0)
