@@ -78,7 +78,7 @@ Servis (5× klepnout do rohu, PIN) → **Vrátit telefon**. Nebo z Macu: `adb sh
 - **Build hlásí „R$color is defined multiple times“** nebo soubory `… 2.jar`: duplikáty od iCloudu v sestavovací složce. `rm -rf android/app/build android/build android/.gradle` a sestavit znovu. Lépe projekt držet mimo synchronizovanou složku Documents.
 - **Telefon po zhasnutí chce znovu párovat:** to dělá jen cizí kiosk prohlížeč (SureFox apod.), který maže data. V této aplikaci se neděje.
 - **Karta ukazuje starou verzi:** nasadit web (`./deploy/vps-deploy.sh`), na telefonu servis → Obnovit kartu.
-- **Ve videohovoru není slyšet telefon (mikrofon nepovolený):** telefon nastavený aplikací starší než 0.1.3 mikrofon nedostal. Buď nahrát aplikaci 0.1.4 nebo novější (postup „Aktualizace aplikace“ výše – oprávnění si doplní sama při startu), nebo hned, bez nové aplikace, povolit kabelem:
+- **Ve videohovoru není slyšet telefon (mikrofon nepovolený):** na Androidu 12 a novějším nesmí správce zařízení zavedený kabelem (`dpm set-device-owner`) fotoaparát a mikrofon přidělit sám (jde to jen při zavedení QR kódem, část B). Aplikace 0.1.5 a novější se proto při startu zeptá běžným dialogem – na telefonu klepněte na **Povolit** (u mikrofonu i fotoaparátu, stačí jednou). Jistota bez dialogu je povolit kabelem (funguje vždy):
 
 ```
 adb shell pm grant cz.centrumlb.kartapacienta android.permission.RECORD_AUDIO

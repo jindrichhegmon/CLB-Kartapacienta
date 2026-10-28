@@ -35,12 +35,15 @@ object Kiosk {
 
     /** Fotoaparát (čtečka QR) a mikrofon (videohovor): dialog oprávnění se v kiosku nezobrazí, správce zařízení je přidělí rovnou.
      *  Volá se i při každém startu aplikace (0.1.4) – telefon nastavený starší verzí (bez mikrofonu) tak oprávnění dostane po pouhé aktualizaci APK. */
-    fun opravneni(c: Context) {
-        if (!jeSpravce(c)) return
+    /** Vrací true, když jsou obě oprávnění opravdu přidělená. Od Androidu 12 správce zařízení fotoaparát a mikrofon přidělit nesmí
+     *  (vrací false), pokud telefon nebyl zaveden QR kódem s PROVISIONING_SENSORS_PERMISSION_GRANT_OPT_OUT – pak se zeptá běžný dialog (MainActivity). */
+    fun opravneni(c: Context): Boolean {
+        if (!jeSpravce(c)) return false
         val d = dpm(c)
         val a = admin(c)
-        d.setPermissionGrantState(a, c.packageName, Manifest.permission.CAMERA, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
-        d.setPermissionGrantState(a, c.packageName, Manifest.permission.RECORD_AUDIO, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+        val p = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        p.forEach { runCatching { d.setPermissionGrantState(a, c.packageName, it, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) } }
+        return p.all { c.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
     }
 
     /** Pravidla zařízení – idempotentní, volá se po nastavení správce zařízení (AdminReceiver). */

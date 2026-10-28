@@ -57,7 +57,12 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Kiosk.opravneni(this) // fotoaparát a mikrofon i na telefonu nastaveném starší verzí (0.1.4)
+        // Fotoaparát a mikrofon: správce zařízení je přidělí sám; když nesmí (Android 12+ bez zavedení QR kódem), zeptá se hned při startu
+        // běžný dialog – stačí jednou klepnout na Povolit (0.1.5). Bez mikrofonu by videohovor z telefonu nebyl slyšet.
+        if (!Kiosk.opravneni(this)) {
+            val chybi = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+            if (chybi.isNotEmpty()) requestPermissions(chybi.toTypedArray(), KAMERA)
+        }
 
         // Kreslíme pod systémové lišty a odsadíme sami (Android 15 to vynucuje, na starších sjednotíme).
         window.setDecorFitsSystemWindows(false)

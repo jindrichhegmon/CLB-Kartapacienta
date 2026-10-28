@@ -49,6 +49,7 @@ const data = {
   'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': url,
   'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': soucet,
   'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,   // telefonní aplikace zůstane (volání z karty)
+  'android.app.extra.PROVISIONING_SENSORS_PERMISSION_GRANT_OPT_OUT': true, // Android 12+: správce smí sám přidělit fotoaparát a mikrofon (QR čtečka, videohovor)
   'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': false,
   'android.app.extra.PROVISIONING_LOCALE': 'cs_CZ',
   'android.app.extra.PROVISIONING_TIME_ZONE': 'Europe/Prague',
