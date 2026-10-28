@@ -218,7 +218,7 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
 
-**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefon u pacienta a hovor se otevře v okně přímo v centrále (povolte fotoaparát a mikrofon). **Zavřít okno** nechá hovor běžet na pozadí (znovu ho otevřete tlačítkem Připojit se), **Ukončit hovor** ho ukončí i pro telefon. Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
+**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní všechny telefony pacienta – kartu u lůžka i Můj průkaz, i zamčené (od 0.11.55; stačí, aby byla aplikace na obrazovce) – a hovor se otevře v okně přímo v centrále (povolte fotoaparát a mikrofon). **Zavřít okno** nechá hovor běžet na pozadí (znovu ho otevřete tlačítkem Připojit se), **Ukončit hovor** ho ukončí i pro telefon. Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
 
 ![Centrála – z telefonu u pacienta volá sestra](/napoveda/img/c-video.png)
 
@@ -460,7 +460,7 @@ Po odemknutí PINem (rodina i tým) je na kartě dlaždice **Videohovor**. Naho�
 
 ![Telefon – příchozí videohovor z centrály](/napoveda/img/k-video-zvoni.png)
 
-Když lékař zavolá z centrály (u pacienta tlačítko **Videohovor na telefon**), telefon u pacienta **zazvoní i zamčený**: nahoře bliká červený pruh *Volá MUDr. …* s tlačítky **Přijmout** a **Odmítnout**. Přijmout může kdokoli u lůžka bez PINu. Nepřijatý hovor po 3 minutách skončí sám. Dlaždice se neukáže, dokud správce server videohovorů nenastaví.
+Když lékař zavolá z centrály (u pacienta tlačítko **Videohovor na telefon**), zazvoní **všechny telefony pacienta** – karta u lůžka i Můj průkaz (kapitola 19) – **v jakémkoli stavu**: zamčená karta, i výběr pacienta, je-li v telefonu více průkazů (telefon si pacienta sám otevře). Nahoře bliká červený pruh *Volá MUDr. …* s tlačítky **Přijmout** a **Odmítnout**; přijmout může kdokoli u lůžka bez PINu. Jediná podmínka: aplikace je na obrazovce (v kiosku je vždy) – upozornění mimo aplikaci se neposílá. Nepřijatý hovor po 3 minutách skončí sám. Dlaždice se neukáže, dokud správce server videohovorů nenastaví.
 
 Při ohrožení života volejte **155** – karta nenahrazuje záchrannou službu.
 
@@ -605,6 +605,12 @@ Do zamčeného telefonu se záchranka nedostane. Telefon ale umí ukázat **Zdra
 - Po 5 špatných pokusech je nutné chvíli počkat.
 - **Zapomenutý PIN nikdo neobnoví** – ani lékař, ani provozovatel. Zvolte **Zapomněl(a) jsem PIN → Smazat vše a začít znovu** a požádejte lékaře o nový kód. Údaje od lékaře se vrátí, vaše vlastní záznamy ne – proto je občas vytiskněte nebo pošlete týmu.
 - Když lékař ukončí přístup, údaje od lékaře se přestanou aktualizovat; vše, co v telefonu máte, zůstává.
+
+### Videohovor od lékaře
+
+![Zamčený Můj průkaz – volá lékař](/napoveda/img/p-video-zvoni.png)
+
+Když vám lékař zavolá z centrální aplikace (u pacienta tlačítko **Videohovor na telefon**), Můj průkaz **zazvoní i zamčený** – nahoře bliká červený pruh *Volá vám MUDr. …* s tlačítky **Přijmout** a **Odmítnout**. Přijmout jde bez PINu; hovor se otevře přes celou obrazovku a na konci klepněte na **Ukončit**. Během hovoru se průkaz nezamyká. Podmínka je jediná: **Můj průkaz musí být na obrazovce** (aplikace otevřená, telefon odemčený) – za to odpovídá majitel telefonu; upozornění mimo aplikaci se neposílá. Nepřijatý hovor po 3 minutách skončí sám. Zvonění zařizuje zvláštní klíč jen pro hovory, který je v telefonu uložený bez PINu – k údajům průkazu s ním nikdo nepřistoupí. Z Mého průkazu hovor zahájit nejde, jen přijmout.
 
 ## 20. Průkaz pro plán péče – prototyp pacientem řízené karty
 

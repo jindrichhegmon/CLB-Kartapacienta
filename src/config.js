@@ -45,7 +45,7 @@ export const config = {
   video: { server: env('KP_JITSI_URL') },
   // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
   partnerKlic: env('KP_PARTNER_KLIC'),
-  verze: '0.11.54',
+  verze: '0.11.55',
 };
 
 export function zkontrolujKonfiguraci() {

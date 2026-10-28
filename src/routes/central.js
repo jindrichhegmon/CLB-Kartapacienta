@@ -1231,7 +1231,7 @@ async function videoProPacienta(q, s, id) {
   const server = videoServer() || null;
   if (!server) return { server: null, hovor: null };
   const hovor = await aktivniHovor(q, id);
-  const telefon = await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = 'ZAPUJCENY'`, { p: id });
+  const telefon = await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO'`, { p: id });   // karta týmu i Můj průkaz (0.11.55)
   return { server, telefon: telefon.n > 0, hovor: hovor ? { ...hovor, odkaz: odkazDoHovoru(hovor.mistnost, s.jmeno) } : null };
 }
 central.get('/pacient/:id/video', sUzivatelem(async (q, s, req) => {

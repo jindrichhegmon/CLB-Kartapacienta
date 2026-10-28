@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.54';
+const APP_VERZE = 'karta-0.11.55';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -388,8 +388,8 @@ function tymHTML(b) {
 let VID = { server: undefined, hovor: null, zvoniOd: 0, okno: null, zvonek: null };
 const VIDEO_ROLE = ['rodina', 'sestra', 'hospic', 'pl', 'lekar'];
 function jmenoProHovor() { return U.role ? [ROLE_NAZ[U.role] || U.role, U.jmeno || ''].filter(Boolean).join(' ') : 'Telefon u pacienta'; }
-async function videoApi(body) {
-  const o = { token: D.token, typ: 'Device' };
+async function videoApi(body, karta = D) {
+  const o = { token: karta.token, typ: 'Device' };
   return body ? KP.api('/api/d/video', { ...o, method: 'POST', body }) : KP.api('/api/d/video', o);
 }
 function nastavHovor(r) {
@@ -405,7 +405,15 @@ function nastavHovor(r) {
   if (zmena && !VID.okno) kresli();
 }
 async function videoPoll() {
-  if (!D || !D.token || !navigator.onLine || document.visibilityState !== 'visible' || (D.balik && D.balik.rezim === 'PACIENT')) return;
+  if (!navigator.onLine || document.visibilityState !== 'visible') return;
+  if (!D || !D.token) {
+    // 0.11.55: více průkazů v telefonu a zamčeno (výběr pacienta) – zvoní kterýkoli z nich; telefon si pacienta sám otevře
+    for (const k of KARTY.slice(0, 8)) {
+      if (!k.token) continue;
+      try { const r = await videoApi(undefined, k); if (r.hovor && r.hovor.stav === 'ZVONI' && r.hovor.zahajil === 'CENTRALA') { D = k; U = { role: null }; tab = 'karta'; chybaSync = ''; nastavHovor(r); kresli(); return; } } catch { /* další průkaz */ }
+    }
+    return;
+  }
   try { nastavHovor(await videoApi()); } catch (e) { if (VID.server === undefined) VID.server = null; }
 }
 function zvonit(zap) {

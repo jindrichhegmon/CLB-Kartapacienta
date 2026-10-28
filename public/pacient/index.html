@@ -61,7 +61,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.54';
+const APP_VERZE = 'pacient-0.11.55';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -135,11 +135,12 @@ const pinOk = (p) => /^\d{6,12}$/.test(p) && !/^(\d)\1+$/.test(p) && !'012345678
 /* ---------------- zamykání ---------------- */
 const ZAMEK_MS = 5 * 60 * 1000;
 ['pointerdown', 'keydown', 'scroll'].forEach((ev) => addEventListener(ev, () => { posledniAkce = Date.now(); }, { passive: true }));
-setInterval(() => { if (D && Date.now() - posledniAkce > ZAMEK_MS) zamkni('Průkaz se po 5 minutách zamkl'); }, 15000);
+setInterval(() => { if (D && !VID.okno && Date.now() - posledniAkce > ZAMEK_MS) zamkni('Průkaz se po 5 minutách zamkl'); }, 15000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') skryto = Date.now();
-  else if (D && skryto && Date.now() - skryto > 60000) zamkni();
+  else if (D && !VID.okno && skryto && Date.now() - skryto > 60000) zamkni();
   else if (D) sync();
+  if (document.visibilityState === 'visible') videoPoll();
 });
 function zamkni(hlaska) { D = null; pinKlic = null; tab = 'prehled'; closeModal(); start(); if (hlaska) toast(hlaska); }
 
@@ -151,12 +152,13 @@ async function sync({ tichy = true } = {}) {
   try {
     const r = await KP.api('/api/d/sync', { method: 'POST', token: D.token, typ: 'Device', body: { fronta: [], verzePlanu: D.balik && D.balik.plan && D.balik.plan.verze, verzeAplikace: APP_VERZE } });
     if (r.prikaz === 'odpojit' || r.prikaz === 'smazat') {
-      D.token = null; D.odpojeno = new Date().toISOString(); await uloz(); kresli();
+      D.token = null; D.odpojeno = new Date().toISOString(); await uloz(); ulozVideoToken(null); kresli();
       modal('<h2>Přístup z tohoto místa skončil</h2><p>Buď jste průkaz propojili znovu jinde (třeba v aplikaci na ploše – ta má vlastní úložiště a platí teď ona), nebo lékař přístup ukončil. Údaje od lékaře se tady už nebudou aktualizovat. Co v telefonu máte, zůstává – i vaše vlastní přání, léky a poznámky. Pokud jde o omyl, požádejte lékaře o nový kód.</p><div class="quick"><button class="btn" data-close>Rozumím</button></div>');
       return;
     }
     const novaVerze = r.balik.plan && D.balik.plan && r.balik.plan.verze !== D.balik.plan.verze;
     D.balik = r.balik; D.posledniSync = new Date().toISOString(); chybaSync = '';
+    if (r.videoToken && r.videoToken !== VID.token) ulozVideoToken(r.videoToken);
     await uloz();
     if (D.moje.autoCeka) autoSdilet();
     if (!tichy) toast('Aktualizováno');
@@ -193,7 +195,7 @@ function kresli() {
   hlavicka();
   if (!D) return;
   const b = D.balik;
-  let html = `<div class="syncbar" id="syncbar"></div>`;
+  let html = `<div class="syncbar" id="syncbar"></div><div id="vidbanner"></div>`;
   if (D.odpojeno) html += `<div class="banner warn">Lékař ukončil přístup ${esc(fmtD(D.odpojeno))}. Údaje od lékaře se už neaktualizují – pro nový přístup požádejte lékaře o kód.</div>`;
   if (b.pacient.stav === 'UZAVRENY') html += '<div class="banner warn">Průkaz byl uzavřen.</div>';
   html += `<div class="tiles p8">${TABY.map(([id, n]) => `<button class="tile ${tab === id ? 'on' : ''}" data-tab="${id}">${ikona(id)}<span>${n}</span></button>`).join('')}</div>`;
@@ -203,6 +205,7 @@ function kresli() {
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   kresliSyncBar();
   bind();
+  kresliVidBanner();
   if (tab === 'prehled') nactiNahledChatu();
 }
 function prehledHTML(b) {
@@ -421,7 +424,7 @@ function nouzeHTML(b) {
 function nastaveniHTML() {
   return `<div class="panel"><div class="panel-h"><h2>Tento telefon</h2></div><dl class="kv" style="padding:12px 14px">
       <dt>Propojeno</dt><dd>${esc(fmtDT(D.parovano))}${D.telefon ? ' · ' + esc(D.telefon) : ''}</dd><dt>Údaje od lékaře</dt><dd>${D.odpojeno ? 'přístup ukončen ' + esc(fmtD(D.odpojeno)) : 'aktualizovány ' + esc(textStari())}</dd>
-      <dt>Úložiště</dt><dd>šifrované vaším PINem a klíčem telefonu</dd><dt>Zamknutí</dt><dd>po 5 minutách nečinnosti</dd></dl>
+      <dt>Úložiště</dt><dd>šifrované vaším PINem a klíčem telefonu</dd><dt>Zamknutí</dt><dd>po 5 minutách nečinnosti</dd><dt>Videohovor od lékaře</dt><dd>${VID.server === null ? 'na serveru není zapnutý' : 'zazvoní, když je Můj průkaz na obrazovce – i zamčený'}</dd></dl>
       <div class="quick" style="padding:0 14px 14px"><button class="btn" id="ns_pin">Změnit PIN</button><button class="btn crit" id="ns_smaz">Smazat vše z telefonu</button></div></div>
     <div class="note"><b>Zapomenutý PIN</b> nikdo neobnoví – ani lékař, ani provozovatel. Vaše záznamy jsou jen ve vašem telefonu. Proto si důležité věci občas vytiskněte nebo pošlete týmu. Údaje od lékaře dostanete znovu s novým kódem od lékaře.</div>
     <div class="note"><b>Kdo co vidí:</b> údaje od lékaře vede váš tým v centrální aplikaci. Vaše přání, poznámky, otázky a záznam podání léků vidí automaticky i váš tým – v centrální aplikaci a na kartě u lůžka. Provozovatel aplikace k nim přístup nemá.</div>`;
@@ -501,14 +504,15 @@ async function zamekHTML() {
   hlavicka();
   const pokusy = (await IDB.get('pokusy')) || { n: 0, do: 0 };
   const ceka = Math.max(0, Math.ceil((pokusy.do - Date.now()) / 1000));
-  $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Odemknout Můj průkaz</h2></div><div class="form pinpad" style="padding:14px">
+  $('work').innerHTML = `<div id="vidbanner"></div><div class="panel"><div class="panel-h"><h2>Odemknout Můj průkaz</h2></div><div class="form pinpad" style="padding:14px">
       <div class="field"><label>Váš PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="12" autocomplete="current-password" ${ceka ? 'disabled' : ''}></div>
       <button class="btn primary" id="pinOk" ${ceka ? 'disabled' : ''}>Odemknout</button>
       ${ceka ? `<div class="banner warn">Příliš mnoho pokusů – zkuste to znovu za ${ceka} s.</div>` : ''}
       <button class="btn ghost" id="zapomenuty">Zapomněl(a) jsem PIN</button></div></div>
-    <div class="note">Údaje jsou v telefonu zašifrované vaším PINem. Bez něj je nikdo nepřečte – ani ten, kdo telefon najde.</div>
+    <div class="note">Údaje jsou v telefonu zašifrované vaším PINem. Bez něj je nikdo nepřečte – ani ten, kdo telefon najde.${VID.server ? ' Když vám lékař zavolá z centrální aplikace, průkaz zazvoní i zamčený – stačí ho mít na obrazovce a klepnout na Přijmout.' : ''}</div>
     <div class="footer">${APP_VERZE}</div>`;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
+  kresliVidBanner();
   if (ceka) { setTimeout(zamekHTML, Math.min(ceka, 30) * 1000); return; }
   $('pin').focus();
   const go = async () => {
@@ -524,7 +528,7 @@ async function zamekHTML() {
     // nový kód od lékaře (odkaz z SMS / QR) – propojí znovu a vlastní záznamy zůstanou
     const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);
     if (h) return propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' });
-    kresli(); sync();
+    kresli(); sync(); videoPoll();
   };
   $('pinOk').onclick = go; $('pin').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   $('zapomenuty').onclick = () => modal(`<h2>Zapomenutý PIN</h2><p>PIN nikdo neobnoví – data jsou zašifrovaná jen jím. Můžete vše z telefonu smazat a požádat lékaře o nový kód. Údaje od lékaře se vrátí, <b>vaše vlastní přání, léky a poznámky ale budou ztracené</b> (pokud jste je dříve neposlali týmu nebo nevytiskli).</p><div class="quick"><button class="btn crit" id="zp_smaz">Smazat vše a začít znovu</button><button class="btn" data-close>Zpět</button></div>`, () => {
@@ -615,14 +619,107 @@ async function propojit(tenant, kod, telefon) {
     const nove = { tenant, token: r.token, zarizeniId: r.zarizeniId, telefon: r.telefon, balik: r.balik, posledniSync: new Date().toISOString(), parovano: new Date().toISOString(), odpojeno: null,
       moje: { prani: {}, leky: [], poznamky: [], podani: [], sdileno: [] } };
     history.replaceState(null, '', location.pathname);
+    ulozVideoToken(r.videoToken);
     // vlastní záznamy z dřívějška se při novém propojení neztratí (stejný telefon, nový kód od lékaře) – jen když je telefon odemčený
     if (D && D.moje) nove.moje = D.moje;
     pinOkno({ titulek: 'Nastavte si PIN', popis: 'Průkaz je propojený. PINem budete Můj průkaz otevírat a jím jsou data v telefonu zašifrovaná.', zrusit: false,
-      hotovo: async (pin) => { D = nove; await nastavPin(pin); posledniAkce = Date.now(); tab = 'prehled'; kresli(); toast('Hotovo – Můj průkaz je ve vašem telefonu'); } });
+      hotovo: async (pin) => { D = nove; await nastavPin(pin); posledniAkce = Date.now(); tab = 'prehled'; kresli(); videoPoll(); toast('Hotovo – Můj průkaz je ve vašem telefonu'); } });
   } catch (e) {
     if (e.status === 404) { history.replaceState(null, '', location.pathname); return propojeniHTML({}, e.message); }   // kód vypršel → zpět k načtení QR kódu
     toast(e.message);
   }
+}
+
+
+/* ---------------- videohovor od lékaře (0.11.55) ----------------
+   Lékař zavolá z centrální aplikace → Můj průkaz zazvoní, i když je zamčený; stačí, aby byl na obrazovce (za to odpovídá majitel
+   telefonu). Server k tomu dává zvláštní token jen pro zvonění a přijetí hovoru (videoToken) – v telefonu je uložený bez PINu,
+   k údajům průkazu s ním nejde. Hovor vede server Jitsi, okno je přes celou obrazovku. Z Mého průkazu hovor zahájit nejde, jen přijmout. */
+let VID = { token: null, server: undefined, hovor: null, prijal: null, zvoniOd: 0, okno: null, zvonek: null };
+async function ulozVideoToken(t) { VID.token = t || null; try { await IDB.set('video', t ? { token: t } : null); } catch { /* bez úložiště */ } }
+async function nactiVideoToken() { try { const v = await IDB.get('video'); VID.token = (v && v.token) || null; } catch { VID.token = null; } }
+async function videoApi(body) {
+  const o = D && D.token ? { token: D.token, typ: 'Device' } : VID.token ? { token: VID.token, typ: 'Video' } : null;
+  if (!o) throw new Error('Telefon není propojený');
+  const r = body ? await KP.api('/api/d/video', { ...o, method: 'POST', body }) : await KP.api('/api/d/video', o);
+  if (r.videoToken && r.videoToken !== VID.token) ulozVideoToken(r.videoToken);
+  return r;
+}
+function nastavHovor(r) {
+  const pred = VID.hovor;
+  VID.server = r.server || null; VID.hovor = r.hovor || null;
+  const h = VID.hovor;
+  // lékař volá z centrály a nikdo ještě nepřijal → zvonit (i na zamčeném průkazu)
+  if (h && h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' && !VID.okno) { if (!pred || pred.id !== h.id) zvonit(true); }
+  else zvonit(false);
+  // druhá strana hovor ukončila, zatímco je okno otevřené
+  if (VID.okno && (!h || h.id !== VID.okno.id)) { zavriHovor(false); toast('Videohovor byl ukončen'); }
+  kresliVidBanner();
+}
+async function videoPoll() {
+  if (!navigator.onLine || document.visibilityState !== 'visible' || (!VID.token && !(D && D.token))) return;
+  try { nastavHovor(await videoApi()); } catch (e) {
+    if (VID.server === undefined) VID.server = null;
+    if (e.status === 401 && !(D && D.token)) ulozVideoToken(null);   // přístup skončil – přestat se ptát
+  }
+}
+function zvonit(zap) {
+  if (!zap) { if (VID.zvonek) { clearInterval(VID.zvonek); VID.zvonek = null; } return; }
+  if (VID.zvonek) return;
+  VID.zvoniOd = Date.now();
+  const tón = () => {
+    try { if (navigator.vibrate) navigator.vibrate([300, 200, 300]); } catch { /* */ }
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.25; o.connect(g); g.connect(ac.destination);
+      o.start(); o.frequency.setValueAtTime(660, ac.currentTime + 0.35); o.stop(ac.currentTime + 0.7); o.onended = () => ac.close();
+    } catch { /* bez zvuku */ }
+  };
+  tón(); VID.zvonek = setInterval(() => { if (Date.now() - VID.zvoniOd > 3 * 60e3) zvonit(false); else tón(); }, 2500);
+}
+function videoBannerHTML() {
+  const h = VID.hovor; if (!h || VID.okno) return '';
+  if (h.stav === 'ZVONI' && h.zahajil === 'CENTRALA') return `<div class="banner crit vidzvoni">📹 <span><b>Volá vám ${esc(h.zahajilJmeno)}</b> (videohovor od lékaře)</span><button class="btn sm primary" id="vidPrijmout">Přijmout</button><button class="btn sm" id="vidOdmitnout">Odmítnout</button></div>`;
+  if (h.stav === 'PROBIHA' && h.id === VID.prijal) return `<div class="banner ok">📹 Probíhá videohovor (${esc(h.zahajilJmeno)})<button class="btn sm primary" id="vidPripojit">Připojit se</button></div>`;
+  return '';
+}
+/* pruh s hovorem je na zamčené i odemčené obrazovce; kreslí se zvlášť, aby se při zvonění nemazal rozepsaný PIN */
+function kresliVidBanner() {
+  const el = $('vidbanner'); if (!el) return;
+  el.innerHTML = videoBannerHTML();
+  const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
+  on('vidPrijmout', () => videoAkce('prijmout'));
+  on('vidOdmitnout', () => videoAkce('ukoncit'));
+  on('vidPripojit', () => otevriHovor(VID.hovor));
+}
+function otevriHovor(h) {
+  if (!h || !h.odkaz) return toast('Hovor nemá odkaz – zkuste znovu');
+  zvonit(false);
+  if (VID.okno) VID.okno.el.remove();
+  const el = document.createElement('div'); el.className = 'videocall';
+  el.innerHTML = `<div class="videocall-bar"><span>📹 Videohovor · ${esc(h.zahajilJmeno)}</span><button class="btn sm crit" id="vidKonec">Ukončit</button></div>
+    <iframe src="${esc(h.odkaz)}" allow="camera; microphone; autoplay; display-capture; fullscreen" allowfullscreen title="Videohovor"></iframe>`;
+  document.body.appendChild(el);
+  VID.okno = { id: h.id, el };
+  el.querySelector('#vidKonec').onclick = () => zavriHovor(true);
+  posledniAkce = Date.now();
+  kresliVidBanner();
+}
+async function zavriHovor(ukoncit) {
+  const o = VID.okno; if (!o) return;
+  VID.okno = null; o.el.remove();
+  if (ukoncit) { try { nastavHovor(await videoApi({ akce: 'ukoncit', id: o.id })); } catch (e) { toast(e.message); } }
+  posledniAkce = Date.now();
+  kresliVidBanner();
+}
+async function videoAkce(akce) {
+  if (!navigator.onLine) return toast('Videohovor potřebuje připojení k internetu');
+  try {
+    const r = await videoApi({ akce, id: VID.hovor && VID.hovor.id });
+    if (akce === 'prijmout' && r.hovor) VID.prijal = r.hovor.id;
+    nastavHovor(r);
+    if (akce === 'prijmout' && r.hovor) otevriHovor(r.hovor);
+  } catch (e) { toast(e.message); }
 }
 
 /* ---------------- start ---------------- */
@@ -642,8 +739,10 @@ async function start() {
 (async function init() {
   // 0.11.43: Zpět na telefonu Můj průkaz nezavře – zavře otevřené okno, jinak vrátí na Přehled
   KP.zachytZpet(() => { if (document.querySelector('#modal .modal')) closeModal(); else if (D && tab !== 'prehled') { tab = 'prehled'; kresli(); scrollTo(0, 0); } });
+  await nactiVideoToken();
   await start();
-  addEventListener('online', () => sync());
+  videoPoll(); setInterval(videoPoll, 20000);
+  addEventListener('online', () => { sync(); videoPoll(); });
   addEventListener('hashchange', () => { const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i); if (h && D) propojeniHTML({ tenant: h[1].toUpperCase(), kod: h[2].toUpperCase(), telefon: h[3] ? '+' + h[3] : '' }); });
   setInterval(() => { if (D && document.visibilityState === 'visible') sync(); }, 5 * 60 * 1000);
   setInterval(kresliSyncBar, 30000);

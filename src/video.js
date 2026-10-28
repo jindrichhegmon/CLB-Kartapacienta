@@ -78,3 +78,4 @@ export async function ukonciHovor(q, pacientId, id, { jmeno, role = null, uzivat
     text: prijat ? `Videohovor ukončen (${minut} min).` : 'Videohovor nebyl přijat.' });
   return aktivniHovor(q, pacientId);
 }
+

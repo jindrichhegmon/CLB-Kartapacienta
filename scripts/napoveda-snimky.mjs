@@ -250,7 +250,7 @@ app.get('/api/c/zarizeni', j({ zarizeni: [] }));
 app.get('/api/c/audit', j({ audit: [], ai: [] }));
 app.get('/api/d/parovaci-info', (req, res) => (String(req.query.kod).toUpperCase() === 'PROSLY00' ? res.status(404).json({ ok: false, chyba: 'Kód je neplatný nebo vypršel – vygenerujte v centrální aplikaci nový' }) : res.json({ ok: true, rezim: 'PACIENT', telefon: '+420 604 000 777' })));
 app.post('/api/d/parovat', j((req) => (req.body.rezim === 'PACIENT'
-  ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient }
+  ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient, videoToken: 'ukazka-video-token' }
   : { token: `${TENANT}.7.ukazka`, tajemstvi: TAJEMSTVI, zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
 app.post('/api/d/sync', j((req) => (String(req.headers.authorization || '').includes('.9.') ? { potvrzeno: [], odmitnuto: [], balik: balikPacient } : { potvrzeno: (req.body.fronta || []).map((e) => e.uuid), odmitnuto: [], balik })));
 app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
@@ -564,6 +564,16 @@ await foto(p, 'p-nouze', { vyska: 1400 });
 // zamknutí a znovu odemknutí PINem (data jsou šifrovaná PINem)
 await klik(p, '#btnZamek'); await p.waitForSelector('#pin');
 await foto(p, 'p-zamek');
+// 0.11.55: lékař volá z centrály → zamčený Můj průkaz zazvoní (token jen pro zvonění, bez PINu), Přijmout otevře hovor
+await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 5, mistnost: 'kp-p0007-pac', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: '2026-10-27 09:40' }) }); await videoPoll(); });
+await p.waitForSelector('#vidPrijmout');
+if (!(await p.$('#pin'))) chyby.push('zvonění na zamčeném Mém průkazu smazalo zámek');
+await foto(p, 'p-video-zvoni');
+await klik(p, '#vidPrijmout'); await p.waitForSelector('.videocall iframe');
+if (!(await p.textContent('.videocall-bar')).includes('Petra Ukázková')) chyby.push('okno hovoru v Mém průkazu nemá jméno volajícího');
+await klik(p, '#vidKonec'); await p.waitForTimeout(400);
+if (await p.$('.videocall')) chyby.push('Ukončit v Mém průkazu nezavřelo okno hovoru');
+await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); await videoPoll(); });
 await p.fill('#pin', '111111'); await klik(p, '#pinOk'); await p.waitForTimeout(1500);
 if (await p.$('.tile[data-tab]')) chyby.push('špatný PIN odemkl Můj průkaz');
 await p.fill('#pin', '258147'); await klik(p, '#pinOk'); await p.waitForSelector('.tile[data-tab="leky"]', { timeout: 20000 });

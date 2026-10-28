@@ -237,7 +237,7 @@ function videoBannerC(d) {
 function videoTlacitkoC(d) {
   const v = d.video; if (!v || !v.server || !d.op.aktivni || (S.ja && S.ja.role.every((r) => r === 'ctenar'))) return '';
   if (v.hovor) return '';
-  return `<button class="btn sm" id="vidZahajit" title="${v.telefon ? 'Telefon u pacienta zazvoní, kdokoli u něj hovor přijme' : 'Pacient zatím nemá spárovaný telefon u lůžka'}">📹 Videohovor na telefon</button>`;
+  return `<button class="btn sm" id="vidZahajit" title="${v.telefon ? 'Zazvoní všechny telefony pacienta – karta u lůžka i Můj průkaz (i zamčené, stačí, aby byly na obrazovce); kdokoli u nich hovor přijme' : 'Pacient zatím nemá spárovaný žádný telefon (kartu u lůžka ani Můj průkaz)'}">📹 Videohovor na telefon</button>`;
 }
 /* 0.11.48: hovor běží v okně přímo v centrále (iframe serveru videohovorů), ne v nové záložce; „Zavřít okno“ hovor nechá běžet na pozadí,
    „Ukončit hovor“ ho ukončí i pro telefon */
@@ -310,7 +310,7 @@ async function videoGlobalPoll() {
 setInterval(videoGlobalPoll, 15000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') videoGlobalPoll(); });
 async function videoZahajitC() {
-  if (!S.pac.video.telefon && !(await KP.confirm('Telefon u pacienta není spárovaný', 'Pacient nemá spárovaný telefon u lůžka, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
+  if (!S.pac.video.telefon && !(await KP.confirm('Pacient nemá žádný telefon', 'Pacient nemá spárovanou kartu u lůžka ani Můj průkaz, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
   try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor, S.pacId); toast('Telefon u pacienta zvoní'); videoGlobalPoll(); } catch (e) { toast(e.message); }
 }
 setInterval(async () => {
