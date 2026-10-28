@@ -254,7 +254,7 @@ function otevriHovorC(h, pacientId) {
   el.querySelector('#vidKonecC').onclick = () => { zavriOknoHovoruC(); ukoncitHovorC(pacientId, h.id); };
 }
 function zavriOknoHovoruC() { if (VIDG.okno) { VIDG.okno.el.remove(); VIDG.okno = null; } }
-/* připojení k hovoru: vždy čerstvý stav ze serveru (ne starý odkaz) a u hovoru z telefonu označit jako přijatý – jinak by ho server po 3 min zavřel */
+/* připojení k hovoru: vždy čerstvý stav ze serveru (ne starý odkaz) a u hovoru z telefonu označit jako přijatý – jinak by ho server po 15 min zavřel */
 async function pripojitSeC(pacientId, hovorId) {
   try {
     let r = await C(`/pacient/${pacientId}/video`);

@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { config } from './config.js';
 import { zapisDenik } from './kp.js';
 
-export const ZVONI_MIN = 3;          // nepřijatý hovor po 3 minutách končí jako NEPRIJAT
+export const ZVONI_MIN = 15;         // nepřijatý hovor po 15 minutách končí jako NEPRIJAT (telefon zvoní, dokud ho někdo nevezme nebo lékař nezavěsí)
 export const PROBIHA_MAX_H = 3;      // hovor bez ukončení po 3 hodinách končí sám
 
 /** Adresa serveru videohovorů bez lomítka na konci; prázdná = videohovory vypnuté. */

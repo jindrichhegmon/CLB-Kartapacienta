@@ -61,7 +61,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.55';
+const APP_VERZE = 'pacient-0.11.56';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -649,9 +649,11 @@ function nastavHovor(r) {
   const pred = VID.hovor;
   VID.server = r.server || null; VID.hovor = r.hovor || null;
   const h = VID.hovor;
-  // lékař volá z centrály a nikdo ještě nepřijal → zvonit (i na zamčeném průkazu)
-  if (h && h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' && !VID.okno) { if (!pred || pred.id !== h.id) zvonit(true); }
-  else zvonit(false);
+  // lékař volá z centrály a nikdo ještě nepřijal → zvonit a ukázat výzvu uprostřed obrazovky (i na zamčeném průkazu), dokud hovor nevezmete
+  if (h && h.stav === 'ZVONI' && h.zahajil === 'CENTRALA' && !VID.okno) {
+    zvonit(true);
+    KP.vyzvaHovoru({ id: h.id, jmeno: h.zahajilJmeno, popis: 'váš lékař volá z centrální aplikace', prijmout: () => videoAkce('prijmout'), odmitnout: () => videoAkce('ukoncit') });
+  } else { zvonit(false); KP.zavriVyzvu(); }
   // druhá strana hovor ukončila, zatímco je okno otevřené
   if (VID.okno && (!h || h.id !== VID.okno.id)) { zavriHovor(false); toast('Videohovor byl ukončen'); }
   kresliVidBanner();
@@ -675,21 +677,19 @@ function zvonit(zap) {
       o.start(); o.frequency.setValueAtTime(660, ac.currentTime + 0.35); o.stop(ac.currentTime + 0.7); o.onended = () => ac.close();
     } catch { /* bez zvuku */ }
   };
-  tón(); VID.zvonek = setInterval(() => { if (Date.now() - VID.zvoniOd > 3 * 60e3) zvonit(false); else tón(); }, 2500);
+  tón(); VID.zvonek = setInterval(tón, 2500);   // zvoní, dokud hovor zvoní (server ho po 15 min sám uzavře jako nepřijatý)
 }
 function videoBannerHTML() {
   const h = VID.hovor; if (!h || VID.okno) return '';
-  if (h.stav === 'ZVONI' && h.zahajil === 'CENTRALA') return `<div class="banner crit vidzvoni">📹 <span><b>Volá vám ${esc(h.zahajilJmeno)}</b> (videohovor od lékaře)</span><button class="btn sm primary" id="vidPrijmout">Přijmout</button><button class="btn sm" id="vidOdmitnout">Odmítnout</button></div>`;
+  if (h.stav === 'ZVONI' && h.zahajil === 'CENTRALA') return '';   // výzvu ukazuje okno uprostřed obrazovky (KP.vyzvaHovoru)
   if (h.stav === 'PROBIHA' && h.id === VID.prijal) return `<div class="banner ok">📹 Probíhá videohovor (${esc(h.zahajilJmeno)})<button class="btn sm primary" id="vidPripojit">Připojit se</button></div>`;
   return '';
 }
-/* pruh s hovorem je na zamčené i odemčené obrazovce; kreslí se zvlášť, aby se při zvonění nemazal rozepsaný PIN */
+/* pruh probíhajícího hovoru je na zamčené i odemčené obrazovce; kreslí se zvlášť, aby se nemazal rozepsaný PIN */
 function kresliVidBanner() {
   const el = $('vidbanner'); if (!el) return;
   el.innerHTML = videoBannerHTML();
   const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
-  on('vidPrijmout', () => videoAkce('prijmout'));
-  on('vidOdmitnout', () => videoAkce('ukoncit'));
   on('vidPripojit', () => otevriHovor(VID.hovor));
 }
 function otevriHovor(h) {

@@ -1253,7 +1253,7 @@ central.post('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
     return videoProPacienta(q, s, id);
   }
   if (akce === 'prijmout') {
-    // lékař se připojuje k hovoru zahájenému z telefonu – bez toho by server hovor po 3 minutách zavřel jako nepřijatý
+    // lékař se připojuje k hovoru zahájenému z telefonu – bez toho by server hovor po 15 minutách zavřel jako nepřijatý
     const id2 = Number((req.body || {}).id) || null;
     if (!id2) throw chyba('Chybí hovor');
     await prijmiHovor(q, id, id2);

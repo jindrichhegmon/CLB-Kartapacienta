@@ -20,6 +20,20 @@
     m.querySelectorAll('[data-close]').forEach((b) => (b.onclick = KP.closeModal));
     if (bind) bind(m);
   };
+  /* 0.11.56: výzva k přijetí videohovoru – okno uprostřed obrazovky (nad vším, i nad zámkem); stejné pro kartu týmu i Můj průkaz */
+  KP.vyzvaHovoru = ({ id, jmeno, popis, prijmout, odmitnout }) => {
+    let el = document.getElementById('vidvyzva');
+    if (el && el.dataset.id === String(id)) return;
+    if (el) el.remove();
+    el = document.createElement('div'); el.id = 'vidvyzva'; el.className = 'vidvyzva'; el.dataset.id = String(id);
+    el.innerHTML = `<div class="vidvyzva-box" role="dialog" aria-modal="true"><div class="vidvyzva-ikona">${KP.ICON.video}</div><h2>Příchozí videohovor</h2>
+      <div class="vidvyzva-kdo">${KP.esc(jmeno)}</div><div class="vidvyzva-popis">${KP.esc(popis || '')}</div>
+      <button type="button" class="btn primary block" id="vidPrijmout">Přijmout</button><button type="button" class="btn block" id="vidOdmitnout">Odmítnout</button></div>`;
+    document.body.appendChild(el);
+    el.querySelector('#vidPrijmout').onclick = () => { KP.zavriVyzvu(); prijmout(); };
+    el.querySelector('#vidOdmitnout').onclick = () => { KP.zavriVyzvu(); odmitnout(); };
+  };
+  KP.zavriVyzvu = () => { const el = document.getElementById('vidvyzva'); if (el) el.remove(); };
   KP.closeModal = () => {
     const m = document.getElementById('modal'); if (!m) return;
     // běžící fotoaparát (čtení QR) při zavření vypnout, ať nesvítí dál
