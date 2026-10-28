@@ -20,6 +20,9 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
   .anon{white-space:pre-wrap;font-family:var(--mono);font-size:12px;max-height:260px;overflow:auto;background:var(--surface-2);border-radius:10px;padding:10px}
   .kontrow{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;align-items:center}
   @media (max-width:640px){.kontrow{grid-template-columns:1fr 1fr}}
+  .telchip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border:1.5px solid var(--accent);border-radius:999px;background:var(--surface);color:var(--accent-ink);font-family:var(--mono);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;vertical-align:middle}
+  .telchip svg{width:14px;height:14px;color:var(--accent)}
+  .telchip:active{background:var(--accent-soft)}
   /* 0.11.47: zvonící / probíhající videohovory v každé agendě (pod hlavičkou) */
   #vidglobal{display:grid;gap:6px;padding:0 max(16px,env(safe-area-inset-left,0px))}#vidglobal:not(:empty){padding-top:10px}
   #vidglobal .banner{margin:0}
@@ -188,7 +191,7 @@ function renderUcet(povinne) {
 async function renderPacienti() {
   $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav();
   let d; try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
-  const synch = (p) => !p.telefonu ? '<span class="chip">bez telefonu</span>' : `<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ` <span class="muted" style="font-size:12px">${p.baterie} %</span>` : ''}`;
+  const synch = (p) => !p.telefonu ? '<span class="chip">bez telefonu</span>' : `${p.telefonKarty ? `<div style="margin-bottom:3px">${telChip(p.telefonKarty)}</div>` : ''}<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ` <span class="muted" style="font-size:12px">${p.baterie} %</span>` : ''}`;
   $('work').innerHTML = `${nav()}
     ${d.upozorneni.length && S.stav === 'AKTIVNI' ? (() => {
       // panel Upozornění se rozbaluje (0.11.15): nad 3 upozornění je zavřený, stav si pamatuje prohlížeč; zavřený ukáže souhrn podle druhu
@@ -211,6 +214,10 @@ async function renderPacienti() {
   if ($('p_stitky')) $('p_stitky').onclick = () => stitkyOkno(d.pacienti.filter((p) => p.telefonu).map((p) => p.id));
   if ($('upoz')) $('upoz').ontoggle = () => localStorage.setItem('kp_upoz', $('upoz').open ? '1' : '0');
 }
+/* 0.11.59: číslo připojeného telefonu s kartou týmu – hned v seznamu pacientů, v hlavičce detailu a v panelu Telefon u pacienta (klepnutím se volá) */
+const telHezky = (t) => { const d = String(t || '').replace(/\D/g, ''); return !d ? '' : d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}` : (String(t).trim().startsWith('+') ? '+' : '') + d; };
+const telChip = (t, popis) => (t ? `<a class="telchip" href="tel:${esc(String(t).replace(/[^+\d]/g, ''))}" title="${esc(popis || 'Zavolat na telefon s kartou týmu')}">${KP.ICON.tel}<span>${esc(telHezky(t))}</span></a>` : '');
+const telefonyKarty = (zarizeni) => (zarizeni || []).filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT' && z.telefon);
 function otevri(id, tab) { S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
 
 /* ================= detail pacienta ================= */
@@ -234,7 +241,7 @@ function kresliDetail() {
   const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
-      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}</div></div></div>
+      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}${telefonyKarty(d.zarizeni).length ? ' · karta týmu: ' + telefonyKarty(d.zarizeni).map((z) => telChip(z.telefon, z.stitek ? `Zavolat na telefon s kartou (${z.stitek})` : 'Zavolat na telefon s kartou týmu')).join(' ') : ''}</div></div></div>
     ${navrh && op.prijmoutGaranci ? `<div class="banner crit">Bylo vám navrženo převzetí garance (navrhl ${esc(navrh.navrhl || '—')}, ${esc(fmtDT(navrh.navrzeno))}).<button class="btn sm primary" id="prevzit">Převzít garanci</button><button class="btn sm" id="odmitnout">Odmítnout</button></div>` : navrh ? `<div class="banner warn">Předání garance na ${esc(navrh.nazev)} čeká na potvrzení (od ${esc(fmtDT(navrh.navrzeno))}). Do potvrzení zůstává garantem ${esc(g ? g.nazev : '—')}.</div>` : ''}
     ${videoBannerC(d)}
     ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
@@ -375,7 +382,7 @@ function tabKarta(d) {
       ${d.plan ? `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${d.plan.verze}</span></div><dl class="kv" style="padding:12px 14px"><dt>Stanovil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd><dt>Platnost</dt><dd>${fmtD(d.plan.platnostDo)}</dd><dt>Diagnózy</dt><dd>${esc(d.plan.data.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(d.plan.data.funkce || '—')}</dd></dl></div>` : ''}
       ${pdPanel(d, { jen: 'navsteva' })}
       ${odPacientaHTML(d)}
-      ${d.zarizeni.filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
+      ${d.zarizeni.filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">${z.telefon ? `${telChip(z.telefon)} · ` : ''}Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
       ${zzsPanelC(d)}
     </div></div>`;
 }
