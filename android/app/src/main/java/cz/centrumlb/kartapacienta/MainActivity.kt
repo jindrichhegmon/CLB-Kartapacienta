@@ -57,6 +57,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Kiosk.opravneni(this) // fotoaparát a mikrofon i na telefonu nastaveném starší verzí (0.1.4)
 
         // Kreslíme pod systémové lišty a odsadíme sami (Android 15 to vynucuje, na starších sjednotíme).
         window.setDecorFitsSystemWindows(false)

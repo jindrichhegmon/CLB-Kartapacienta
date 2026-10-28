@@ -78,3 +78,13 @@ Servis (5× klepnout do rohu, PIN) → **Vrátit telefon**. Nebo z Macu: `adb sh
 - **Build hlásí „R$color is defined multiple times“** nebo soubory `… 2.jar`: duplikáty od iCloudu v sestavovací složce. `rm -rf android/app/build android/build android/.gradle` a sestavit znovu. Lépe projekt držet mimo synchronizovanou složku Documents.
 - **Telefon po zhasnutí chce znovu párovat:** to dělá jen cizí kiosk prohlížeč (SureFox apod.), který maže data. V této aplikaci se neděje.
 - **Karta ukazuje starou verzi:** nasadit web (`./deploy/vps-deploy.sh`), na telefonu servis → Obnovit kartu.
+- **Ve videohovoru není slyšet telefon (mikrofon nepovolený):** telefon nastavený aplikací starší než 0.1.3 mikrofon nedostal. Buď nahrát aplikaci 0.1.4 nebo novější (postup „Aktualizace aplikace“ výše – oprávnění si doplní sama při startu), nebo hned, bez nové aplikace, povolit kabelem:
+
+```
+adb shell pm grant cz.centrumlb.kartapacienta android.permission.RECORD_AUDIO
+adb shell pm grant cz.centrumlb.kartapacienta android.permission.CAMERA
+adb shell am force-stop cz.centrumlb.kartapacienta
+adb shell am start -n cz.centrumlb.kartapacienta/.MainActivity
+```
+
+  Ověření: `adb shell dumpsys package cz.centrumlb.kartapacienta | grep -E "RECORD_AUDIO|CAMERA"` má u obou ukázat `granted=true`.

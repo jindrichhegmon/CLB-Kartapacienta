@@ -33,7 +33,17 @@ object Kiosk {
     /** Aplikace právě drží telefon v kiosku. */
     fun jeZamceno(c: Context) = jeSpravce(c) && !servisniRezim
 
-    /** Pravidla zařízení – idempotentní, volá se při každém návratu do aplikace. */
+    /** Fotoaparát (čtečka QR) a mikrofon (videohovor): dialog oprávnění se v kiosku nezobrazí, správce zařízení je přidělí rovnou.
+     *  Volá se i při každém startu aplikace (0.1.4) – telefon nastavený starší verzí (bez mikrofonu) tak oprávnění dostane po pouhé aktualizaci APK. */
+    fun opravneni(c: Context) {
+        if (!jeSpravce(c)) return
+        val d = dpm(c)
+        val a = admin(c)
+        d.setPermissionGrantState(a, c.packageName, Manifest.permission.CAMERA, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+        d.setPermissionGrantState(a, c.packageName, Manifest.permission.RECORD_AUDIO, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+    }
+
+    /** Pravidla zařízení – idempotentní, volá se po nastavení správce zařízení (AdminReceiver). */
     fun nastavit(c: Context) {
         if (!jeSpravce(c)) return
         val d = dpm(c)
@@ -58,9 +68,7 @@ object Kiosk {
         d.addPersistentPreferredActivity(a, domov, ComponentName(c.packageName, DOMOV))
 
         d.setKeyguardDisabled(a, true) // bez zámku obrazovky (vrací false, pokud je nastaven PIN telefonu)
-        // Čtečka QR v kartě: dialog oprávnění se v kiosku nezobrazí, správce zařízení ho přidělí rovnou.
-        d.setPermissionGrantState(a, c.packageName, Manifest.permission.CAMERA, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
-        d.setPermissionGrantState(a, c.packageName, Manifest.permission.RECORD_AUDIO, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) // videohovor (0.1.3)
+        opravneni(c)
         d.addUserRestriction(a, UserManager.DISALLOW_SAFE_BOOT) // nouzový režim by kiosk obešel
     }
 
