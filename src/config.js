@@ -45,7 +45,9 @@ export const config = {
   video: { server: env('KP_JITSI_URL') },
   // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
   partnerKlic: env('KP_PARTNER_KLIC'),
-  verze: '0.11.64',
+  // 0.11.65: odkud smí být stránka /pd/ vložená do rámu (portál PéčeDoma) – více adres oddělených mezerou
+  pdOriginy: env('KP_PD_ORIGINY', 'https://web-pecedoma.netlify.app').split(/\s+/).filter(Boolean),
+  verze: '0.11.65',
 };
 
 export function zkontrolujKonfiguraci() {

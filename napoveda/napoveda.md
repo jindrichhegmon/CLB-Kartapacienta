@@ -376,6 +376,12 @@ Menu **Správa organizace** (jen správce) má záložky:
 
 ![Správa organizace – Nastavení – Propojení s PéčeDoma](/napoveda/img/c-nastaveni-pecedoma.png)
 
+### Karta pacienta uvnitř PéčeDoma
+
+![Karta pacienta otevřená z PéčeDoma – pasivní karta a plán péče](/napoveda/img/pd-karta.png)
+
+Od 0.11.65 jde Kartu pacienta otevřít i přímo z portálu PéčeDoma: v **Datech klienta** je u klienta, který má v Kartě aktivní průkaz, tlačítko **Karta pacienta**. Otevře se okno s **pasivní kartou** – přesně tím, co vidí kdokoli u zamčeného telefonu u pacienta (krizová karta, bez PINů). Lékař (v PéčeDoma role Lékař) má vedle karty i **formulář plánu péče** a tlačítka **Uložit jako novou verzi** a **Potvrdit revizi beze změny**; nová verze se podepíše „PéčeDoma: jméno“, telefon u pacienta i centrála Karty ji převezmou při nejbližší synchronizaci a v centrále je vidět ve verzích plánu i v deníku. Sestra, case manager a správce PéčeDoma kartu jen vidí. Léky se do Karty berou z PéčeDoma automaticky, v tomto okně se nezapisují. Otevření i zápis se zapisují do logu přístupů pacienta. Okno platí 30 minut, pak je třeba ho otevřít znovu; klient bez aktivního průkazu v Kartě tlačítko nemá co otevřít (portál to oznámí).
+
 ## 13. Karta na telefonu – instalace a spárování
 
 Pod hlavičkou je v každém telefonu tmavomodrý pruh **KARTA TÝMU · telefon u pacienta** – tenhle telefon odemyká tým a rodina PINem a lékař v něm mění léky. Fialový pruh **KARTA PACIENTA A RODINY · vlastní telefon pacienta** má aplikace Můj průkaz (kapitola 19), kde léky nikdo nepřidává – pacient a rodina jen zaznamenávají podání. Po odemknutí ukazuje pruh karty týmu i roli a jméno, kdo ji odemkl.

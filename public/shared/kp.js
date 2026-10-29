@@ -129,6 +129,34 @@
     return l && l.typ === 'Zhoršení stavu' ? l : null;
   };
 
+
+  /* formulář plánu péče (0.11.65 sdílený: centrála i Karta pacienta uvnitř PéčeDoma /pd/) */
+  KP.planForm = (data, platnost, ro, pref = 'f', { leky = false } = {}) => {
+    const e = KP.esc;
+    data = data || {}; const dk = data.doklad || {};
+    return `<div class="form ${ro ? 'locked' : ''}">
+    <div class="field"><label>Cíl péče</label><select id="${pref}_cil">${Object.entries(KP.CILE).map(([k, v]) => `<option value="${k}" ${data.cil === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="field"><label>Limitace (co se neprovádí)</label><div class="checks">${KP.LIMITY.map((l) => `<label><input type="checkbox" name="${pref}_lim" value="${e(l)}" ${(data.limity || []).includes(l) ? 'checked' : ''}>${e(l)}</label>`).join('')}</div></div>
+    <div class="frow"><div class="field"><label>Dříve vyslovené přání</label><select id="${pref}_dvp"><option value="1" ${dk.dvp ? 'selected' : ''}>sepsáno</option><option value="0" ${!dk.dvp ? 'selected' : ''}>nesepsáno</option></select></div><div class="field"><label>Datum DVP</label><input type="date" id="${pref}_dvpd" value="${e(dk.datum || '')}"></div></div>
+    <div class="frow"><div class="field"><label>Písemné poučení lékařem (u DVP)</label><select id="${pref}_pou"><option value="1" ${dk.pouceni ? 'selected' : ''}>ano, je přiloženo</option><option value="0" ${!dk.pouceni ? 'selected' : ''}>neuvedeno</option></select></div><div class="field"><label>Podpis pacienta (u DVP)</label><select id="${pref}_ovp"><option value="1" ${dk.overenyPodpis ? 'selected' : ''}>úředně ověřený</option><option value="0" ${!dk.overenyPodpis ? 'selected' : ''}>neuvedeno</option></select></div></div>
+    <div class="field"><label>DVP sepsané při přijetí u poskytovatele</label><input id="${pref}_prij" value="${e(dk.prijeti || '')}" placeholder="jen pokud bylo sepsáno při přijetí do péče nebo hospitalizaci – např. Nemocnice Zlín, interna"><span class="hint">Takové přání platí jen u tohoto poskytovatele – karta pro ZZS to tak i ukáže.</span></div>
+    <div class="frow"><div class="field"><label>Kde je originál DVP</label><input id="${pref}_orig" value="${e(dk.original || '')}"></div><div class="field"><label>Lékařská zpráva / zápis o rozhovoru</label><input id="${pref}_zpr" value="${e(dk.zprava || '')}"></div></div>
+    <div class="note">Aplikace jen eviduje, jaký doklad existuje a kde je originál. Vyplnění zde ani v aplikaci pacienta dříve vyslovené přání nevytváří (§ 36 zákona o zdravotních službách: písemné poučení lékařem a úředně ověřený podpis, nebo zápis při přijetí do péče).</div>
+    <div class="field"><label>Diagnózy</label><textarea id="${pref}_dg" style="font-family:var(--font);min-height:60px">${e(data.dg || '')}</textarea></div>
+    <div class="field"><label>Obvyklý funkční stav</label><textarea id="${pref}_fun" style="font-family:var(--font);min-height:60px">${e(data.funkce || '')}</textarea></div>
+    <div class="frow"><div class="field"><label>Alergie</label><input id="${pref}_al" value="${e(data.alergie || '')}"></div><div class="field"><label>Platnost plánu do</label><input type="date" id="${pref}_plat" value="${e(platnost || '')}"></div></div>
+    ${leky ? `<div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="${pref}_sos" style="font-family:var(--font);min-height:80px">${e((data.sos || []).join('\n'))}</textarea></div>
+    <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="${pref}_opi" style="font-family:var(--font);min-height:60px">${e((data.opioidy || []).join('\n'))}</textarea></div>
+    <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="${pref}_med" style="font-family:var(--font);min-height:90px">${e((data.medikace || []).join('\n'))}</textarea></div>` : ''}
+  </div>`;
+  };
+  KP.ctiPlan = (pref = 'f', base = {}) => {
+    const $ = (id) => document.getElementById(id);
+    const v = (id) => ($(`${pref}_${id}`) || {}).value || '';
+    const radky = (id, puvodni) => ($(`${pref}_${id}`) ? v(id).split('\n').map((x) => x.trim()).filter(Boolean) : (puvodni || []));
+    return { data: { cil: v('cil'), limity: [...document.querySelectorAll(`input[name=${pref}_lim]:checked`)].map((i) => i.value), doklad: { dvp: v('dvp') === '1', datum: v('dvpd'), original: v('orig'), zprava: v('zpr'), pouceni: v('pou') === '1', overenyPodpis: v('ovp') === '1', prijeti: v('prij').trim() },
+      dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), opioidy: radky('opi', base.opioidy), medikace: radky('med', base.medikace) }, platnostDo: v('plat') };
+  };
   /** Krizová karta z balíku (stejný tvar posílá server telefonu i centrální aplikaci). */
   /* doklad k limitacím (§ 36): DVP s poučením a ověřeným podpisem, DVP z přijetí (platí jen u toho poskytovatele), nebo rozhodnutí lékaře */
   KP.dokladHTML = (d) => {

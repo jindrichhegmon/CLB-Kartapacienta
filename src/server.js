@@ -19,6 +19,7 @@ import { central } from './routes/central.js';
 import { device } from './routes/device.js';
 import { napoveda } from './routes/napoveda.js';
 import { partner } from './routes/partner.js';
+import { pd } from './routes/pd.js';
 import { spustSynchronizaci } from './pecedoma.js';
 import { videoServer } from './video.js';
 
@@ -30,7 +31,9 @@ app.set('trust proxy', 'loopback');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('X-Frame-Options', 'DENY');
+  // 0.11.65: stránku /pd/ (Karta pacienta uvnitř PéčeDoma) smí vložit do rámu jen portál PéčeDoma (KP_PD_ORIGINY); vše ostatní zůstává bez rámu
+  if (req.path === '/pd' || req.path.startsWith('/pd/')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
+  else res.setHeader('X-Frame-Options', 'DENY');
   // 0.11.60: mikrofon a fotoaparát smí stránka Karty a vložený hovor ze serveru videohovorů (Jitsi v iframe) – dřív „microphone=()“
   // zakazovalo mikrofon i vloženému hovoru („Permissions policy violation: microphone is not allowed in this document“), telefon nebylo slyšet
   const jitsi = videoServer();
@@ -51,6 +54,7 @@ app.use('/api/c', central);
 app.use('/api/d', device);
 app.use('/api/napoveda', napoveda);
 app.use('/api/partner', partner);
+app.use('/api/pd', pd);
 app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznámý endpoint' }));
 
 // ostrá verze: lokální prototyp už není

@@ -200,6 +200,10 @@ const videoOdpoved = () => ({ server: 'https://jitsi.example.org', hovor: videoH
 app.get('/api/d/video', j(videoOdpoved));
 app.post('/api/d/video', j((req) => { const b = req.body || {}; if (b.akce === 'zahajit' && !videoHovor) videoHovor = { id: 1, mistnost: 'kp-p0007-abc', stav: 'ZVONI', zahajil: 'TELEFON', zahajilJmeno: 'hospic Sestra Lucie', zahajeno: cas(0, '09:10') };
   else if (b.akce === 'prijmout' && videoHovor) videoHovor = { ...videoHovor, stav: 'PROBIHA', prijato: cas(0, '09:11') }; else if (b.akce === 'ukoncit') videoHovor = null; return videoOdpoved(); }));
+// Karta pacienta uvnitř PéčeDoma (0.11.65): vstupenka z partnerského API, stránka /pd/
+let pdVerze = [{ verze: 3, typ: 'ZMENA', podepsal: 'MUDr. Petra Ukázková', platnostDo: den(70), vytvoreno: cas(-7, '10:24'), poznamka: null }, { verze: 2, typ: 'REVIZE', podepsal: 'MUDr. Petra Ukázková', platnostDo: den(40), vytvoreno: cas(-30, '09:00'), poznamka: 'beze změny' }, { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', platnostDo: den(60), vytvoreno: cas(-21, '09:10'), poznamka: null }];
+app.get('/api/pd/karta', (req, res) => (String(req.headers.authorization || '').startsWith('Pd ') ? res.json({ ok: true, pacient: { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', stav: 'AKTIVNI' }, balik: { ...balik, piny: undefined }, plan: { ...plan, verze: pdVerze[0].verze }, verze: pdVerze, lekar: true, kdo: 'MUDr. Petra Ukázková', interval: 3 }) : res.status(401).json({ ok: false, chyba: 'Vstupenka z PéčeDoma neplatí' })));
+app.post('/api/pd/plan', j((req) => { const b = req.body || {}; pdVerze = [{ verze: pdVerze[0].verze + 1, typ: b.typ === 'REVIZE' ? 'REVIZE' : 'ZMENA', podepsal: 'PéčeDoma: MUDr. Petra Ukázková', platnostDo: b.platnostDo, vytvoreno: cas(0, '10:00'), poznamka: b.poznamka || null }, ...pdVerze]; return { verze: pdVerze[0].verze }; }));
 app.post('/__mock/video', (req, res) => { videoHovor = req.body && req.body.id ? req.body : null; res.json({ ok: true }); });
 app.get('/api/c/pacient/:id/video', j(() => ({ server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null })));
 app.post('/api/c/pacient/:id/video', j((req) => { const b = req.body || {}; if (b.akce === 'prijmout' && videoHovor) videoHovor = { ...videoHovor, stav: 'PROBIHA' }; else if (b.akce === 'ukoncit') videoHovor = null; else if (b.akce === 'zahajit' && !videoHovor) videoHovor = { id: 4, mistnost: 'kp-p0007-centrala', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: cas(0, '09:30') }; return { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null }; }));
@@ -513,6 +517,14 @@ await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 2, mistnost: 'kp-p0007-xyz', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: '2026-10-27 09:20' }) }); await videoPoll(); });
 await p.waitForSelector('#vidPrijmout', { timeout: 5000 }); await p.evaluate(() => zvonit(false)); await foto(p, 'k-video-zvoni');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); await videoPoll(); });
+await p.close();
+
+console.log('Karta pacienta uvnitř PéčeDoma');
+p = await stranka();
+await p.goto(`${URL}/pd/#v=ukazka.vstupenka`); await p.waitForSelector('#ulozPlan'); await p.waitForTimeout(400);
+await foto(p, 'pd-karta', { vyska: 1100 });
+await p.fill('#f_poz', 'úprava z PéčeDoma'); await klik(p, '#ulozPlan'); await p.waitForTimeout(800);
+if (!(await p.textContent('#work')).includes('PéčeDoma: MUDr. Petra Ukázková')) chyby.push('/pd/: nová verze plánu z PéčeDoma se po uložení neukázala');
 await p.close();
 
 console.log('Můj průkaz (telefon pacienta)');

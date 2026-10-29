@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Karta pacienta</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<script>/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
+<link rel="stylesheet" href="/shared/kp.css">
+<style>
+  .pdhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .pdhead h1{font-size:17px;margin:0}
+  .pdhead .meta{font-size:12.5px;color:var(--muted)}
+  .content.pd{padding-top:10px}
+  @media (min-width:900px){.pd .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}}
+</style>
+</head>
+<body>
+<div class="app wide">
+  <div class="pdhead" id="top"><img src="/icons/icon.svg" width="34" height="34" style="border-radius:9px" alt=""><div><h1 id="titul">Karta pacienta</h1><div class="meta" id="meta">otevřeno z PéčeDoma</div></div></div>
+  <main class="content pd" id="work"><div class="note">Načítám kartu…</div></main>
+</div>
+<div id="modal"></div><div id="toast" class="toast" hidden></div>
+<script src="/shared/kp.js"></script>
+<script src="/shared/kp-ikony.js"></script>
+<script>
+/* Karta pacienta uvnitř PéčeDoma (0.11.65): stránka v rámu portálu PéčeDoma (Data klienta → Karta pacienta). Vstupenku (30 min) vydal
+   server PéčeDoma přes partnerské API Karty. Ukazuje pasivní kartu – přesně to, co vidí kdokoli u zamčeného telefonu (krizová karta,
+   bez PINů) – a lékaři PéčeDoma navíc formulář plánu péče: nová verze se podepíše „PéčeDoma: jméno“, telefon i centrála ji převezmou. */
+const { esc, toast, fmtD, fmtDT } = KP;
+const $ = (id) => document.getElementById(id);
+const TOKEN = (location.hash.match(/v=([A-Za-z0-9_\-.]+)/) || [])[1] || '';
+let D = null;
+
+const api = (cesta, body) => KP.api(cesta, { token: TOKEN, typ: 'Pd', ...(body ? { method: 'POST', body } : {}) });
+
+function kresli() {
+  const d = D, p = d.pacient, b = d.balik || {};
+  $('titul').textContent = `${p.prijmeni} ${p.jmeno}${b.pacient && b.pacient.rok ? ', ' + b.pacient.rok : ''}`;
+  $('meta').innerHTML = `průkaz <span class="mono">${esc(p.kod)}</span> · otevřeno z PéčeDoma jako <b>${esc(d.kdo)}</b>${d.lekar ? ' <span class="chip acc">lékař – může zapsat plán péče</span>' : ' <span class="chip">jen náhled</span>'}${p.stav === 'UZAVRENY' ? ' <span class="chip warn">průkaz uzavřen</span>' : ''}`;
+  const plan = d.plan;
+  const karta = `<div class="lockbar">${KP.ICON.zamek} Pasivní karta – stejná, jakou vidí kdokoli u zamčeného telefonu u pacienta</div>${KP.kartaHTML(b, { navsteva: false })}`;
+  const verze = `<div class="panel"><div class="panel-h"><h2>Verze plánu</h2><span class="chip">${d.verze.length}</span></div>${d.verze.length ? `<div class="tblwrap"><table class="tbl"><tbody>${d.verze.map((v) => `<tr><td class="mono">v${v.verze}</td><td>${esc(v.typ === 'ZALOZENI' ? 'založení' : v.typ === 'REVIZE' ? 'revize' : 'změna')}<div class="lbl">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))}${v.poznamka ? ' · ' + esc(v.poznamka) : ''}</div></td><td>do ${fmtD(v.platnostDo)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted" style="padding:12px 14px">Plán péče zatím nebyl založen.</div>'}</div>`;
+  const formular = d.lekar
+    ? `<div class="panel"><div class="panel-h"><h2>Plán péče – nová verze</h2><span class="chip acc">zapisuje lékař</span></div><div style="padding:14px">
+        ${KP.planForm(plan && plan.data, plan && plan.platnostDo, false, 'f')}
+        <div class="field" style="margin-top:12px"><label>Poznámka ke změně</label><input id="f_poz"></div>
+        <div class="quick" style="margin-top:12px"><button class="btn primary" id="ulozPlan">Uložit jako novou verzi</button>${plan ? '<button class="btn" id="revize">Potvrdit revizi beze změny</button>' : ''}</div>
+        <div class="note">Každé uložení vytvoří <b>novou verzi</b> podepsanou vaším jménem z PéčeDoma („PéčeDoma: ${esc(d.kdo)}“); starší verze zůstávají. Telefon u pacienta a centrála Karty ji převezmou při nejbližší synchronizaci. Léky se do Karty berou z PéčeDoma automaticky – tady se nezapisují.</div>
+      </div></div>`
+    : '<div class="note">Plán péče v Kartě pacienta zapisuje jen lékař (v PéčeDoma role Lékař). Tady je karta jen k nahlédnutí.</div>';
+  $('work').innerHTML = `<div class="grid2"><div>${karta}</div><div style="display:grid;gap:12px;align-content:start">${formular}${verze}</div></div>`;
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('ulozPlan', async () => {
+    const p2 = KP.ctiPlan('f', (plan && plan.data) || {});
+    if (!p2.platnostDo) return toast('Vyplňte, do kdy plán platí');
+    await akce({ ...p2, typ: 'ZMENA', poznamka: $('f_poz').value }, 'Plán uložen jako nová verze');
+  });
+  on('revize', async () => {
+    const plat = new Date(); plat.setMonth(plat.getMonth() + (d.interval || 3));
+    if (!(await KP.confirm('Revize plánu péče', 'Potvrzuji, že jsem plán péče prošel(a) s pacientem / zástupcem a platí beze změny. Platnost se prodlouží do ' + KP.fmtD(plat.toISOString().slice(0, 10)) + '.', 'Potvrdit revizi'))) return;
+    await akce({ typ: 'REVIZE', platnostDo: plat.toISOString().slice(0, 10), poznamka: $('f_poz').value }, 'Revize potvrzena');
+  });
+}
+async function akce(body, hlaska) {
+  try { await api('/api/pd/plan', body); toast(hlaska); await nacti(); } catch (e) { toast(e.message); }
+}
+async function nacti() {
+  try { D = await api('/api/pd/karta'); kresli(); }
+  catch (e) { $('work').innerHTML = `<div class="banner crit">${esc(e.message)}</div><div class="note">Zavřete okno a otevřete Kartu pacienta z PéčeDoma znovu (Data klienta → Karta pacienta).</div>`; }
+}
+if (!TOKEN) $('work').innerHTML = '<div class="banner crit">Tato stránka se otevírá jen z portálu PéčeDoma (Data klienta → Karta pacienta).</div>';
+else nacti();
+</script>
+</body>
+</html>
