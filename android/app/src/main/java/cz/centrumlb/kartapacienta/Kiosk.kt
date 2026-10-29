@@ -43,9 +43,10 @@ object Kiosk {
         if (!jeSpravce(c)) return false
         val d = dpm(c)
         val a = admin(c)
-        val p = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        // 0.1.12: READ_PHONE_STATE + ANSWER_PHONE_CALLS – tlačítko Zavěsit v kartě (TelecomManager.endCall), tato oprávnění správce přidělit smí i na Androidu 12+
+        val p = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.READ_PHONE_STATE, Manifest.permission.ANSWER_PHONE_CALLS)
         p.forEach { runCatching { d.setPermissionGrantState(a, c.packageName, it, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) } }
-        return p.all { c.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+        return listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO).all { c.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
     }
 
     /** Pravidla zařízení – idempotentní, volá se po nastavení správce zařízení (AdminReceiver). */
@@ -159,9 +160,19 @@ object Kiosk {
         c.packageManager.resolveActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:")), 0)
             ?.activityInfo?.packageName?.let { vysledek += it }
         vysledek += "com.android.server.telecom" // obrazovka hovoru na některých telefonech
+        // 0.1.12: obrazovka probíhajícího hovoru je na Samsungu i na Pixelu samostatná aplikace – bez ní v kiosku nejde hovor zavěsit
+        for (p in listOf("com.samsung.android.incallui", "com.android.incallui", "com.google.android.dialer", "com.android.dialer", "com.android.phone")) {
+            if (jeNainstalovana(c, p)) vysledek += p
+        }
+        // 0.1.12: SMS z karty (výzva kolegovi k videohovoru) – výchozí aplikace SMS
+        runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(c) }.getOrNull()?.let { vysledek += it }
+        c.packageManager.resolveActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("sms:")), 0)?.activityInfo?.packageName?.let { vysledek += it }
         vysledek.remove("android") // výběrový dialog systému, ne aplikace
         return vysledek
     }
+
+    private fun jeNainstalovana(c: Context, balicek: String): Boolean =
+        runCatching { c.packageManager.getPackageInfo(balicek, 0); true }.getOrDefault(false)
 
     fun sha256(s: String): String =
         MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }

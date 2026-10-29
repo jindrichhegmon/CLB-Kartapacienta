@@ -121,6 +121,12 @@ class MainActivity : Activity() {
         Kiosk.zamknout(this) // i po návratu z Wi-Fi nebo z hovoru
         // po probuzení (služba zvonění rozsvítila displej) se karta hned zeptá serveru a zazvoní; jinak by čekala až 20 s
         if (::web.isInitialized) web.evaluateJavascript("typeof videoPoll === 'function' && videoPoll()", null)
+        if (::web.isInitialized) { web.removeCallbacks(hovorKontrola); web.post(hovorKontrola) }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::web.isInitialized) web.removeCallbacks(hovorKontrola)
     }
 
     /** Most z karty (window.KartaAndroid) – jen dvě bezpečné věci: klíč pro zvonění a držení obrazovky při zvonění / hovoru. */
@@ -251,6 +257,7 @@ class MainActivity : Activity() {
             val u = request.url
             return when {
                 u.scheme == "tel" -> { zavolat(u); true }
+                u.scheme == "sms" || u.scheme == "smsto" -> { otevrit(Intent(Intent.ACTION_SENDTO, u)); true } // 0.1.12: SMS z karty (aplikace SMS je v kiosku povolená)
                 puvodUrl(u) == puvod -> false
                 Kiosk.jeZamceno(this@MainActivity) -> { zprava("Odkaz mimo kartu je v kiosku zablokovaný"); true }
                 else -> { otevrit(Intent(Intent.ACTION_VIEW, u)); true }
@@ -316,6 +323,38 @@ class MainActivity : Activity() {
     private fun zavolat(u: Uri) {
         // Vytáčení (ne přímé volání): člověk vidí číslo a hovor potvrdí. Dialer je povolený v kiosku.
         otevrit(Intent(Intent.ACTION_DIAL, u))
+    }
+
+    /** 0.1.12: probíhá-li hovor, karta nahoře ukáže červený pruh Zavěsit – obrazovka hovoru se v kiosku nemusí zobrazit (jiná aplikace). */
+    private var hovorPruh: View? = null
+    private val hovorKontrola = object : Runnable {
+        override fun run() {
+            val tm = getSystemService(android.telecom.TelecomManager::class.java)
+            val vHovoru = runCatching { checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED && tm.isInCall }.getOrDefault(false)
+            ukazHovorPruh(vHovoru)
+            web.postDelayed(this, 1500)
+        }
+    }
+    private fun ukazHovorPruh(zap: Boolean) {
+        val koren = web.parent as? FrameLayout ?: return
+        if (zap && hovorPruh == null) {
+            val pruh = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setBackgroundColor(Color.parseColor("#C62828")); setPadding(28, 18, 28, 18)
+                addView(TextView(this@MainActivity).apply { text = "Probíhá telefonní hovor"; setTextColor(Color.WHITE); textSize = 16f; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
+                addView(Button(this@MainActivity).apply { text = "Zavěsit"; setOnClickListener { zavesit() } })
+            }
+            koren.addView(pruh, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+            hovorPruh = pruh
+        } else if (!zap && hovorPruh != null) {
+            koren.removeView(hovorPruh); hovorPruh = null
+        }
+    }
+    private fun zavesit() {
+        val tm = getSystemService(android.telecom.TelecomManager::class.java)
+        @Suppress("DEPRECATION")
+        val ok = runCatching { tm.endCall() }.getOrDefault(false)
+        if (!ok) zprava("Hovor nejde zavěsit odtud – použijte obrazovku hovoru")
     }
 
     private fun otevrit(i: Intent) {

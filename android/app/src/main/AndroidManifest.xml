@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Zavěšení hovoru z karty (0.1.12): obrazovka hovoru se v kiosku nemusí ukázat -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Kvůli volání z karty (odkazy tel:) – aby se dialer našel i na Androidu 11+. -->
@@ -20,6 +23,10 @@
         <intent>
             <action android:name="android.intent.action.DIAL" />
             <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
         </intent>
     </queries>
 
