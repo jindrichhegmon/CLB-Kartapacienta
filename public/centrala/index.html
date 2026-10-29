@@ -26,10 +26,25 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
   /* 0.11.47: zvonící / probíhající videohovory v každé agendě (pod hlavičkou) */
   #vidglobal{display:grid;gap:6px;padding:0 max(16px,env(safe-area-inset-left,0px))}#vidglobal:not(:empty){padding-top:10px}
   #vidglobal .banner{margin:0}
+  /* 0.11.68: hlavička jako PéčeDoma (stejný přechod barev, logo, Made with, verze, štítek, uživatel a role vpravo) */
+  .top{gap:12px;min-height:52px;padding-block:8px}
+  .top .logo{font-size:18px;font-weight:700;white-space:nowrap;color:#fff}.top .logo span{color:rgba(255,255,255,.78)}
+  .top .madefor{display:flex;flex-direction:column;justify-content:center;gap:1px;height:34px;font-size:11px;color:rgba(255,255,255,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px;min-width:60px;flex-shrink:1;line-height:1.2}
+  .top .madefor b{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.72)}
+  .top .ver{background:rgba(255,255,255,.22);color:#fff;font-size:10.5px;font-weight:700;border-radius:5px;padding:0 8px;height:34px;display:inline-flex;align-items:center;white-space:nowrap}
+  .top .live{background:var(--surface);color:var(--accent-ink);font-size:10.5px;font-weight:700;border-radius:5px;padding:0 8px;height:34px;display:inline-flex;align-items:center;white-space:nowrap}
+  .top .topmeta{font-size:12px;color:rgba(255,255,255,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .top .rolebox{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+  .top .rolebox .uziv{background:rgba(255,255,255,.18);color:#fff;border-radius:6px;padding:0 9px;height:34px;display:inline-flex;align-items:center;font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+  .top .rolebox .rolesel{background:var(--surface);color:var(--fg);border-radius:6px;padding:0 10px;height:34px;display:inline-flex;align-items:center;font-size:12.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+  .top .rolebox .btn{background:var(--surface);color:var(--accent-ink);border-color:var(--surface);font-weight:700}
+  @media (max-width:1200px){.top .live,.top .topmeta{display:none}.top .madefor{max-width:240px}.top .rolebox .uziv{max-width:170px}}
+  @media (max-width:900px){.top .madefor{display:none}}
   /* 0.11.46: centrála na mobilu – kompaktní hlavička, záložky ve dvou řadách, záhlaví panelů a akce se zalamují */
   @media (max-width:640px){
-    .top .who,.top .verbadge,.top .ttl .meta{display:none}
-    .top .ttl h1{font-size:15px}
+    .top .ver,.top .rolebox .rolesel{display:none}
+    .top .logo{font-size:16px}
+    .top .rolebox{gap:5px;flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%}
     .nav button{height:32px;padding:0 10px;font-size:12px}
     .tabs{flex-wrap:wrap;gap:3px;border-bottom:0}
     .tabs button{padding:7px 10px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
@@ -116,9 +131,13 @@ function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_s
 /* ================= hlavička ================= */
 function hlavicka() {
   if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>${KP.tlacitkaHlavicky()}`; return; }
-  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>KARTA PACIENTA ON-LINE</h1><div class="meta">made with CLB Zlín · ${esc(S.nazevSite || '')}${S.nazevSite ? ' · ' : ''}centrální aplikace – garant a tým kolem pacienta</div></div>
-    <div class="who noprint">${esc(S.ja.jmeno)}<br>${esc(S.ja.poskytovatel)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</div>
-    ${KP.tlacitkaHlavicky()}<span class="verbadge">v${esc(S.verze || '')}</span><button class="btn sm noprint" id="odhl">Odhlásit</button>`;
+  // 0.11.68: hlavička ve stylu portálu PéčeDoma – logo, Made with, verze, štítek, popis, vpravo uživatel, role, ikony, Odhlásit
+  $('top').innerHTML = `<div class="logo" title="Karta pacienta on-line">Karta<span>Pacienta</span></div>
+    <div class="madefor"><b>Made with</b><span>CLB Zlín${S.nazevSite ? ' · ' + esc(S.nazevSite) : ''}</span></div>
+    <span class="ver" title="Verze aplikace">v ${esc(S.verze || '')}</span>
+    <span class="live">ON-LINE · centrální aplikace</span>
+    <div class="topmeta noprint">garant a tým kolem pacienta</div>
+    <div class="rolebox noprint"><span class="uziv" title="${esc(S.ja.poskytovatel)}">👤 ${esc(S.ja.jmeno)}</span><span class="rolesel" title="${esc(S.ja.poskytovatel)}">${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</span>${KP.tlacitkaHlavicky()}<button class="btn sm" id="odhl">Odhlásit</button></div>`;
   $('odhl').onclick = odhlas;
 }
 function nav() {
