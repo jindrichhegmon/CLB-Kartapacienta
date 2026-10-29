@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Karta pacienta</title>
+<style>
+  :root{color-scheme:light}
+  html,body{margin:0;height:100%;background:linear-gradient(160deg,#3b8fe6,#1d6fd6);color:#fff;font:16px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top) 20px env(safe-area-inset-bottom)}
+  .box{width:100%;max-width:420px;text-align:center}
+  .logo{font-size:34px;font-weight:800;letter-spacing:.3px;margin-bottom:4px}.logo span{color:#cfe6fb}
+  .sub{opacity:.9;font-size:14px;margin-bottom:26px}
+  .spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;margin:0 auto 14px;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">Karta<span>Pacienta</span></div>
+  <div class="sub">Můj průkaz · aplikace pro domácnost</div>
+  <div class="spin"></div><div>Otevírám průkaz…</div>
+</div>
+<script>
+/* Aplikace je jen obal: hned otevře živou stránku Můj průkaz (/pacient/) na serveru Karty pacienta. Všechno ostatní
+   (párování kódem průkazu, uložení ve vlastním telefonu, synchronizace, videohovor) dělá stránka sama.
+   Jiný server = změnit ADRESA a vydat nový build. */
+var ADRESA = 'https://kartapacienta.95-216-201-2.sslip.io/pacient/';
+setTimeout(function(){ location.replace(ADRESA); }, 300);
+</script>
+</body>
+</html>

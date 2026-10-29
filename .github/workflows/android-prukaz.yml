@@ -1,0 +1,76 @@
+# Karta pacienta pro domácnost (Můj průkaz) pro Android – sestavení APK (instalace z webu) i AAB (Google Play) na GitHubu,
+# bez Android Studia na Macu. Spouští se ručně (Actions → „Android – Můj průkaz“ → Run workflow) a po každé změně
+# v prukaz-android/ na main nebo na pracovní větvi claude/*. Podpis: Secrets PRUKAZ_KEYSTORE_B64 (soubor .p12 v base64) a PRUKAZ_KEYSTORE_PASSWORD –
+# viz prukaz-android/README.md. Výsledek: artefakty běhu MujPrukaz-android-<číslo> (APK pro zkoušku na telefonu)
+# a MujPrukaz-google-play-<číslo> (AAB – nahrát v Play Console). Artefakty se stáhnou z Actions → běh → Artifacts.
+# Bez Secrets vznikne jen nepodepsané APK a AAB – ty nejde nainstalovat ani nahrát do Google Play.
+# (Kiosková aplikace zapůjčeného telefonu ve složce android/ se staví jinak – Android Studio, viz android/README.md.)
+name: Android – Můj průkaz
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['prukaz-android/**', '.github/workflows/android-prukaz.yml']
+permissions:
+  contents: read
+concurrency:
+  group: android-prukaz
+  cancel-in-progress: false
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Licence Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+      - name: Balíčky Capacitoru
+        working-directory: prukaz-android
+        run: npm ci --no-audit --no-fund
+      - name: Web do projektu (cap sync)
+        working-directory: prukaz-android
+        run: npx cap sync android
+      - name: Podpisový klíč ze Secrets
+        env:
+          KS_B64: ${{ secrets.PRUKAZ_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.PRUKAZ_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/mujprukaz.p12"
+            echo "PRUKAZ_KEYSTORE_FILE=$RUNNER_TEMP/mujprukaz.p12" >> "$GITHUB_ENV"
+            echo "PRUKAZ_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "PODEPSANE=1" >> "$GITHUB_ENV"
+            echo "Klíč nalezen – balíčky budou podepsané."
+          else
+            echo "PODEPSANE=0" >> "$GITHUB_ENV"
+            echo "::warning::Chybí Secrets PRUKAZ_KEYSTORE_B64 / PRUKAZ_KEYSTORE_PASSWORD – vznikne jen nepodepsané APK a AAB (nejde nainstalovat ani nahrát do Google Play). Postup je v prukaz-android/README.md."
+          fi
+      - name: Sestavení APK
+        working-directory: prukaz-android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease -PversionCode=${{ github.run_number }} --no-daemon --console=plain
+          ls -la app/build/outputs/apk/release/
+      - name: Sestavení AAB (Google Play)
+        working-directory: prukaz-android/android
+        run: |
+          ./gradlew bundleRelease -PversionCode=${{ github.run_number }} --no-daemon --console=plain
+          ls -la app/build/outputs/bundle/release/
+      - name: Artefakt běhu – APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MujPrukaz-android-${{ github.run_number }}
+          path: prukaz-android/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      - name: Artefakt běhu – AAB pro Google Play
+        uses: actions/upload-artifact@v4
+        with:
+          name: MujPrukaz-google-play-${{ github.run_number }}
+          path: prukaz-android/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

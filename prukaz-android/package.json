@@ -1,0 +1,17 @@
+{
+  "name": "mujprukaz-android",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Karta pacienta pro domácnost (Můj průkaz) – nativní obal pro Android (Capacitor). Aplikace načítá živou stránku /pacient/ serveru Karty pacienta.",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}
