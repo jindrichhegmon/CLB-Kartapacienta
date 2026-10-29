@@ -1453,6 +1453,7 @@ async function spravaNast() {
     <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
     <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Detail pacienta) – otevře PéčeDoma, kde je klient.</span></div>
+    <div class="field"><label>Portál organizace</label><select id="pd_p"><option value=""${pd.portal === 'plus' ? '' : ' selected'}>PéčeDoma (Centrum pro léčbu bolesti)</option><option value="plus"${pd.portal === 'plus' ? ' selected' : ''}>PéčeDoma Plus (organizace se stejným tenantem)</option></select><span class="hint">PéčeDoma Plus: Karta volá aplikaci pecedomaplus-karta a posílá tenant této organizace – klienti, léky, chat a záznamy z Mého průkazu jsou z dat organizace v PéčeDoma Plus.</span></div>
     <div class="field"><label>Server PéčeDoma (jhn-apps)</label><input id="pd_a" value="${esc(pd.api || pd.apiVychozi || '')}"></div>
     <div class="field"><label>Token aplikace PéčeDoma${pd.tokenNastaven ? ' (vyplněn – nechte prázdné, nebo zadejte nový)' : ''}</label><input id="pd_t" type="password" autocomplete="off" placeholder="${pd.tokenNastaven ? '••••••••' : 'FAMICURA_REPORTY_TOKEN z nastavení serveru PéčeDoma'}"><span class="hint">Stejný token, kterým portál PéčeDoma volá svůj server. Do prohlížeče se zpět neposílá.</span></div>
     <label class="lbl" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pd_s" ${pd.sync ? 'checked' : ''}> Synchronizovat automaticky (léky a nejbližší návštěva propojených pacientů, každých 30 minut)</label>
@@ -1462,7 +1463,7 @@ async function spravaNast() {
   $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };
   $('pd_ok').onclick = async () => {
     try {
-      await C('/nastaveni', { method: 'POST', body: { pdOdkaz: $('pd_o').value, pdApi: $('pd_a').value, pdToken: $('pd_t').value, pdSync: $('pd_s').checked } });
+      await C('/nastaveni', { method: 'POST', body: { pdOdkaz: $('pd_o').value, pdPortal: $('pd_p').value, pdApi: $('pd_a').value, pdToken: $('pd_t').value, pdSync: $('pd_s').checked } });
       const d = await C('/ja'); S.pecedoma = d.pecedoma || {}; toast('Propojení uloženo'); spravaNast();
     } catch (e) { toast(e.message); }
   };

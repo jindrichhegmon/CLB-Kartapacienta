@@ -70,7 +70,7 @@ central.get('/ja', sUzivatelem(async (q, s) => {
   const pd = await nastaveniPd(q);
   return { ja: s, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) },
     // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
-    pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
+    pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, portal: pd.portal, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
 
 central.post('/heslo', sUzivatelem(async (q, s, req) => {
@@ -1248,6 +1248,7 @@ central.post('/nastaveni', sUzivatelem(async (q, s, req) => {
   if (b.pdApi != null) { const v = text(b.pdApi, 300).replace(/\/+$/, ''); if (v && !/^https?:\/\//i.test(v)) throw chyba('Adresa serveru PéčeDoma musí začínat https://'); zmeny.push(['PD_API', v]); }
   if (b.pdToken != null && text(b.pdToken, 200)) zmeny.push(['PD_TOKEN', text(b.pdToken, 200)]);
   if (b.pdTokenSmazat) zmeny.push(['PD_TOKEN', '']);
+  if (b.pdPortal != null) zmeny.push(['PD_PORTAL', b.pdPortal === 'plus' ? 'plus' : '']);
   if (b.pdSync != null) zmeny.push(['PD_SYNC', b.pdSync === true || b.pdSync === '1' || b.pdSync === 1 ? '1' : '0']);
   for (const [k, v] of zmeny) {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic

@@ -47,7 +47,7 @@ export const config = {
   partnerKlic: env('KP_PARTNER_KLIC'),
   // 0.11.65: odkud smí být stránka /pd/ vložená do rámu (portál PéčeDoma) – více adres oddělených mezerou
   pdOriginy: env('KP_PD_ORIGINY', 'https://web-pecedoma.netlify.app').split(/\s+/).filter(Boolean),
-  verze: '0.11.68',
+  verze: '0.11.69',
 };
 
 export function zkontrolujKonfiguraci() {
