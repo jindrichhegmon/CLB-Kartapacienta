@@ -25,6 +25,7 @@
 /* Aplikace je jen obal: hned otevře živou stránku Můj průkaz (/pacient/) na serveru Karty pacienta. Všechno ostatní
    (párování kódem průkazu, uložení ve vlastním telefonu, synchronizace, videohovor) dělá stránka sama.
    Jiný server = změnit ADRESA a vydat nový build. */
+// adresa serveru Karty pacienta (živá stránka Můj průkaz)
 var ADRESA = 'https://kartapacienta.95-216-201-2.sslip.io/pacient/';
 setTimeout(function(){ location.replace(ADRESA); }, 300);
 </script>
