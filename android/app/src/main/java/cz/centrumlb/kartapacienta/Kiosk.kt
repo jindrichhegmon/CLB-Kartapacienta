@@ -76,18 +76,21 @@ object Kiosk {
         opravneni(c)
         d.addUserRestriction(a, UserManager.DISALLOW_SAFE_BOOT) // nouzový režim by kiosk obešel
         // Zvonění při zhasnuté obrazovce (0.1.8): bez výjimky z úspor energie by telefon v klidu (Doze) službě odpojil síť
-        if (Build.VERSION.SDK_INT >= 34) vyjimkaZUspor(d, c.packageName)
+        val android14 = Build.VERSION.SDK_INT >= 34
+        if (android14) {
+            vyjimkaZUspor(d, c.packageName)
+        }
     }
 
     /** DevicePolicyManager.setApplicationExemptions(balíček, {EXEMPT_FROM_POWER_RESTRICTIONS = 2}) – Android 14+; přes reflexi, aby šlo
      *  sestavit i se starším SDK v Android Studiu (0.1.10). Když metoda chybí nebo selže, nic se neděje – jen Doze může v klidu omezit síť. */
     private fun vyjimkaZUspor(d: DevicePolicyManager, balicek: String) {
         try {
-            val m = DevicePolicyManager::class.java.getMethod("setApplicationExemptions", String::class.java, java.util.Set::class.java)
-            val vyjimky: java.util.Set<Int> = java.util.HashSet<Int>().apply { add(2) } as java.util.Set<Int>
-            m.invoke(d, balicek, vyjimky)
+            val metoda = DevicePolicyManager::class.java.getMethod("setApplicationExemptions", String::class.java, Set::class.java)
+            val vyjimky: Set<Int> = setOf(2)
+            metoda.invoke(d, balicek, vyjimky)
         } catch (e: Exception) {
-            // bez výjimky
+            // bez výjimky z úspor energie – telefon v dlouhém klidu může službě zvonění omezit síť
         }
     }
 
