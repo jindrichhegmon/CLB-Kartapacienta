@@ -128,6 +128,7 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun nastavZvoneni(adresa: String?, token: String?) {
             if (adresa.isNullOrBlank() || token.isNullOrBlank() || !adresa.startsWith("https://")) return
+            Zvoneni.zapis(this@MainActivity, "karta předala klíč pro zvonění")
             Zvoneni.uloz(this@MainActivity, adresa.trimEnd('/'), token)
         }
 
@@ -378,6 +379,7 @@ class MainActivity : Activity() {
                 },
                 "Obnovit kartu" to { nacistZnovu() },
                 "Zhasínání displeje" to { zhasinaniDispleje() },
+                "Stav zvonění (diagnostika)" to { AlertDialog.Builder(this).setTitle("Zvonění při zhasnutém displeji").setMessage(Zvoneni.diagnostika(this)).setPositiveButton("Zavřít", null).show() },
                 "Ukončit kiosk (do restartu)" to { Kiosk.uvolnit(this); zprava("Kiosk je vypnutý do restartu telefonu") },
                 "Vrátit telefon (zrušit správu zařízení)" to { potvrditZruseni() },
             )

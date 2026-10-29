@@ -37,9 +37,22 @@ object Zvoneni {
         return a to t
     }
 
+    @Volatile var bezi = false
     fun spustit(c: Context) {
-        if (nastaveni(c) == null) return
-        runCatching { c.startForegroundService(Intent(c, ZvoneniService::class.java)) }
+        if (nastaveni(c) == null) { zapis(c, "klíč pro zvonění zatím nepřišel") ; return }
+        runCatching { c.startForegroundService(Intent(c, ZvoneniService::class.java)) }.onFailure { zapis(c, "službu nejde spustit: " + it) }
+    }
+    /** poslední stav pro diagnostiku v servisu (0.1.11) */
+    fun zapis(c: Context, stav: String) {
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("stav", java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date()) + " " + stav).apply()
+    }
+    fun diagnostika(c: Context): String {
+        val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val n = nastaveni(c)
+        return "Klíč pro zvonění: " + (if (n != null) "uložen (" + n.first + ")" else "NENÍ – karta ho předá po načtení (verze karty 0.11.62+)") +
+            "\nSlužba zvonění: " + (if (bezi) "běží" else "neběží") +
+            "\nPoslední krok: " + (p.getString("stav", null) ?: "–") +
+            "\nDisplej: " + (if (c.getSystemService(android.os.PowerManager::class.java).isInteractive) "svítí (ptá se karta)" else "zhasnutý (ptá se služba)")
     }
 }
 
@@ -52,14 +65,16 @@ class ZvoneniService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         doPopredi()
         if (!bezi) {
-            bezi = true
+            bezi = true; Zvoneni.bezi = true
+            Zvoneni.zapis(this, "služba spuštěna")
             vlakno = Thread({ smycka() }, "kp-zvoneni").apply { isDaemon = true; start() }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        bezi = false
+        bezi = false; Zvoneni.bezi = false
+        Zvoneni.zapis(this, "služba ukončena")
         vlakno?.interrupt()
         super.onDestroy()
     }
@@ -86,7 +101,9 @@ class ZvoneniService : Service() {
                 if (!pm.isInteractive) {
                     val n = Zvoneni.nastaveni(this)
                     if (n == null) { stopSelf(); return }
-                    when (zjisti(n.first, n.second)) {
+                    val st = zjisti(n.first, n.second)
+                    Zvoneni.zapis(this, "dotaz na server: " + st)
+                    when (st) {
                         Stav.ZVONI -> { probud(pm); Thread.sleep(45_000) }
                         Stav.NEPLATNY -> { Zvoneni.zapomen(this); stopSelf(); return }
                         else -> Unit
@@ -96,6 +113,7 @@ class ZvoneniService : Service() {
             } catch (e: InterruptedException) {
                 return
             } catch (e: Exception) {
+                Zvoneni.zapis(this, "chyba: " + (e.message ?: e.toString()).take(120))
                 runCatching { Thread.sleep(15_000) }
             }
         }
@@ -121,6 +139,7 @@ class ZvoneniService : Service() {
 
     /** Rozsvítí displej a dá kartu do popředí (správce zařízení smí aktivitu spustit i z pozadí; zámek obrazovky je v kiosku vypnutý). */
     private fun probud(pm: PowerManager) {
+        Zvoneni.zapis(this, "centrála volá – probouzím telefon")
         @Suppress("DEPRECATION")
         val wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE, "kp:zvoneni")
         runCatching { wl.acquire(20_000) }
@@ -128,7 +147,7 @@ class ZvoneniService : Service() {
             startActivity(
                 Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             )
-        }
+        }.onFailure { Zvoneni.zapis(this, "kartu nejde dát do popředí: " + it) }
     }
 
     companion object {

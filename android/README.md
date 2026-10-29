@@ -70,6 +70,7 @@ zůstal účet, odebrat ho (nebo znovu tovární reset).
 |---|---|
 | Nastavení Wi-Fi | otevře panel Wi-Fi, po zavření se kiosk sám znovu zamkne |
 | Obnovit kartu | znovu načte stránku |
+| Stav zvonění (diagnostika) | zda karta předala klíč pro zvonění, zda běží služba a co naposledy udělala (0.1.11) |
 | Zhasínání displeje | po kolika minutách displej zhasne (1 min – nikdy); nastaví se přímo, bez opouštění kiosku, platí i po restartu (0.1.9) |
 | Ukončit kiosk (do restartu) | uvolní telefon pro servis, po restartu je kiosk zpět |
 | Vrátit telefon | zruší správu zařízení – pak jde aplikace odinstalovat |
