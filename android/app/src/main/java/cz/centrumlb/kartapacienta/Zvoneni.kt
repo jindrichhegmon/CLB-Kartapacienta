@@ -44,6 +44,7 @@ object Zvoneni {
     }
     /** poslední stav pro diagnostiku v servisu (0.1.11) */
     fun zapis(c: Context, stav: String) {
+        android.util.Log.i("kp-zvoneni", stav)
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("stav", java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date()) + " " + stav).apply()
     }
     fun diagnostika(c: Context): String {
@@ -98,6 +99,7 @@ class ZvoneniService : Service() {
         val pm = getSystemService(PowerManager::class.java)
         while (bezi) {
             try {
+                Zvoneni.zapis(this, if (pm.isInteractive) "displej svítí – ptá se karta" else "displej zhasnutý – ptám se serveru")
                 if (!pm.isInteractive) {
                     val n = Zvoneni.nastaveni(this)
                     if (n == null) { stopSelf(); return }
