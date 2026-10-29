@@ -322,7 +322,7 @@ Nahoře je přehled **Týmů**: název, popis, které pracoviště ho založilo 
 
 ![Tým a jeho členové](/napoveda/img/c-tym-okno.png)
 
-Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapitola 7, Týmy u pacienta): nový člen dostane přístup, odebraný ho ztratí; pracoviště nového člena se u těchto pacientů přidá do týmu kolem pacienta s rolí péče. Koho u konkrétního pacienta lékař deaktivoval, ten se změnou týmu nevrátí.
+Zatržítko **Přiřadit vždy** v okně týmu (od 0.11.66) tým automaticky přiřadí ke každé kartě pacienta, u kterého je pracoviště týmu **garantem** – ke všem stávajícím hned po uložení a ke každé nově založené (po předání garance jinam se u pacienta přiřadí týmy nového garanta); u pacienta ho pak nejde odebrat (místo tlačítka Odebrat tým je štítek *přiřazen vždy*), jen deaktivovat jednotlivé členy. Hodí se pro vlastní tým organizace, který má být u všech pacientů. Změna členů se hned promítne ke všem pacientům, kteří tým mají (kapitola 7, Týmy u pacienta): nový člen dostane přístup, odebraný ho ztratí; pracoviště nového člena se u těchto pacientů přidá do týmu kolem pacienta s rolí péče. Koho u konkrétního pacienta lékař deaktivoval, ten se změnou týmu nevrátí.
 
 ### Přidání člověka
 

@@ -1178,7 +1178,7 @@ function tymyBlok(lide) {
   if (!tymy.length && !psIds.size) return '';
   const sk = seskup(tymy, (t) => t.poskytovatel);
   return `<div class="panel"><div class="panel-h"><h2>Týmy</h2><span class="chip acc">${tymy.filter((t) => t.aktivni).length}</span></div>
-    ${tymy.length ? `<div class="tblwrap"><table class="tbl hover"><thead><tr><th>Tým</th><th>Založil (garant)</th><th>Členů</th><th>Pacientů</th><th></th></tr></thead><tbody>${[...sk].map(([ps, ts]) => ts.map((t) => `<tr data-trow="${t.id}"><td><b>${esc(t.nazev)}</b>${t.aktivni ? '' : ' <span class="chip">zrušený</span>'}${t.popis ? `<div class="lbl">${esc(t.popis)}</div>` : ''}</td><td>${esc(ps)}</td><td>${t.clenu}</td><td>${t.pacientu}</td><td style="text-align:right">${smiLidi(t.poskytovatelId) ? `<button class="btn sm" data-tid="${t.id}">Upravit</button>` : ''}</td></tr>`).join('')).join('')}</tbody></table></div>`
+    ${tymy.length ? `<div class="tblwrap"><table class="tbl hover"><thead><tr><th>Tým</th><th>Založil (garant)</th><th>Členů</th><th>Pacientů</th><th></th></tr></thead><tbody>${[...sk].map(([ps, ts]) => ts.map((t) => `<tr data-trow="${t.id}"><td><b>${esc(t.nazev)}</b>${t.aktivni ? '' : ' <span class="chip">zrušený</span>'}${t.prirazenVzdy ? ' <span class="chip ok" title="automaticky u každé karty pacienta, kde je pracoviště garantem">přiřazen vždy</span>' : ''}${t.popis ? `<div class="lbl">${esc(t.popis)}</div>` : ''}</td><td>${esc(ps)}</td><td>${t.clenu}</td><td>${t.pacientu}</td><td style="text-align:right">${smiLidi(t.poskytovatelId) ? `<button class="btn sm" data-tid="${t.id}">Upravit</button>` : ''}</td></tr>`).join('')).join('')}</tbody></table></div>`
       : '<div class="note" style="margin:12px 14px">Zatím žádný tým. Založte ho tlačítkem + Tým a vyberte členy – i z jiných pracovišť (domov, praktik); u pacienta se pak přiřazuje celý tým.</div>'}</div>`;
 }
 function tymOkno(t) {
@@ -1191,6 +1191,7 @@ function tymOkno(t) {
       <div class="field"><label>Název týmu</label><input id="tm_n" value="${esc(t.nazev || '')}" placeholder="např. Tým Zlín, Oddělení A"></div></div>
     <div class="field"><label>Popis (volitelně)</label><input id="tm_pop" value="${esc(t.popis || '')}" placeholder="např. Zlín a okolí, služba po–pá"></div>
     ${t.id ? `<label class="row"><input type="checkbox" id="tm_a" ${t.aktivni ? 'checked' : ''}> aktivní (zrušený tým už nejde k pacientovi přidat a jeho členové u pacientů kartu neodemknou)</label>` : ''}
+    <label class="row"><input type="checkbox" id="tm_vzdy" ${t.prirazenVzdy ? 'checked' : ''}> <b>Přiřadit vždy</b> – tým se automaticky přiřadí ke každé kartě pacienta, u kterého je toto pracoviště garantem (stávajícím i nově založeným); u pacienta ho nejde odebrat, jen deaktivovat jednotlivé členy</label>
     <div class="field"><label>Členové týmu – lidé kteréhokoli pracoviště organizace</label><div id="tm_clenove" style="display:grid;gap:2px;max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:6px 10px">${clenHTML()}</div><span class="hint">Do týmu patří i lidé třetích stran – sestra domova, praktický lékař. Člověk může být ve více týmech. Změna členů se promítne ke všem pacientům, kteří tým mají; pracoviště členů se u nich přidá do týmu kolem pacienta.</span></div>
     <div class="quick"><button class="btn primary ulozit" id="tm_ok">Uložit</button>${t.id ? '<button class="btn" id="tm_piny" title="Platné osobní PINy všech členů týmu na kartičky k tisku (zapíše se do logu přístupů)">Vytisknout kartičky s PINem</button><button class="btn crit" id="tm_del">Smazat tým</button>' : ''}<button class="btn" data-close>Zrušit</button></div>
     ${t.id ? '<div class="note">Smazat tým: tým zmizí z přehledu i z nabídky u pacientů; u pacientů, kde byl přidělený, ztratí jeho členové přístup (kdo je u pacienta i přes jiný tým, zůstane). Lidé samotní zůstávají zapsaní. Pak jde založit znovu a k pacientovi přidat.</div>' : ''}</div>`, (m) => {
@@ -1211,10 +1212,10 @@ function tymOkno(t) {
       try { const r = await C(`/tym-lidi/${t.id}/smazat`, { method: 'POST', body: {} }); closeModal(); toast(r.pacientu ? `Tým smazán a odebrán u ${r.pacientu} pacientů` : 'Tým smazán'); await renderLide(); } catch (e) { toast(e.message); }
     };
     $('tm_ok').onclick = async () => {
-      const body = { id: t.id, poskytovatelId: Number($('tm_p').value), nazev: $('tm_n').value.trim(), popis: $('tm_pop').value.trim(), aktivni: $('tm_a') ? $('tm_a').checked : true,
+      const body = { id: t.id, poskytovatelId: Number($('tm_p').value), nazev: $('tm_n').value.trim(), popis: $('tm_pop').value.trim(), aktivni: $('tm_a') ? $('tm_a').checked : true, prirazenVzdy: $('tm_vzdy').checked,
         clenove: [...document.querySelectorAll('[data-tcl]:checked')].map((c) => Number(c.dataset.tcl)) };
       if (body.nazev.length < 2) return toast('Vyplňte název týmu');
-      try { await C('/tym-lidi', { method: 'POST', body }); closeModal(); toast(t.id ? 'Tým uložen' : 'Tým založen'); await renderLide(); } catch (e) { toast(e.message); }
+      try { const r = await C('/tym-lidi', { method: 'POST', body }); closeModal(); toast((t.id ? 'Tým uložen' : 'Tým založen') + (r && r.prirazeno ? ` – nově přiřazen u ${r.prirazeno} pacientů` : '')); await renderLide(); } catch (e) { toast(e.message); }
     };
   });
 }
@@ -1341,7 +1342,7 @@ const smiPriradit = (d, psId) => d.op.garant || d.op.lekar || (d.op.zapis && psI
 function tymyPanel(d) {
   const tymy = d.tymyLidi || [], nabidka = (d.tymyNabidka || []).filter((t) => smiPriradit(d, t.poskytovatelId));
   const skupina = (t) => { const akt = t.clenove.filter((c) => c.aktivni).length, smi = d.op.aktivni && smiPriradit(d, t.poskytovatelId);
-    return `<section class="lkskup acc"><div class="lkskup-h"><span>${esc(t.nazev)} · ${esc(t.poskytovatel)}</span><span class="row" style="gap:6px;text-transform:none;letter-spacing:0"><span class="chip">${akt} / ${t.clenove.length}</span>${smi ? `<button class="btn sm" data-tlodeb="${t.tymId}">Odebrat tým</button>` : ''}</span></div>
+    return `<section class="lkskup acc"><div class="lkskup-h"><span>${esc(t.nazev)} · ${esc(t.poskytovatel)}</span><span class="row" style="gap:6px;text-transform:none;letter-spacing:0"><span class="chip">${akt} / ${t.clenove.length}</span>${t.prirazenVzdy ? '<span class="chip ok" title="tým je u každé karty automaticky – nejde odebrat, jen deaktivovat členy (Lidé a týmy → Přiřadit vždy)">přiřazen vždy</span>' : smi ? `<button class="btn sm" data-tlodeb="${t.tymId}">Odebrat tým</button>` : ''}</span></div>
       ${t.clenove.length ? `<table class="tbl"><tbody>${t.clenove.map((c) => `<tr style="${c.aktivni ? '' : 'opacity:.6'}"><td><b>${esc(c.jmeno)}</b><div class="lbl">${esc(ROLE_OS[c.role] || c.role)}${c.poskytovatel ? ' · ' + esc(c.poskytovatel) : ''}${c.maPin ? '' : ' · <span style="color:var(--warn)">nemá PIN</span>'}</div></td>
         <td><span class="chip ${c.aktivni ? 'ok' : ''}">${c.aktivni ? 'aktivní' : 'deaktivován u pacienta'}</span></td>
         <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-ozpin="${c.osobaId}" title="Ukáže platný osobní PIN tohoto člověka (zapíše se do logu přístupů)">Zobrazit PIN</button> ${smi ? `<button class="btn sm" data-tlcl="${t.tymId}|${c.osobaId}|${c.aktivni ? 0 : 1}">${c.aktivni ? 'Deaktivovat' : 'Aktivovat'}</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="lkskup-p">tým zatím nemá členy – doplňte je v agendě Lidé a týmy</div>'}</section>`; };

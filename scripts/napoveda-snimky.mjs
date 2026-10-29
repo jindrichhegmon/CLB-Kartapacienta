@@ -71,7 +71,7 @@ const lide = [
 ];
 // týmy lidí (0.10.0): hlavičky týmů, týmy u pacienta s členy (člen 3 u pacienta deaktivován), nabídka dalších týmů
 const tymy = [
-  { id: 1, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Zlín', popis: 'Zlín a okolí', aktivni: 1, clenu: 5, pacientu: 3 },
+  { id: 1, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Zlín', popis: 'Zlín a okolí', aktivni: 1, prirazenVzdy: 1, clenu: 5, pacientu: 3 },
   { id: 2, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Otrokovice', popis: '', aktivni: 1, clenu: 2, pacientu: 1 },
   { id: 3, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení A', popis: 'přízemí', aktivni: 1, clenu: 2, pacientu: 5 },
   { id: 4, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení B', popis: '', aktivni: 1, clenu: 1, pacientu: 3 },
@@ -80,7 +80,7 @@ const clen = (oid, aktivni = 1) => { const o = lide.find((x) => x.id === oid); r
 // členství (0.10.2): tým garanta může mít i lidi jiných pracovišť – Tým Zlín má i sestru domova a praktickou lékařku
 const clenstvi = [[1, 1], [1, 2], [1, 3], [1, 6], [1, 7], [2, 4], [2, 5], [3, 7], [3, 8], [4, 9]].map(([tymId, osobaId]) => ({ tymId, osobaId }));
 const tymyLidi = [
-  { id: 1, tymId: 1, nazev: 'Tým Zlín', popis: 'Zlín a okolí', poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', od: den(-21), clenove: [clen(1), clen(2), clen(3, 0), clen(6), clen(7)] },
+  { id: 1, tymId: 1, nazev: 'Tým Zlín', popis: 'Zlín a okolí', poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', od: den(-21), prirazenVzdy: 1, clenove: [clen(1), clen(2), clen(3, 0), clen(6), clen(7)] },
   { id: 2, tymId: 3, nazev: 'Oddělení A', popis: 'přízemí', poskytovatelId: 3, poskytovatel: 'Domov Pohoda', od: den(-10), clenove: [clen(7), clen(8)] },
 ];
 const tymyNabidka = () => tymy.filter((t) => !tymyLidi.some((x) => x.tymId === t.id)).map((t) => ({ id: t.id, nazev: t.nazev, popis: t.popis, poskytovatelId: t.poskytovatelId, poskytovatel: t.poskytovatel, clenu: t.clenu, mimoTym: t.id === 4 ? ['Domov Pohoda – odd. B'] : [] }));
