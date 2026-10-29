@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Karta pacienta</title>
+<title>KARTA PACIENTA ON-LINE</title>
 <link rel="manifest" href="/karta/manifest.webmanifest">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.64';
+const APP_VERZE = 'karta-0.11.67';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -174,7 +174,7 @@ function kresliSyncBar() {
   $('btnSync').onclick = () => sync({ tichy: false });
 }
 function hlavicka() {
-  if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Karta pacienta</h1><div class="meta">${KARTY.length ? `${KARTY.length} průkazy v telefonu · vyberte pacienta` : 'telefon u lůžka'}</div></div>${KP.tlacitkaHlavicky({ vzhled: false })}<span class="verbadge">${APP_VERZE.replace('karta-', 'v')}</span>`; return; }
+  if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>KARTA PACIENTA ON-LINE</h1><div class="meta">made with CLB Zlín · ${KARTY.length ? `${KARTY.length} průkazy v telefonu · vyberte pacienta` : 'telefon u lůžka'}</div></div>${KP.tlacitkaHlavicky({ vzhled: false })}<span class="verbadge">${APP_VERZE.replace('karta-', 'v')}</span>`; return; }
   const p = D.balik.pacient;
   $('top').innerHTML = `${tab !== 'karta' && U.role ? `<button class="back" id="btnBack" aria-label="Zpět">${KP.ICON.back}</button>` : KARTY.length > 1 && !U.role ? `<button class="back" id="btnVyber" aria-label="Jiný pacient" title="Jiný pacient">${KP.ICON.back}</button>` : '<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt="">'}
     <div class="ttl"><h1>${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h1><div class="meta">${esc(p.kod)} · ${esc(p.pobyt || '')}${D.telefon ? ' · telefon ' + esc(D.telefon) : ''}</div></div>
@@ -196,7 +196,7 @@ function kresliVyber() {
     <ul class="plist">${seřazené.map(radek).join('')}</ul>
     <div class="quick"><button class="btn" id="v_pridat">Přidat další průkaz do tohoto telefonu</button></div>
     <div class="note">Každý průkaz je samostatný: má vlastní krizovou kartu, deník a PINy týmu. Po zamknutí se telefon vrátí na tento výběr, aby další člověk vybral správného pacienta. Průkaz z telefonu odebere centrální aplikace (zablokování telefonu u pacienta nebo uzavření průkazu).</div>
-    <div class="footer">Karta pacienta ${APP_VERZE.replace('karta-', 'v')} · šifrované kopie, plány vede garant v centrální aplikaci</div>`;
+    <div class="footer">KARTA PACIENTA ON-LINE ${APP_VERZE.replace('karta-', 'v')} · made with CLB Zlín · šifrované kopie, plány vede garant v centrální aplikaci</div>`;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   document.querySelectorAll('[data-karta]').forEach((li) => (li.onclick = () => { D = KARTY.find((k) => String(k.zarizeniId) === li.dataset.karta) || null; U = { role: null }; tab = 'karta'; chybaSync = ''; kresli(); scrollTo(0, 0); }));
   const b = $('v_pridat'); if (b) b.onclick = () => kresliParovani({ pridat: true });
@@ -237,7 +237,7 @@ function kresli() {
     html += ({ karta: () => KP.kartaHTML(bb, { navsteva: U.role !== 'rodina' }) + (zh ? '<div class="banner crit">Probíhá zhoršení stavu.<button class="btn sm" id="btnStab">Stav stabilizován</button></div>' : '') + navstevaHTML(b) + `<div class="panel"><div class="panel-h"><h2>Diagnózy</h2></div><div class="rolehelp" style="color:var(--fg)">${esc((b.plan && b.plan.data.dg) || '—')}</div></div>`,
       dg: () => dgHTML(b), leky: () => lekyHTML(b), plan: () => planHTML(b), denik: () => denikHTML(denik), odpac: () => odPacientaHTML(b), zpravy: () => zpravyHTML(b), video: () => videoHTML(b), zhorseni: () => zhorseniHTML(b, zh), kontakty: () => kontaktyHTML(b), udaje: () => tymHTML(b) })[tab]();
   }
-  html += `<div class="footer">Karta pacienta ${APP_VERZE.replace('karta-', 'v')} · šifrovaná kopie, plán vede garant v centrální aplikaci</div>`;
+  html += `<div class="footer">KARTA PACIENTA ON-LINE ${APP_VERZE.replace('karta-', 'v')} · made with CLB Zlín · šifrovaná kopie, plán vede garant v centrální aplikaci</div>`;
   $('work').innerHTML = html;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
   kresliSyncBar();

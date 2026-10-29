@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Centrální aplikace · Karta pacienta</title>
+<title>KARTA PACIENTA ON-LINE · centrální aplikace</title>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
@@ -116,7 +116,7 @@ function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_s
 /* ================= hlavička ================= */
 function hlavicka() {
   if (!S.ja) { $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Karta pacienta</h1><div class="meta">Centrální aplikace</div></div>${KP.tlacitkaHlavicky()}`; return; }
-  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>${esc(S.nazevSite || 'Karta pacienta')}</h1><div class="meta">Centrální aplikace · garant a tým kolem pacienta</div></div>
+  $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>KARTA PACIENTA ON-LINE</h1><div class="meta">made with CLB Zlín · ${esc(S.nazevSite || '')}${S.nazevSite ? ' · ' : ''}centrální aplikace – garant a tým kolem pacienta</div></div>
     <div class="who noprint">${esc(S.ja.jmeno)}<br>${esc(S.ja.poskytovatel)} · ${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</div>
     ${KP.tlacitkaHlavicky()}<span class="verbadge">v${esc(S.verze || '')}</span><button class="btn sm noprint" id="odhl">Odhlásit</button>`;
   $('odhl').onclick = odhlas;

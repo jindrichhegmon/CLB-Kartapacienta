@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Můj průkaz</title>
+<title>Můj průkaz · KARTA PACIENTA ON-LINE</title>
 <link rel="manifest" href="/pacient/manifest.webmanifest">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
@@ -61,7 +61,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.64';
+const APP_VERZE = 'pacient-0.11.67';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -182,7 +182,7 @@ function kresliSyncBar() {
   $('btnSync').onclick = () => sync({ tichy: false });
 }
 function hlavicka() {
-  if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Můj průkaz</h1><div class="meta">paliativní průkaz ve vašem telefonu</div></div>${KP.tlacitkaHlavicky({ vzhled: true })}<span class="verbadge">${APP_VERZE.replace('pacient-', 'v')}</span>`; return; }
+  if (!D) { $('top').innerHTML = `<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt=""><div class="ttl"><h1>Můj průkaz</h1><div class="meta">KARTA PACIENTA ON-LINE · made with CLB Zlín</div></div>${KP.tlacitkaHlavicky({ vzhled: true })}<span class="verbadge">${APP_VERZE.replace('pacient-', 'v')}</span>`; return; }
   const p = D.balik.pacient;
   $('top').innerHTML = `${tab !== 'prehled' ? `<button class="back" id="btnBack" aria-label="Zpět">${KP.ICON.back}</button>` : '<img src="/icons/icon.svg" width="40" height="40" style="border-radius:12px" alt="">'}
     <div class="ttl"><h1>${esc(p.jmeno)} ${esc(p.prijmeni)}</h1><div class="meta">Můj průkaz · ${esc(p.kod)}</div></div>
