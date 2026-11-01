@@ -1,0 +1,71 @@
+# Průkaz pro plán péče pro Android – sestavení APK (instalace z webu) i AAB (Google Play) na GitHubu, bez Android Studia.
+# Obal stránky /prukaz/ (karta jen v telefonu pacienta). Spouští se ručně (Actions → „Android – Plán péče“ → Run workflow)
+# a po každé změně v planpece-android/ na main nebo na větvi claude/*. Podpis stejným klíčem pro nahrávání jako Můj průkaz
+# (Secrets PRUKAZ_KEYSTORE_B64 a PRUKAZ_KEYSTORE_PASSWORD, alias mujprukaz) – viz prukaz-android/README.md.
+# Výsledek: artefakty PlanPece-android-<číslo> (APK) a PlanPece-google-play-<číslo> (AAB).
+name: Android – Plán péče
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['planpece-android/**', '.github/workflows/android-planpece.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-planpece
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Licence Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+      - name: Balíčky Capacitoru
+        working-directory: planpece-android
+        run: npm ci --no-audit --no-fund
+      - name: Web do projektu (cap sync)
+        working-directory: planpece-android
+        run: npx cap sync android
+      - name: Podpisový klíč ze Secrets
+        env:
+          KS_B64: ${{ secrets.PRUKAZ_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.PRUKAZ_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/klic.p12"
+            echo "PRUKAZ_KEYSTORE_FILE=$RUNNER_TEMP/klic.p12" >> "$GITHUB_ENV"
+            echo "PRUKAZ_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "Klíč nalezen – balíčky budou podepsané."
+          else
+            echo "::warning::Chybí Secrets PRUKAZ_KEYSTORE_B64 / PRUKAZ_KEYSTORE_PASSWORD – vznikne jen nepodepsané APK a AAB."
+          fi
+      - name: Sestavení APK a AAB
+        working-directory: planpece-android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease -PversionCode=${{ github.run_number }} --no-daemon --console=plain
+          ls -la app/build/outputs/apk/release/ app/build/outputs/bundle/release/
+      - name: Artefakt běhu – APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlanPece-android-${{ github.run_number }}
+          path: planpece-android/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      - name: Artefakt běhu – AAB pro Google Play
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlanPece-google-play-${{ github.run_number }}
+          path: planpece-android/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
