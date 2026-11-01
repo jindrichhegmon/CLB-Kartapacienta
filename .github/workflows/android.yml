@@ -1,0 +1,93 @@
+# Průkaz pro plán péče pro Android – sestavení APK (instalace z webu) i AAB (Google Play) na GitHubu, bez Android Studia na Macu.
+# Spouští se ručně (Actions → Android APK a AAB → Run workflow) a po každé změně v mobil/ na main nebo na větvi claude/*.
+# Podpis: Secrets ANDROID_KEYSTORE_B64 (soubor .p12 v base64) a ANDROID_KEYSTORE_PASSWORD – viz mobil/README.md.
+# Výsledek: podepsané APK a AAB se zapíšou do public/prukaz/android/ na větvi, ze které běh vyšel; po nasazení Karty (vps-deploy.sh)
+# jsou ke stažení na https://kartapacienta.95-216-201-2.sslip.io/prukaz/android/ (AAB → nahrát v Play Console). Obojí je i jako artefakt běhu.
+# Bez Secrets vznikne jen nepodepsané APK a AAB (artefakty) – ty nejde nainstalovat ani nahrát do Google Play.
+name: Android APK a AAB
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['mobil/**', '.github/workflows/android.yml']
+permissions:
+  contents: write
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Licence Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+      - name: Balíčky Capacitoru
+        working-directory: mobil
+        run: npm ci --no-audit --no-fund
+      - name: Web do projektu (cap sync)
+        working-directory: mobil
+        run: npx cap sync android
+      - name: Podpisový klíč ze Secrets
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/prukaz.p12"
+            echo "PRUKAZ_KEYSTORE_FILE=$RUNNER_TEMP/prukaz.p12" >> "$GITHUB_ENV"
+            echo "PRUKAZ_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "PODEPSANE=1" >> "$GITHUB_ENV"
+            echo "Klíč nalezen – APK bude podepsané."
+          else
+            echo "PODEPSANE=0" >> "$GITHUB_ENV"
+            echo "::warning::Chybí Secrets ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASSWORD – vznikne jen nepodepsané APK (nejde nainstalovat). Postup je v mobil/README.md."
+          fi
+      - name: Sestavení APK
+        working-directory: mobil/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease -PversionCode=${{ github.run_number }} --no-daemon --console=plain
+          ls -la app/build/outputs/apk/release/
+      - name: Sestavení AAB (Google Play)
+        working-directory: mobil/android
+        run: |
+          ./gradlew bundleRelease -PversionCode=${{ github.run_number }} --no-daemon --console=plain
+          ls -la app/build/outputs/bundle/release/
+      - name: Artefakt běhu – APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prukaz-android-${{ github.run_number }}
+          path: mobil/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      - name: Artefakt běhu – AAB pro Google Play
+        uses: actions/upload-artifact@v4
+        with:
+          name: Prukaz-google-play-${{ github.run_number }}
+          path: mobil/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - name: Zapsat do public/prukaz/android na větvi
+        if: env.PODEPSANE == '1'
+        run: |
+          APK=mobil/android/app/build/outputs/apk/release/app-release.apk
+          AAB=mobil/android/app/build/outputs/bundle/release/app-release.aab
+          [ -f "$APK" ] || { echo "Podepsané APK nevzniklo"; exit 1; }
+          [ -f "$AAB" ] || { echo "Podepsané AAB nevzniklo"; exit 1; }
+          VERZE=$(grep -o 'versionName "[^"]*"' mobil/android/app/build.gradle | sed 's/.*"\(.*\)"/\1/')
+          mkdir -p public/prukaz/android
+          cp "$APK" public/prukaz/android/Prukaz.apk
+          cp "$AAB" public/prukaz/android/Prukaz.aab
+          printf '{"verze":"%s","build":%s,"datum":"%s","commit":"%s"}\n' "$VERZE" "${{ github.run_number }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${GITHUB_SHA::7}" > public/prukaz/android/verze.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/prukaz/android/Prukaz.apk public/prukaz/android/Prukaz.aab public/prukaz/android/verze.json
+          git commit -m "Průkaz pro Android: APK a AAB v$VERZE build ${{ github.run_number }} (automaticky z GitHub Actions)" || { echo "beze změny"; exit 0; }
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push origin HEAD:"${{ github.ref_name }}"

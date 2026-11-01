@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Průkaz pro plán péče pro Android</title>
+<style>
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px 18px;color:#25384a;line-height:1.5;background:#f0f7fd}
+  img{width:96px;height:96px;border-radius:22px;display:block;margin:0 auto 10px}
+  h1{text-align:center;font-size:24px;margin:0 0 6px}.ver{text-align:center;color:#6b7f94;font-size:14px;margin-bottom:18px}
+  a.btn{display:block;background:#1d6fd6;color:#fff;text-decoration:none;text-align:center;padding:16px;border-radius:14px;font-size:19px;font-weight:700;margin:18px 0}
+  a.btn.off{background:#9fb4c8;pointer-events:none}
+  ol{padding-left:20px}li{margin-bottom:6px}small{color:#6b7f94}
+  .box{background:#fff;border:1px solid #cfe0f0;border-radius:12px;padding:12px 14px;margin-top:14px;font-size:14px}
+</style></head>
+<body>
+<img src="/icons/icon-192.png" alt="">
+<h1>Průkaz pro plán péče pro Android</h1>
+<div class="ver" id="ver">zjišťuji verzi…</div>
+<a class="btn" id="btn" href="Prukaz.apk">⬇ Stáhnout a nainstalovat</a>
+<ol>
+  <li>Tuto stránku otevřete <b>v Chromu na telefonu s Androidem</b> a klepněte na tlačítko. Soubor Prukaz.apk se stáhne.</li>
+  <li>Klepněte na stažený soubor (lišta stahování nebo aplikace Soubory). Když se telefon zeptá, <b>povolte instalaci z tohoto zdroje</b> (Chrome) a potvrďte <b>Nainstalovat</b>.</li>
+  <li>Na ploše přibude ikona <b>Průkaz</b>. Aplikace otevře Průkaz pro plán péče – data zůstávají jen v telefonu, nic se neposílá.</li>
+</ol>
+<div class="box">Bez instalace jde Průkaz používat i přímo v Chromu: otevřete <a href="/prukaz/">kartapacienta.95-216-201-2.sslip.io/prukaz/</a> a zvolte ⋮ → <b>Přidat na plochu</b>. Aktualizace obsahu přicházejí samy; nové APK je potřeba jen při změně aplikace (ikona, oprávnění).<br><small>Instalace z této stránky je mimo obchod Google Play – hlášku Play Protect o neznámé aplikaci potvrďte volbou „Přesto nainstalovat“. Jde o testovací verzi.</small></div>
+<script>
+fetch('verze.json', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(v => {
+  var el = document.getElementById('ver'), b = document.getElementById('btn');
+  if (!v) { el.textContent = 'Aplikace zatím není sestavená – zkuste to později.'; b.classList.add('off'); return; }
+  el.textContent = 'verze ' + v.verze + ' · build ' + v.build + ' · ' + new Date(v.datum).toLocaleDateString('cs-CZ');
+}).catch(function(){ document.getElementById('ver').textContent = ''; });
+</script>
+</body></html>

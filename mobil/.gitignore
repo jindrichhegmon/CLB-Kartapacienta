@@ -1,0 +1,12 @@
+node_modules
+ios/App/App/public
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/build
+ios/App/Pods
+ios/App/output
+ios/DerivedData
+ios/App/App.xcodeproj/xcuserdata
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata
+ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+ios/capacitor-cordova-ios-plugins

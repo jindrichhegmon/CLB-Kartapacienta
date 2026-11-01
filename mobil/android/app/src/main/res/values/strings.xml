@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Průkaz</string>
+    <string name="title_activity_main">Průkaz</string>
+    <string name="package_name">cz.dialogus.prukaz</string>
+    <string name="custom_url_scheme">cz.dialogus.prukaz</string>
+</resources>

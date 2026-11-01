@@ -1,0 +1,20 @@
+{
+  "name": "prukaz-mobil",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Průkaz pro plán péče – nativní obal pro iOS a Android (Capacitor). Aplikace načítá živý web https://kartapacienta.95-216-201-2.sslip.io/prukaz/.",
+  "scripts": {
+    "sync": "cap sync ios",
+    "open": "cap open ios",
+    "sync:android": "cap sync android",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.0",
+    "@capacitor/ios": "^7.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.0"
+  }
+}

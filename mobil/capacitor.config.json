@@ -1,0 +1,22 @@
+{
+  "appId": "cz.dialogus.prukaz",
+  "appName": "Průkaz",
+  "webDir": "www",
+  "server": {
+    "allowNavigation": [
+      "kartapacienta.95-216-201-2.sslip.io",
+      "*.sslip.io"
+    ]
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#1d6fd6",
+    "scheme": "Prukaz",
+    "zoomEnabled": false
+  },
+  "appendUserAgent": "PrukazApp",
+  "android": {
+    "zoomEnabled": false,
+    "backgroundColor": "#1d6fd6"
+  }
+}
