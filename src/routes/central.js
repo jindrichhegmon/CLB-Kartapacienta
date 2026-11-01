@@ -589,6 +589,47 @@ central.post('/pacient/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
   return { pin, jmeno: o.Jmeno, role: o.Role, vydan: o.vydan };
 }));
 
+/* Linka paliativní podpory (od 0.11.71): telefony přidělené kartě (číslo s kartou, zapůjčené i vlastní telefony) – registrace k lince
+   ambulance vede PéčeDoma (CLB1 A_MSPPP_LPP, akce linka / linka-nastav); jen portál CLB, PéčeDoma Plus linku nemá */
+async function telefonyKarty(q, id) {
+  const p = await q.one(`SELECT TelefonKarty, Jmeno, Prijmeni, KodPrukazu FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p) throw chyba('Pacient nenalezen', 404);
+  const z = await q.all(`SELECT Telefon, Stitek, Rezim, Stav FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav <> 'VRACENO' AND Telefon IS NOT NULL ORDER BY ZarizeniID DESC`, { p: id });
+  const mapa = new Map();
+  const pridej = (t, popis) => { const n = normTel(t); if (n && !mapa.has(n)) mapa.set(n, { telefon: n, hezky: hezkyTel(n), popis }); };
+  pridej(p.TelefonKarty, 'telefon s kartou');
+  for (const x of z) pridej(x.Telefon, (x.Stitek || (x.Rezim === 'PACIENT' ? 'vlastní telefon pacienta' : 'zapůjčený telefon')) + (x.Stav === 'ZABLOKOVANO' ? ' · zablokováno' : ''));
+  return { pacient: `${p.Prijmeni || ''} ${p.Jmeno || ''}`.trim(), kod: p.KodPrukazu, telefony: [...mapa.values()].filter((x) => /^\+420\d{9}$/.test(x.telefon)) };
+}
+central.get('/pacient/:id/linka', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Linku vidí tým kolem pacienta', 403);
+  const t = await telefonyKarty(q, id);
+  const nast = await nastaveniPd(q);
+  if (nast.portal === 'plus') return { telefony: t.telefony, dostupne: false, duvod: 'Linka paliativní podpory je jen v PéčeDoma Centra LB' };
+  if (!t.telefony.length) return { telefony: [], dostupne: true };
+  try {
+    const r = await pdVolej(nast, 'linka', { telefony: t.telefony.map((x) => x.telefon) });
+    const stav = r.stav || {};
+    return { dostupne: true, smi: !!(op.lekar || op.garant), telefony: t.telefony.map((x) => ({ ...x, ...(stav[x.telefon.slice(-9)] || { registrovan: false }) })) };
+  } catch (e) { return { telefony: t.telefony, dostupne: false, duvod: e.message }; }
+}));
+central.post('/pacient/:id/linka', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant) throw chyba('Registraci k lince mění lékař nebo garant', 403);
+  const tel = normTel(req.body.telefon);
+  const t = await telefonyKarty(q, id);
+  const x = t.telefony.find((y) => y.telefon === tel);
+  if (!x) throw chyba('Číslo nepatří k telefonům této karty');
+  const aktivni = !!req.body.aktivni;
+  const nast = await nastaveniPd(q);
+  if (nast.portal === 'plus') throw chyba('Linka paliativní podpory je jen v PéčeDoma Centra LB');
+  await pdVolej(nast, 'linka-nastav', { telefon: tel, aktivni, nazev: `${t.pacient} · Karta ${t.kod || ''} · ${x.popis}`.slice(0, 200), kdo: s.jmeno });
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: aktivni ? `Telefon ${x.hezky} (${x.popis}) registrován k Lince paliativní podpory.` : `Registrace telefonu ${x.hezky} k Lince paliativní podpory zrušena.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: aktivni ? 'linka: registrace telefonu' : 'linka: zrušení registrace', detail: x.hezky, ip: s.ip });
+  return { registrovan: aktivni };
+}));
+
 central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
   if (!s.role.includes('lekar') || !(op.lekar || op.garant)) throw chyba('Kód pro odemčení telefonu dostane jen lékař z týmu', 403);

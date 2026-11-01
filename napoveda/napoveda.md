@@ -250,6 +250,15 @@ Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) 
 
 Tlačítko **Kód lékaře na dnešek** (jen lékař, když je telefon spárovaný) ukáže šestimístný kód pro lékaře, který k pacientovi není přiřazený (pohotovost, zástup). Kód platí **celý kalendářní den** a je pořád stejný – o půlnoci se změní. Lékař na místě ho zadá v telefonu tlačítkem **Lékař bez PINu** spolu se svým jménem; telefon ho ověří i bez signálu (přijme i včerejší kód) a odemknutí se zapíše se jménem. Stejný kód lékař najde i v **PéčeDoma** v Datech klienta (tlačítko 🪪 Kód lékaře na kartu). Každé zobrazení kódu je v logu přístupů.
 
+### Linka paliativní podpory
+
+Panel **📞 Linka paliativní podpory** v záložce Telefon a PINy ukazuje všechna čísla přidělená kartě – **telefon s kartou** (z Detailu pacienta), zapůjčené telefony a vlastní telefony pacienta a rodiny (Můj průkaz) – a u každého, zda je **registrován k lince** ambulance. Registrované číslo se na linku dovolá, neregistrované ne.
+
+- **Aktivovat** zaregistruje číslo k lince, **Deaktivovat** registraci zruší (obojí s potvrzením). Mění lékař nebo garant, ostatní v týmu stav jen vidí.
+- Registrace se zapisuje do **PéčeDoma** – je to stejný seznam, jaký ukazuje filtr 📞 Linka v Klientech a zelený pruh „registrován k lince ✓“ v Datech klienta. Číslo registrované už z PéčeDoma má poznámku „z PéčeDoma“.
+- Každá změna se zapíše do deníku pacienta (Systém) a do logu přístupů.
+- Linka je jen v PéčeDoma Centra LB; v organizaci napojené na PéčeDoma Plus je panel jen informativní.
+
 ### Lidé, kteří odemknou kartu
 
 Lékaři, sestry, pečovatelé hospice i domova se **nezapisují ke každému pacientovi znovu**. Jsou jednou zapsaní v agendě **Lidé a týmy** (kapitola 11), rozdělení do týmů a mají osobní PIN. U pacienta se vybírá **celý tým** v záložce **Tým a garance → Týmy u pacienta** (kapitola 7); panel **Lidé, kteří odemknou kartu** v záložce Telefon a PINy je jen přehled – ukazuje členy vybraných týmů, kteří nejsou u pacienta deaktivovaní. Co uvidí a zapíší, určuje jejich role (kapitola 10). Když pracoviště odejde z týmu kolem pacienta, jeho týmy a lidé ztratí přístup sami.

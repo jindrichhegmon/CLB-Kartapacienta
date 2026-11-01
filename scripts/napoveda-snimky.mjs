@@ -249,6 +249,10 @@ app.post('/api/c/pacient/:id/tym-lidi', j((req) => { const b = req.body || {};
 const TAJEMSTVI = '00112233445566778899aabbccddeeff00112233';
 const kodDne = (datum) => { const h = createHmac('sha256', Buffer.from(TAJEMSTVI, 'hex')).update('kod-dne:' + datum).digest(); return String((((h[0] & 0x7f) << 24) | (h[1] << 16) | (h[2] << 8) | h[3]) % 1000000).padStart(6, '0'); };
 const dnesLokalne = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+app.get('/api/c/pacient/:id/linka', j({ dostupne: true, smi: true, telefony: [
+  { telefon: '+420777000123', hezky: '+420 777 000 123', popis: 'telefon s kartou', registrovan: true, typ: 'KARTA', datum: den(-20) },
+  { telefon: '+420604000777', hezky: '+420 604 000 777', popis: 'telefon pacienta', registrovan: true, typ: 'PECEDOMA', datum: den(-60) },
+  { telefon: '+420777000321', hezky: '+420 777 000 321', popis: 'dcera Jana', registrovan: false }] }));
 app.get('/api/c/pacient/:id/kod-lekare', j({ kod: kodDne(dnesLokalne()), platiDo: den(1) + 'T00:00:00+02:00', lekar: 'MUDr. Petra Ukázková' }));
 app.get('/api/c/zarizeni', j({ zarizeni: [] }));
 app.get('/api/c/audit', j({ audit: [], ai: [] }));
