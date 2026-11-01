@@ -1,6 +1,6 @@
 # Průkaz pro plán péče – texty pro App Store a Google Play
 
-**Název:** Průkaz pro plán péče
+**Název v obchodech:** Dialogus – Průkaz pacienta (v telefonu se aplikace jmenuje „Průkaz“)
 **Podtitul (App Store, do 30 znaků):** Moje zdravotní karta v telefonu
 **Krátký popis (Google Play, do 80 znaků):** Diagnózy, léky, dokumenty, přání a krizová karta – jen ve vašem telefonu.
 **Kategorie:** Medical (App Store) · Health & Fitness / Medical (Google Play)
