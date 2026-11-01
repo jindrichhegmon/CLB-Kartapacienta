@@ -52,6 +52,13 @@ app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznám�
 app.get(/^\/demo(\/.*)?$/, (req, res) => res.redirect(301, '/'));
 // statické aplikace; service worker karty smí řídit celé /karta/
 app.use('/karta', (req, res, next) => { if (req.path === '/sw.js') res.setHeader('Service-Worker-Allowed', '/karta/'); next(); });
+// Digital Asset Links pro Android aplikaci Průkazu (Trusted Web Activity, 0.11.40): Chrome ověří, že aplikace smí otevírat tento web
+// bez adresního řádku. Otisky klíče doplní správce do .env (KP_ANDROID_SHA256); bez nich se vrací prázdný seznam.
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  const otisky = String(config.androidSha256 || '').split(/[,\s]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json(otisky.length ? [{ relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: config.androidBalik, sha256_cert_fingerprints: otisky } }] : []);
+});
 app.use(express.static(path.join(koren, 'public'), {
   extensions: ['html'],
   setHeaders: (res, f) => { if (/\.(html|js|webmanifest)$/.test(f)) res.setHeader('Cache-Control', 'no-cache'); },

@@ -43,7 +43,10 @@ export const config = {
   },
   // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
   partnerKlic: env('KP_PARTNER_KLIC'),
-  verze: '0.11.39',
+  // Android aplikace Průkazu (TWA, 0.11.40): název balíčku a otisky podpisového klíče (SHA-256, více oddělených čárkou) pro /.well-known/assetlinks.json
+  androidBalik: env('KP_ANDROID_BALIK', 'cz.dialogus.prukaz'),
+  androidSha256: env('KP_ANDROID_SHA256', ''),
+  verze: '0.11.40',
 };
 
 export function zkontrolujKonfiguraci() {

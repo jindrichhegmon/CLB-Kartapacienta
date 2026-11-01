@@ -612,4 +612,6 @@ Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus
 
 ![Průkaz – bezpečnost a obnova](/napoveda/img/q-bezpecnost.png)
 
+**Instalace na telefon.** Android (Chrome): ⋮ → **Přidat na plochu** nebo **Instalovat aplikaci**. iPhone (Safari): **Sdílet** → **Přidat na plochu**. Aplikace pak běží přes celou obrazovku a bez signálu. Pro testery a pro Google Play jde z Průkazu udělat **Android aplikaci** (Trusted Web Activity) – postup je ve složce `android/` v repozitáři (PWABuilder nebo Bubblewrap, otisk podpisového klíče do `KP_ANDROID_SHA256` na serveru); obsah zůstává na webu, aplikaci není třeba po každé změně znovu vydávat.
+
 Co prototyp zatím neumí a je k rozhodnutí: biometrie místo PINu, zobrazení na zamčené obrazovce iPhonu a Androidu (webová aplikace tam nemůže – zůstává Zdravotní ID systému telefonu nebo tištěná karta), pomoc pověřené blízké osoby v rozsahu oprávnění, předání ověřeného dokumentu od zdravotníka přímo do karty (QR nebo soubor s podpisem) a jakékoli propojení s poskytovatelským systémem (Karta pacienta, PéčeDoma) – to je podle zadání až pozdější etapa a musí mít nové posouzení.
