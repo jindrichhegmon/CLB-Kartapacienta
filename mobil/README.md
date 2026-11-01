@@ -49,7 +49,9 @@ https://kartapacienta.95-216-201-2.sslip.io/prukaz/android/ (stránka s návodem
 **GitHub Secrets** (Settings → Secrets and variables → Actions):
 
 - `ANDROID_KEYSTORE_B64` – soubor klíče `.p12` v base64,
-- `ANDROID_KEYSTORE_PASSWORD` – heslo klíče (stejné pro úložiště i klíč, alias `prukaz`).
+- `ANDROID_KEYSTORE_PASSWORD` – heslo klíče (stejné pro úložiště i klíč, alias `prukaz`),
+- volitelně `ANDROID_KEYSTORE_ALIAS` – když použijete stejný klíč jako PéčeDoma (alias `pecedoma`), nastavte `pecedoma`; pak stačí
+  zkopírovat oba Secrets z repozitáře WEB-PeceDoma a klíč nevytvářet.
 
 Klíč vytvoříte jednou na Macu (zvolte vlastní heslo místo `MOJE-HESLO`); zůstane v `~/Prukaz-android-klic/`, **zálohujte ho**:
 bez něj nejde vydat aktualizaci, Android odmítne APK s jiným podpisem.

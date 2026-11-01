@@ -27,7 +27,7 @@ android {
                 storeFile file(ksFile)
                 storeType 'PKCS12'
                 storePassword ksPass
-                keyAlias 'prukaz'
+                keyAlias (System.getenv('PRUKAZ_KEYSTORE_ALIAS') ?: 'prukaz')   // stejný klíč jako PéčeDoma: ANDROID_KEYSTORE_ALIAS=pecedoma
                 keyPassword ksPass
             }
         }

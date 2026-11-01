@@ -39,11 +39,13 @@ jobs:
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
         run: |
           if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
             echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/prukaz.p12"
             echo "PRUKAZ_KEYSTORE_FILE=$RUNNER_TEMP/prukaz.p12" >> "$GITHUB_ENV"
             echo "PRUKAZ_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            [ -n "$KS_ALIAS" ] && echo "PRUKAZ_KEYSTORE_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
             echo "PODEPSANE=1" >> "$GITHUB_ENV"
             echo "Klíč nalezen – APK bude podepsané."
           else
