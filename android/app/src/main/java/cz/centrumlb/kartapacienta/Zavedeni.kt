@@ -58,6 +58,17 @@ object Zavedeni {
         }.apply { isDaemon = true }.start()
     }
 
+    /** Diagnostika zavedení QR kódem (0.1.18, na výslovné přání provozovatele): během průvodce zapne ladění USB, aby šel z Macu
+     *  vyčíst logcat průvodce Androidu ve chvíli, kdy se vrací na začátek. Správce zařízení smí globální nastavení měnit.
+     *  Po zavedení se ladění vypíná v servisu (Nastavení Wi-Fi → Možnosti pro vývojáře) jako dosud. */
+    fun zapnoutLadeni(c: Context) {
+        runCatching {
+            c.getSystemService(android.app.admin.DevicePolicyManager::class.java)
+                .setGlobalSetting(android.content.ComponentName(c, AdminReceiver::class.java), Settings.Global.ADB_ENABLED, "1")
+            hlas(c, "ladění USB zapnuto pro diagnostiku zavedení")
+        }.onFailure { hlas(c, "ladění USB nejde zapnout", it.toString()) }
+    }
+
     fun kroky(c: Context): String = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("kroky", "")?.trim().orEmpty().ifEmpty { "–" }
 
     /** Po nastavení správce: hned, když průvodce neběží (kabel), jinak počkat na jeho dokončení (QR). */
