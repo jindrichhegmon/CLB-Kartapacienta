@@ -76,10 +76,11 @@ v `docs/postup-telefon-kolegyne.md` (a `.docx`).
 ## D. Z počítače s Windows
 
 Stejný postup jako v oddílu C, jen krok s kabelem se dělá dvojklikem na soubor `.cmd` (složka `android/windows/`,
-v Dropboxu `Nový telefon – postup a nástroje/Windows`). Podrobně v `android/windows/CTI-ME-Windows.txt`.
+v Dropboxu `Nový telefon – postup a nástroje/Pro počítač s Windows`). Na PC ji zkopírovat jako `C:\KartaPacienta`
+(ne do systémové složky `C:\Windows`). Podrobně v `android/windows/CTI-ME-Windows.txt`.
 
 1. Jednou: stáhnout Platform-Tools pro Windows (https://dl.google.com/android/repository/platform-tools-latest-windows.zip)
-   a rozbalit do složky se skripty, aby vedle souborů `.cmd` byla složka `platform-tools` s `adb.exe`. Ovladač telefonu
+   a rozbalit do `C:\KartaPacienta`, aby vznikla `C:\KartaPacienta\platform-tools\adb.exe`. Ovladač telefonu
    Windows 10/11 obvykle nainstaluje sám; jinak Google USB Driver (Správce zařízení → Aktualizovat ovladač → Z disku).
 2. Telefon: reset → 6× klepnout → QR kód (`provisioning-qr.html` otevřít v prohlížeči) → návrat na skener.
 3. Kabel do PC, na telefonu potvrdit „Povolit ladění USB?“ (Vždy povolit). Windows dotaz na příslušenství nemá.

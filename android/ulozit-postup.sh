@@ -13,9 +13,9 @@ cp docs/postup-telefon-kolegyne.docx docs/postup-telefon-kolegyne.pdf "$D/"
 cp docs/postup-novy-telefon.md docs/postup-novy-telefon.pdf "$D/"
 cp android/dokoncit-telefon.sh android/nahrat-telefon.sh android/provisioning-qr.mjs "$D/Skripty pro Mac/"
 cp android/README.md "$D/Skripty pro Mac/README-android.md"
-mkdir -p "$D/Windows"
-cp android/windows/dokoncit-telefon.cmd android/windows/nahrat-telefon.cmd android/windows/CTI-ME-Windows.txt "$D/Windows/"
-[ -f android/app/release/app-release.apk ] && cp android/app/release/app-release.apk "$D/Windows/kartapacienta-release.apk"
+mkdir -p "$D/Pro počítač s Windows"
+cp android/windows/dokoncit-telefon.cmd android/windows/nahrat-telefon.cmd android/windows/CTI-ME-Windows.txt "$D/Pro počítač s Windows/"
+[ -f android/app/release/app-release.apk ] && cp android/app/release/app-release.apk "$D/Pro počítač s Windows/kartapacienta-release.apk"
 chmod +x "$D/Skripty pro Mac/"*.sh
 
 [ -f android/app/release/app-release.apk ] && cp android/app/release/app-release.apk "$D/Aplikace/kartapacienta-release.apk" && echo "  + release APK"
@@ -32,8 +32,8 @@ CO TU JE
 - Skripty pro Mac/nahrat-telefon.sh    – nahrání / aktualizace aplikace kabelem jedním příkazem.
 - Skripty pro Mac/provisioning-qr.mjs  – vytvoří QR kód pro nastavení telefonu.
 - Aplikace/                            – release APK a QR kód, pokud byly na Macu, odkud se ukládalo.
-- Windows/                             – totéž pro počítač s Windows: dokoncit-telefon.cmd a nahrat-telefon.cmd
-                                         na dvojklik; postup v Windows/CTI-ME-Windows.txt (jednou stáhnout adb od Googlu).
+- Pro počítač s Windows/               – totéž pro PC s Windows: dokoncit-telefon.cmd a nahrat-telefon.cmd na dvojklik;
+                                         složku zkopírovat na C:\KartaPacienta, postup v CTI-ME-Windows.txt.
 
 DŮLEŽITÉ
 - Skripty se spouštějí z repozitáře CLB-Kartapacienta na Macu s Android Studiem (adb):

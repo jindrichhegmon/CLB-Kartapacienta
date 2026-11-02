@@ -55,6 +55,7 @@ exit /b 1
 echo.
 echo Chybi nastroj adb. Stahnete Platform-Tools pro Windows:
 echo   https://dl.google.com/android/repository/platform-tools-latest-windows.zip
-echo a rozbalte ho do teto slozky - vznikne podslozka platform-tools s adb.exe. Pak skript spustte znovu.
+echo a rozbalte ho do slozky se skriptem, napr. C:\KartaPacienta - vznikne podslozka platform-tools s adb.exe.
+echo Pak skript spustte znovu. Do systemove slozky C:\Windows nic nekopirujte.
 pause
 exit /b 1
