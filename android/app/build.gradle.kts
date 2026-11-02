@@ -28,8 +28,8 @@ android {
         applicationId = "cz.centrumlb.kartapacienta"
         minSdk = 31
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.1.12"
+        versionCode = 14
+        versionName = "0.1.13"
         buildConfigField("String", "KARTA_URL", "\"$kartaUrl\"")
     }
 
@@ -48,8 +48,9 @@ android {
                 }
             }
             buildConfigField("String", "SERVIS_PIN_SHA256", "\"${sha256(servisPin ?: "")}\"")
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Bez zmenšování kódu (0.1.13): release je pak stejný kód jako ověřená ladicí verze; aplikace je malá,
+            // R8 by ušetřil ~2 MB, ale zmenšená verze nikdy nebyla na telefonu vyzkoušená a QR zavedení s ní selhalo.
+            isMinifyEnabled = false
         }
     }
 
