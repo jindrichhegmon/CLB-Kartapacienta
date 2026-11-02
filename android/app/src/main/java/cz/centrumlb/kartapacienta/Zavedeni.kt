@@ -26,9 +26,11 @@ import org.json.JSONObject
 object Zavedeni {
     private const val PREFS = "zavedeni"
 
-    fun nastavenoDokonceno(c: Context): Boolean =
-        runCatching { Settings.Secure.getInt(c.contentResolver, "user_setup_complete", 0) == 1 }.getOrDefault(false) &&
-            runCatching { Settings.Global.getInt(c.contentResolver, Settings.Global.DEVICE_PROVISIONED, 0) == 1 }.getOrDefault(false)
+    fun nastavenoDokonceno(c: Context): Boolean {
+        val uzivatel: Int = try { Settings.Secure.getInt(c.contentResolver, "user_setup_complete", 0) } catch (e: Exception) { 0 }
+        val zarizeni: Int = try { Settings.Global.getInt(c.contentResolver, Settings.Global.DEVICE_PROVISIONED, 0) } catch (e: Exception) { 0 }
+        return uzivatel == 1 && zarizeni == 1
+    }
 
     /** Krok zavedení: zapsat do logu, do předvoleb (servis → diagnostika) a ohlásit serveru. */
     fun hlas(c: Context, krok: String, detail: String = "") {
