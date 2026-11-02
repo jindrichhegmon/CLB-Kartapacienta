@@ -234,7 +234,7 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 
 ### Štítek na telefon
 
-Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) nebo **🏷 Štítky na telefony** (v přehledu Pacienti, pro víc pacientů najednou) vytiskne samolepky na zadní stranu zapůjčeného telefonu. Na štítku je **komu telefon patří** (garant pacienta, např. Centrum pro léčbu bolesti; jde přepsat jedním textem pro všechny), **jméno pacienta a kód průkazu** (lze vypnout) a velkým písmem **kam volat** při nálezu nebo potížích (telefon 24/7 garanta, jinak zadané číslo). Formát: samolepky **70 × 37 mm, 3 vedle sebe a 8 pod sebou na archu A4** (Rayfilm / Avery 70 × 37, 24 kusů). V okně vyberete pacienty (předvybraní jsou ti s telefonem), počet štítků na pacienta a **první volný štítek** na načatém archu; tiskněte v měřítku 100 %.
+Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) nebo **🏷 Štítky na telefony** (v přehledu Pacienti, pro víc pacientů najednou) vytiskne samolepky na zadní stranu zapůjčeného telefonu. Na štítku je **komu telefon patří** (garant pacienta, např. Centrum pro léčbu bolesti; jde přepsat jedním textem pro všechny), **jméno pacienta a kód průkazu** (lze vypnout) a velkým písmem **kam volat** při nálezu nebo potížích (telefon 24/7 garanta, jinak zadané číslo); dole malým písmem **Kód přístupu na telefon** (kód zámku zapůjčeného telefonu, od 0.11.42; výchozí 1614, jde změnit nebo vymazat, pamatuje se na počítači). Formát: samolepky **70 × 37 mm, 3 vedle sebe a 8 pod sebou na archu A4** (Rayfilm / Avery 70 × 37, 24 kusů). V okně vyberete pacienty (předvybraní jsou ti s telefonem), počet štítků na pacienta a **první volný štítek** na načatém archu; tiskněte v měřítku 100 %.
 
 ### Kód lékaře
 

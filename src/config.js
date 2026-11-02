@@ -46,7 +46,7 @@ export const config = {
   // Android aplikace Průkazu (TWA, 0.11.40): název balíčku a otisky podpisového klíče (SHA-256, více oddělených čárkou) pro /.well-known/assetlinks.json
   androidBalik: env('KP_ANDROID_BALIK', 'cz.dialogus.prukaz'),
   androidSha256: env('KP_ANDROID_SHA256', ''),
-  verze: '0.11.41',
+  verze: '0.11.42',
 };
 
 export function zkontrolujKonfiguraci() {
