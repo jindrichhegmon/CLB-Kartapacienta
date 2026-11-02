@@ -50,6 +50,9 @@ const data = {
   'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': soucet,
   'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,   // telefonní aplikace zůstane (volání z karty)
   'android.app.extra.PROVISIONING_SENSORS_PERMISSION_GRANT_OPT_OUT': true, // Android 12+: správce smí sám přidělit fotoaparát a mikrofon (QR čtečka, videohovor)
+  // Aligator S6600 (Android 14): systémový průvodce padá při vykreslování textu informačních obrazovek „Nastavování zařízení“
+  // (MissingFormatArgumentException '%1$s' v ManagedProvisioning) a zavedení se vrací na skener – obrazovky se proto přeskočí.
+  'android.app.extra.PROVISIONING_SKIP_EDUCATION_SCREENS': true,
   // Jazyk, časové pásmo ani příznak šifrování se do kódu nedávají (od 0.1.18): průvodce je nastavuje přesně ve chvíli, kdy se
   // na Aligatoru S6600 (Android 14) zavedení vracelo na začátek; jazyk a pásmo si telefon vezme z průvodce, šifrování je výchozí.
 };
