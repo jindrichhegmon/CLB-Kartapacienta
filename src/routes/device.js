@@ -38,6 +38,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const REZIM_NAZ = { ZAPUJCENY: 'Karta pacienta (zapůjčený telefon)', PACIENT: 'Můj průkaz (vlastní telefon pacienta)' };
 
+/* Hlášení kroků zavedení telefonu QR kódem (0.11.69 / Android 0.1.16): aplikace při zavádění posílá krok, model a verzi – jen do logu
+   serveru (pm2 logs), bez tenanta a bez identity pacienta; limit na IP proti zahlcení. */
+device.post('/zavedeni', h(async (req) => {
+  omez('zavedeni:' + ip(req), 120, 3600e3);
+  const b = req.body || {};
+  const s = (v, n) => String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').slice(0, n);
+  console.log(`[zavedeni] ${s(b.model, 60)} · Android ${s(b.android, 10)} · app ${s(b.verze, 12)} · ${s(b.krok, 80)}${b.detail ? ' – ' + s(b.detail, 300) : ''} · průvodce dokončen: ${b.dokonceno ? 'ano' : 'ne'} · ${ip(req)}`);
+  return { ok: true };
+}));
+
 /* Předvyplnění čísla při párování (od 0.8.5): k platnému kódu vrátí číslo, pro které byl vydán – odkaz z SMS přišel právě na něj,
    takže držitel ho zná; proti hádání kódů je limit na IP. Při samotném párování se číslo stále ověřuje. */
 device.get('/parovaci-info', h(async (req) => {

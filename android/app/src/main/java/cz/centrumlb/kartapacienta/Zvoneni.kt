@@ -53,7 +53,8 @@ object Zvoneni {
         return "Klíč pro zvonění: " + (if (n != null) "uložen (" + n.first + ")" else "NENÍ – karta ho předá po načtení (verze karty 0.11.62+)") +
             "\nSlužba zvonění: " + (if (bezi) "běží" else "neběží") +
             "\nPoslední krok: " + (p.getString("stav", null) ?: "–") +
-            "\nDisplej: " + (if (c.getSystemService(android.os.PowerManager::class.java).isInteractive) "svítí (ptá se karta)" else "zhasnutý (ptá se služba)")
+            "\nDisplej: " + (if (c.getSystemService(android.os.PowerManager::class.java).isInteractive) "svítí (ptá se karta)" else "zhasnutý (ptá se služba)") +
+            "\n\nZavedení telefonu (0.1.16):\n" + Zavedeni.kroky(c)
     }
 }
 

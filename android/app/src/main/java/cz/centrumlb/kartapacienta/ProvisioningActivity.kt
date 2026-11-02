@@ -7,14 +7,15 @@ import android.os.Bundle
 
 /**
  * Nastavení telefonu QR kódem v průvodci prvního zapnutí (6× klepnout na úvodní obrazovku).
- * Android 12+ se správce ptá na režim – karta chce vždy plně spravované zařízení. V kroku ADMIN_POLICY_COMPLIANCE
- * se jen potvrdí výsledek (0.1.15): kiosk zapne AdminReceiver po dokončení a karta naskočí jako domovská obrazovka.
- * Spouštění karty přímo z tohoto kroku (0.1.14) vracelo průvodce Androidu zpět na skenování QR kódu.
+ * Android 12+ se správce ptá na režim – karta chce vždy plně spravované zařízení. V kroku ADMIN_POLICY_COMPLIANCE se jen
+ * potvrdí výsledek a spustí čekání na konec průvodce (Zavedeni.dokoncit); kiosk se zapne až potom – zapnutý uprostřed
+ * průvodce vracel průvodce na začátek (0.1.13–0.1.15).
  */
 class ProvisioningActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (intent.action == DevicePolicyManager.ACTION_GET_PROVISIONING_MODE) {
+            Zavedeni.hlas(this, "dotaz na režim – plně spravované zařízení")
             setResult(
                 RESULT_OK,
                 Intent().putExtra(
@@ -23,7 +24,9 @@ class ProvisioningActivity : Activity() {
                 ),
             )
         } else {
-            setResult(RESULT_OK) // ADMIN_POLICY_COMPLIANCE – pravidla nastaví AdminReceiver
+            Zavedeni.hlas(this, "ADMIN_POLICY_COMPLIANCE", "správce: " + Kiosk.jeSpravce(this))
+            Zavedeni.dokoncit(this, "compliance")
+            setResult(RESULT_OK)
         }
         finish()
     }

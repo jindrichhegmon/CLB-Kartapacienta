@@ -28,8 +28,8 @@ android {
         applicationId = "cz.centrumlb.kartapacienta"
         minSdk = 31
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.1.15"
+        versionCode = 17
+        versionName = "0.1.16"
         buildConfigField("String", "KARTA_URL", "\"$kartaUrl\"")
     }
 

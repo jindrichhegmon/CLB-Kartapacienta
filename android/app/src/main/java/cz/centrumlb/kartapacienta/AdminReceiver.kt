@@ -4,16 +4,15 @@ import android.app.admin.DeviceAdminReceiver
 import android.content.Context
 import android.content.Intent
 
-/** Správce zařízení. Po nastavení (adb nebo QR kód při prvním zapnutí) zapne kiosk a spustí kartu. */
+/** Správce zařízení. Po nastavení (adb nebo QR kód při prvním zapnutí) zapne kiosk a spustí kartu – u QR až po dokončení průvodce (Zavedeni). */
 class AdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
-        Kiosk.nastavit(context)
+        Zavedeni.hlas(context, "správce zařízení zapnut")
+        if (Zavedeni.nastavenoDokonceno(context)) Kiosk.nastavit(context)
     }
 
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
-        Kiosk.nastavit(context)
-        context.startActivity(
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
+        Zavedeni.hlas(context, "PROFILE_PROVISIONING_COMPLETE")
+        Zavedeni.dokoncit(context, "provisioning complete")
     }
 }

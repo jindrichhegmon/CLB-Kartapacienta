@@ -77,6 +77,16 @@
                 android:value="Dotazování na příchozí videohovor při zhasnuté obrazovce (kiosk u lůžka pacienta)" />
         </service>
 
+        <!-- Dokončení zavedení QR kódem (0.1.16): počká na konec průvodce Androidu a pak zapne kiosk -->
+        <service
+            android:name=".DokonceniService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Dokončení nastavení telefonu po zavedení QR kódem (kiosk u lůžka pacienta)" />
+        </service>
+
         <receiver
             android:name=".AdminReceiver"
             android:description="@string/admin_popis"
