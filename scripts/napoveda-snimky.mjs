@@ -43,6 +43,13 @@ const kontakty = [
   { id: 3, jmeno: 'Hospic Ukázka – sestra 24/7', tel: '777 100 200', skupina: 'PECUJE', pozn: 'nonstop', poradi: 3 },
   { id: 4, jmeno: 'MUDr. Vzorová, praktická lékařka', tel: '577 000 111', skupina: 'PECUJE', pozn: 'ordinační hodiny', poradi: 4 },
 ];
+// výchozí kontakty organizace (0.11.70): sada pro celou organizaci, u klienta se jen zatrhne (kopie s vychoziId)
+const kontaktyVychozi = [
+  { id: 1, jmeno: 'Linka paliativní podpory', tel: '910 000 155', skupina: 'PECUJE', pozn: 'volat z telefonu u pacienta', klientu: 14 },
+  { id: 2, jmeno: 'Sloužící sestra', tel: '+420 722 000 005', skupina: 'PECUJE', pozn: 'sestra je v kontaktu se sloužícím lékařem', klientu: 14 },
+  { id: 3, jmeno: 'Ambulance Hospic Ukázka', tel: '+420 607 000 839', skupina: 'PECUJE', pozn: 'může být záznamník', klientu: 9 },
+];
+kontakty.push({ id: 5, jmeno: kontaktyVychozi[0].jmeno, tel: kontaktyVychozi[0].tel, skupina: 'PECUJE', pozn: kontaktyVychozi[0].pozn, poradi: 5, vychoziId: 1 });
 const denik = [
   { uuid: 'a1', typ: 'Založení', text: 'Průkaz založen, plán péče verze 1.', autor: 'MUDr. Petra Ukázková', role: 'lekar', cas: cas(-21, '09:10'), overeno: true },
   { uuid: 'a2', typ: 'Systém', text: 'Průkaz nahrán do telefonu u pacienta (+420 777 000 123).', autor: 'telefon 7', role: 'system', cas: cas(-21, '09:32'), overeno: true },
@@ -108,7 +115,7 @@ const detail = {
   verze: [{ verze: 3, typ: 'ZMENA', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-7, '10:24'), platnostDo: den(70), poznamka: 'úprava SOS medikace' },
     { verze: 2, typ: 'REVIZE', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-14, '11:00'), platnostDo: den(60), poznamka: null },
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
-  kontakty, tym, garance,
+  kontakty, kontaktyVychozi, tym, garance,
   pecedoma: { klientId: 'a1b2c3d4-0000-4000-8000-000000000001', portalKlientId: 12, odkaz: pdNast.odkaz, nastaveno: true, autoSync: true, sync: pdSync },
   zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT', vytvoreno: cas(-5, '10:58') },
     { id: 11, stitek: 'dcera Jana', stav: 'CEKA', sparovano: null, sync: null, baterie: null, verzeAplikace: null, fronta: 0, verzePlanu: null, kod: 'Q7X2M4PL', kodPlatnost: cas(2, '09:15'), telefon: '+420777000321', rezim: 'PACIENT', vytvoreno: cas(-1, '09:15') },
@@ -120,7 +127,7 @@ const detail = {
   denik: [...denik].reverse(), dokumenty: [{ id: 1, typ: 'DVP', nazev: 'Dříve vyslovené přání', kdeOriginal: 'u dcery', mime: 'application/pdf', velikost: 120000, vytvoreno: cas(-21, '09:20'), datum: den(-40), pracoviste: 'Hospic Ukázka' },
     { id: 2, typ: 'ZPRAVA', nazev: 'Propouštěcí zpráva – interna', kdeOriginal: '', mime: 'application/pdf', velikost: 230000, vytvoreno: cas(-22, '15:00'), datum: den(-23), pracoviste: 'Krajská nemocnice – interna' }],
   pristupy: [{ cas: cas(0, '08:15'), kdo: 'MUDr. Petra Ukázková', akce: 'zobrazení průkazu', detail: null }, { cas: cas(-2, '02:41'), kdo: 'telefon', akce: 'synchronizace', detail: '1 zápis' }],
-  op: { vidi: true, aktivni: true, lekar: true, garant: true, zapis: true, prijmoutGaranci: false, navrhGaranceId: null }, smsDostupne: true,
+  op: { vidi: true, aktivni: true, lekar: true, garant: true, zapis: true, vychozi: true, prijmoutGaranci: false, navrhGaranceId: null }, smsDostupne: true,
 };
 const pacienti = [
   { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rok: 1941, pobyt: 'doma', adresa: 'Lipová 12, Zlín', stav: 'AKTIVNI', zalozeno: cas(-21, '09:10'), verze: 3, platnostDo: den(70), cil: 'symptom', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-21, '09:10'), sync: cas(0, '08:12'), baterie: 76, telefonu: 1, telefonKarty: '+420777000123', posledniKrize: null, posledniZapis: cas(-1, '18:15') },
@@ -177,9 +184,19 @@ app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
 app.get('/api/c/pacient/:id', j(() => ({ ...detail, video: { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null } })));
+// výchozí kontakty organizace (0.11.70): zatržení / odebrání u klienta, nový výchozí, z vlastního kontaktu, zrušení u všech
+app.post('/api/c/pacient/:id/kontakt-vychozi', j((req) => { const b = req.body || {}; const dalsi = () => Math.max(0, ...kontakty.map((x) => x.poradi || 0)) + 10;
+  const pouzit = (v) => { if (!kontakty.some((x) => x.vychoziId === v.id)) { kontakty.push({ id: Math.max(...kontakty.map((x) => x.id)) + 1, jmeno: v.jmeno, tel: v.tel, skupina: v.skupina, pozn: v.pozn, poradi: dalsi(), vychoziId: v.id }); v.klientu++; } };
+  if (b.akce === 'pouzit') pouzit(kontaktyVychozi.find((v) => v.id === Number(b.vychoziId)));
+  else if (b.akce === 'nepouzit' || b.akce === 'zrusit') { const i = kontakty.findIndex((x) => x.vychoziId === Number(b.vychoziId)); if (i >= 0) kontakty.splice(i, 1);
+    const v = kontaktyVychozi.find((x) => x.id === Number(b.vychoziId)); if (b.akce === 'zrusit') kontaktyVychozi.splice(kontaktyVychozi.indexOf(v), 1); else if (i >= 0) v.klientu--; }
+  else if (b.akce === 'novy') { if (!b.jmeno || !b.tel) return { ok: false, error: 'Vyplňte jméno i telefon' }; const v = { id: Math.max(0, ...kontaktyVychozi.map((x) => x.id)) + 1, jmeno: b.jmeno, tel: b.tel, skupina: b.skupina, pozn: b.pozn || '', klientu: 0 }; kontaktyVychozi.push(v); pouzit(v); }
+  else if (b.akce === 'zVlastniho') { const k = kontakty.find((x) => x.id === Number(b.kontaktId)); const v = { id: Math.max(0, ...kontaktyVychozi.map((x) => x.id)) + 1, jmeno: k.jmeno, tel: k.tel, skupina: k.skupina, pozn: k.pozn, klientu: 1 }; kontaktyVychozi.push(v); k.vychoziId = v.id; }
+  kontakty.sort((a, c) => (a.poradi - c.poradi) || (a.id - c.id)); return {}; }));
 // důležité kontakty (0.9.6): přidání, úprava, odebrání i přeřazení šipkami nad polem kontakty (seřazené jako server: Poradi, id)
 app.post('/api/c/pacient/:id/kontakt', j((req) => { const b = req.body || {}; const por = b.poradi === '' || b.poradi == null ? null : Number(b.poradi);
   if (b.id) { const k = kontakty.find((x) => x.id === Number(b.id)); if (!k) return { ok: false, error: 'Kontakt nenalezen' };
+    if (k.vychoziId && !b.smazat && !b.jenPoradi) { const v = kontaktyVychozi.find((x) => x.id === k.vychoziId); Object.assign(v, { jmeno: b.jmeno, tel: b.tel, skupina: b.skupina, pozn: b.pozn || '' }); kontakty.filter((x) => x.vychoziId === v.id).forEach((x) => Object.assign(x, { jmeno: v.jmeno, tel: v.tel, skupina: v.skupina, pozn: v.pozn })); return {}; }
     if (b.smazat) kontakty.splice(kontakty.indexOf(k), 1); else if (b.jenPoradi) k.poradi = por; else Object.assign(k, { jmeno: b.jmeno, tel: b.tel, skupina: b.skupina, pozn: b.pozn || '', poradi: por == null ? k.poradi : por }); }
   else { if (!b.jmeno || !b.tel) return { ok: false, error: 'Vyplňte jméno i telefon' }; kontakty.push({ id: kontakty.length + 10, jmeno: b.jmeno, tel: b.tel, skupina: b.skupina, pozn: b.pozn || '', poradi: por == null ? 100 : por }); }
   kontakty.sort((a, c) => (a.poradi - c.poradi) || (a.id - c.id)); return {}; }));
@@ -373,7 +390,22 @@ await zalozka('kontakty', 'c-kontakty');
   await p.fill('#k_j', 'Eva Nová, sousedka'); await p.fill('#k_t', '777 000 999'); await klik(p, '#k_ok'); await p.waitForTimeout(400);
   const po2 = await jmena(); if (po2[po2.length - 1] !== 'Eva Nová, sousedka') chyby.push('nový kontakt není na konci: ' + po2.join(' | '));
   await klik(p, '[data-kmv="3|1"]'); await p.waitForTimeout(600);   // vrátit pořadí pro další snímky
-  await klik(p, '[data-kdel]:last-of-type'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForTimeout(400);
+  await klik(p, '#tabbody .tbl tbody tr:last-child [data-kdel]'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForTimeout(400);
+  // výchozí kontakty organizace (0.11.70): zatržení u klienta, úprava z klienta se propíše do sady, odebrání u klienta
+  if (!(await p.textContent('#tabbody')).includes('Výchozí kontakty organizace')) chyby.push('chybí panel Výchozí kontakty organizace');
+  await p.check('[data-kvpouzit="2"]'); await p.waitForTimeout(500);
+  if (!(await jmena()).includes('Sloužící sestra')) chyby.push('zatržení výchozího kontaktu ho nepřidalo ke klientovi');
+  await foto(p, 'c-kontakty-vychozi', { vyska: 900 });
+  const radek = await p.$$eval('#tabbody .tbl tbody tr', (rs) => rs.findIndex((r) => r.textContent.includes('Sloužící sestra')));
+  const kid = await p.$$eval('#tabbody .tbl tbody tr', (rs, i) => (rs[i].querySelector('[data-ked]') || {}).dataset.ked, radek);
+  await klik(p, `[data-ked="${kid}"]`); await p.waitForSelector('#k_zrusit');
+  if (!(await p.textContent('#tabbody')).includes('propíše')) chyby.push('úprava výchozího kontaktu neupozorňuje na propsání všem klientům');
+  await p.fill('#k_t', '+420 722 000 006'); await klik(p, '#k_ok'); await p.waitForTimeout(500);
+  if (!(await p.textContent('#tabbody')).includes('+420 722 000 006')) chyby.push('úprava výchozího kontaktu se nepropsala');
+  await klik(p, '[data-ked="2"]'); await p.waitForSelector('[data-kvzvl="2"]'); await klik(p, '[data-kvzvl="2"]'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForTimeout(500);
+  if (!(await p.$('[data-kvpouzit="4"]'))) chyby.push('Udělat výchozím nepřidalo kontakt do sady výchozích');
+  await p.uncheck('[data-kvpouzit="2"]'); await p.waitForTimeout(500);
+  if ((await jmena()).includes('Sloužící sestra')) chyby.push('odškrtnutí výchozího kontaktu ho u klienta neodebralo');
 }
 await zalozka('tym', 'c-tym', { vyska: 1150 });
 // kontrola chování: deaktivace člena, aktivace zpět, přidání týmu, odebrání

@@ -512,18 +512,35 @@ function tabDenik(d) {
 const SKUP_KONT = { ROZHODUJE: ['Rozhoduje', 'crit', 'zástupce, opatrovník, určená osoba'], INFORMOVAT: ['Informovat', 'acc', 'rodina a blízcí'], PECUJE: ['Pečuje', 'ok', 'hospic, lékaři, nemocnice'] };
 function tabKontakty(d) {
   const kont = d.kontakty;   // ze serveru v pořadí Poradi, KontaktID – stejně je řadí krizová karta i telefon
-  const muze = (k) => d.op.zapis && (k.skupina !== 'ROZHODUJE' || d.op.lekar);
+  const vych = d.kontaktyVychozi || [];
+  const vychPodle = (id) => vych.find((v) => v.id === id) || {};
+  // výchozí kontakt organizace (0.11.70) upravuje správce a lékař – změna se propíše všem klientům; u klienta ho tým jen zatrhne / odebere
+  const muze = (k) => (k.vychoziId ? d.op.vychozi : d.op.zapis && (k.skupina !== 'ROZHODUJE' || d.op.lekar));
   const e = S.kontEdit ? kont.find((x) => x.id === S.kontEdit) : null;
+  const pouzite = new Set(kont.filter((x) => x.vychoziId).map((x) => x.vychoziId));
+  const vychPanel = `<div class="panel"><div class="panel-h"><h2>Výchozí kontakty organizace</h2><span class="chip">${vych.length}</span></div>
+    ${vych.length ? `<div class="tblwrap"><table class="tbl"><tbody>${vych.map((v) => `<tr><td style="width:34px"><input type="checkbox" data-kvpouzit="${v.id}" ${pouzite.has(v.id) ? 'checked' : ''} ${d.op.zapis ? '' : 'disabled'} aria-label="Použít u tohoto klienta"></td>
+      <td><b>${esc(v.jmeno)}</b> <span class="chip ${(SKUP_KONT[v.skupina] || SKUP_KONT.PECUJE)[1]}">${(SKUP_KONT[v.skupina] || SKUP_KONT.PECUJE)[0]}</span>${v.pozn ? `<div class="lbl">${esc(v.pozn)}</div>` : ''}<div class="lbl">u ${v.klientu} ${v.klientu === 1 ? 'klienta' : 'klientů'}</div></td>
+      <td style="white-space:nowrap"><span class="num mono">${esc(v.tel)}</span></td>
+      <td style="text-align:right">${d.op.vychozi ? `<button class="btn sm" data-kvzrus="${v.id}">Zrušit</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="muted" style="padding:12px 14px">Zatím žádné. ${d.op.vychozi ? 'U kontaktu vlevo klepněte na <b>Upravit</b> a pak <b>Udělat výchozím kontaktem organizace</b>, nebo při přidání kontaktu zaškrtněte „Uložit jako výchozí kontakt organizace“.' : 'Zakládá je správce nebo lékař.'}</div>`}
+    <div class="note">Zatržením se kontakt přidá k tomuto klientovi (na konec seznamu). Výchozí kontakt se upravuje u kteréhokoli klienta tlačítkem Upravit – změna se propíše všem klientům, kteří ho mají zatržený. Zrušit = odebrat ho všem.</div></div>`;
+  const vychE = e && e.vychoziId ? vychPodle(e.vychoziId) : null;
   return `<div class="grid2 l"><div class="panel"><div class="panel-h"><h2>Důležité kontakty · v pořadí, jak se zobrazují</h2><span class="chip">${kont.length}</span></div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>#</th><th>Skupina</th><th>Kontakt</th><th>Telefon</th><th></th></tr></thead><tbody>${kont.map((x, i) => `<tr${e && e.id === x.id ? ' style="background:var(--accent-soft)"' : ''}><td class="muted">${i + 1}</td><td><span class="chip ${(SKUP_KONT[x.skupina] || SKUP_KONT.INFORMOVAT)[1]}">${(SKUP_KONT[x.skupina] || SKUP_KONT.INFORMOVAT)[0]}</span></td><td><b>${esc(x.jmeno) || '<span class="muted">bez jména</span>'}</b>${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td style="white-space:nowrap"><a class="num mono" href="tel:${esc(String(x.tel || '').replace(/\s/g, ''))}">${esc(x.tel)}</a></td>
-      <td style="white-space:nowrap;text-align:right">${d.op.zapis ? `<button class="btn sm" data-kmv="${x.id}|-1" title="Posunout výš" ${i === 0 ? 'disabled' : ''}>↑</button> <button class="btn sm" data-kmv="${x.id}|1" title="Posunout níž" ${i === kont.length - 1 ? 'disabled' : ''}>↓</button> ` : ''}${muze(x) ? `<button class="btn sm" data-ked="${x.id}">Upravit</button> <button class="btn sm" data-kdel="${x.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">zatím žádné kontakty</td></tr>'}</tbody></table></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>#</th><th>Skupina</th><th>Kontakt</th><th>Telefon</th><th></th></tr></thead><tbody>${kont.map((x, i) => `<tr${e && e.id === x.id ? ' style="background:var(--accent-soft)"' : ''}><td class="muted">${i + 1}</td><td><span class="chip ${(SKUP_KONT[x.skupina] || SKUP_KONT.INFORMOVAT)[1]}">${(SKUP_KONT[x.skupina] || SKUP_KONT.INFORMOVAT)[0]}</span></td><td><b>${esc(x.jmeno) || '<span class="muted">bez jména</span>'}</b>${x.vychoziId ? ' <span class="chip vio" title="Výchozí kontakt organizace – úprava se propíše všem klientům">výchozí</span>' : ''}${x.pozn ? `<div class="lbl">${esc(x.pozn)}</div>` : ''}</td><td style="white-space:nowrap"><a class="num mono" href="tel:${esc(String(x.tel || '').replace(/\s/g, ''))}">${esc(x.tel)}</a></td>
+      <td style="white-space:nowrap;text-align:right">${d.op.zapis ? `<button class="btn sm" data-kmv="${x.id}|-1" title="Posunout výš" ${i === 0 ? 'disabled' : ''}>↑</button> <button class="btn sm" data-kmv="${x.id}|1" title="Posunout níž" ${i === kont.length - 1 ? 'disabled' : ''}>↓</button> ` : ''}${muze(x) ? `<button class="btn sm" data-ked="${x.id}">Upravit</button> ` : ''}${x.vychoziId ? (d.op.zapis ? `<button class="btn sm" data-kvnepouzit="${x.vychoziId}" title="Odebrat jen u tohoto klienta">Odebrat</button>` : '') : (muze(x) ? `<button class="btn sm" data-kdel="${x.id}">Odebrat</button>` : '')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">zatím žádné kontakty</td></tr>'}</tbody></table></div>
     <div class="note">Krizová karta v oddílu KOHO VOLAT ukazuje nejdřív kontakt ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a lidi ze skupiny Rozhoduje; na telefonu jsou všechny kontakty po skupinách v tomto pořadí. Šipkami pořadí změníte.</div></div>
-    <div class="panel"><div class="panel-h"><h2>${e ? 'Upravit kontakt' : 'Přidat kontakt'}</h2>${e ? `<span class="chip acc">${esc(e.jmeno)}</span>` : ''}</div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">${kontaktForm(e || {}, d)}
-      <div class="quick"><button class="btn primary ulozit" id="k_ok">${e ? 'Uložit změny' : 'Přidat kontakt'}</button>${e ? '<button class="btn" id="k_zrusit">Zrušit</button>' : ''}</div>
-      <div class="note">Skupinu „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení). Nový kontakt se zařadí na konec seznamu.</div></div></div></div>`;
+    <div style="display:grid;gap:12px;align-content:start">
+    <div class="panel"><div class="panel-h"><h2>${e ? (vychE ? 'Upravit výchozí kontakt' : 'Upravit kontakt') : 'Přidat kontakt'}</h2>${e ? `<span class="chip acc">${esc(e.jmeno)}</span>` : ''}</div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">
+      ${vychE ? `<div class="banner warn">Výchozí kontakt organizace – změna se propíše <b>všem ${vychE.klientu || ''} klientům</b>, kteří ho mají zatržený (i do jejich telefonů a deníku).</div>` : ''}
+      ${kontaktForm(e || {}, d, !!vychE)}
+      ${!e && d.op.vychozi ? '<label class="chk" style="display:flex;gap:8px;align-items:center;margin:4px 0 10px"><input type="checkbox" id="k_vych"> Uložit jako výchozí kontakt organizace (pak ho jde zatrhnout u dalších klientů)</label>' : ''}
+      <div class="quick"><button class="btn primary ulozit" id="k_ok">${e ? (vychE ? 'Uložit u všech klientů' : 'Uložit změny') : 'Přidat kontakt'}</button>${e ? '<button class="btn" id="k_zrusit">Zrušit</button>' : ''}${e && !e.vychoziId && d.op.vychozi && e.skupina !== 'ROZHODUJE' ? `<button class="btn" data-kvzvl="${e.id}" title="Kontakt zůstane u klienta a půjde zatrhnout u dalších klientů">Udělat výchozím kontaktem organizace</button>` : ''}</div>
+      <div class="note">Skupinu „rozhoduje“ přiděluje jen lékař na základě dokladu (určená osoba, opatrovník, předběžné prohlášení). Nový kontakt se zařadí na konec seznamu.</div></div></div>
+    ${vychPanel}</div></div>`;
 }
-function kontaktForm(k, d) {
-  const skupiny = (d && d.op.lekar ? ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'] : ['INFORMOVAT', 'PECUJE']);
+function kontaktForm(k, d, vychozi = false) {
+  const skupiny = vychozi ? ['PECUJE', 'INFORMOVAT'] : (d && d.op.lekar ? ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'] : ['INFORMOVAT', 'PECUJE']);
   return `<div class="field"><label>Jméno a vztah</label><input id="k_j" value="${esc(k.jmeno || '')}" placeholder="např. Anna Nová, vnučka"></div>
     <div class="frow"><div class="field"><label>Telefon</label><input id="k_t" type="tel" value="${esc(k.tel || '')}" placeholder="např. 777 123 456"></div><div class="field"><label>Skupina</label><select id="k_s">${skupiny.map((s) => `<option value="${s}" ${(k.skupina || 'INFORMOVAT') === s ? 'selected' : ''}>${SKUP_KONT[s][0]} – ${SKUP_KONT[s][2]}</option>`).join('')}</select></div></div>
     <div class="field"><label>Poznámka</label><input id="k_p" value="${esc(k.pozn || '')}" placeholder="volat jako první, určená osoba…"></div>`;
@@ -635,12 +652,35 @@ function bindTab() {
   on('k_ok', async () => {
     const e = S.kontEdit ? d.kontakty.find((x) => x.id === S.kontEdit) : null;
     const body = { jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value };
+    if (!e && $('k_vych') && $('k_vych').checked) {   // nový výchozí kontakt organizace, rovnou zatržený u tohoto klienta
+      if (body.skupina === 'ROZHODUJE') return toast('Výchozí kontakt organizace může být jen ve skupině Pečuje nebo Informovat');
+      try { await akce('/kontakt-vychozi', { akce: 'novy', ...body }, 'Výchozí kontakt přidán'); } catch (err) { /* hláška v akce() */ }
+      return;
+    }
     if (e) body.id = e.id; else body.poradi = Math.max(0, ...d.kontakty.map((x) => Number(x.poradi) || 0)) + 10;   // nový na konec
-    try { await akce('/kontakt', body, e ? 'Kontakt uložen' : 'Kontakt přidán'); S.kontEdit = null; kresliDetail(); } catch (err) { /* hláška v akce() */ }
+    try { await akce('/kontakt', body, e ? (e.vychoziId ? 'Uloženo u všech klientů' : 'Kontakt uložen') : 'Kontakt přidán'); S.kontEdit = null; kresliDetail(); } catch (err) { /* hláška v akce() */ }
   });
   on('k_zrusit', () => { S.kontEdit = null; kresliDetail(); });
   document.querySelectorAll('[data-ked]').forEach((b) => (b.onclick = () => { S.kontEdit = Number(b.dataset.ked); kresliDetail(); if ($('k_j')) $('k_j').focus(); }));
   document.querySelectorAll('[data-kdel]').forEach((b) => (b.onclick = async () => { const k = d.kontakty.find((x) => x.id === Number(b.dataset.kdel)); if (await KP.confirm('Odebrat kontakt', `${esc(k.jmeno)} · ${esc(k.tel)}`, 'Odebrat', true)) { if (S.kontEdit === k.id) S.kontEdit = null; akce('/kontakt', { id: k.id, smazat: true, jmeno: k.jmeno, skupina: k.skupina }, 'Odebráno'); } }));
+  // výchozí kontakty organizace (0.11.70)
+  document.querySelectorAll('[data-kvpouzit]').forEach((c) => (c.onchange = async () => {
+    const vid = Number(c.dataset.kvpouzit);
+    try { await akce('/kontakt-vychozi', { akce: c.checked ? 'pouzit' : 'nepouzit', vychoziId: vid }, c.checked ? 'Kontakt přidán u klienta' : 'Kontakt odebrán u klienta'); } catch (err) { c.checked = !c.checked; }
+  }));
+  document.querySelectorAll('[data-kvnepouzit]').forEach((b) => (b.onclick = async () => {
+    const v = (d.kontaktyVychozi || []).find((x) => x.id === Number(b.dataset.kvnepouzit)) || {};
+    if (await KP.confirm('Odebrat výchozí kontakt u klienta', `${esc(v.jmeno || '')} · ${esc(v.tel || '')}<br>U ostatních klientů zůstává.`, 'Odebrat', true)) { S.kontEdit = null; akce('/kontakt-vychozi', { akce: 'nepouzit', vychoziId: v.id }, 'Odebráno u klienta').catch(() => {}); }
+  }));
+  document.querySelectorAll('[data-kvzvl]').forEach((b) => (b.onclick = async () => {
+    const k = d.kontakty.find((x) => x.id === Number(b.dataset.kvzvl));
+    S.kontEdit = null;
+    if (await KP.confirm('Udělat výchozím kontaktem organizace', `${esc(k.jmeno)} · ${esc(k.tel)}<br>Kontakt pak půjde zatrhnout u dalších klientů a jeho úprava se propíše všem, kteří ho používají.`, 'Udělat výchozím')) akce('/kontakt-vychozi', { akce: 'zVlastniho', kontaktId: k.id }, 'Kontakt je teď výchozí').catch(() => {});
+  }));
+  document.querySelectorAll('[data-kvzrus]').forEach((b) => (b.onclick = async () => {
+    const v = (d.kontaktyVychozi || []).find((x) => x.id === Number(b.dataset.kvzrus)) || {};
+    if (await KP.confirm('Zrušit výchozí kontakt organizace', `${esc(v.jmeno || '')} · ${esc(v.tel || '')}<br>Kontakt se <b>odebere všem ${v.klientu || 0} klientům</b>, kteří ho mají zatržený.`, 'Zrušit u všech', true)) { S.kontEdit = null; akce('/kontakt-vychozi', { akce: 'zrusit', vychoziId: v.id }, 'Výchozí kontakt zrušen').catch(() => {}); }
+  }));
   document.querySelectorAll('[data-kmv]').forEach((b) => (b.onclick = async () => {
     const [id, smer] = b.dataset.kmv.split('|'); const kont = [...d.kontakty]; const i = kont.findIndex((x) => x.id === Number(id)); const j = i + Number(smer);
     if (i < 0 || j < 0 || j >= kont.length) return;

@@ -174,6 +174,19 @@ Záložka **Důležité kontakty** ukazuje jeden seznam **v pořadí, jak se kon
 - **Upravit** načte kontakt do formuláře vpravo (řádek se podbarví), **Uložit změny** ho přepíše, **Zrušit** úpravu opustí. **Odebrat** kontakt skryje, v databázi zůstává.
 
 ![Úprava kontaktu přímo ve formuláři vedle seznamu](/napoveda/img/c-kontakty-upravit.png)
+
+#### Výchozí kontakty organizace (od 0.11.70)
+
+![Výchozí kontakty organizace – u klienta se jen zatrhnou](/napoveda/img/c-kontakty-vychozi.png)
+
+Kontakty, které má mít většina klientů (např. **Linka paliativní podpory**, **Sloužící sestra**, **Ambulance**), se nezapisují ke každému klientovi zvlášť. Jsou jednou pro celou organizaci v panelu **Výchozí kontakty organizace** pod formulářem a u klienta se jen **zatrhnou**.
+
+- **Zatržení** kontakt přidá k tomuto klientovi (na konec seznamu, šipkami ho pak posunete), **odškrtnutí** nebo **Odebrat** u řádku ho odebere jen u tohoto klienta. U výchozího kontaktu v seznamu je štítek **výchozí**; u sady je napsáno, u kolika klientů se používá.
+- **Úprava**: u kteréhokoli klienta klikněte u výchozího kontaktu na **Upravit**, opravte např. telefon a **Uložit u všech klientů** – změna se propíše **všem klientům, kteří ho mají zatržený**, do jejich krizových karet, telefonů (při další synchronizaci) i deníku.
+- **Nový výchozí kontakt**: při přidání kontaktu zaškrtněte **Uložit jako výchozí kontakt organizace**, nebo u existujícího kontaktu klienta klikněte na **Upravit** a pak **Udělat výchozím kontaktem organizace** – kontakt zůstane u klienta a půjde zatrhnout u dalších.
+- **Zrušit** u sady výchozí kontakt odebere **všem** klientům (aplikace se předem zeptá a uvede počet).
+- Výchozí kontakty zakládá, upravuje a ruší **správce organizace a lékař**; zatrhnout nebo odebrat je u klienta smí celý tým. Mohou být jen ve skupině **Pečuje** nebo **Informovat** – **Rozhoduje** je vždy konkrétní osoba u konkrétního pacienta.
+
 - Krizová karta v oddílu KOHO VOLAT bere **Nejdřív volat** ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a potom **všechny ostatní kontakty** v pořadí ze seznamu (Rozhoduje první) se štítkem skupiny a poznámkou. Každé číslo je na telefonu v rámečku na samostatném řádku s ikonou sluchátka – klepnutím se rovnou volá (stejně v dlaždicích Kontakty a Tým i v Mém průkazu). Kontakty upravuje celý tým kolem pacienta.
 
 ## 7. Tým a garance
