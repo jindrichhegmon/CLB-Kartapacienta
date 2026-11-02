@@ -73,6 +73,20 @@ v `docs/postup-telefon-kolegyne.md` (a `.docx`).
 5. Po startu klepnout na ikonu **Karta pacienta** → kiosk se zapne (zmizí Domů), okno Spárovat telefon s průkazem. Od té chvíle telefon startuje rovnou do karty.
 6. Spárovat až při předání pacientovi (centrála → Telefon a PINy → Spárovat telefon).
 
+## D. Z počítače s Windows
+
+Stejný postup jako v oddílu C, jen krok s kabelem se dělá dvojklikem na soubor `.cmd` (složka `android/windows/`,
+v Dropboxu `Nový telefon – postup a nástroje/Windows`). Podrobně v `android/windows/CTI-ME-Windows.txt`.
+
+1. Jednou: stáhnout Platform-Tools pro Windows (https://dl.google.com/android/repository/platform-tools-latest-windows.zip)
+   a rozbalit do složky se skripty, aby vedle souborů `.cmd` byla složka `platform-tools` s `adb.exe`. Ovladač telefonu
+   Windows 10/11 obvykle nainstaluje sám; jinak Google USB Driver (Správce zařízení → Aktualizovat ovladač → Z disku).
+2. Telefon: reset → 6× klepnout → QR kód (`provisioning-qr.html` otevřít v prohlížeči) → návrat na skener.
+3. Kabel do PC, na telefonu potvrdit „Povolit ladění USB?“ (Vždy povolit). Windows dotaz na příslušenství nemá.
+4. Dvojklik `dokoncit-telefon.cmd` → telefon se restartuje → klepnout na ikonu Karta pacienta → kiosk.
+5. Aktualizace aplikace kabelem: dvojklik `nahrat-telefon.cmd` (stáhne aktuální APK ze serveru Karty, u telefonu bez
+   kiosku nastaví správce zařízení, kartu spustí).
+
 ## Aktualizace aplikace na telefonu, který už je kiosk
 
 Správce zařízení zůstává, stačí nahrát nové APK (telefon na kabelu, ladění USB zapnuté a potvrzené). Jeden příkaz:

@@ -1,0 +1,38 @@
+Karta pacienta on-line – nový telefon z počítače s Windows
+=========================================================
+
+Platí pro telefony Aligator S6600. Postup je stejný jako v návodu „Nový telefon pro Kartu pacienta“,
+jen krok 4 (kabel) se dělá dvojklikem na soubor .cmd místo Terminálu na Macu.
+
+JEDNOU NA POČÍTAČI (asi 5 minut)
+1. Stáhnout nástroj adb od Googlu (Platform-Tools pro Windows):
+   https://dl.google.com/android/repository/platform-tools-latest-windows.zip
+2. ZIP rozbalit DO TÉTO SLOŽKY, aby vedle souborů .cmd vznikla složka „platform-tools“ (uvnitř je adb.exe).
+3. Ovladač telefonu: Windows 10/11 ho obvykle nainstaluje sám při prvním připojení.
+   Když skript píše „telefon není vidět“ a ve Správci zařízení je „Android“ nebo „ADB Interface“ s vykřičníkem:
+   - stáhnout Google USB Driver: https://developer.android.com/studio/run/win-usb (ZIP, rozbalit),
+   - Správce zařízení → pravým tlačítkem na zařízení → Aktualizovat ovladač → Vyhledat ovladače v počítači
+     → Vybrat ze seznamu → Z disku… → složka usb_driver → android_winusb.inf → „Android ADB Interface“.
+4. Při prvním spuštění .cmd může Windows ukázat „Systém Windows ochránil váš počítač“ →
+   „Další informace“ → „Přesto spustit“.
+
+NOVÝ TELEFON (asi 8 minut)
+1. Tovární reset (vypnout, držet zeslabení hlasitosti + zapínání → Wipe data / factory reset → Reboot).
+2. Na uvítací obrazovce 6× klepnout → skener → naskenovat QR kód (soubor provisioning-qr.html ze složky
+   „Aplikace“ otevřít v prohlížeči). Nechat doběhnout; telefon se vrátí na skener – to je normální.
+3. Připojit telefon kabelem k PC. Na telefonu potvrdit „Povolit ladění USB?“ a zaškrtnout „Vždy povolit“.
+   (Dotaz „Povolit příslušenství“, který je na Macu, Windows nemá.)
+4. Dvojklik na dokoncit-telefon.cmd. Skript počká na telefon, dokončí nastavení a telefon restartuje.
+5. Po restartu klepnout na ikonu Karta pacienta → zapne se kiosk (zmizí tlačítko Domů),
+   okno „Spárovat telefon s průkazem“. Hotovo.
+
+AKTUALIZACE APLIKACE / TELEFON BEZ QR KÓDU
+- Dvojklik na nahrat-telefon.cmd: stáhne aktuální aplikaci ze serveru Karty, nahraje ji do telefonu,
+  u telefonu bez kiosku nastaví správce zařízení (jen telefon bez účtů) a kartu spustí.
+- Telefon musí mít zapnuté ladění USB (u telefonu zavedeného QR kódem je zapnuté samo).
+
+KDYŽ SE NĚCO NEDAŘÍ
+- „Chybí nástroj adb“ → bod 1 a 2 nahoře (složka platform-tools musí být vedle souborů .cmd).
+- „Telefon není vidět“ → jiný kabel (datový, ne jen nabíjecí) nebo port, bez USB hubu; ovladač viz bod 3.
+- „NENÍ správcem zařízení“ → zavedení QR kódem neproběhlo, reset a QR znovu.
+- Cokoli jiného → Jindřich Hegmon, jindrich.hegmon@centrumlb.cz (pošlete text z okna skriptu).
