@@ -7,7 +7,8 @@ import android.content.Intent
 /** Správce zařízení. Po nastavení (adb nebo QR kód při prvním zapnutí) zapne kiosk a spustí kartu – u QR až po dokončení průvodce (Zavedeni). */
 class AdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
-        Zavedeni.hlas(context, "správce zařízení zapnut")
+        val d = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
+        Zavedeni.hlas(context, "správce zařízení zapnut", "správce: ${d.isDeviceOwnerApp(context.packageName)}; stav zavedení uživatele: ${runCatching { d.userProvisioningState }.getOrDefault(-1)}; provisioned: ${runCatching { android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.DEVICE_PROVISIONED, 0) }.getOrDefault(-1)}")
         if (Zavedeni.nastavenoDokonceno(context)) Kiosk.nastavit(context)
     }
 

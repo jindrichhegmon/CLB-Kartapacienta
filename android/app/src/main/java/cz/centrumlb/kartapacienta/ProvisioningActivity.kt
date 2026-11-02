@@ -15,7 +15,9 @@ class ProvisioningActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (intent.action == DevicePolicyManager.ACTION_GET_PROVISIONING_MODE) {
-            Zavedeni.hlas(this, "dotaz na režim – plně spravované zařízení")
+            val povolene = runCatching { intent.getIntegerArrayListExtra("android.app.extra.PROVISIONING_ALLOWED_PROVISIONING_MODES")?.joinToString(",") }.getOrNull()
+            val klice = runCatching { intent.extras?.keySet()?.joinToString(",") }.getOrNull()
+            Zavedeni.hlas(this, "dotaz na režim – plně spravované zařízení", "povolené režimy: ${povolene ?: "?"}; správce: ${Kiosk.jeSpravce(this)}; extras: ${klice ?: "-"}")
             setResult(
                 RESULT_OK,
                 Intent().putExtra(
