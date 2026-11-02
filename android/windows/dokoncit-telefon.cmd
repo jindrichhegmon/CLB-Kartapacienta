@@ -4,9 +4,29 @@ rem Aligator S6600: pruvodce Androidu po nastaveni spravce zarizeni spadne a vra
 rem Spravce i aplikace uz jsou v telefonu - skript jen oznami pruvodci, ze nastaveni je hotove, a telefon restartuje.
 rem Texty bez diakritiky zamerne (cmd.exe s cestinou v UTF-8 nespolehlive).
 setlocal EnableDelayedExpansion
-cd /d "%~dp0"
+rem Nastroje (adb) a stazena aplikace se ukladaji mimo Dropbox do C:\KartaPacienta - skript jde spustit primo z Dropboxu.
+set "NASTROJE=C:\KartaPacienta"
+if not exist "%NASTROJE%" mkdir "%NASTROJE%" >nul 2>&1
+if not exist "%NASTROJE%" set "NASTROJE=%LOCALAPPDATA%\KartaPacienta"
+if not exist "%NASTROJE%" mkdir "%NASTROJE%" >nul 2>&1
+cd /d "%NASTROJE%"
+set "ADB=%~dp0platform-tools\adb.exe"
+if exist "%ADB%" goto mamadb
+set "ADB=%NASTROJE%\platform-tools\adb.exe"
+if exist "%ADB%" goto mamadb
 set "ADB=adb"
-if exist "%~dp0platform-tools\adb.exe" set "ADB=%~dp0platform-tools\adb.exe"
+call "%ADB%" version >nul 2>&1
+if not errorlevel 1 goto mamadb
+echo Stahuji nastroj adb od Googlu - jen poprve, asi 10 MB...
+curl.exe -fsSL -o "%NASTROJE%\platform-tools.zip" "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+if errorlevel 1 goto chybiadb
+tar.exe -xf "%NASTROJE%\platform-tools.zip" -C "%NASTROJE%"
+if errorlevel 1 goto chybiadb
+del "%NASTROJE%\platform-tools.zip" >nul 2>&1
+set "ADB=%NASTROJE%\platform-tools\adb.exe"
+if not exist "%ADB%" goto chybiadb
+echo   - adb ulozen v %NASTROJE%\platform-tools
+:mamadb
 call "%ADB%" version >nul 2>&1
 if errorlevel 1 goto chybiadb
 call "%ADB%" start-server >nul 2>&1
@@ -55,7 +75,7 @@ exit /b 1
 echo.
 echo Chybi nastroj adb. Stahnete Platform-Tools pro Windows:
 echo   https://dl.google.com/android/repository/platform-tools-latest-windows.zip
-echo a rozbalte ho do slozky se skriptem, napr. C:\KartaPacienta - vznikne podslozka platform-tools s adb.exe.
-echo Pak skript spustte znovu. Do systemove slozky C:\Windows nic nekopirujte.
+echo a rozbalte ho do C:\KartaPacienta - vznikne C:\KartaPacienta\platform-tools\adb.exe.
+echo Automaticke stazeni se nepovedlo - zkontrolujte internet. Pak skript spustte znovu.
 pause
 exit /b 1

@@ -4,18 +4,38 @@ rem Bez parametru stahne aktualni APK ze serveru Karty; s parametrem nahraje zad
 rem   nahrat-telefon.cmd C:\cesta\kartapacienta.apk
 rem Novy telefon (bez uctu) nastavi jako spravce zarizeni = kiosk; telefonu, ktery uz kiosk je, jen aktualizuje aplikaci.
 setlocal EnableDelayedExpansion
-cd /d "%~dp0"
 set "BALIK=cz.centrumlb.kartapacienta"
 set "URL=https://kartapacienta.95-216-201-2.sslip.io/android/kartapacienta.apk"
+rem Nastroje (adb) a stazena aplikace se ukladaji mimo Dropbox do C:\KartaPacienta - skript jde spustit primo z Dropboxu.
+set "NASTROJE=C:\KartaPacienta"
+if not exist "%NASTROJE%" mkdir "%NASTROJE%" >nul 2>&1
+if not exist "%NASTROJE%" set "NASTROJE=%LOCALAPPDATA%\KartaPacienta"
+if not exist "%NASTROJE%" mkdir "%NASTROJE%" >nul 2>&1
+cd /d "%NASTROJE%"
+set "ADB=%~dp0platform-tools\adb.exe"
+if exist "%ADB%" goto mamadb
+set "ADB=%NASTROJE%\platform-tools\adb.exe"
+if exist "%ADB%" goto mamadb
 set "ADB=adb"
-if exist "%~dp0platform-tools\adb.exe" set "ADB=%~dp0platform-tools\adb.exe"
+call "%ADB%" version >nul 2>&1
+if not errorlevel 1 goto mamadb
+echo Stahuji nastroj adb od Googlu - jen poprve, asi 10 MB...
+curl.exe -fsSL -o "%NASTROJE%\platform-tools.zip" "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+if errorlevel 1 goto chybiadb
+tar.exe -xf "%NASTROJE%\platform-tools.zip" -C "%NASTROJE%"
+if errorlevel 1 goto chybiadb
+del "%NASTROJE%\platform-tools.zip" >nul 2>&1
+set "ADB=%NASTROJE%\platform-tools\adb.exe"
+if not exist "%ADB%" goto chybiadb
+echo   - adb ulozen v %NASTROJE%\platform-tools
+:mamadb
 call "%ADB%" version >nul 2>&1
 if errorlevel 1 goto chybiadb
 call "%ADB%" start-server >nul 2>&1
 
 set "APK=%~1"
 if not "%APK%"=="" goto mamapk
-set "APK=%~dp0kartapacienta-release.apk"
+set "APK=%NASTROJE%\kartapacienta-release.apk"
 echo Stahuji aktualni aplikaci ze serveru Karty...
 curl.exe -fsSL -o "%APK%.novy" "%URL%"
 if errorlevel 1 goto stazeniselhalo
@@ -101,8 +121,8 @@ goto konecchyba
 echo.
 echo Chybi nastroj adb. Stahnete Platform-Tools pro Windows:
 echo   https://dl.google.com/android/repository/platform-tools-latest-windows.zip
-echo a rozbalte ho do slozky se skriptem, napr. C:\KartaPacienta - vznikne podslozka platform-tools s adb.exe.
-echo Pak skript spustte znovu. Do systemove slozky C:\Windows nic nekopirujte.
+echo a rozbalte ho do C:\KartaPacienta - vznikne C:\KartaPacienta\platform-tools\adb.exe.
+echo Automaticke stazeni se nepovedlo - zkontrolujte internet. Pak skript spustte znovu.
 
 :konecchyba
 pause

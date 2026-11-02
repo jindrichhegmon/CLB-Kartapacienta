@@ -33,7 +33,7 @@ CO TU JE
 - Skripty pro Mac/provisioning-qr.mjs  – vytvoří QR kód pro nastavení telefonu.
 - Aplikace/                            – release APK a QR kód, pokud byly na Macu, odkud se ukládalo.
 - Pro počítač s Windows/               – totéž pro PC s Windows: dokoncit-telefon.cmd a nahrat-telefon.cmd na dvojklik;
-                                         složku zkopírovat na C:\KartaPacienta, postup v CTI-ME-Windows.txt.
+                                         spouštět přímo z Dropboxu, postup v CTI-ME-Windows.txt.
 
 DŮLEŽITÉ
 - Skripty se spouštějí z repozitáře CLB-Kartapacienta na Macu s Android Studiem (adb):
