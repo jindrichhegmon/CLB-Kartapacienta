@@ -9,9 +9,9 @@ class AdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
         val d = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
         val spravce: Boolean = d.isDeviceOwnerApp(context.packageName)
-        val stavUzivatele: Int = try { d.userProvisioningState } catch (e: Exception) { -1 }
         val provisioned: Int = try { android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.DEVICE_PROVISIONED, 0) } catch (e: Exception) { -1 }
-        Zavedeni.hlas(context, "správce zařízení zapnut", "správce: $spravce; stav zavedení uživatele: $stavUzivatele; provisioned: $provisioned")
+        val uzivatelHotov: Int = try { android.provider.Settings.Secure.getInt(context.contentResolver, "user_setup_complete", 0) } catch (e: Exception) { -1 }
+        Zavedeni.hlas(context, "správce zařízení zapnut", "správce: $spravce; provisioned: $provisioned; user_setup_complete: $uzivatelHotov")
         if (Zavedeni.nastavenoDokonceno(context)) Kiosk.nastavit(context)
         else Zavedeni.zapnoutLadeni(context) // zavedení QR kódem: diagnostika průvodce (0.1.18)
     }
