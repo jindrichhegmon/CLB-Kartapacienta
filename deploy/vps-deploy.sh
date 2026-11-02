@@ -20,13 +20,24 @@ cd "$(dirname "$0")/.."
 CM="$HOME/.ssh/cm-jhnapps-%r@%h-%p"
 SSH="ssh -i $KEY -o BatchMode=yes -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=$CM -o ControlPersist=180"
 trap 'ssh -o ControlPath="$CM" -O exit "$VPS" >/dev/null 2>&1 || true' EXIT
+echo "1/3 Připojuji se k serveru $VPS…"
 for i in 1 2 3 4 5 6; do
   if $SSH "$VPS" true 2>/dev/null; then break; fi
   if [ "$i" = 6 ]; then echo "Server $VPS nepřijímá SSH spojení ani po 2 minutách – zkuste skript spustit znovu za pár minut." >&2; exit 1; fi
   echo "   server zatím nepřijímá SSH spojení – zkusím znovu za 20 s ($i/5)"; sleep 20
 done
 $SSH "$VPS" "mkdir -p $DIR"
-rsync -az --delete -e "$SSH" --exclude node_modules --exclude .git --exclude .DS_Store --exclude .env ./ "$VPS:$DIR/"
+# APK pro nastavení telefonů QR kódem je jen na Macu, kde se sestavuje (není v gitu): když tu chybí (jiný Mac), nesmí ho
+# --delete na serveru smazat – QR kód by pak nefungoval
+CHRAN=()
+[ -f public/android/kartapacienta.apk ] || CHRAN=(--exclude 'public/android/*.apk')
+echo "2/3 Kopíruji kód na server…"
+rsync -az --delete -e "$SSH" --exclude node_modules --exclude .git --exclude .DS_Store --exclude .env \
+  --exclude 'android/app/build' --exclude 'android/build' --exclude 'android/.gradle' --exclude 'android/app/release' \
+  --exclude 'prukaz-android/android/app/build' --exclude 'prukaz-android/android/build' --exclude 'prukaz-android/android/.gradle' \
+  "${CHRAN[@]}" ./ "$VPS:$DIR/"
+[ ${#CHRAN[@]} -eq 0 ] || echo "   (aplikace pro QR kód public/android/kartapacienta.apk na tomto Macu není – na serveru zůstává ta stávající)"
+echo "3/3 Instaluji balíčky, aktualizuji databázi a restartuji aplikaci na serveru (1–2 minuty)…"
 
 $SSH "$VPS" bash -s <<EOF
 set -e
