@@ -13,6 +13,10 @@
  *       (zalozPacienta), garantem je pracoviště lékaře Karty, jehož jméno odpovídá `kdo`, jinak první lékař garantujícího pracoviště
  *       (hospic / ambulance přednostně); plán péče vznikne prázdný (verze ZALOZENI), lékař ho doplní v Kartě. → { id, kod }
  *       nebo { existuje: true, kod }, když pacient s tím RČ aktivní průkaz už má. Průkaz je po založení bez spárovaného telefonu.
+ *   POST /api/partner/telefon-karty  { tenant, rc, kdo, telefonKarty }   (0.11.73) změní číslo telefonu, na kterém je karta
+ *       (A_KP_Pacient.TelefonKarty – totéž co Detail pacienta → Údaje v centrále): stejná pravidla jako v centrále – telefon
+ *       spárovaný s jiným číslem se zablokuje, zápis do deníku a logu. → { telefonKarty, zmeneno: true|false, zablokovano }
+ *   vstupenka vrací v `pacient` i `telefonKarty` (0.11.73).
  */
 import { Router } from 'express';
 import { timingSafeEqual } from 'node:crypto';
@@ -20,7 +24,8 @@ import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, text } from '../http.js';
 import { desifruj, kodDne, konecDnePraha, podepis } from '../crypto.js';
-import { audit, roleSeznam } from '../kp.js';
+import { audit, roleSeznam, zapisDenik } from '../kp.js';
+import { normTel, hezkyTel } from '../telefon.js';
 import { zalozPacienta } from './central.js';
 
 export const partner = Router();
@@ -63,11 +68,11 @@ partner.post('/vstupenka', h(async (req) => {
   if (!tenantRe.test(tenant)) throw chyba('Chybí nebo je neplatný tenant');
   if (rc.length < 9 || rc.length > 10) throw chyba('Chybí rodné číslo pacienta');
   return vTenantu(tenant, async (q) => {
-    const p = await q.one(`SELECT TOP 1 PacientID, KodPrukazu, Jmeno, Prijmeni FROM dbo.A_KP_Pacient WHERE REPLACE(RodneCislo, '/', '') = @rc AND Stav = 'AKTIVNI' ORDER BY PacientID DESC`, { rc });
+    const p = await q.one(`SELECT TOP 1 PacientID, KodPrukazu, Jmeno, Prijmeni, TelefonKarty FROM dbo.A_KP_Pacient WHERE REPLACE(RodneCislo, '/', '') = @rc AND Stav = 'AKTIVNI' ORDER BY PacientID DESC`, { rc });
     if (!p) return { nemaKartu: true, duvod: 'Pacient nemá v Kartě pacienta aktivní průkaz' };
     const v = podepis({ typ: 'pd', tenant, pacientId: p.PacientID, kdo, lekar }, 30 * 60);
     await audit(q, { kdo: 'PéčeDoma: ' + kdo, pacientId: p.PacientID, akce: 'otevření karty z PéčeDoma', detail: lekar ? 'lékař – může zapsat plán' : 'náhled', ip: ip(req) });
-    return { odkaz: `${config.verejnaAdresa.replace(/\/+$/, '')}/pd/#v=${v}`, pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni } };
+    return { odkaz: `${config.verejnaAdresa.replace(/\/+$/, '')}/pd/#v=${v}`, pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, telefonKarty: p.TelefonKarty || '' } };
   });
 }));
 
@@ -110,5 +115,29 @@ partner.post('/pacient', h(async (req) => {
     });
     await audit(q, { uzivatelId: l.UzivatelID, kdo: 'PéčeDoma: ' + kdo, pacientId: r.id, akce: 'založení průkazu z PéčeDoma', detail: `${r.kod} · garant pracoviště lékaře ${l.Jmeno}`, ip: ip(req) });
     return { id: r.id, kod: r.kod, lekar: l.Jmeno };
+  });
+}));
+
+partner.post('/telefon-karty', h(async (req) => {
+  overKlic(req);
+  omez('partner:' + ip(req), 300, 3600e3);
+  const b = req.body || {};
+  const tenant = String(b.tenant || '').toUpperCase().trim();
+  const rc = String(b.rc || '').replace(/\D/g, '');
+  const kdo = 'PéčeDoma: ' + (text(b.kdo, 100) || 'lékař');
+  if (!tenantRe.test(tenant)) throw chyba('Chybí nebo je neplatný tenant');
+  if (rc.length < 9 || rc.length > 10) throw chyba('Chybí rodné číslo pacienta');
+  const telKarty = normTel(b.telefonKarty);
+  if (!telKarty) throw chyba('Zadejte číslo telefonu, na kterém je karta (např. +420 777 123 456)');
+  return vTenantu(tenant, async (q) => {
+    const p = await q.one(`SELECT TOP 1 PacientID, KodPrukazu, TelefonKarty FROM dbo.A_KP_Pacient WHERE REPLACE(RodneCislo, '/', '') = @rc AND Stav = 'AKTIVNI' ORDER BY PacientID DESC`, { rc });
+    if (!p) return { nemaKartu: true, duvod: 'Pacient nemá v Kartě pacienta aktivní průkaz' };
+    if (p.TelefonKarty === telKarty) return { telefonKarty: telKarty, zmeneno: false, zablokovano: 0 };
+    await q.exec(`UPDATE dbo.A_KP_Pacient SET TelefonKarty = @tk WHERE PacientID = @id`, { id: p.PacientID, tk: telKarty });
+    // jako v centrále: karta smí být jen na novém čísle – telefon spárovaný s jiným číslem se zablokuje, čekající kódy propadnou
+    const n = await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @id AND Stav IN ('SPAROVANO', 'CEKA') AND Rezim = 'ZAPUJCENY' AND ISNULL(Telefon, N'') <> @tk`, { id: p.PacientID, tk: telKarty });
+    await zapisDenik(q, { pacientId: p.PacientID, typ: 'Systém', text: `Číslo telefonu s kartou změněno v PéčeDoma na ${hezkyTel(telKarty)}.${n ? ' Telefon na předchozím čísle byl zablokován – při připojení se z něj karta smaže.' : ''}`, autor: kdo, role: 'system' });
+    await audit(q, { kdo, pacientId: p.PacientID, akce: 'úprava údajů z PéčeDoma', detail: `telefon s kartou ${p.TelefonKarty || '–'} → ${telKarty}`, ip: ip(req) });
+    return { telefonKarty: telKarty, zmeneno: true, zablokovano: n || 0 };
   });
 }));
