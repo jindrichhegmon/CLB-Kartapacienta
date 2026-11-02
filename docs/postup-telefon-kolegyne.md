@@ -23,9 +23,12 @@ Platí pro telefony **Aligator S6600**. Potřebujete: telefon, datový kabel USB
 - **Na telefonu** se objeví dotaz „Povolit ladění USB?“ → zaškrtnout **Vždy povolit z tohoto počítače** a klepnout **Povolit**.
   Když se dotaz neukáže, kabel odpojit a znovu připojit.
 
-## 4. Dokončení na Macu
+## 4. Dokončení na Macu Jindřicha Hegmona (zatím)
 
-Otevřít Terminál, vložit a potvrdit Enterem:
+**Kdo to dělá:** tento krok dělá až do odvolání Jindřich Hegmon na svém Macu (je tam Android Studio, repozitář i QR kód).
+Časem přejde na některého z kolegů; návod dostáváte e-mailem už teď, aby postup neznal jen Jindřich a Claude.
+
+Na Macu otevřít Terminál, vložit a potvrdit Enterem:
 
 ```
 cd ~/Documents/Claude/Projects/CLB-Kartapacienta && ./android/dokoncit-telefon.sh
