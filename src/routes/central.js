@@ -189,8 +189,11 @@ central.get('/poskytovatele', sUzivatelem(async (q) => ({
 })));
 
 /* ---------------- nový pacient ---------------- */
-central.post('/pacient', sUzivatelem(async (q, s, req) => {
-  const b = req.body || {};
+/** Založení průkazu – společné pro centrálu (POST /pacient) a partnerské API PéčeDoma (POST /api/partner/pacient, 0.11.72).
+ *  s = { tenant, uzivatelId, jmeno, role:[…], poskytovatelId, ip } (session centrály, nebo lékař-garant dosazený partnerským API);
+ *  b = tělo požadavku { pacient, garantPoskytovatelId, tym, plan, platnostDo, kontakty, aiPouzito, pecedoma:{klientId, portalKlientId} }. */
+export async function zalozPacienta(q, s, b) {
+  b = b || {};
   const pa = b.pacient || {};
   const jmeno = text(pa.jmeno, 80), prijmeni = text(pa.prijmeni, 80);
   if (!jmeno || !prijmeni) throw chyba('Vyplňte jméno a příjmení');
@@ -230,8 +233,8 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
     await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi) VALUES (@p, @j, @t, @s, @poz, @o)`,
       { p: id, j: text(k.jmeno, 150), t: text(k.tel, 40), s: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(sk) ? sk : 'INFORMOVAT', poz: text(k.pozn, 200) || null, o: (i += 10) });
   }
-  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: kod, ip: s.ip });
+  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : b.zPeceDoma ? 'Průkaz založen z portálu PéčeDoma (Data klienta → Karta pacienta).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: b.zPeceDoma ? kod + ' (z PéčeDoma)' : kod, ip: s.ip });
   // pacient z PéčeDoma (výběr klienta nebo soubor Export pro Kartu pacienta): zapamatovat klienta a rovnou stáhnout léky a návštěvu
   const pdId = String((b.pecedoma || {}).klientId || '').toLowerCase();
   if (UUID_RE.test(pdId)) {
@@ -239,7 +242,8 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
     try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, id, pdId); } catch { /* bez synchronizace – doplní se automaticky nebo tlačítkem */ }
   }
   return { id, kod };
-}, { lekar: true }));
+}
+central.post('/pacient', sUzivatelem(async (q, s, req) => zalozPacienta(q, s, req.body || {}), { lekar: true }));
 
 /* ---------------- detail pacienta ---------------- */
 central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
