@@ -58,14 +58,32 @@ Jednou se připraví release APK a QR, pak je každý další telefon pár minut
 4. Nový telefon po továrním resetu zapnout, na uvítací obrazovce **6× klepnout**, naskenovat QR. Telefon si stáhne APK, zašifruje se, nastaví správce zařízení a spustí Kartu.
 5. Dál jako v A. 3: spárovat, vyzkoušet.
 
+## C. Aligator S6600 (Android 14): QR kód + dokončení kabelem – ověřený postup
+
+Na tomto modelu padá po naskenování QR kódu systémový průvodce Androidu (chyba v jeho textech,
+`MissingFormatArgumentException '%1$s'` v ManagedProvisioning) a vrací se na skener – **správce zařízení i aplikace
+už ale v telefonu jsou**. Zbývá průvodci oznámit, že nastavení je hotové; to udělá skript `android/dokoncit-telefon.sh`
+kabelem (ladění USB zapnula aplikace sama, Možnosti pro vývojáře nejsou potřeba). Podrobný postup pro kolegyně je
+v `docs/postup-telefon-kolegyne.md` (a `.docx`).
+
+1. Tovární reset (Nastavení → Systém → Resetovat, nebo bez hesla: vypnout, držet zeslabení hlasitosti + zapínání → Wipe data/factory reset → Reboot).
+2. Na uvítací obrazovce 6× klepnout → skener → naskenovat QR (`android/provisioning-qr.html`; Wi‑Fi je v kódu). Nechat doběhnout stahování a „Nastavování zařízení“ – skončí zpět na skeneru, to je v tomto modelu normální.
+3. Připojit telefon kabelem k Macu; **na Macu** potvrdit „Povolit připojení příslušenství“, **na telefonu** potvrdit „Povolit ladění USB?“ (zaškrtnout Vždy povolit).
+4. Na Macu: `cd ~/Documents/Claude/Projects/CLB-Kartapacienta && ./android/dokoncit-telefon.sh` – skript počká na telefon, ověří správce, dokončí nastavení a telefon restartuje.
+5. Po startu klepnout na ikonu **Karta pacienta** → kiosk se zapne (zmizí Domů), okno Spárovat telefon s průkazem. Od té chvíle telefon startuje rovnou do karty.
+6. Spárovat až při předání pacientovi (centrála → Telefon a PINy → Spárovat telefon).
+
 ## Aktualizace aplikace na telefonu, který už je kiosk
 
-Správce zařízení zůstává, stačí nahrát nové APK (telefon na kabelu, ladění USB zapnuté):
+Správce zařízení zůstává, stačí nahrát nové APK (telefon na kabelu, ladění USB zapnuté a potvrzené). Jeden příkaz:
 
 ```
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n cz.centrumlb.kartapacienta/.MainActivity
+cd ~/Documents/Claude/Projects/CLB-Kartapacienta && ./android/nahrat-telefon.sh
 ```
+
+Skript nahraje `android/app/release/app-release.apk` (podepsané stejným klíčem jako telefony zavedené QR kódem), u telefonu
+bez správce ho nastaví (jen bez účtů v telefonu) a kartu spustí. Telefony s ladicí verzí (jiný podpis) nejdřív:
+`adb shell dpm remove-active-admin cz.centrumlb.kartapacienta/.AdminReceiver && adb uninstall cz.centrumlb.kartapacienta`.
 
 Změny samotné karty (webu) se do telefonu propisují samy po `./deploy/vps-deploy.sh`, aplikaci není třeba měnit.
 
