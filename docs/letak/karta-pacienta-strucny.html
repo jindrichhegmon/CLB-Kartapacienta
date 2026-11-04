@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Karta pacienta – informace pro partnery</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  /* Zkrácená verze pro partnery a stakeholdery (bez cen a trhu), odvozená z karta-pacienta-letak.html. Tisk: vytvor-pdf.cjs. */
+  @page { size: A4; margin: 16mm 17mm 16mm 17mm; }
+  :root {
+    --modra: #1a5aa6; --modra-tmava: #123f78; --modra-svetla: #e7eff9; --linka: #c9d6e6;
+    --text: #1f2733; --sedy: #5a6675; --cervena: #c62828;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: var(--text); font-size: 10pt; line-height: 1.38; background: #fff; }
+  @media screen { body { max-width: 180mm; margin: 0 auto; padding: 16mm 0; } }
+
+  h1 { font-size: 34pt; line-height: 1.05; margin: 0; color: var(--modra); letter-spacing: -0.5pt; }
+  h1 small { display: block; font-size: 12.5pt; font-weight: 700; color: var(--modra); margin-top: 4pt; letter-spacing: 0; }
+  h2 { font-size: 15.5pt; color: var(--modra); margin: 0 0 6pt; letter-spacing: -0.2pt; page-break-after: avoid; break-after: avoid; }
+  h2 + p, .oddil > p:first-of-type { page-break-inside: avoid; }
+  h2 + p { margin-top: 0; }
+  p { margin: 0 0 7pt; }
+  strong { font-weight: 700; }
+  .oddil { margin-top: 16pt; }
+  .zlom { page-break-before: always; break-before: page; }
+
+  /* titulní strana */
+  .titul { display: flex; flex-direction: column; min-height: 257mm; }
+  .hlava { display: flex; justify-content: space-between; align-items: flex-start; gap: 14pt; }
+  .loga { display: flex; gap: 14pt; align-items: center; }
+  .loga img { height: 54pt; width: auto; }
+  .uvod { font-size: 13.2pt; line-height: 1.4; margin: 20pt 0 12pt; font-weight: 500; }
+  .obrazky { flex: 1; display: flex; align-items: center; justify-content: center; gap: 26pt; }
+  .telefon { position: relative; background: #141a24; border-radius: 20pt; padding: 11pt 6pt 9pt; height: 112mm; aspect-ratio: 0.52; box-shadow: 0 10pt 22pt rgba(20,40,80,.28), inset 0 0 0 1.5pt #3a4452; }
+  .telefon::before { content: ""; position: absolute; top: 4.5pt; left: 50%; transform: translateX(-50%); width: 22pt; height: 3pt; border-radius: 2pt; background: #3a4452; }
+  .telefon .displej { width: 100%; height: 100%; border-radius: 11pt; overflow: hidden; background: #fff; }
+  .telefon img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .popisek-obr { text-align: center; font-size: 8.8pt; color: var(--sedy); margin-top: 5pt; }
+  .popisky { display: grid; grid-template-columns: 1fr 1fr; gap: 6pt 14pt; margin-top: 12pt; font-size: 9.3pt; color: var(--sedy); }
+  .popisky div { padding-left: 9pt; border-left: 2.5pt solid var(--modra); }
+  .popisky b { color: var(--text); display: block; }
+  .pata-titul { display: flex; justify-content: space-between; align-items: flex-end; font-size: 9.6pt; color: var(--sedy); margin-top: 12pt; }
+  .pata-titul b { color: var(--modra); font-size: 10.4pt; }
+
+  /* tabulky */
+  table { width: 100%; border-collapse: collapse; margin: 5pt 0 8pt; font-size: 8.9pt; line-height: 1.32; page-break-inside: auto; }
+  th, td { border: 0.5pt solid var(--linka); padding: 3.5pt 5pt; text-align: left; vertical-align: top; }
+  th { background: var(--modra); color: #fff; font-weight: 600; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  td:first-child { font-weight: 600; }
+  td.cena { white-space: nowrap; }
+
+  /* rámečky a seznamy */
+  .ramecek { background: var(--modra-svetla); border-left: 3pt solid var(--modra); padding: 6pt 9pt; margin: 6pt 0 0; font-size: 9.2pt; page-break-inside: avoid; }
+  ul.proc { list-style: none; padding: 0; margin: 0; }
+  ul.proc li { position: relative; padding-left: 14pt; margin-bottom: 4.5pt; }
+  ul.proc li::before { content: ""; position: absolute; left: 0; top: 5.5pt; width: 6pt; height: 6pt; border-radius: 50%; background: var(--modra); }
+  ol { padding-left: 18pt; margin: 0 0 7pt; }
+  ol li { margin-bottom: 3pt; }
+
+  /* kontaktní patička */
+  .kontakt { margin-top: 18pt; border: 0.5pt solid var(--linka); border-left: 3pt solid var(--modra); background: var(--modra-svetla); padding: 10pt 12pt; display: flex; justify-content: space-between; align-items: center; gap: 12pt; page-break-inside: avoid; }
+  .kontakt .rodina { text-align: right; font-size: 9.6pt; color: var(--sedy); line-height: 1.55; }
+  .kontakt .rodina b { color: var(--modra); }
+</style>
+</head>
+<body>
+
+<!-- ===== Strana 1: titulní ===== -->
+<section class="titul">
+  <div class="hlava">
+    <h1>Karta pacienta<small>krizový plán péče, který má pacient vždy u sebe</small></h1>
+    <div class="loga">
+      <img src="logo-most-k-domovu.png" alt="Most k domovu – domácí hospic Zlín">
+      <img src="logo-centrum-lb.png" alt="Centrum pro léčbu bolesti a paliativní medicínu Zlín">
+    </div>
+  </div>
+
+  <p class="uvod">Rozhodnutí o cíli péče z nemocnice, hospice nebo ordinace praktika jde s pacientem dál: do domova pro seniory, k praktickému lékaři i k záchranné službě. Krizová karta v telefonu u lůžka bez přihlašování, deník pečujících, plán péče ve verzích podepsaných lékařem.</p>
+
+  <div class="obrazky">
+    <div>
+      <div class="telefon"><div class="displej"><img src="karta-zamcena.png" alt="Zamčená krizová karta na telefonu u pacienta (smyšlená data)"></div></div>
+      <div class="popisek-obr">Zamčená krizová karta – vidí ji každý u lůžka, i záchranka</div>
+    </div>
+    <div>
+      <div class="telefon"><div class="displej"><img src="karta-videohovor.png" alt="Příchozí videohovor z centrální aplikace (smyšlená data)"></div></div>
+      <div class="popisek-obr">Videohovor z centrály – telefon zazvoní i zamčený</div>
+    </div>
+  </div>
+
+  <div class="popisky">
+    <div><b>Bez přihlášení</b>posádka ZZS vidí v první minutě: diagnózu, KPR ano/ne, cíl péče, čím je doložen, alergie, SOS léky, koho volat nejdřív a předchozí výjezdy.</div>
+    <div><b>Pečující s PINem</b>sestra domova, hospic, rodina čtou celý záznam a zapisují do deníku; nic nejde smazat. Každý podle svého oprávnění.</div>
+    <div><b>Lékař s kódem dne</b>jediný, kdo mění cíl péče, limitace a léky; každá změna plánu je nová verze s podpisem.</div>
+    <div><b>Videohovor k lůžku</b>lékař zavolá z centrály, telefon u pacienta zazvoní i zamčený; tým a rodina volají lékaři z telefonu.</div>
+    <div><b>Funguje bez signálu</b>telefon ukazuje poslední stav, zápisy se odešlou při nejbližším připojení.</div>
+    <div><b>Průkaz i ve vlastním telefonu</b>Můj průkaz pro pacienta a rodinu na Google Play: plán od lékaře, přání, podání léků, zprávy s týmem.</div>
+  </div>
+
+  <div class="pata-titul">
+    <div><b>Informace pro partnery a spolupracující organizace</b><br>listopad 2026 · pilotní provoz 2026/27</div>
+    <div style="text-align:right">Ing. Jindřich Hegmon<br>jindrich.hegmon@centrumlb.cz</div>
+  </div>
+</section>
+
+<!-- ===== Strana 2 ===== -->
+<section class="zlom">
+  <h2>Co je Karta pacienta</h2>
+  <p>Karta pacienta je krizový plán péče pro pacienty. Lékař garanta – nemocniční paliativní tým, mobilní hospic, paliativní ambulance nebo praktický lékař – zavede pacienta v centrální aplikaci a nahraje průkaz do jednoduchého telefonu, který leží u lůžka: cíl péče, limitace a čím jsou doloženy, kdo za pacienta rozhoduje, SOS léky, obvyklý funkční stav, kontakty. Sestry domova, hospic, praktik a rodina z něj čerpají a připisují do něj. Záchranáři vidí krizovou kartu bez přihlašování. Vznikla ve spolupráci Centra pro léčbu bolesti a paliativní medicínu Zlín a mobilního hospice Most k domovu; běží v jejich provozu spolu s portálem PéčeDoma, pilot se ZZS Zlínského kraje a domovy pro seniory ve Zlíně se připravuje.</p>
+  <p>Průkaz má tři podoby na jedné adrese: <strong>centrální aplikace</strong> v prohlížeči (na počítači i mobilu, a také uvnitř portálu PéčeDoma), <strong>karta týmu</strong> na zapůjčeném telefonu u lůžka (Android aplikace v kiosk režimu, nic jiného na něm neběží) a <strong>Můj průkaz</strong> ve vlastním telefonu pacienta a rodiny (na Google Play jako Karta pacienta pro domácnost). Z centrály jde na kterýkoli telefon pacienta zavolat <strong>videohovorem</strong>. S portálem PéčeDoma / PéčeDoma Plus sdílí klienty, léky, zprávy i návštěvy, takže tým nic nepřepisuje. Data má provozovatel ve vlastní databázi (MS SQL, stejná platforma jako PéčeDoma Plus, organizace oddělené na úrovni databáze). Nahrazuje papírové formuláře pro ZZS, noční telefonáty „co s ním“ a rozhodování naslepo.</p>
+
+  <div class="oddil">
+    <h2>Kdo s kartou pracuje a co z ní má</h2>
+    <p>Karta nic nepřidává k práci navíc: každý do ní zapisuje jen to, co dnes zapisuje jinam nebo říká do telefonu, a čte to, co by jinak musel zjišťovat.</p>
+    <table>
+      <thead><tr><th style="width:24%">Kdo</th><th style="width:38%">Co s kartou dělá</th><th>Co z ní má</th></tr></thead>
+      <tbody>
+        <tr><td>Pacient a rodina</td><td>Mají telefon s kartou u lůžka, rodina se odemkne PINem, zapisuje zhoršení stavu; pacient může mít průkaz i ve vlastním telefonu (Můj průkaz) s přáními, podáním léků a zprávami týmu</td><td>Jistota, že přání pacienta jsou známa; nikdo nemusí nic opakovaně vysvětlovat; lékař je na videohovor dosažitelný u lůžka</td></tr>
+        <tr><td>Nemocniční paliativní tým</td><td>Po rozhovoru o cílech péče založí průkaz (i z propouštěcí zprávy), je dočasným garantem, předá garanci do terénu</td><td>Rozhodnutí z nemocnice se při propuštění neztratí</td></tr>
+        <tr><td>Mobilní hospic, paliativní ambulance</td><td>Přebírá garanci, vede plán péče, je prvním kontaktem při zhoršení; pracuje v PéčeDoma, Karta si data bere sama</td><td>Pacient přichází s hotovým plánem; méně zbytečných výjezdů ZZS a hospitalizací; videohovor místo výjezdu</td></tr>
+        <tr><td>Praktický lékař</td><td>Může být garantem svých pacientů doma i v domovech; čte, upravuje léky, reviduje plán; na telefonu se odemkne osobním PINem nebo kódem dne</td><td>Podklad pro vlastní zápis; nerozhoduje o pacientovi, kterého málo zná; rozhodnutí platí i v noci a o víkendu</td></tr>
+        <tr><td>Sestry domova pro seniory</td><td>Čtou kartu, zapisují změny stavu a podané SOS léky, při zhoršení vyplní průvodce a volají podle karty; jeden telefon může nést celé oddělení</td><td>Vědí, co je u klienta „normální“, co dělat a komu volat; nevyplňují za lékaře to, co jim nepřísluší</td></tr>
+        <tr><td>Záchranná služba</td><td>Čte krizovou kartu bez přihlášení, vidí předchozí výjezdy, zapíše výjezd</td><td>Okamžitě ví, o jaký doklad se limitace opírá, a má telefon 24/7 na garanta</td></tr>
+        <tr><td>Opatrovník, určená osoba</td><td>Je uveden s rolí „rozhoduje“, odděleně od osob, které se jen informují</td><td>Je kontaktován tehdy, když se rozhoduje</td></tr>
+        <tr><td>Odborná společnost (ČSPM, PS RIPP)</td><td>Metodika: kdo zakládá, kdo reviduje a jak často, slovník cíle péče a limitací, vzor zápisu o cílech péče</td><td>Nástroj je odborně ukotvený a jednotný napříč poskytovateli</td></tr>
+        <tr><td>Provozovatel sítě (hospic, nadace, kraj)</td><td>Zakládá organizaci a pracoviště, vydává a spravuje telefony, eviduje oprávněné osoby, školí</td><td>Doložitelné, kdo měl k záznamu přístup; podklady pro vyhodnocení (výjezdy, hospitalizace)</td></tr>
+      </tbody>
+    </table>
+    <div class="ramecek"><b>Stav:</b> Karta běží v provozu Centra pro léčbu bolesti a paliativní medicínu Zlín a mobilního hospice Most k domovu spolu s portálem PéčeDoma. Pilot se ZZS Zlínského kraje a domovy pro seniory ve Zlíně se připravuje; metodika je v jednání s ČSPM, právní rámec je k potvrzení právníkem.</div>
+  </div>
+</section>
+
+<!-- ===== Co aplikace dělá ===== -->
+<section class="oddil">
+  <h2>Co aplikace dělá</h2>
+  <p>Čtyři aplikace na jedné adrese: správa organizací pro provozovatele, centrální aplikace pro garanta a tým, karta týmu na zapůjčeném telefonu u lůžka a Můj průkaz ve vlastním telefonu pacienta. Role v centrále: správce, lékař, sestra, čtenář. Na telefonu čtyři úrovně: bez přihlášení (ZZS, kdokoli u pacienta), rodina s PINem od garanta, tým s osobním PINem, lékař s kódem dne.</p>
+  <table>
+    <thead><tr><th style="width:22%">Oblast</th><th>Co umí</th></tr></thead>
+    <tbody>
+      <tr><td>Založení organizace</td><td>Jeden formulář: IČO (název a adresa z ARES), první pracoviště, telefon 24/7, název sítě a správce; první heslo se ukáže jednou spolu s textem k odeslání. Organizaci, která už má PéčeDoma Plus, se karta jen zapne</td></tr>
+      <tr><td>Přehled pacientů</td><td>Seznam s barevnými upozorněními (čeká revize, zhoršení, telefon bez spojení, slabá baterie, předání garance bez potvrzení přes 72 h, nemocnice garantem přes 30 dní), kde je pacient (doma, domov seniorů, hospitalizace) podle PéčeDoma, fulltextové hledání, číslo telefonu s kartou s voláním klepnutím, export do CSV/JSON</td></tr>
+      <tr><td>Založení pacienta</td><td>Z PéčeDoma (jeden klient nebo hromadně), z propouštěcí zprávy (fotka se přečte v prohlížeči a anonymně rozebere AI: diagnózy, alergie, léky, SOS léky, cíl péče, limitace, kontakty, co chybí; lékař potvrdí), ručně, nebo více pacientů ze souboru CSV/JSON; průkaz jde založit i přímo z portálu PéčeDoma</td></tr>
+      <tr><td>Krizová karta</td><td>Diagnóza a funkční stav jako první oddíl, cíl péče, limitace s dokladem, SOS léky a opioidy, alergie, koho volat (u lékaře plánu vždy číslo 24/7 organizace), kdo rozhoduje, nejbližší návštěva z PéčeDoma; bez přihlášení pro ZZS včetně předchozích výjezdů, posádka zapíše výjezd; tisk záložní karty</td></tr>
+      <tr><td>Plán péče</td><td>Cíl péče (symptomatická, omezená, plná léčba), limitace (KPR, umělá plicní ventilace, hospitalizace, antibiotika i.v., infuze, sonda, dialýza, transfuze), doklad k limitacím (dříve vyslovené přání s poučením a ověřeným podpisem, nebo sepsáno při přijetí u poskytovatele – karta pro ZZS to rozliší), platnost a revize (výchozí 3 měsíce); každá změna je nová verze s podpisem lékaře, historie verzí; lékař ho zapíše i z PéčeDoma</td></tr>
+      <tr><td>Léky</td><td>Jedna agenda pro centrálu, telefon i Můj průkaz: SOS léky, opioidy, pravidelná medikace, parenterálně. U pacienta propojeného s PéčeDoma jsou léky přímo z portálu a lékař je mění i z telefonu u lůžka; změny jdou zpět do PéčeDoma s historií</td></tr>
+      <tr><td>Interní poznámky a zhoršení</td><td>Deník týmu jen pro doplňování (změna stavu, podaný SOS lék, návštěva, telefonát); průvodce Zhoršení (co pozoruji, co jsem udělal, komu volám) se ukáže na kartě i v centrále, po zlepšení Stav stabilizován; rodina interní poznámky nevidí</td></tr>
+      <tr><td>Důležité kontakty</td><td>Rozhoduje / informovat / pečuje; výchozí kontakty organizace (linka paliativní podpory, sloužící sestra, ambulance) se u klienta jen zatrhnou a změna se propíše všem</td></tr>
+      <tr><td>Lidé a týmy</td><td>Každé pracoviště (garant i domov či praktik) zapíše své lidi jednou – ručně, z CSV nebo z PéčeDoma – a rozdělí je do týmů; každý má osobní PIN platný u všech svých pacientů (tisk kartiček, SMS); tým „přiřadit vždy“ se k pacientům garanta přidává sám; role lékař a specializovaná sestra, praktik, hospic, sestra domova</td></tr>
+      <tr><td>Tým a garance</td><td>Pracoviště v týmu (nemocnice, hospic, ambulance, praktik, domov, ZZS) s rolí a platností; předání garance potvrzuje přijímající lékař, upozornění po 72 h, nemocnice nejdéle 30 dní; historie garance; při přesunu pacienta se mění tým, telefon zůstává</td></tr>
+      <tr><td>Telefon u pacienta (karta týmu)</td><td>Kartu lze nahrát jen do telefonu s číslem uvedeným u pacienta – odkazem z SMS nebo QR kódem; šifrovaná offline kopie, fronta zápisů bez signálu, synchronizace při každém připojení; více pacientů v jednom telefonu (např. oddělení domova); stav baterie a poslední spojení v centrále, zablokování a vzdálené vymazání; štítky na telefony k tisku</td></tr>
+      <tr><td>Přístupy na telefonu</td><td>Záchranná služba bez PINu; rodina PINem od garanta; tým osobním PINem; lékař bez PINu kódem dne z centrály nebo z PéčeDoma (platí celý den, ověří se i bez signálu); zamknutí po 2 minutách; co kdo vidí a zapisuje, hlídá i server</td></tr>
+      <tr><td>Videohovor</td><td>Z centrály (i z mobilu) tlačítko Videohovor na telefon: zazvoní všechny telefony pacienta – karta u lůžka i Můj průkaz – i zamčené a se zhasnutým displejem, kdokoli u lůžka přijme bez PINu. Z telefonu tým nebo rodina klepne na Videohovor, kolegovi pošle SMS s výzvou a spustí videokonferenci; lékař hovor vidí v centrále v každé agendě a připojí se. Vlastní server videohovorů (Jitsi Meet) u provozovatele, hovory se nenahrávají, do deníku jde jen zahájení a délka</td></tr>
+      <tr><td>Android aplikace pro zapůjčený telefon</td><td>Kiosk: na obrazovce je jen karta a nejde z ní odejít, volání jen na čísla z karty, SMS kolegovi k videohovoru, hovor z centrály probudí zhasnutý displej; zavedení telefonu QR kódem nebo kabelem (postup pro Mac i Windows); servisní PIN pro Wi-Fi, obnovení a vrácení telefonu</td></tr>
+      <tr><td>Můj průkaz (vlastní telefon pacienta)</td><td>Na Google Play jako Karta pacienta pro domácnost: plán péče, doklad, léky a kontakty od lékaře jen ke čtení; vlastní přání a hodnoty, poznámky a otázky pro lékaře, záznam podání léků (Podán / Nepodán), zprávy s týmem, videohovor od lékaře, nouzový text do Zdravotního ID, tisk a sdílení s náhledem; přání a záznamy jdou týmu automaticky; až 6 telefonů pacienta a rodiny; data šifrovaná PINem pacienta</td></tr>
+      <tr><td>Propojení s PéčeDoma / PéčeDoma Plus</td><td>Založení průkazu a zápis plánu péče přímo z Dat klienta v portálu (karta uvnitř PéčeDoma), léky obousměrně, jedno vlákno zpráv s pacientem a rodinou, nejbližší návštěva z kalendáře, kde se pacient nachází, registrace telefonu k Lince paliativní podpory, kód lékaře; stejná databáze a stejné organizace</td></tr>
+      <tr><td>Dokumenty, výpis, uzavření</td><td>Kopie dříve vysloveného přání a zpráv s datem a pracovištěm původu, výpis do zdravotnické dokumentace, uzavření průkazu (telefon se vymaže a vrací do oběhu)</td></tr>
+      <tr><td>Bezpečnost a audit</td><td>Organizace oddělené na úrovni databáze (Row-Level Security), přístup jen pro pracoviště v týmu, neměnný log přístupů, log dotazů na AI bez obsahu, žádné SQL z prohlížeče; deník, verze plánu a historie garance nejdou mazat</td></tr>
+      <tr><td>Nápověda a vzhled</td><td>Nápověda s obrázky přímo v aplikaci (20 kapitol, na telefonu i offline), chat nad nápovědou přes anonymizační bránu, 10 barevných schémat včetně tmavého, centrála použitelná na mobilu</td></tr>
+    </tbody>
+  </table>
+  <p>Karta pacienta patří do stejné rodiny jako PéčeDoma Plus (portál pro domácí a hospicovou péči) a Ordinace (komunikace s pacienty ambulance); běží na stejné databázi a stejných organizacích. Vedle toho existuje prototyp <strong>Průkaz pro plán péče</strong> podle zadání MUDr. Kabelky (Dialogus): pacientem řízená karta bez serveru, vše jen v telefonu pacienta – zatím k diskusi, není součástí ostré sítě.</p>
+</section>
+
+<!-- ===== Proč + ceny ===== -->
+<section class="oddil">
+  <h2>Proč Karta pacienta</h2>
+  <ul class="proc">
+    <li><strong>Rozhodnutí jde s pacientem.</strong> Co se domluví v nemocnici, v hospici nebo u praktika, vidí sestra domova, lékař ve službě i záchranka. Nikdo nezačíná od nuly a rodina nemusí nic opakovaně vysvětlovat.</li>
+    <li><strong>Krizová karta bez přihlášení.</strong> Posádka ZZS vidí v první minutě diagnózu, KPR ano/ne, cíl péče, o jaký doklad se opírá, předchozí výjezdy a telefon 24/7 na garanta. Nerozhoduje naslepo.</li>
+    <li><strong>Plán mění jen lékař.</strong> Cíl péče, limitace a léky zapisuje výhradně lékař, každá změna plánu je nová podepsaná verze; nelze „vyplní sestra, podepíše lékař“. Deník se jen doplňuje.</li>
+    <li><strong>Videohovor k lůžku.</strong> Lékař zavolá z centrály na telefon u pacienta, ten zazvoní i zamčený a se zhasnutým displejem; sestra domova nebo rodina ukáže pacienta lékaři bez výjezdu. Tým volá lékaři z telefonu a kolegu pozve SMS.</li>
+    <li><strong>Jedna data s PéčeDoma.</strong> Hospic nebo ambulance, která používá PéčeDoma, nic nepřepisuje: klient, léky, zprávy a návštěvy jsou v Kartě automaticky a lékař plán zapíše přímo z portálu.</li>
+    <li><strong>Pacient má průkaz ve svém telefonu.</strong> Můj průkaz z Google Play: plán od lékaře ke čtení, vlastní přání, záznam podání léků, otázky pro lékaře a zprávy s týmem; záznamy přicházejí týmu samy.</li>
+    <li><strong>Funguje bez signálu.</strong> Telefon u lůžka ukazuje poslední stav i v pokoji bez signálu, zápisy čekají ve frontě a odešlou se při nejbližším připojení. K telefonu patří tištěná záložní karta.</li>
+    <li><strong>Předání mezi poskytovateli.</strong> Nemocnice → hospic → domov → praktik: garanci předá jeden lékař druhému, tým kolem pacienta se mění, telefon zůstává u pacienta; jeden telefon unese i celé oddělení domova.</li>
+    <li><strong>Data jsou vaše.</strong> Vše leží ve vlastní databázi provozovatele (MS SQL), organizace oddělené na úrovni databáze, identita pacienta jen v centrále; výpis a export kdykoli.</li>
+    <li><strong>AI bez identity pacienta.</strong> Do AI nikdy neodchází jméno, rodné číslo, datum narození, adresa ani telefony; text se anonymizuje a při pochybnosti se dotaz vůbec neodešle. AI jen předvyplní, lékař rozhoduje.</li>
+    <li><strong>Rychlé zavedení.</strong> Organizace se založí jedním formulářem z IČO, lidé a týmy se nahrají z CSV nebo z PéčeDoma, telefon se spáruje SMS odkazem během pár minut; nápověda s obrázky a chat jsou přímo v aplikaci.</li>
+    <li><strong>Promyšlený rámec.</strong> Průkaz není zdravotnická dokumentace, ale sdílený výtah z ní; limitace je pro ZZS závazná jen s doloženým dříve vysloveným přáním a karta to rozliší; není zdravotnickým prostředkem, protože nic nevyhodnocuje. Struktura odpovídá připravovanému urgentnímu souhrnu (elektronizace zdravotnictví).</li>
+  </ul>
+
+</section>
+
+<!-- ===== Jak se zapojit ===== -->
+<section class="oddil">
+  <h2>Jak se zapojit</h2>
+  <ol>
+    <li><strong>Ukázka na živém provozu</strong> (30 minut on-line): založení pacienta, krizová karta na telefonu u lůžka, zápis sestry, videohovor z centrály na telefon, Můj průkaz v telefonu pacienta.</li>
+    <li><strong>Pilot:</strong> 10–20 pacientů po dobu 3 měsíců, zapůjčené telefony v kiosk režimu, tištěné záložní karty, školení týmu, sester domovů a posádek ZZS (půl dne). Měří se výjezdy ZZS a hospitalizace proti plánu péče a spokojenost sester a rodin.</li>
+    <li><strong>Metodika a smlouvy:</strong> kdo zakládá, kdo reviduje a jak často; informace pro pacienta a souhlas; smlouva o zpracování údajů s provozovatelem centrální aplikace.</li>
+    <li><strong>Provoz</strong> v síti poskytovatelů regionu; požadavky týmů se zapracovávají průběžně.</li>
+  </ol>
+  <p>Od partnera potřebujeme kontaktní osobu, seznam pracovišť a lidí s rolemi (lékař, sestra), u domovů a ZZS způsob, jak budou karty u pacientů používat, a připomínky k obsahu krizové karty.</p>
+
+  <div class="kontakt">
+    <div><b style="color:var(--modra)">Kontakt</b><br>Ing. Jindřich Hegmon · jindrich.hegmon@centrumlb.cz</div>
+    <div class="rodina">PéčeDoma Plus &nbsp;·&nbsp; <b>Karta pacienta</b> &nbsp;·&nbsp; Ordinace</div>
+  </div>
+</section>
+
+</body>
+</html>
