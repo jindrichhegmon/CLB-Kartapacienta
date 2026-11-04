@@ -346,7 +346,11 @@ await p.evaluate(() => localStorage.removeItem('kp_upoz'));
 await klik(p, '#p_stitky'); await p.waitForSelector('#st_tisk');
 if ((await p.$$('[data-stp]')).length !== 3 || (await p.$$('[data-stp]:checked')).length !== 2) chyby.push('štítky: čekáno 3 pacienti a 2 předvybraní s telefonem');
 if (!(await p.textContent('#st_pocet')).startsWith('2 štítků')) chyby.push('štítky: počet ' + (await p.textContent('#st_pocet')));
-await foto(p, 'c-stitky'); await p.evaluate(() => KP.closeModal());
+await foto(p, 'c-stitky');
+// 0.11.83: štítek pro telefon s více pacienty – jeden na telefon, bez jmen
+await klik(p, '#st_telefony'); await p.waitForSelector('#sm_tisk');
+if ((await p.$$('[data-smt]')).length < 1 || !(await p.$('[data-smk]')) || !(await p.$('[data-smd]'))) chyby.push('štítek telefonu: chybí telefony, Zapůjčeno komu nebo datum');
+await p.fill('[data-smk="0"]', 'DS C Otrokovice, 2. patro'); await foto(p, 'c-stitky-telefon'); await p.evaluate(() => KP.closeModal());
 await foto(p, 'c-pacienti');
 if (!(await p.$('[data-misto="ds"]'))) throw new Error('seznam pacientů: chybí filtr Kde je');
 await klik(p, '[data-misto="ds"]'); await p.waitForTimeout(200);

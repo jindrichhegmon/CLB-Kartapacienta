@@ -146,6 +146,7 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
       (SELECT TOP 1 g4.PoskytovatelID FROM dbo.A_KP_Garance g4 WHERE g4.PacientID = p.PacientID AND g4.Stav = 'NAVRZENO') AS predavaSeKomu,
       (SELECT TOP 1 dps.Nazev FROM dbo.A_KP_Tym td JOIN dbo.A_KP_Poskytovatel dps ON dps.PoskytovatelID = td.PoskytovatelID WHERE td.PacientID = p.PacientID AND td.Aktivni = 1 AND dps.Typ = 'DOMOV' ORDER BY td.Od) AS domov
       , (SELECT ps.Kde FROM dbo.A_KP_PdSync ps WHERE ps.PacientID = p.PacientID) AS kde, CASE WHEN p.PdKlientID IS NULL THEN 0 ELSE 1 END AS pd
+      , (SELECT TOP 1 CONVERT(char(10), z.Sparovano, 23) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' ORDER BY z.Sparovano) AS sparovano
       , (SELECT TOP 1 v.Zahajil + '|' + v.Stav FROM dbo.A_KP_Videohovor v WHERE v.PacientID = p.PacientID AND v.Stav IN ('ZVONI', 'PROBIHA') AND v.Zahajeno > DATEADD(hour, -3, SYSDATETIME()) ORDER BY v.VideohovorID DESC) AS videohovor
     FROM dbo.A_KP_Pacient p
     OUTER APPLY (SELECT TOP 1 * FROM dbo.A_KP_PlanVerze v WHERE v.PacientID = p.PacientID ORDER BY v.Verze DESC) pv
