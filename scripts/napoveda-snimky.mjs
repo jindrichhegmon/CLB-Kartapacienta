@@ -350,7 +350,14 @@ await foto(p, 'c-stitky');
 // 0.11.83: štítek pro telefon s více pacienty – jeden na telefon, bez jmen
 await klik(p, '#st_telefony'); await p.waitForSelector('#sm_tisk');
 if ((await p.$$('[data-smt]')).length < 1 || !(await p.$('[data-smk]')) || !(await p.$('[data-smd]'))) chyby.push('štítek telefonu: chybí telefony, Zapůjčeno komu nebo datum');
-await p.fill('[data-smk="0"]', 'DS C Otrokovice, 2. patro'); await foto(p, 'c-stitky-telefon'); await p.evaluate(() => KP.closeModal());
+await p.fill('[data-smk="0"]', 'DS C Otrokovice, 2. patro'); await foto(p, 'c-stitky-telefon');
+// 0.11.84: náhled vytištěného štítku – číslo telefonu, na který se lepí
+await p.check('[data-smt="0"]'); await p.fill('#sm_org', 'Centrum pro léčbu bolesti a paliativní medicínu s.r.o.');   // nejdelší název – kontrola, že se text vejde
+{ const cekej = p.context().waitForEvent('page', { timeout: 8000 }).catch(async (e) => { throw new Error('štítek telefonu: okno tisku se neotevřelo – ' + (await p.textContent('#toast').catch(() => ''))); }); await p.click('#sm_tisk'); const okno = await cekej; await okno.waitForLoadState(); await okno.setViewportSize({ width: 900, height: 420 });
+  const t = await okno.textContent('.st'); if (!t.includes('Tento telefon') || !t.includes('777 000 123') || !t.includes('DS C Otrokovice')) chyby.push('štítek telefonu: chybí číslo telefonu nebo komu je zapůjčený');
+  const pres = await okno.evaluate(() => [...document.querySelectorAll('.st')].some((e) => e.scrollHeight > e.clientHeight + 1)); if (pres) chyby.push('štítek telefonu: text se nevejde na 70 × 37 mm');
+  await okno.screenshot({ path: path.join(VYSTUP, 'c-stitky-tisk.png'), clip: { x: 0, y: 0, width: 900, height: 420 } }); await okno.close(); }
+await p.evaluate(() => KP.closeModal());
 await foto(p, 'c-pacienti');
 if (!(await p.$('[data-misto="ds"]'))) throw new Error('seznam pacientů: chybí filtr Kde je');
 await klik(p, '[data-misto="ds"]'); await p.waitForTimeout(200);

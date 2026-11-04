@@ -422,6 +422,8 @@ body:has(.hlp-fab) .content{padding-bottom:84px}
 .hlp-chat .hc-navrhy button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 11px;font:inherit;font-size:13px;cursor:pointer;color:var(--fg)}
 .hlp-chat form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
 .hlp-chat textarea{flex:1;resize:none;height:44px;border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:14px;background:var(--surface);color:var(--fg)}
+/* 0.11.84: při otevřeném okně (modal) plovoucí Zeptat se nápovědy schovat – na menší obrazovce překrývalo tlačítka okna (např. Vytisknout štítky) */
+body:has(.modal) .hlp-fab,body:has(.sheet-bg) .hlp-fab{display:none}
 .hlp-fab{position:fixed;z-index:20;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));border:0;background:var(--accent);color:#fff;border-radius:999px;height:46px;padding:0 16px 0 6px;display:flex;align-items:center;gap:8px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;box-shadow:var(--shadow)}
 .hlp-fab .q{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;font-size:18px;font-weight:700}
 @media (max-width:760px){

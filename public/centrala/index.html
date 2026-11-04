@@ -1395,7 +1395,7 @@ async function stitkyOkno(predvybrani = []) {
       if (!vybrani.length) return toast('Vyberte aspoň jednoho pacienta');
       const org = $('st_org').value.trim(), tel = $('st_tel').value.trim(), kopie = Number($('st_kopie').value), od = Math.min(24, Math.max(1, Number($('st_od').value) || 1)), seJmenem = $('st_jmeno').checked;
       const stitky = [];
-      vybrani.forEach((p) => { for (let i = 0; i < kopie; i++) stitky.push({ org: org || p.garant || S.nazevSite || 'Karta pacienta', tel: telGaranta(p) || tel, jmeno: seJmenem ? `${p.prijmeni} ${p.jmeno}` : '', kod: seJmenem ? p.kod : '' }); });
+      vybrani.forEach((p) => { for (let i = 0; i < kopie; i++) stitky.push({ org: org || p.garant || S.nazevSite || 'Karta pacienta', tel: telGaranta(p) || tel, jmeno: seJmenem ? `${p.prijmeni} ${p.jmeno}` : '', kod: seJmenem ? p.kod : '', cislo: telHezky(p.telefonKarty || '') }); });
       if (stitky.some((x) => !x.tel)) return toast('Vyplňte „Kam volat“ – některý garant nemá telefon 24/7');
       tiskniStitky(stitky, od);
     };
@@ -1407,13 +1407,13 @@ function tiskniStitky(stitky, od) {
       const archy = []; let i = od - 1; stitky.forEach((x) => { const a = Math.floor(i / 24), pos = i % 24; (archy[a] = archy[a] || []).push({ ...x, pos }); i++; });
       w.document.write(`<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Štítky na telefony – Karta pacienta</title><style>
         @page{size:A4;margin:0}body{margin:0;font-family:system-ui,-apple-system,Arial,sans-serif;color:#111}.arch{position:relative;width:210mm;height:297mm;page-break-after:always;overflow:hidden}
-        .st{position:absolute;width:70mm;height:37mm;box-sizing:border-box;padding:3mm 4mm 2.5mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
-        .st .k{font-size:7pt;letter-spacing:.5pt;text-transform:uppercase;color:#1e3a5f;font-weight:700}.st .o{font-size:9pt;font-weight:700;line-height:1.15}.st .j{font-size:10pt;line-height:1.15}.st .j b{font-size:10.5pt}
-        .st .v{font-size:7.5pt;color:#333}.st .t{font-size:15pt;font-weight:800;letter-spacing:.3pt;line-height:1.1}
+        .st{position:absolute;width:70mm;height:37mm;box-sizing:border-box;padding:2.4mm 3.5mm 2mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+        .st .k{font-size:7pt;letter-spacing:.5pt;text-transform:uppercase;color:#1e3a5f;font-weight:700}.st .o{font-size:8pt;font-weight:700;line-height:1.1}.st .j{font-size:8.5pt;line-height:1.12}.st .j b{font-size:9pt}
+        .st .v{font-size:7pt;color:#333}.st .t{font-size:13pt;font-weight:800;letter-spacing:.3pt;line-height:1.05}.st .c{font-size:8pt;line-height:1.1;border-top:.3mm solid #1e3a5f;border-bottom:.3mm solid #1e3a5f;padding:.4mm 0}.st .c b{font-size:10.5pt;letter-spacing:.3pt}
         @media screen{body{background:#888;padding:10mm}.arch{background:#fff;margin:0 auto 10mm;box-shadow:0 2px 12px rgba(0,0,0,.4)}.st{outline:1px dashed #bbb}}</style></head><body>
         ${archy.map((a) => `<div class="arch">${a.map((x) => `<div class="st" style="left:${(x.pos % 3) * 70}mm;top:${0.5 + Math.floor(x.pos / 3) * 37}mm">
           <div><div class="k">Karta pacienta · telefon patří</div><div class="o">${esc(x.org)}</div></div>
-          ${x.jmeno ? `<div class="j"><b>${esc(x.jmeno)}</b> · ${esc(x.kod)}</div>` : ''}${x.zapujceno ? `<div class="j">Zapůjčeno: <b>${esc(x.zapujceno)}</b><div class="v">od ${esc(x.od)}${x.cislo ? ' · tel. ' + esc(x.cislo) : ''}</div></div>` : ''}
+          ${x.jmeno ? `<div class="j"><b>${esc(x.jmeno)}</b> · ${esc(x.kod)}</div>` : ''}${x.zapujceno ? `<div class="j">Zapůjčeno: <b>${esc(x.zapujceno)}</b> <span class="v" style="white-space:nowrap">od ${esc(x.od)}</span></div>` : ''}${x.cislo ? `<div class="c">Tento telefon: <b>${esc(x.cislo)}</b></div>` : ''}
           <div><div class="v">Při nálezu nebo potížích s telefonem volejte</div><div class="t">${esc(x.tel)}</div></div></div>`).join('')}</div>`).join('')}
         <script>print()<\/script></body></html>`);
       w.document.close();
