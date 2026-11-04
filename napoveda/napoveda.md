@@ -51,7 +51,16 @@ Role uživatelů:
 
 ## 3. Přehled pacientů
 
-Menu **Pacienti** ukazuje pacienty, u kterých je vaše pracoviště v týmu (správce vidí všechny).
+Menu **Pacienti** ukazuje pacienty, u kterých je vaše pracoviště v týmu (správce vidí všechny). Začíná **přehledem (dashboardem)**, nad ním je tlačítko **📋 Agenda pacientů** se seznamem, hledáním a filtry.
+
+![Přehled pacientů – dlaždice a sloupcové přehledy](/napoveda/img/c-dashboard.png)
+
+- **Dlaždice:** pacienti s průkazem (kolik je propojeno s PéčeDoma), **probíhá zhoršení**, **plán k revizi** (po platnosti a do 14 dní), **telefony k řešení** (nepřipojené přes 12 h, slabá baterie), **bez telefonu** a **zápisy za 24 h**. Barevný proužek a ikona ukazují stav (červená naléhavé, oranžová zkontrolovat, zelená v pořádku); číslo a text platí vždy.
+- **Sloupcové přehledy:** **kde jsou pacienti** (Doma, DS B, DS C, Hospitalizace…), **cíl péče**, **telefony s kartou** (kolik pacientů je v kterém telefonu) a **garant průkazu**. Najetím myší se ukáže počet a podíl.
+- **Vyžaduje pozornost** (upozornění) a **Poslední zápisy** – klepnutím se otevře pacient.
+- Klepnutí na dlaždici nebo sloupec otevře **Agendu pacientů** s odpovídajícím filtrem (např. sloupec DS C zapne filtr DS, dlaždice Probíhá zhoršení vyhledá pacienty se zhoršením). Z agendy se vrátíte tlačítkem **← Přehled pacientů** nebo menu **Pacienti**.
+
+**Agenda pacientů:**
 
 ![Přehled pacientů s upozorněními](/napoveda/img/c-pacienti.png)
 

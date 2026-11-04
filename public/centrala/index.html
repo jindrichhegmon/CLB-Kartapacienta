@@ -152,7 +152,7 @@ function nav() {
   const pol = [['pacienti', '🪪 Pacienti'], ...(jeLekar() ? [['novy', '➕ Nový pacient']] : []), ...(S.ja.role.some((r) => r !== 'ctenar') ? [['lide', '👥 Lidé a týmy']] : []), ...(jeAdmin() ? [['sprava', '⚙️ Správa organizace']] : []), ['ucet', '👤 Můj účet']];
   return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 }
-function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.view = b.dataset.v; if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
+function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.view = b.dataset.v; if (b.dataset.v === 'pacienti') S.pacView = 'dash';   /* 0.11.90: menu Pacienti = přehled */ if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
 
 /* 0.11.58: popisky sloupců pro mobil – buňkám doplní data-l z hlavičky tabulky (CSS je ukáže jen do 640 px); běží po každém překreslení */
 function oznacTabulky() {
@@ -219,7 +219,78 @@ function renderUcet(povinne) {
 const mistoPac = (p) => { if (p.kde) return p.kde; if (p.pd) return ''; const dm = vDomove(p); if (dm !== null) return dm ? 'DS ' + dm : 'DS'; return /^\s*doma\b/i.test(p.pobyt || '') ? 'Doma' : /hospit|nemocnic|ldn\b/i.test(p.pobyt || '') ? 'Hospitalizace' : ''; };
 const mistoKat = (t) => (!t ? 'nic' : /^doma/i.test(t) ? 'doma' : /^ds\b|domov/i.test(t) ? 'ds' : /hospit|nemoc|ldn/i.test(t) ? 'hosp' : 'jine');
 const MISTA_SEZ = [['', 'Vše'], ['doma', '🏠 Doma'], ['ds', '🏢 DS'], ['hosp', '🏥 Hospitalizace'], ['nic', 'neuvedeno / neověřeno']];
+/* ---- Přehled pacientů – dashboard (0.11.90): první obrazovka menu Pacienti; nad ním tlačítko „Agenda pacientů“ (dosavadní seznam).
+   Data z /api/c/prehled (stejná jako agenda) – nic navíc z databáze. Dlaždice (stav = ikona + text, barva jen doplňuje),
+   sloupcové přehledy jednou barvou (délka = počet; popisek a číslo vždy textem), klik vede do agendy s filtrem. ---- */
+async function renderDashboard() {
+  $('work').innerHTML = `${nav()}<div class="note">Načítám přehled…</div>`; bindNav();
+  let d; try { d = await C('/prehled?stav=AKTIVNI'); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+  const P = d.pacienti, n = P.length, ted = Date.now();
+  const cas = (x) => (x ? new Date(String(x).replace(' ', 'T')).getTime() : 0);
+  const zh = P.filter((p) => p.posledniKrize === 'Zhoršení stavu');
+  const poPlatnosti = P.filter((p) => !p.platnostDo || KP.prosly(p.platnostDo));
+  const revize = P.filter((p) => p.platnostDo && !KP.prosly(p.platnostDo) && (cas(p.platnostDo + ' 00:00') - ted) < 14 * 864e5);
+  const sTel = P.filter((p) => p.telefonu);
+  const nepripojeno = sTel.filter((p) => !p.sync || ted - cas(p.sync) > 12 * 3600e3);
+  const baterie = sTel.filter((p) => p.baterie != null && p.baterie < 20);
+  const zapisy24 = P.filter((p) => p.posledniZapis && ted - cas(p.posledniZapis) < 24 * 3600e3);
+  const skupiny = (fn) => { const m = new Map(); P.forEach((p) => { const k = fn(p); if (k) m.set(k, (m.get(k) || 0) + 1); }); return [...m].sort((a, b) => b[1] - a[1]); };
+  const mista = skupiny((p) => mistoPac(p) || 'neuvedeno');
+  const cile = skupiny((p) => (p.cil && CILE[p.cil] ? CILE[p.cil].split(' (')[0] : 'bez plánu'));
+  const telefony = skupiny((p) => (p.telefonu && p.telefonKarty ? p.telefonKarty : null)).slice(0, 6);
+  const garanti = skupiny((p) => p.garant || 'bez garanta').slice(0, 6);
+  const pct = (x) => (n ? Math.round((x / n) * 100) : 0);
+  const pacTvar = (x) => (x === 1 ? 'pacient' : x > 1 && x < 5 ? 'pacienti' : 'pacientů');
+  const dlazdice = (id, cislo, nazev, pod, stav) => `<button class="dash-tile ${stav || ''}" data-dtile="${id}" type="button" title="${esc(nazev)} – otevřít v agendě pacientů">
+      <span class="dash-n">${cislo}</span><span class="dash-l">${stav ? `<span class="dash-ic" aria-hidden="true">${stav === 'crit' ? '!' : stav === 'warn' ? '!' : '✓'}</span>` : ''}${esc(nazev)}</span><span class="dash-s">${pod}</span></button>`;
+  const sloupce = (id, nadpis, rows, popisek) => {
+    const max = Math.max(1, ...rows.map((r) => r[1]));
+    return `<div class="panel dash-panel"><div class="panel-h"><h2>${esc(nadpis)}</h2><span class="chip">${rows.reduce((a, r) => a + r[1], 0)}</span></div><div class="dash-bars">${rows.map(([k, v]) => `
+      <button class="dash-bar" type="button" data-dbar="${id}" data-dval="${esc(k)}" title="${esc(popisek ? popisek(k) : k)}: ${v} ${pacTvar(v)} (${pct(v)} %)">
+        <span class="dash-bl">${esc(popisek ? popisek(k) : k)}</span><span class="dash-bt"><i style="width:${Math.max(2, (v / max) * 100)}%"></i></span><span class="dash-bv">${v}</span></button>`).join('') || '<div class="muted" style="padding:8px 0">žádná data</div>'}</div></div>`;
+  };
+  const radekPac = (p, vpravo) => `<button class="dash-row" type="button" data-dpac="${p.id}"><span><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b> <span class="mono muted">${esc(p.kod)}</span>${mistoPac(p) ? ' · <span class="muted">' + esc(mistoPac(p)) + '</span>' : ''}</span><span class="muted">${vpravo}</span></button>`;
+  const posledni = P.filter((p) => p.posledniZapis).sort((a, b) => cas(b.posledniZapis) - cas(a.posledniZapis)).slice(0, 7);
+  $('work').innerHTML = `${nav()}
+    <div class="dash-head"><button class="btn primary" id="d_agenda" type="button">📋 Agenda pacientů</button><span class="muted">Přehled ${n} ${pacTvar(n)} s aktivním průkazem · stav k ${esc(new Date().toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))}</span></div>
+    <div class="dash-tiles">
+      ${dlazdice('vse', n, 'Pacienti s průkazem', `${P.filter((p) => p.pd).length} propojeno s PéčeDoma`)}
+      ${dlazdice('zhorseni', zh.length, 'Probíhá zhoršení', zh.length ? zh.slice(0, 2).map((p) => esc(p.prijmeni)).join(', ') + (zh.length > 2 ? '…' : '') : 'nikdo', zh.length ? 'crit' : 'ok')}
+      ${dlazdice('plan', poPlatnosti.length + revize.length, 'Plán k revizi', `${poPlatnosti.length} po platnosti · ${revize.length} do 14 dní`, poPlatnosti.length ? 'crit' : revize.length ? 'warn' : 'ok')}
+      ${dlazdice('telefon', nepripojeno.length + baterie.length, 'Telefony k řešení', `${nepripojeno.length} nepřipojeno přes 12 h · ${baterie.length} slabá baterie`, nepripojeno.length || baterie.length ? 'warn' : 'ok')}
+      ${dlazdice('bez', P.length - sTel.length, 'Bez telefonu', `${sTel.length} průkazů v telefonu`)}
+      ${dlazdice('zapisy', zapisy24.length, 'Zápisy za 24 h', 'pacienti s novým zápisem v deníku')}
+    </div>
+    <div class="dash-grid">
+      ${sloupce('misto', 'Kde jsou pacienti', mista)}
+      ${sloupce('cil', 'Cíl péče', cile)}
+      ${sloupce('tel', 'Telefony s kartou', telefony, (k) => telHezky(k))}
+      ${sloupce('garant', 'Garant průkazu', garanti)}
+    </div>
+    <div class="dash-grid dash-grid2">
+      <div class="panel dash-panel"><div class="panel-h"><h2>Vyžaduje pozornost</h2><span class="chip ${d.upozorneni.some((u) => u.uroven === 'crit') ? 'crit' : d.upozorneni.length ? 'warn' : 'ok'}">${d.upozorneni.length}</span></div><div class="dash-list">
+        ${d.upozorneni.slice(0, 8).map((u) => `<button class="dash-row" type="button" data-dpac="${u.pacientId}"><span><span class="dash-dot ${u.uroven}" aria-hidden="true"></span>${esc(u.text)}</span><span class="muted">${u.uroven === 'crit' ? 'naléhavé' : 'zkontrolovat'}</span></button>`).join('') || '<div class="muted" style="padding:10px 14px">Vše v pořádku – žádná upozornění.</div>'}
+        ${d.upozorneni.length > 8 ? `<button class="dash-row" type="button" id="d_vic"><span class="muted">… a dalších ${d.upozorneni.length - 8} v agendě pacientů</span><span></span></button>` : ''}</div></div>
+      <div class="panel dash-panel"><div class="panel-h"><h2>Poslední zápisy</h2></div><div class="dash-list">
+        ${posledni.map((p) => radekPac(p, esc(fmtDT(p.posledniZapis)))).join('') || '<div class="muted" style="padding:10px 14px">Zatím žádné zápisy.</div>'}</div></div>
+    </div>`;
+  bindNav();
+  const doAgendy = (nastav) => { S.pacView = 'agenda'; S.stav = 'AKTIVNI'; S.misto = ''; S.hledat.pac = ''; if (nastav) nastav(); renderPacienti(); scrollTo(0, 0); };
+  $('d_agenda').onclick = () => doAgendy();
+  if ($('d_vic')) $('d_vic').onclick = () => doAgendy();
+  const hledej = { zhorseni: 'zhoršení', plan: poPlatnosti.length ? 'po platnosti' : '', telefon: '', bez: 'bez telefonu' };
+  document.querySelectorAll('[data-dtile]').forEach((b) => (b.onclick = () => doAgendy(() => { S.hledat.pac = hledej[b.dataset.dtile] || ''; })));
+  document.querySelectorAll('[data-dbar]').forEach((b) => (b.onclick = () => doAgendy(() => {
+    const k = b.dataset.dval;
+    if (b.dataset.dbar === 'misto') S.misto = k === 'neuvedeno' ? 'nic' : mistoKat(k);
+    else if (b.dataset.dbar === 'tel') S.hledat.pac = telHezky(k);
+    else if (b.dataset.dbar === 'garant') S.hledat.pac = k === 'bez garanta' ? '' : k;
+    else if (b.dataset.dbar === 'cil') S.hledat.pac = k === 'bez plánu' ? 'chybí' : k;
+  })));
+  document.querySelectorAll('[data-dpac]').forEach((b) => (b.onclick = () => otevri(Number(b.dataset.dpac))));
+}
 async function renderPacienti(dCache) {
+  if (!dCache && S.pacView !== 'agenda') return renderDashboard();   // 0.11.90: Pacienti začínají přehledem
   if (!dCache) { $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav(); }
   let d = dCache; if (!d) try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
   const vsichni = d.pacienti; if (S.misto === undefined) { try { S.misto = localStorage.getItem('kp_misto') || ''; } catch { S.misto = ''; } }
@@ -233,6 +304,7 @@ async function renderPacienti(dCache) {
       let otevr = localStorage.getItem('kp_upoz'); if (otevr === null) otevr = d.upozorneni.length <= 3 ? '1' : '0';
       return `<details class="panel upoz" id="upoz" ${otevr === '1' ? 'open' : ''}><summary class="panel-h"><span class="sip">▶</span><h2>Upozornění</h2><span class="souhrn">${[...druhy].map(([k, n]) => `${n}× ${esc(k)}`).join(' · ')}</span><span class="chip ${d.upozorneni.some((u) => u.uroven === 'crit') ? 'crit' : 'warn'}">${d.upozorneni.length}</span></summary>
         <div class="alerts" style="padding:10px">${d.upozorneni.slice(0, 60).map((u) => `<div class="alert ${u.uroven}" data-p="${u.pacientId}">${esc(u.text)}</div>`).join('')}</div></details>`; })() : ''}
+    <div class="dash-head"><button class="btn" id="p_dash" type="button">← Přehled pacientů</button><span class="muted">Agenda pacientů – seznam, hledání a filtry</span></div>
     <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>${S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_stitky" title="Samolepky 70 × 37 mm na zadní stranu telefonů – komu telefon patří a kam volat">🏷 Štítky na telefony</button>' : ''}${hledatHTML('pac', 'Hledat pacienta, adresu, garanta…')}
       <div class="seg" style="width:240px"><button data-s="AKTIVNI" class="${S.stav === 'AKTIVNI' ? 'on' : ''}">Aktivní</button><button data-s="UZAVRENY" class="${S.stav === 'UZAVRENY' ? 'on' : ''}">Uzavřené</button></div></div>
       <div class="quick" id="p_mista" style="padding:8px 14px 0;align-items:center"><span class="lbl">Kde je:</span>${MISTA_SEZ.map(([k, n]) => `<button class="btn sm ${S.misto === k ? 'primary' : ''}" data-misto="${k}" type="button">${n}${k ? ' · ' + (pocty[k] || 0) : ' · ' + vsichni.length}</button>`).join('')}${S.pecedoma && S.pecedoma.nastaveno && jeLekar() && S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_pdsync" type="button" title="Načte z PéčeDoma u všech propojených pacientů léky, nejbližší návštěvu a kde se pacient nachází">↻ Načíst z PéčeDoma</button>' : ''}</div>
@@ -245,6 +317,7 @@ async function renderPacienti(dCache) {
   bindNav();
   document.querySelectorAll('tr[data-id],.alert[data-p]').forEach((r) => (r.onclick = () => otevri(Number(r.dataset.id || r.dataset.p))));
   document.querySelectorAll('.seg [data-s]').forEach((b) => (b.onclick = () => { S.stav = b.dataset.s; renderPacienti(); }));
+  if ($('p_dash')) $('p_dash').onclick = () => { S.pacView = 'dash'; renderPacienti(); scrollTo(0, 0); };
   bindHledani('pac', 'tr[data-id]');
   if ($('p_stitky')) $('p_stitky').onclick = () => stitkyOkno(d.pacienti.filter((p) => p.telefonu).map((p) => p.id));
   document.querySelectorAll('[data-misto]').forEach((b) => (b.onclick = () => { S.misto = b.dataset.misto; try { localStorage.setItem('kp_misto', S.misto); } catch { /* bez paměti */ } renderPacienti({ ...d, pacienti: vsichni }); }));

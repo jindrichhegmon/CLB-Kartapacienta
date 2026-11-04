@@ -333,10 +333,16 @@ await foto(p, 'c-prihlaseni');
 await p.close();
 
 p = await stranka({ session: 'ukazka' });
-await p.goto(`${URL}/centrala/`); await p.waitForSelector('tr[data-id]');
+await p.goto(`${URL}/centrala/`); await p.waitForSelector('#d_agenda');   // 0.11.90: Pacienti začínají přehledem (dashboard)
+if ((await p.$$('[data-dtile]')).length !== 6 || (await p.$$('[data-dbar]')).length < 4) chyby.push('přehled pacientů: chybí dlaždice nebo sloupce');
+if (!(await p.textContent('[data-dtile="zhorseni"]')).includes('1')) chyby.push('přehled pacientů: dlaždice zhoršení neukazuje 1');
+await p.waitForTimeout(300); await foto(p, 'c-dashboard');
+await klik(p, '[data-dbar="misto"][data-dval="Doma"]'); await p.waitForSelector('tr[data-id]');
+if ((await p.$$('tr[data-id]')).length !== 2 || !(await p.$('[data-misto="doma"].primary'))) chyby.push('přehled → agenda: sloupec Doma nezapnul filtr Doma');
+await klik(p, '#p_dash'); await klik(p, '#d_agenda'); await p.waitForSelector('tr[data-id]');
 if (await p.$('#upoz[open]')) chyby.push('Upozornění: při 4 upozorněních má být panel zavřený');
 if (!(await p.textContent('#upoz summary .souhrn')).includes('1× probíhá zhoršení stavu')) chyby.push('Upozornění: souhrn zavřeného panelu ' + (await p.textContent('#upoz summary .souhrn')));
-await klik(p, '#upoz summary'); await p.waitForSelector('#upoz[open]');
+await klik(p, '#upoz summary'); await p.waitForSelector('#upoz[open]'); await p.waitForTimeout(150);   // událost toggle přichází až po otevření
 if ((await p.evaluate(() => localStorage.getItem('kp_upoz'))) !== '1') chyby.push('Upozornění: rozbalení se nezapamatovalo');
 if (!(await p.textContent('tr[data-id="2"]')).includes('domov seniorů · Domov Pohoda') || !(await p.$('tr[data-id="2"].vdomove'))) chyby.push('Pacienti: pacient v domově není označený');
 if ((await p.textContent('tr[data-id="1"]')).includes('domov seniorů')) chyby.push('Pacienti: pacient doma je omylem označený jako v domově');
@@ -381,7 +387,7 @@ await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });
 await p.waitForSelector('#n_tk', { timeout: 8000 }).catch(async (e) => { console.error('toast:', await p.textContent('#toast').catch(() => '')); throw e; }); await p.waitForTimeout(3500); // toast zmizí
 await foto(p, 'c-novy-2', { vyska: 1100 });
-await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
+await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('dg', 'c-dg', { vyska: 900 });
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });
@@ -503,7 +509,7 @@ await p.evaluate(() => KP.closeModal());
 await klik(p, 'tr[data-oid="2"]'); await p.waitForSelector('#os_ok');
 await foto(p, 'c-osoba');
 await p.evaluate(() => KP.closeModal());
-await klik(p, '.nav button[data-v="pacienti"]'); await p.waitForSelector('tr[data-id]');
+await klik(p, '.nav button[data-v="pacienti"]'); await p.waitForSelector('#d_agenda');
 await klik(p, '[data-kp="vzhled"]'); await p.waitForSelector('.vzhledy');
 await foto(p, 'c-vzhled');
 await p.evaluate(() => KP.closeModal());
