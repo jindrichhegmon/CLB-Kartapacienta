@@ -4,7 +4,9 @@
  *   klient(id)      export klienta (stejný JSON jako Data klienta → Export pro Kartu pacienta)
  *   sync(id)        aktivní léky a nejbližší plánovaná návštěva → A_KP_PdSync
  * Nastavení tenanta v A_KP_Nastaveni: PD_ODKAZ (adresa portálu pro uživatele), PD_API (server jhn-apps), PD_TOKEN (x-app-token
- * aplikace), PD_SYNC ('1' = synchronizovat automaticky). Server se PéčeDoma prokazuje i partnerským klíčem KP_PARTNER_KLIC.
+ * aplikace), PD_SYNC ('1' = synchronizovat automaticky), PD_PORTAL ('plus' = organizace pracuje v PéčeDoma Plus – od 0.11.69 se volá
+ * aplikace pecedomaplus-karta a s každým voláním se posílá tenant organizace, který je v PéčeDoma Plus stejný; jinak pecedoma-karta).
+ * Server se PéčeDoma prokazuje i partnerským klíčem KP_PARTNER_KLIC.
  * Synchronizace plán péče nemění (plán = nová verze podepsaná lékařem); léky z PéčeDoma se ukazují vedle plánu a lékař je převezme.
  */
 import { config } from './config.js';
@@ -16,20 +18,25 @@ export const PD_API_VYCHOZI = 'https://95-216-201-2.sslip.io';
 
 /** Nastavení propojení pro tenant (q = dotazy v kontextu tenanta). */
 export async function nastaveniPd(q) {
-  const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('PD_ODKAZ', 'PD_API', 'PD_TOKEN', 'PD_SYNC')`);
+  const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('PD_ODKAZ', 'PD_API', 'PD_TOKEN', 'PD_SYNC', 'PD_PORTAL')`);
   const m = Object.fromEntries(n.map((x) => [x.Klic, String(x.Hodnota || '').trim()]));
+  const plus = m.PD_PORTAL === 'plus';
+  /* tenant organizace z kontextu dotazu (vTenantu) – PéčeDoma Plus má stejná ID tenantů (sdílená dbo.Tenants) */
+  const tenant = plus ? String(((await q.one(`SELECT CONVERT(char(16), SESSION_CONTEXT(N'IDTENANT')) AS t`)) || {}).t || '').trim() : '';
   return { odkaz: m.PD_ODKAZ || '', api: (m.PD_API || PD_API_VYCHOZI).replace(/\/+$/, ''), token: m.PD_TOKEN || '', sync: m.PD_SYNC === '1',
-    nastaveno: !!(m.PD_TOKEN && config.partnerKlic) };
+    portal: plus ? 'plus' : 'pecedoma', tenant, nastaveno: !!(m.PD_TOKEN && config.partnerKlic) };
 }
 
-/** Volání aplikace pecedoma-karta na jhn-apps. */
+/** Volání aplikace pecedoma-karta (PéčeDoma) nebo pecedomaplus-karta (PéčeDoma Plus – s tenantem organizace) na jhn-apps. */
 export async function pdVolej(nast, akce, body = {}) {
   if (!nast.token) throw chyba('Propojení s PéčeDoma není nastavené – správce doplní token v Správa organizace → Nastavení', 400);
   if (!config.partnerKlic) throw chyba('Na serveru chybí KP_PARTNER_KLIC (nasazení deploy/vps-deploy.sh)', 500);
+  const plus = nast.portal === 'plus';
+  if (plus && !/^[A-Z0-9]{16}$/.test(String(nast.tenant || ''))) throw chyba('Propojení s PéčeDoma Plus: chybí tenant organizace', 500);
   let r, d;
   try {
-    r = await fetch(`${nast.api}/api/apps/pecedoma-karta`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-app-token': nast.token },
-      body: JSON.stringify({ akce, klic: config.partnerKlic, ...body }), signal: AbortSignal.timeout(20000) });
+    r = await fetch(`${nast.api}/api/apps/${plus ? 'pecedomaplus-karta' : 'pecedoma-karta'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-app-token': nast.token },
+      body: JSON.stringify({ akce, klic: config.partnerKlic, ...body, ...(plus ? { tenant: nast.tenant } : {}) }), signal: AbortSignal.timeout(20000) });
     d = await r.json();
   } catch (e) { throw chyba('Server PéčeDoma neodpovídá: ' + String(e && e.message || e).slice(0, 120), 502); }
   const v = d && d.result !== undefined ? d.result : d;

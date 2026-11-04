@@ -7,7 +7,11 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
-<script>/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+<script>
+/* ikona oka je vložené SVG (ne emotikona přes ikony.js) – spolehlivě i v Safari */
+const OKO_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>', OKO_SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>';
+function hesloOko(btn){ const i = btn.parentNode.querySelector('input'); const uk = i.type === 'password'; i.type = uk ? 'text' : 'password'; btn.innerHTML = uk ? OKO_SVG_OFF : OKO_SVG; btn.title = uk ? 'Skrýt heslo' : 'Zobrazit heslo'; btn.setAttribute('aria-label', btn.title); i.focus(); }
+/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
 try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
 <style>
@@ -78,6 +82,9 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
     .grid2{gap:8px}
   }
   @media print{ .top,.nav,.tabs,.actions,.noprint,#modal,#toast{display:none!important} .card{box-shadow:none} }
+
+/* zobrazit / skrýt heslo (👁) u polí s heslem – od 0.11.74 */
+.oko-obal{position:relative}.oko-obal input{width:100%;padding-right:42px;box-sizing:border-box}.oko{position:absolute;right:4px;top:50%;transform:translateY(-50%);height:30px;width:34px;border:0;background:transparent;color:#2E86D9;cursor:pointer;font-size:16px;padding:0;margin:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none;box-shadow:none}
 </style>
 </head>
 <body>
@@ -177,7 +184,7 @@ function renderLogin() {
     <h2>Přihlášení</h2>
     ${S.tenant ? `<div class="note">Organizace: <span class="mono">${esc(S.tenant)}</span> · <a href="#" id="jinaOrg">jiná organizace</a></div>` : `<div class="field"><label>Kód organizace</label><input id="l_t" placeholder="16 znaků z odkazu, který jste dostali" autocapitalize="characters"></div>`}
     <div class="field"><label>Přihlašovací jméno</label><input id="l_l" autocomplete="username" autocapitalize="off"></div>
-    <div class="field"><label>Heslo</label><input id="l_h" type="password" autocomplete="current-password"></div>
+    <div class="field"><label>Heslo</label><div class="oko-obal"><input id="l_h" type="password" autocomplete="current-password"><button type="button" class="oko" onclick="hesloOko(this)" title="Zobrazit heslo" aria-label="Zobrazit heslo" tabindex="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     <button class="btn primary ulozit" id="l_ok">Přihlásit</button>
     <div class="footer">Karta pacienta · data v PeceDomaPlus, přístup podle týmu kolem pacienta</div></div></div>`;
   if ($('jinaOrg')) $('jinaOrg').onclick = (e) => { e.preventDefault(); S.tenant = ''; localStorage.removeItem('kp_tenant'); renderLogin(); };
@@ -195,9 +202,9 @@ function renderUcet(povinne) {
   $('work').innerHTML = `${povinne ? '' : nav()}<div class="login" style="margin-top:2vh"><div class="panel">
     <h2>${povinne ? 'Nastavte si vlastní heslo' : 'Můj účet'}</h2>
     ${povinne ? '<div class="banner warn">Přihlásili jste se prvním heslem od správce. Než budete pokračovat, zvolte si vlastní heslo (aspoň 10 znaků).</div>' : `<dl class="kv"><dt>Jméno</dt><dd>${esc(S.ja.jmeno)}</dd><dt>Login</dt><dd>${esc(S.ja.login)}</dd><dt>Pracoviště</dt><dd>${esc(S.ja.poskytovatel)}</dd><dt>Role</dt><dd>${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</dd></dl>`}
-    <div class="field"><label>Současné heslo</label><input type="password" id="h_s" autocomplete="current-password"></div>
-    <div class="field"><label>Nové heslo</label><input type="password" id="h_n" autocomplete="new-password"></div>
-    <div class="field"><label>Nové heslo znovu</label><input type="password" id="h_n2" autocomplete="new-password"></div>
+    <div class="field"><label>Současné heslo</label><div class="oko-obal"><input type="password" id="h_s" autocomplete="current-password"><button type="button" class="oko" onclick="hesloOko(this)" title="Zobrazit heslo" aria-label="Zobrazit heslo" tabindex="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+    <div class="field"><label>Nové heslo</label><div class="oko-obal"><input type="password" id="h_n" autocomplete="new-password"><button type="button" class="oko" onclick="hesloOko(this)" title="Zobrazit heslo" aria-label="Zobrazit heslo" tabindex="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+    <div class="field"><label>Nové heslo znovu</label><div class="oko-obal"><input type="password" id="h_n2" autocomplete="new-password"><button type="button" class="oko" onclick="hesloOko(this)" title="Zobrazit heslo" aria-label="Zobrazit heslo" tabindex="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     <button class="btn primary ulozit" id="h_ok">Změnit heslo</button></div></div>`;
   if (!povinne) bindNav();
   $('h_ok').onclick = async () => {
@@ -514,7 +521,7 @@ function tabKontakty(d) {
   const kont = d.kontakty;   // ze serveru v pořadí Poradi, KontaktID – stejně je řadí krizová karta i telefon
   const vych = d.kontaktyVychozi || [];
   const vychPodle = (id) => vych.find((v) => v.id === id) || {};
-  // výchozí kontakt organizace (0.11.70) upravuje správce a lékař – změna se propíše všem klientům; u klienta ho tým jen zatrhne / odebere
+  // výchozí kontakt organizace (0.11.75) upravuje správce a lékař – změna se propíše všem klientům; u klienta ho tým jen zatrhne / odebere
   const muze = (k) => (k.vychoziId ? d.op.vychozi : d.op.zapis && (k.skupina !== 'ROZHODUJE' || d.op.lekar));
   const e = S.kontEdit ? kont.find((x) => x.id === S.kontEdit) : null;
   const pouzite = new Set(kont.filter((x) => x.vychoziId).map((x) => x.vychoziId));
@@ -572,6 +579,28 @@ function tabTym(d) {
       <div class="panel"><div class="panel-h"><h2>Historie garance</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.garance.map((g) => `<tr><td><b>${esc(g.nazev)}</b><div class="lbl">${g.stav === 'NAVRZENO' ? 'navrženo ' + esc(fmtDT(g.navrzeno)) + ' · ' + esc(g.navrhl || '') : `${esc(fmtDT(g.od))} – ${esc(g.do ? fmtDT(g.do) : 'dosud')}${g.lekar ? ' · ' + esc(g.lekar) : ''}`}${g.poznamka ? ' · ' + esc(g.poznamka) : ''}</div></td><td><span class="chip ${g.stav === 'PLATNA' ? 'ok' : g.stav === 'NAVRZENO' ? 'vio' : ''}">${esc(g.stav.toLowerCase())}</span></td></tr>`).join('')}</tbody></table></div></div>
     </div></div>`;
 }
+/* ---- Linka paliativní podpory (od 0.11.71): registrace čísel karty k lince ambulance – vede PéčeDoma (CLB1 A_MSPPP_LPP) ---- */
+async function linkaNacti() {
+  const el = $('linkaPanel'); if (!el) return;
+  const hlava = (chip) => `<div class="panel-h"><h2>📞 Linka paliativní podpory</h2>${chip}</div>`;
+  let r;
+  try { r = await C(`/pacient/${S.pacId}/linka`); } catch (e) { el.innerHTML = hlava('<span class="chip warn">nedostupná</span>') + `<div class="note" style="margin:10px 14px">${esc(e.message)}</div>`; return; }
+  if (!$('linkaPanel')) return;
+  const reg = (r.telefony || []).filter((t) => t.registrovan).length;
+  const radky = (r.telefony || []).map((t) => `<tr><td><span class="mono"><b>${esc(t.hezky)}</b></span><div class="lbl">${esc(t.popis)}${t.registrovan && t.datum ? ' · registrováno ' + esc(fmtD(t.datum)) : ''}${t.registrovan && t.typ === 'PECEDOMA' ? ' · z PéčeDoma' : ''}</div></td>
+    <td>${!r.dostupne ? '<span class="chip">?</span>' : t.registrovan ? '<span class="chip ok">registrován k lince ✓</span>' : '<span class="chip">neregistrován</span>'}</td>
+    <td style="white-space:nowrap;text-align:right">${r.dostupne && r.smi ? (t.registrovan ? `<button class="btn sm" data-linka="${esc(t.telefon)}" data-akt="0">Deaktivovat</button>` : `<button class="btn sm primary" data-linka="${esc(t.telefon)}" data-akt="1">Aktivovat</button>`) : ''}</td></tr>`).join('');
+  el.innerHTML = hlava(r.dostupne ? `<span class="chip ${reg ? 'ok' : ''}">${reg} z ${(r.telefony || []).length} registrováno</span>` : '<span class="chip warn">nedostupná</span>') +
+    `<div class="tblwrap"><table class="tbl"><tbody>${radky || '<tr><td class="muted">Karta zatím nemá žádné číslo telefonu.</td></tr>'}</tbody></table></div>` +
+    `<div class="rolehelp">Registrované číslo se dovolá na linku ambulance (Linka paliativní podpory); po deaktivaci se nedovolá. Registrace se zapisuje do PéčeDoma – stejný seznam jako filtr 📞 Linka v Klientech. ${r.dostupne ? (r.smi ? '' : 'Registraci mění lékař nebo garant.') : esc(r.duvod || '')}</div>`;
+  el.querySelectorAll('[data-linka]').forEach((b) => (b.onclick = async () => {
+    const akt = b.dataset.akt === '1', t = (r.telefony || []).find((x) => x.telefon === b.dataset.linka) || {};
+    if (!(await KP.confirm(akt ? 'Registrovat k lince' : 'Zrušit registraci k lince', akt ? `Číslo <b>${esc(t.hezky)}</b> (${esc(t.popis)}) se zaregistruje k Lince paliativní podpory a dovolá se na linku ambulance.` : `Číslo <b>${esc(t.hezky)}</b> se z linky odregistruje a na linku ambulance se už nedovolá.`, akt ? 'Aktivovat' : 'Deaktivovat', !akt))) return;
+    b.disabled = true;
+    try { await C(`/pacient/${S.pacId}/linka`, { method: 'POST', body: { telefon: t.telefon, aktivni: akt } }); toast(akt ? 'Telefon registrován k lince' : 'Registrace k lince zrušena'); } catch (e) { toast(e.message); }
+    linkaNacti();
+  }));
+}
 /* ---- telefon a PINy ---- */
 function tabTelefon(d) {
   const zar = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim !== 'PACIENT');
@@ -586,6 +615,7 @@ function tabTelefon(d) {
         <td style="white-space:nowrap;text-align:right">${(d.op.garant || d.op.lekar) && z.stav === 'CEKA' ? `<button class="btn sm" data-pznovu="${z.id}" title="Znovu poslat odkaz nebo ukázat QR kód">Poslat znovu</button> <button class="btn sm" data-pzrusit="${z.id}">Zrušit</button>` : ''}${d.op.garant && z.stav === 'SPAROVANO' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient ani rodina zatím nemají průkaz ve svém telefonu.</td></tr>'}</tbody></table></div>
         ${(d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? `<div style="padding:12px 14px"><button class="btn" id="pacientovi">${vlastni.length ? 'Zpřístupnit v dalším telefonu' : 'Zpřístupnit pacientovi v jeho telefonu'}</button></div>` : ''}
         <div class="rolehelp">Pro soběstačné pacienty: v aplikaci <b>Můj průkaz</b> uvidí plán, kontakty a tým od lékaře a vede si vlastní přání, léky a otázky. Ty zůstávají jen v jeho telefonu – týmu je pošle, až když sám vybere a potvrdí. Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a ZZS se do něj nedostane.</div></div>
+      <div class="panel" id="linkaPanel"><div class="panel-h"><h2>📞 Linka paliativní podpory</h2><span class="chip">zjišťuji…</span></div></div>
       <div class="note"><b>Jak to funguje:</b> karta je jen v jednom telefonu – s číslem uvedeným u pacienta (záložka Detail pacienta). Odkaz na spárování přijde SMS na toto číslo (nebo naskenujte QR kód) a telefon při spárování potvrdí své číslo; jiné číslo server odmítne. Telefon komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
@@ -663,7 +693,7 @@ function bindTab() {
   on('k_zrusit', () => { S.kontEdit = null; kresliDetail(); });
   document.querySelectorAll('[data-ked]').forEach((b) => (b.onclick = () => { S.kontEdit = Number(b.dataset.ked); kresliDetail(); if ($('k_j')) $('k_j').focus(); }));
   document.querySelectorAll('[data-kdel]').forEach((b) => (b.onclick = async () => { const k = d.kontakty.find((x) => x.id === Number(b.dataset.kdel)); if (await KP.confirm('Odebrat kontakt', `${esc(k.jmeno)} · ${esc(k.tel)}`, 'Odebrat', true)) { if (S.kontEdit === k.id) S.kontEdit = null; akce('/kontakt', { id: k.id, smazat: true, jmeno: k.jmeno, skupina: k.skupina }, 'Odebráno'); } }));
-  // výchozí kontakty organizace (0.11.70)
+  // výchozí kontakty organizace (0.11.75)
   document.querySelectorAll('[data-kvpouzit]').forEach((c) => (c.onchange = async () => {
     const vid = Number(c.dataset.kvpouzit);
     try { await akce('/kontakt-vychozi', { akce: c.checked ? 'pouzit' : 'nepouzit', vychoziId: vid }, c.checked ? 'Kontakt přidán u klienta' : 'Kontakt odebrán u klienta'); } catch (err) { c.checked = !c.checked; }
@@ -698,6 +728,7 @@ function bindTab() {
   on('parovat', () => parovat(false));
   on('pacientovi', () => pacientoviOkno());
   document.querySelectorAll('[data-pukoncit]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Ukončit přístup pacienta', 'Data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie – smazat ji nelze. Vlastní záznamy pacienta zůstanou v jeho telefonu.', 'Ukončit přístup', true)) akce('/zarizeni', { zarizeniId: Number(b.dataset.pukoncit), akce: 'zablokovat' }, 'Přístup ukončen'); }));
+  if ($('linkaPanel')) linkaNacti();
   on('parovatSms', () => parovat(true));
   on('kodLekare', async () => {
     try { const r = await C(`/pacient/${S.pacId}/kod-lekare`); modal(`<h2>Kód lékaře pro dnešní den</h2><div class="secret">${esc(r.kod.slice(0, 3))} ${esc(r.kod.slice(3))}</div><p class="muted">Platí celý dnešní den do půlnoci (${esc(new Date(r.platiDo).toLocaleDateString('cs-CZ'))}), pak se změní. Pro lékaře, který k pacientovi není přiřazený: na telefonu zvolí <b>Lékař bez PINu</b>, zadá kód a své jméno – funguje i bez signálu. Stejný kód najde lékař i v PéčeDoma v Datech klienta. Zobrazení kódu je zapsáno v deníku přístupů.</p><div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
@@ -946,7 +977,7 @@ function zPeceDoma(j) {
 /* okno výběru klienta z PéčeDoma (server jhn-apps, aplikace pecedoma-karta) – hledá se po stisku, bez diakritiky */
 /* stejné skupiny jako filtrační tlačítka v PéčeDoma (Klienti): 🏥 hospic (926), 🩺 odbornost 720, 📞 Linka paliativní podpory; víc najednou = sjednocení */
 const PD_SKUPINY = [['hospic', '🏥 Pacienti hospic (926)', '🏥 hospic', 'crit'], ['t720', '🩺 Pacienti odbornost 720', '🩺 720', 'acc'], ['lpp', '📞 Linka paliativní podpory', '📞 LPP', 'vio']];
-/* kde se pacient nachází (0.11.71): Doma / DS B / DS C / DS jiný / Hospitalizace – z adresáře PéčeDoma (stejná volba jako v PM103) */
+/* kde se pacient nachází (0.11.76): Doma / DS B / DS C / DS jiný / Hospitalizace – z adresáře PéčeDoma (stejná volba jako v PM103) */
 const pdKde = (k) => { const t = String(k.kde || '').trim(); if (!t) return ''; const ik = /^doma/i.test(t) ? '🏠' : /^ds\b|domov/i.test(t) ? '🏢' : /hospit|nemoc|ldn/i.test(t) ? '🏥' : '📍';
   return ` <span class="chip ${/^doma/i.test(t) ? 'ok' : 'dom'}" style="font-size:11px" title="Kde se pacient nachází (PéčeDoma)">${ik} ${esc(t)}</span>`; };
 const pdStitky = (k) => pdKde(k) + PD_SKUPINY.filter(([kl]) => k[kl]).map(([, , st, b]) => ` <span class="chip ${b}" style="font-size:11px">${st}</span>`).join('');
@@ -1496,6 +1527,7 @@ async function spravaNast() {
     <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
     <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Detail pacienta) – otevře PéčeDoma, kde je klient.</span></div>
+    <div class="field"><label>Portál organizace</label><select id="pd_p"><option value=""${pd.portal === 'plus' ? '' : ' selected'}>PéčeDoma (Centrum pro léčbu bolesti)</option><option value="plus"${pd.portal === 'plus' ? ' selected' : ''}>PéčeDoma Plus (organizace se stejným tenantem)</option></select><span class="hint">PéčeDoma Plus: Karta volá aplikaci pecedomaplus-karta a posílá tenant této organizace – klienti, léky, chat a záznamy z Mého průkazu jsou z dat organizace v PéčeDoma Plus.</span></div>
     <div class="field"><label>Server PéčeDoma (jhn-apps)</label><input id="pd_a" value="${esc(pd.api || pd.apiVychozi || '')}"></div>
     <div class="field"><label>Token aplikace PéčeDoma${pd.tokenNastaven ? ' (vyplněn – nechte prázdné, nebo zadejte nový)' : ''}</label><input id="pd_t" type="password" autocomplete="off" placeholder="${pd.tokenNastaven ? '••••••••' : 'FAMICURA_REPORTY_TOKEN z nastavení serveru PéčeDoma'}"><span class="hint">Stejný token, kterým portál PéčeDoma volá svůj server. Do prohlížeče se zpět neposílá.</span></div>
     <label class="lbl" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pd_s" ${pd.sync ? 'checked' : ''}> Synchronizovat automaticky (léky a nejbližší návštěva propojených pacientů, každých 30 minut)</label>
@@ -1505,7 +1537,7 @@ async function spravaNast() {
   $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };
   $('pd_ok').onclick = async () => {
     try {
-      await C('/nastaveni', { method: 'POST', body: { pdOdkaz: $('pd_o').value, pdApi: $('pd_a').value, pdToken: $('pd_t').value, pdSync: $('pd_s').checked } });
+      await C('/nastaveni', { method: 'POST', body: { pdOdkaz: $('pd_o').value, pdPortal: $('pd_p').value, pdApi: $('pd_a').value, pdToken: $('pd_t').value, pdSync: $('pd_s').checked } });
       const d = await C('/ja'); S.pecedoma = d.pecedoma || {}; toast('Propojení uloženo'); spravaNast();
     } catch (e) { toast(e.message); }
   };

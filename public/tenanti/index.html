@@ -7,9 +7,17 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
-<script>/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+<script>
+/* ikona oka je vložené SVG (ne emotikona přes ikony.js) – spolehlivě i v Safari */
+const OKO_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>', OKO_SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>';
+function hesloOko(btn){ const i = btn.parentNode.querySelector('input'); const uk = i.type === 'password'; i.type = uk ? 'text' : 'password'; btn.innerHTML = uk ? OKO_SVG_OFF : OKO_SVG; btn.title = uk ? 'Skrýt heslo' : 'Zobrazit heslo'; btn.setAttribute('aria-label', btn.title); i.focus(); }
+/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
 try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
+<style>
+/* zobrazit / skrýt heslo (👁) u polí s heslem – od 0.11.74 */
+.oko-obal{position:relative}.oko-obal input{width:100%;padding-right:42px;box-sizing:border-box}.oko{position:absolute;right:4px;top:50%;transform:translateY(-50%);height:30px;width:34px;border:0;background:transparent;color:#2E86D9;cursor:pointer;font-size:16px;padding:0;margin:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none;box-shadow:none}
+</style>
 </head>
 <body>
 <div class="app wide">
@@ -45,7 +53,7 @@ function renderLogin() {
   $('work').innerHTML = `<div class="login"><div class="panel">
     <h2>Přihlášení provozovatele</h2>
     <div class="note">Správa tenantů je jen pro provozovatele platformy. Organizace (nemocnice, hospic, domov…) pracují v <a href="/centrala/">centrální aplikaci</a>.</div>
-    <div class="field"><label>Heslo správy</label><input type="password" id="heslo" autocomplete="current-password" autofocus></div>
+    <div class="field"><label>Heslo správy</label><div class="oko-obal"><input type="password" id="heslo" autocomplete="current-password" autofocus><button type="button" class="oko" onclick="hesloOko(this)" title="Zobrazit heslo" aria-label="Zobrazit heslo" tabindex="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     <button class="btn primary" id="prihlasit">Přihlásit</button></div></div>`;
   const go = async () => { try { const d = await api('/api/admin/login', { method: 'POST', body: { heslo: $('heslo').value } }); S.session = d.session; sessionStorage.setItem(KEY, d.session); render(); } catch (e) { toast(e.message); } };
   $('prihlasit').onclick = go; $('heslo').onkeydown = (e) => { if (e.key === 'Enter') go(); };

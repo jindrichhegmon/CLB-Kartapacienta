@@ -25,6 +25,8 @@ Jak to funguje v kostce:
 
 ## 2. Přihlášení a můj účet
 
+Vedle pole s heslem je tlačítko 👁 (od 0.11.74): zadané heslo zobrazí nebo zase skryje – hodí se na telefonu. Je i při změně hesla.
+
 Centrální aplikace funguje i na mobilu (od 0.11.46): hlavička je kompaktní, záložky pacienta jsou ve dvou řadách a tlačítka se zalamují. Tabulky (pacienti, kontakty, týmy, lidé, správa) se na mobilu skládají do karet pod sebou s popisky sloupců, takže nic nepřetéká přes okraj a není třeba posouvat do strany (od 0.11.58). Videohovor na telefon u pacienta jde zahájit i z mobilu – otevře se přes celou obrazovku.
 
 Centrální aplikaci otevřete odkazem, který dostanete od správce organizace (`…/centrala/?t=KÓD_ORGANIZACE`) – kód organizace se pak vyplní sám. Zadáte **přihlašovací jméno** a **heslo**.
@@ -175,7 +177,7 @@ Záložka **Důležité kontakty** ukazuje jeden seznam **v pořadí, jak se kon
 
 ![Úprava kontaktu přímo ve formuláři vedle seznamu](/napoveda/img/c-kontakty-upravit.png)
 
-#### Výchozí kontakty organizace (od 0.11.70)
+#### Výchozí kontakty organizace (od 0.11.75)
 
 ![Výchozí kontakty organizace – u klienta se jen zatrhnou](/napoveda/img/c-kontakty-vychozi.png)
 
@@ -262,6 +264,15 @@ Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) 
 ### Kód lékaře
 
 Tlačítko **Kód lékaře na dnešek** (jen lékař, když je telefon spárovaný) ukáže šestimístný kód pro lékaře, který k pacientovi není přiřazený (pohotovost, zástup). Kód platí **celý kalendářní den** a je pořád stejný – o půlnoci se změní. Lékař na místě ho zadá v telefonu tlačítkem **Lékař bez PINu** spolu se svým jménem; telefon ho ověří i bez signálu (přijme i včerejší kód) a odemknutí se zapíše se jménem. Stejný kód lékař najde i v **PéčeDoma** v Datech klienta (tlačítko 🪪 Kód lékaře na kartu). Každé zobrazení kódu je v logu přístupů.
+
+### Linka paliativní podpory
+
+Panel **📞 Linka paliativní podpory** v záložce Telefon a PINy ukazuje všechna čísla přidělená kartě – **telefon s kartou** (z Detailu pacienta), zapůjčené telefony a vlastní telefony pacienta a rodiny (Můj průkaz) – a u každého, zda je **registrován k lince** ambulance. Registrované číslo se na linku dovolá, neregistrované ne.
+
+- **Aktivovat** zaregistruje číslo k lince, **Deaktivovat** registraci zruší (obojí s potvrzením). Mění lékař nebo garant, ostatní v týmu stav jen vidí.
+- Registrace se zapisuje do **PéčeDoma** – je to stejný seznam, jaký ukazuje filtr 📞 Linka v Klientech a zelený pruh „registrován k lince ✓“ v Datech klienta. Číslo registrované už z PéčeDoma má poznámku „z PéčeDoma“.
+- Každá změna se zapíše do deníku pacienta (Systém) a do logu přístupů.
+- Linka je jen v PéčeDoma Centra LB; v organizaci napojené na PéčeDoma Plus je panel jen informativní.
 
 ### Lidé, kteří odemknou kartu
 

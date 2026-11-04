@@ -32,7 +32,9 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   // 0.11.65: stránku /pd/ (Karta pacienta uvnitř PéčeDoma) smí vložit do rámu jen portál PéčeDoma (KP_PD_ORIGINY); vše ostatní zůstává bez rámu
-  if (req.path === '/pd' || req.path.startsWith('/pd/')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
+  // 0.11.70: totéž centrála /centrala/ – portál PéčeDoma ji na telefonu a v mobilní aplikaci otevírá v okně z pásu Info a dashboardy
+  const vRamu = (p) => req.path === p || req.path.startsWith(p + '/');
+  if (vRamu('/pd') || vRamu('/centrala')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
   else res.setHeader('X-Frame-Options', 'DENY');
   // 0.11.60: mikrofon a fotoaparát smí stránka Karty a vložený hovor ze serveru videohovorů (Jitsi v iframe) – dřív „microphone=()“
   // zakazovalo mikrofon i vloženému hovoru („Permissions policy violation: microphone is not allowed in this document“), telefon nebylo slyšet

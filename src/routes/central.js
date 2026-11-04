@@ -70,7 +70,7 @@ central.get('/ja', sUzivatelem(async (q, s) => {
   const pd = await nastaveniPd(q);
   return { ja: s, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) },
     // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
-    pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
+    pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, portal: pd.portal, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
 
 central.post('/heslo', sUzivatelem(async (q, s, req) => {
@@ -189,8 +189,11 @@ central.get('/poskytovatele', sUzivatelem(async (q) => ({
 })));
 
 /* ---------------- nový pacient ---------------- */
-central.post('/pacient', sUzivatelem(async (q, s, req) => {
-  const b = req.body || {};
+/** Založení průkazu – společné pro centrálu (POST /pacient) a partnerské API PéčeDoma (POST /api/partner/pacient, 0.11.72).
+ *  s = { tenant, uzivatelId, jmeno, role:[…], poskytovatelId, ip } (session centrály, nebo lékař-garant dosazený partnerským API);
+ *  b = tělo požadavku { pacient, garantPoskytovatelId, tym, plan, platnostDo, kontakty, aiPouzito, pecedoma:{klientId, portalKlientId} }. */
+export async function zalozPacienta(q, s, b) {
+  b = b || {};
   const pa = b.pacient || {};
   const jmeno = text(pa.jmeno, 80), prijmeni = text(pa.prijmeni, 80);
   if (!jmeno || !prijmeni) throw chyba('Vyplňte jméno a příjmení');
@@ -230,8 +233,8 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
     await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi) VALUES (@p, @j, @t, @s, @poz, @o)`,
       { p: id, j: text(k.jmeno, 150), t: text(k.tel, 40), s: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(sk) ? sk : 'INFORMOVAT', poz: text(k.pozn, 200) || null, o: (i += 10) });
   }
-  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: kod, ip: s.ip });
+  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : b.zPeceDoma ? 'Průkaz založen z portálu PéčeDoma (Data klienta → Karta pacienta).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: b.zPeceDoma ? kod + ' (z PéčeDoma)' : kod, ip: s.ip });
   // pacient z PéčeDoma (výběr klienta nebo soubor Export pro Kartu pacienta): zapamatovat klienta a rovnou stáhnout léky a návštěvu
   const pdId = String((b.pecedoma || {}).klientId || '').toLowerCase();
   if (UUID_RE.test(pdId)) {
@@ -239,7 +242,8 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
     try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, id, pdId); } catch { /* bez synchronizace – doplní se automaticky nebo tlačítkem */ }
   }
   return { id, kod };
-}, { lekar: true }));
+}
+central.post('/pacient', sUzivatelem(async (q, s, req) => zalozPacienta(q, s, req.body || {}), { lekar: true }));
 
 /* ---------------- detail pacienta ---------------- */
 central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
@@ -254,7 +258,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const verze = await q.all(`SELECT Verze AS verze, Typ AS typ, PodepsalJmeno AS podepsal, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno, CONVERT(char(10), PlatnostDo, 23) AS platnostDo, Poznamka AS poznamka
     FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze DESC`, { p: id });
   const kontakty = await q.all(`SELECT KontaktID AS id, Jmeno AS jmeno, Telefon AS tel, Skupina AS skupina, Poznamka AS pozn, Poradi AS poradi, VychoziID AS vychoziId FROM dbo.A_KP_Kontakt WHERE PacientID = @p AND Aktivni = 1 ORDER BY Poradi, KontaktID`, { p: id });
-  // výchozí kontakty organizace (0.11.70): celá sada + kolik klientů je používá; u klienta se jen zatrhne
+  // výchozí kontakty organizace (0.11.75): celá sada + kolik klientů je používá; u klienta se jen zatrhne
   const kontaktyVychozi = await q.all(`SELECT v.VychoziID AS id, v.Jmeno AS jmeno, v.Telefon AS tel, v.Skupina AS skupina, v.Poznamka AS pozn,
       (SELECT COUNT(*) FROM dbo.A_KP_Kontakt k JOIN dbo.A_KP_Pacient p ON p.PacientID = k.PacientID WHERE k.VychoziID = v.VychoziID AND k.Aktivni = 1 AND p.Stav = 'AKTIVNI') AS klientu
     FROM dbo.A_KP_KontaktVychozi v WHERE v.Aktivni = 1 ORDER BY v.Poradi, v.VychoziID`);
@@ -364,7 +368,7 @@ central.post('/pacient/:id/kontakt', sUzivatelem(async (q, s, req) => {
   if (kid) {
     const k = await q.one(`SELECT Skupina, VychoziID FROM dbo.A_KP_Kontakt WHERE KontaktID = @k AND PacientID = @p AND Aktivni = 1`, { k: kid, p: id });
     if (!k) throw chyba('Kontakt nenalezen', 404);
-    if (k.VychoziID && !b.jenPoradi && !b.smazat) {   // výchozí kontakt organizace: úprava z kteréhokoli klienta se propíše všem (0.11.70)
+    if (k.VychoziID && !b.jenPoradi && !b.smazat) {   // výchozí kontakt organizace: úprava z kteréhokoli klienta se propíše všem (0.11.75)
       await upravVychozi(q, s, k.VychoziID, b, id);
       return;
     }
@@ -389,7 +393,7 @@ central.post('/pacient/:id/kontakt', sUzivatelem(async (q, s, req) => {
   await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `${b.smazat ? 'Odebrán' : kid ? 'Upraven' : 'Přidán'} kontakt ${text(b.jmeno, 150)} (${sk.toLowerCase()}).`, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
 }));
 
-/* Výchozí kontakty organizace (0.11.70). Sada kontaktů pro celou organizaci; u klienta se jen zatrhne (řádek A_KP_Kontakt
+/* Výchozí kontakty organizace (0.11.75). Sada kontaktů pro celou organizaci; u klienta se jen zatrhne (řádek A_KP_Kontakt
    s VychoziID = kopie údajů, aby karta, telefon i PéčeDoma četly kontakty beze změny). Úprava z kteréhokoli klienta se
    propíše do všech klientů, kteří kontakt používají – do jejich kopií i deníku. Mění správce organizace a lékař. */
 const SKUP_VYCHOZI = ['PECUJE', 'INFORMOVAT'];
@@ -693,6 +697,47 @@ central.post('/pacient/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
   }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení PINu', detail: `${o.Jmeno} (${String(o.Role).toLowerCase()})`, ip: s.ip });
   return { pin, jmeno: o.Jmeno, role: o.Role, vydan: o.vydan };
+}));
+
+/* Linka paliativní podpory (od 0.11.71): telefony přidělené kartě (číslo s kartou, zapůjčené i vlastní telefony) – registrace k lince
+   ambulance vede PéčeDoma (CLB1 A_MSPPP_LPP, akce linka / linka-nastav); jen portál CLB, PéčeDoma Plus linku nemá */
+async function telefonyKarty(q, id) {
+  const p = await q.one(`SELECT TelefonKarty, Jmeno, Prijmeni, KodPrukazu FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p) throw chyba('Pacient nenalezen', 404);
+  const z = await q.all(`SELECT Telefon, Stitek, Rezim, Stav FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav <> 'VRACENO' AND Telefon IS NOT NULL ORDER BY ZarizeniID DESC`, { p: id });
+  const mapa = new Map();
+  const pridej = (t, popis) => { const n = normTel(t); if (n && !mapa.has(n)) mapa.set(n, { telefon: n, hezky: hezkyTel(n), popis }); };
+  pridej(p.TelefonKarty, 'telefon s kartou');
+  for (const x of z) pridej(x.Telefon, (x.Stitek || (x.Rezim === 'PACIENT' ? 'vlastní telefon pacienta' : 'zapůjčený telefon')) + (x.Stav === 'ZABLOKOVANO' ? ' · zablokováno' : ''));
+  return { pacient: `${p.Prijmeni || ''} ${p.Jmeno || ''}`.trim(), kod: p.KodPrukazu, telefony: [...mapa.values()].filter((x) => /^\+420\d{9}$/.test(x.telefon)) };
+}
+central.get('/pacient/:id/linka', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Linku vidí tým kolem pacienta', 403);
+  const t = await telefonyKarty(q, id);
+  const nast = await nastaveniPd(q);
+  if (nast.portal === 'plus') return { telefony: t.telefony, dostupne: false, duvod: 'Linka paliativní podpory je jen v PéčeDoma Centra LB' };
+  if (!t.telefony.length) return { telefony: [], dostupne: true };
+  try {
+    const r = await pdVolej(nast, 'linka', { telefony: t.telefony.map((x) => x.telefon) });
+    const stav = r.stav || {};
+    return { dostupne: true, smi: !!(op.lekar || op.garant), telefony: t.telefony.map((x) => ({ ...x, ...(stav[x.telefon.slice(-9)] || { registrovan: false }) })) };
+  } catch (e) { return { telefony: t.telefony, dostupne: false, duvod: e.message }; }
+}));
+central.post('/pacient/:id/linka', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant) throw chyba('Registraci k lince mění lékař nebo garant', 403);
+  const tel = normTel(req.body.telefon);
+  const t = await telefonyKarty(q, id);
+  const x = t.telefony.find((y) => y.telefon === tel);
+  if (!x) throw chyba('Číslo nepatří k telefonům této karty');
+  const aktivni = !!req.body.aktivni;
+  const nast = await nastaveniPd(q);
+  if (nast.portal === 'plus') throw chyba('Linka paliativní podpory je jen v PéčeDoma Centra LB');
+  await pdVolej(nast, 'linka-nastav', { telefon: tel, aktivni, nazev: `${t.pacient} · Karta ${t.kod || ''} · ${x.popis}`.slice(0, 200), kdo: s.jmeno });
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: aktivni ? `Telefon ${x.hezky} (${x.popis}) registrován k Lince paliativní podpory.` : `Registrace telefonu ${x.hezky} k Lince paliativní podpory zrušena.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: aktivni ? 'linka: registrace telefonu' : 'linka: zrušení registrace', detail: x.hezky, ip: s.ip });
+  return { registrovan: aktivni };
 }));
 
 central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
@@ -1354,6 +1399,7 @@ central.post('/nastaveni', sUzivatelem(async (q, s, req) => {
   if (b.pdApi != null) { const v = text(b.pdApi, 300).replace(/\/+$/, ''); if (v && !/^https?:\/\//i.test(v)) throw chyba('Adresa serveru PéčeDoma musí začínat https://'); zmeny.push(['PD_API', v]); }
   if (b.pdToken != null && text(b.pdToken, 200)) zmeny.push(['PD_TOKEN', text(b.pdToken, 200)]);
   if (b.pdTokenSmazat) zmeny.push(['PD_TOKEN', '']);
+  if (b.pdPortal != null) zmeny.push(['PD_PORTAL', b.pdPortal === 'plus' ? 'plus' : '']);
   if (b.pdSync != null) zmeny.push(['PD_SYNC', b.pdSync === true || b.pdSync === '1' || b.pdSync === 1 ? '1' : '0']);
   for (const [k, v] of zmeny) {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
