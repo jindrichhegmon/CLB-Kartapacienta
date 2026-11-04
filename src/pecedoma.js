@@ -12,6 +12,7 @@
 import { config } from './config.js';
 import { vTenantu } from './db.js';
 import { chyba } from './http.js';
+import { zapisDenik } from './kp.js';   // 0.11.82: zápis převzatého místa pobytu do deníku
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 export const PD_API_VYCHOZI = 'https://95-216-201-2.sslip.io';
@@ -76,6 +77,11 @@ export async function synchronizujPacienta(q, nast, pacientId, pdKlientId) {
   const v = normalizujSync(d);
   await uloz(v, v.kalendarChyba);
   if (v.portalKlientId) await q.exec(`UPDATE dbo.A_KP_Pacient SET PdPortalKlientID = @k WHERE PacientID = @p AND PdPortalKlientID IS NULL`, { k: v.portalKlientId, p: pacientId });
+  // 0.11.82: import z PéčeDoma psal do Pobytu pevně „doma“ – takový (nebo prázdný) pobyt nahradí skutečné místo z PéčeDoma; ručně zapsaný pobyt zůstává
+  if (v.kde) {
+    const n = await q.exec(`UPDATE dbo.A_KP_Pacient SET Pobyt = @kde WHERE PacientID = @p AND LOWER(LTRIM(RTRIM(ISNULL(Pobyt, N'')))) IN (N'', N'doma') AND ISNULL(Pobyt, N'') <> @kde`, { kde: v.kde, p: pacientId });
+    if (n > 0) await zapisDenik(q, { pacientId, typ: 'Systém', text: `Místo pobytu převzato z PéčeDoma: ${v.kde}.`, autor: 'PéčeDoma', role: 'system' });
+  }
   return v;
 }
 
