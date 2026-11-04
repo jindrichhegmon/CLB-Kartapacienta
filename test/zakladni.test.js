@@ -132,6 +132,10 @@ test('PéčeDoma: odpověď sync → řádek A_KP_PdSync (léky, nejbližší n�
   assert.equal(v.pristiPozn, 'Návštěva sestry · Plánováno · Zlín');
   assert.equal(v.portalKlientId, 12);
   const bez = normalizujSync({ leky: {}, pristiNavsteva: null, kalendarChyba: 'Kalendář FK neodpovídá' });
+  // 0.11.88: místo pacienta – bez pole kde se nemá přepsat (starší PéčeDoma), s polem ano
+  assert.equal(bez.kdeZname, false);
+  const sKde = normalizujSync({ leky: {}, kde: ' DS  C ' }); assert.equal(sKde.kde, 'DS C'); assert.equal(sKde.kdeZname, true);
+  const prazdne = normalizujSync({ leky: {}, kde: '' }); assert.equal(prazdne.kde, null); assert.equal(prazdne.kdeZname, true);
   assert.deepEqual([bez.sos, bez.opioidy, bez.medikace, bez.pristiNavsteva, bez.pristiKdo, bez.kalendarChyba], [[], [], [], null, null, 'Kalendář FK neodpovídá']);
 });
 
