@@ -946,7 +946,10 @@ function zPeceDoma(j) {
 /* okno výběru klienta z PéčeDoma (server jhn-apps, aplikace pecedoma-karta) – hledá se po stisku, bez diakritiky */
 /* stejné skupiny jako filtrační tlačítka v PéčeDoma (Klienti): 🏥 hospic (926), 🩺 odbornost 720, 📞 Linka paliativní podpory; víc najednou = sjednocení */
 const PD_SKUPINY = [['hospic', '🏥 Pacienti hospic (926)', '🏥 hospic', 'crit'], ['t720', '🩺 Pacienti odbornost 720', '🩺 720', 'acc'], ['lpp', '📞 Linka paliativní podpory', '📞 LPP', 'vio']];
-const pdStitky = (k) => PD_SKUPINY.filter(([kl]) => k[kl]).map(([, , st, b]) => ` <span class="chip ${b}" style="font-size:11px">${st}</span>`).join('');
+/* kde se pacient nachází (0.11.71): Doma / DS B / DS C / DS jiný / Hospitalizace – z adresáře PéčeDoma (stejná volba jako v PM103) */
+const pdKde = (k) => { const t = String(k.kde || '').trim(); if (!t) return ''; const ik = /^doma/i.test(t) ? '🏠' : /^ds\b|domov/i.test(t) ? '🏢' : /hospit|nemoc|ldn/i.test(t) ? '🏥' : '📍';
+  return ` <span class="chip ${/^doma/i.test(t) ? 'ok' : 'dom'}" style="font-size:11px" title="Kde se pacient nachází (PéčeDoma)">${ik} ${esc(t)}</span>`; };
+const pdStitky = (k) => pdKde(k) + PD_SKUPINY.filter(([kl]) => k[kl]).map(([, , st, b]) => ` <span class="chip ${b}" style="font-size:11px">${st}</span>`).join('');
 function vyberKlientaPd(vybrano) {
   const filtr = { hospic: false, t720: false, lpp: false };
   modal(`<h2>Vybrat klienta z PéčeDoma</h2><div class="form"><div class="row"><input id="pdq" placeholder="jméno, rodné číslo nebo město" style="flex:1"><button class="btn primary" id="pdh">Hledat</button></div>
