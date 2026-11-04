@@ -12,6 +12,10 @@ function hesloOko(btn){ const i = btn.parentNode.querySelector('input'); const u
 /* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
 try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
+<style>
+/* zobrazit / skrýt heslo (👁) u polí s heslem – od 0.11.74 */
+.oko-obal{position:relative}.oko-obal input{width:100%;padding-right:42px;box-sizing:border-box}.oko{position:absolute;right:4px;top:50%;transform:translateY(-50%);height:30px;width:34px;border:0;background:transparent;color:#2E86D9;cursor:pointer;font-size:16px;padding:0;line-height:1}
+</style>
 </head>
 <body>
 <div class="app wide">
