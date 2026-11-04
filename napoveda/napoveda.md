@@ -25,6 +25,8 @@ Jak to funguje v kostce:
 
 ## 2. Přihlášení a můj účet
 
+Vedle pole s heslem je tlačítko 👁 (od 0.11.74): zadané heslo zobrazí nebo zase skryje – hodí se na telefonu. Je i při změně hesla.
+
 Centrální aplikace funguje i na mobilu (od 0.11.46): hlavička je kompaktní, záložky pacienta jsou ve dvou řadách a tlačítka se zalamují. Tabulky (pacienti, kontakty, týmy, lidé, správa) se na mobilu skládají do karet pod sebou s popisky sloupců, takže nic nepřetéká přes okraj a není třeba posouvat do strany (od 0.11.58). Videohovor na telefon u pacienta jde zahájit i z mobilu – otevře se přes celou obrazovku.
 
 Centrální aplikaci otevřete odkazem, který dostanete od správce organizace (`…/centrala/?t=KÓD_ORGANIZACE`) – kód organizace se pak vyplní sám. Zadáte **přihlašovací jméno** a **heslo**.
