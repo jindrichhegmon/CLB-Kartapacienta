@@ -354,7 +354,8 @@ await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(300); await foto(p, 
 await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]'); await p.waitForTimeout(300);
 await foto(p, 'c-novy-pecedoma');
 // 0.11.78: hromadný výběr – zatržítka, Založit vybrané → náhled s doplněním telefonu
-for (const c of await p.$$('[data-kv]')) await c.check();
+for (const tr of await p.$$('tr[data-k] td:nth-child(2)')) await tr.click();   // 0.11.79: klik na řádek zatrhne, okno zůstane
+if ((await p.$$('[data-kv]:checked')).length !== 2) throw new Error('výběr z PéčeDoma: klepnutí na řádek klienta nezatrhlo');
 await klik(p, '#pdhr'); await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(400); await foto(p, 'c-novy-pecedoma-hromadne');
 if ((await p.$$('#hr_b tr')).length !== 2 || !(await p.$('[data-hrtel]'))) throw new Error('hromadný výběr z PéčeDoma: v náhledu chybí řádky nebo pole telefonu');
 await p.evaluate(() => KP.closeModal());
