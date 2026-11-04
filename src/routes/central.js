@@ -994,6 +994,29 @@ async function zajistiTymyVzdy(q, pacientId, uzivatelId = null) {
   return tymy.length;
 }
 
+/** 0.11.85: přiřadí jeden tým k pacientovi (stejně jako „přiřadit vždy“: obnoví dřív deaktivované členy, synchronizuje, audit). Vrací 1 = nově přiřazen. */
+async function priradTymPacientovi(q, pacientId, tymId, uzivatelId, duvod) {
+  const t = await q.one(`SELECT t.TymLidiID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE t.TymLidiID = @t AND t.Aktivni = 1 AND ps.Aktivni = 1 AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = @p AND pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1)`, { t: tymId, p: pacientId });
+  if (!t) return 0;
+  const puv = await q.one(`SELECT TOP 1 PacientTymID FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t ORDER BY PacientTymID DESC`, { p: pacientId, t: t.TymLidiID });
+  if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: uzivatelId });
+  else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID) VALUES (@p, @t, @u)`, { p: pacientId, t: t.TymLidiID, u: uzivatelId });
+  await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba x WHERE x.PacientID = po.PacientID AND x.OsobaID = po.OsobaID AND x.Aktivni = 1)
+      AND po.PacientOsobaID = (SELECT MAX(y.PacientOsobaID) FROM dbo.A_KP_PacientOsoba y WHERE y.PacientID = po.PacientID AND y.OsobaID = po.OsobaID AND y.TymLidiID = @t)`, { p: pacientId, t: t.TymLidiID });
+  await synchronizujTymUPacientu(q, t.TymLidiID, uzivatelId);
+  await audit(q, { uzivatelId, kdo: uzivatelId ? 'centrála' : 'systém', pacientId, akce: 'přístup ke kartě (tým)', detail: `+ ${t.Nazev} (${t.Pracoviste}) – ${duvod}` });
+  return 1;
+}
+/** 0.11.85: týmy zatržené u telefonu s kartou → přiřadit pacientovi, jehož průkaz je v tomto telefonu (volá i párování telefonu). */
+export async function priradTymyTelefonu(q, pacientId, telefon, uzivatelId = null) {
+  const tel = normTel(telefon); if (!tel) return 0;
+  let n = 0;
+  for (const t of await q.all(`SELECT TymLidiID FROM dbo.A_KP_TymTelefon WHERE Telefon = @tel`, { tel })) n += await priradTymPacientovi(q, pacientId, t.TymLidiID, uzivatelId, `telefon s kartou ${hezkyTel(tel)}`);
+  return n;
+}
+
 async function synchronizujTymUPacientu(q, tymId, uzivatelId = null) {
   const t = await q.one(`SELECT TymLidiID, PoskytovatelID, Nazev, Aktivni FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: tymId });
   if (!t) return;
@@ -1064,6 +1087,17 @@ central.post('/tym-lidi', sUzivatelem(async (q, s, req) => {
   await synchronizujTymUPacientu(q, id, s.uzivatelId);
   // přiřadit vždy (0.11.66): hned ke všem aktivním pacientům organizace
   let prirazeno = 0;
+  // 0.11.85: zatržené telefony s kartou – tým ke všem pacientům, jejichž průkaz je v telefonu (a k dalším při párování)
+  if (Array.isArray(b.telefony)) {
+    const tels = [...new Set(b.telefony.map(normTel).filter(Boolean))].slice(0, 100);
+    const puvTel = (await q.all(`SELECT Telefon FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t`, { t: id })).map((x) => x.Telefon);
+    for (const x of puvTel.filter((x) => !tels.includes(x))) await q.exec(`DELETE FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t AND Telefon = @tel`, { t: id, tel: x });
+    for (const x of tels.filter((x) => !puvTel.includes(x))) await q.exec(`INSERT INTO dbo.A_KP_TymTelefon (TymLidiID, Telefon, PridalUzivatelID) VALUES (@t, @tel, @u)`, { t: id, tel: x, u: s.uzivatelId });
+    if (aktivni) for (const p of await q.all(`SELECT DISTINCT z.PacientID, z.Telefon FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient pa ON pa.PacientID = z.PacientID
+        JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = @t WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND pa.Stav = 'AKTIVNI'`, { t: id }))
+      prirazeno += await priradTymPacientovi(q, p.PacientID, id, s.uzivatelId, `telefon s kartou ${hezkyTel(p.Telefon)}`);
+    if (tels.length !== puvTel.length || tels.some((x) => !puvTel.includes(x))) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'telefony s kartou u týmu', detail: `${nazev}: ${tels.map(hezkyTel).join(', ') || 'žádný'}` });
+  }
   if (vzdy && aktivni) { for (const p of await q.all(`SELECT pa.PacientID FROM dbo.A_KP_Pacient pa WHERE pa.Stav = 'AKTIVNI' AND EXISTS (SELECT 1 FROM dbo.A_KP_Garance g WHERE g.PacientID = pa.PacientID AND g.Stav = 'PLATNA' AND g.PoskytovatelID = @ps)`, { ps: ps.PoskytovatelID })) prirazeno += await zajistiTymyVzdy(q, p.PacientID, s.uzivatelId); }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: puv ? 'úprava týmu lidí' : 'nový tým lidí', detail: `${nazev} (${ps.Nazev})${aktivni ? '' : ' – zrušen'}${vzdy ? ' – přiřazen vždy' : ''}${prirazeno ? ` – nově u ${prirazeno} pacientů` : ''}`, ip: s.ip });
   return { id, prirazeno };
@@ -1109,11 +1143,25 @@ central.post('/tym-lidi/:id/smazat', sUzivatelem(async (q, s, req) => {
   return { pacientu };
 }));
 
+/* 0.11.85: zapůjčené telefony s kartou a pacienti v nich – pro zatržení u týmu. Jména jen u pacientů, které uživatel vidí (jako v přehledu). */
+central.get('/tym-lidi/telefony', sUzivatelem(async (q, s, req) => {
+  const tym = cislo(req.query.tym);
+  const rows = await q.all(`SELECT z.Telefon AS telefon, p.PacientID AS id, p.Prijmeni AS prijmeni, p.Jmeno AS jmeno, p.KodPrukazu AS kod, CASE WHEN ${VIDITELNI} THEN 1 ELSE 0 END AS vidim
+    FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+    WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND p.Stav = 'AKTIVNI' AND z.Telefon IS NOT NULL ORDER BY z.Telefon, p.Prijmeni, p.Jmeno`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
+  const vybrane = tym ? (await q.all(`SELECT Telefon FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t`, { t: tym })).map((x) => x.Telefon) : [];
+  const m = new Map();
+  for (const r of rows) { const t = m.get(r.telefon) || { telefon: r.telefon, hezky: hezkyTel(r.telefon), pacienti: [], skrytych: 0, vybran: vybrane.includes(r.telefon) }; if (r.vidim) t.pacienti.push({ id: r.id, jmeno: `${r.prijmeni} ${r.jmeno}`, kod: r.kod }); else t.skrytych++; m.set(r.telefon, t); }
+  for (const x of vybrane) if (!m.has(x)) m.set(x, { telefon: x, hezky: hezkyTel(x), pacienti: [], skrytych: 0, vybran: true });   // zatržený telefon zatím bez průkazu
+  return { telefony: [...m.values()].sort((a, b) => (b.pacienti.length + b.skrytych) - (a.pacienti.length + a.skrytych)) };
+}));
+
 central.get('/lide', sUzivatelem(async (q) => ({
   clenstvi: await q.all(`SELECT c.TymLidiID AS tymId, c.OsobaID AS osobaId FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE o.Aktivni = 1`),
   tymy: await q.all(`SELECT t.TymLidiID AS id, t.PoskytovatelID AS poskytovatelId, p.Nazev AS poskytovatel, t.Nazev AS nazev, t.Popis AS popis, t.Aktivni AS aktivni, t.PrirazenVzdy AS prirazenVzdy,
       (SELECT COUNT(*) FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE c.TymLidiID = t.TymLidiID AND o.Aktivni = 1) AS clenu,
-      (SELECT COUNT(*) FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_Pacient pa ON pa.PacientID = pt.PacientID WHERE pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1 AND pa.Stav = 'AKTIVNI') AS pacientu
+      (SELECT COUNT(*) FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_Pacient pa ON pa.PacientID = pt.PacientID WHERE pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1 AND pa.Stav = 'AKTIVNI') AS pacientu,
+      (SELECT COUNT(*) FROM dbo.A_KP_TymTelefon tt WHERE tt.TymLidiID = t.TymLidiID) AS telefonu
     FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = t.PoskytovatelID ORDER BY t.Aktivni DESC, p.Nazev, t.Nazev`),
   lide: await q.all(`SELECT o.OsobaID AS id, o.PoskytovatelID AS poskytovatelId, p.Nazev AS poskytovatel, p.Typ AS typPoskytovatele, o.Tym AS tym, o.Jmeno AS jmeno, o.Role AS role,
       o.Telefon AS telefon, o.Email AS email, o.Poznamka AS pozn, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, CONVERT(char(16), o.PinVydan, 120) AS pinVydan,

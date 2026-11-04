@@ -248,6 +248,9 @@ app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenan
 app.post('/api/c/pacient/:id/zarizeni', j({ ok: true }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', 'https://kartapacienta.example/pacient/#p=…') } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
+app.get('/api/c/tym-lidi/telefony', j(() => ({ telefony: [   // 0.11.85: telefony s kartou v okně týmu
+  { telefon: '+420722916951', hezky: '+420 722 916 951', pacienti: [{ id: 1, jmeno: 'Zkušební Marie', kod: 'P-0007' }, { id: 2, jmeno: 'Příkladný Josef', kod: 'P-0008' }], skrytych: 1, vybran: true },
+  { telefon: '+420777000123', hezky: '+420 777 000 123', pacienti: [{ id: 3, jmeno: 'Vzorová Anna', kod: 'P-0009' }], skrytych: 0, vybran: false }] })));
 app.get('/api/c/lide', j({ lide, tymy, clenstvi, role: { LEKAR: 'Lékař a spec. sestra', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
 app.get('/api/c/lide/pecedoma', j({ lide: pdTym }));
 app.post('/api/c/osoba', j({ id: 99, pin: '482913', sms: null }));
@@ -473,7 +476,8 @@ await foto(p, 'c-nastaveni-pecedoma', { vyska: 1000 });
 await klik(p, '.nav button[data-v="lide"]'); await p.waitForSelector('tr[data-oid]');
 await p.selectOption('#lf', ''); await p.waitForSelector('tr[data-oid="9"]');
 await foto(p, 'c-lide', { vyska: 1300 });
-await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok');
+await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok'); await p.waitForSelector('[data-ttel]');
+if ((await p.$$('[data-ttel]')).length !== 2 || (await p.$$('[data-ttel]:checked')).length !== 1) chyby.push('okno týmu: chybí telefony s kartou');
 if ((await p.$$('[data-tcl]:checked')).length !== 5) chyby.push('okno týmu nemá zaškrtnuté členy týmu');
 await foto(p, 'c-tym-okno');
 await klik(p, '#tm_piny'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForSelector('#pn_tisk');

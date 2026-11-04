@@ -19,6 +19,7 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
+import { priradTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { podepis, overSession } from '../crypto.js';
@@ -98,6 +99,8 @@ device.post('/parovat', h(async (req) => {
       WHERE ZarizeniID = @z`, { th: sha256(raw), t: rezim === 'PACIENT' ? null : zasifruj(tajemstvi), tel: telefon, z: z.ZarizeniID });
     if (!znovu) await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: rezim === 'PACIENT' ? `Průkaz zpřístupněn ve vlastním telefonu pacienta (${hezkyTel(telefon)}).` : `Průkaz nahrán do telefonu u pacienta (${hezkyTel(telefon)}).`, autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
     await audit(q, { zarizeniId: z.ZarizeniID, kdo: rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: znovu ? 'telefon spárován znovu stejným kódem' : 'telefon spárován', detail: znovu ? 'předchozí kopie v tomto telefonu (např. v Safari) ztrácí přístup' : null, ip: ip(req) });
+    // 0.11.85: týmy zatržené u tohoto telefonu (Lidé a týmy → tým → Telefony s kartou) se přiřadí i nově spárovanému pacientovi – ještě před balíkem, ať telefon dostane jejich PINy
+    if (rezim !== 'PACIENT') await priradTymyTelefonu(q, z.PacientID, telefon);
     const balik = await balikProZarizeni(q, z.PacientID, { rezim });
     // kód lékaře (TOTP) má smysl jen na zapůjčeném telefonu, který odemyká tým
     return { token: `${tenant}.${z.ZarizeniID}.${raw}`, tajemstvi: rezim === 'PACIENT' ? null : tajemstvi, zarizeniId: z.ZarizeniID, telefon: hezkyTel(telefon), rezim, balik, videoToken: videoToken(tenant, z.ZarizeniID) };
