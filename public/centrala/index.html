@@ -921,10 +921,13 @@ function jsonNaPacienty(j) {
 /* náhled a hromadné založení: každý řádek projde stejnou kontrolou jako ruční formulář (zPeceDoma), založí se postupně přes /pacient */
 function hromadneOkno(polozky, nazevSouboru) {
   const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
+  const kontrola = (j, d) => { const chyby = []; if (!d.pacient.jmeno || !d.pacient.prijmeni) chyby.push('chybí jméno nebo příjmení'); if (!d.pacient.telefonKarty) chyby.push('chybí telefon s kartou'); if (!d.pacient.rok && !d.pacient.datumNarozeni) chyby.push('chybí rok narození'); if (d.pacient.rc && !/^\d{6}\/?\d{3,4}$/.test(d.pacient.rc.replace(/\s/g, ''))) chyby.push('rodné číslo má tvar 123456/7890'); if (j.plan && j.plan.cil && !CILE[j.plan.cil]) chyby.push('neznámý cíl péče – použije se symptomatická'); return chyby; };
   const radky = polozky.map((j) => { let d = null, chyby = []; try { d = zPeceDoma(j).d; } catch (e) { chyby.push(e.message); }
-    if (d) { if (!d.pacient.jmeno || !d.pacient.prijmeni) chyby.push('chybí jméno nebo příjmení'); if (!d.pacient.telefonKarty) chyby.push('chybí telefon s kartou'); if (!d.pacient.rok && !d.pacient.datumNarozeni) chyby.push('chybí rok narození'); if (d.pacient.rc && !/^\d{6}\/?\d{3,4}$/.test(d.pacient.rc.replace(/\s/g, ''))) chyby.push('rodné číslo má tvar 123456/7890'); if (j.plan && j.plan.cil && !CILE[j.plan.cil]) chyby.push('neznámý cíl péče – použije se symptomatická'); }
-    return { d, chyby, stav: null, kod: (j.kod || '').trim() }; });
-  const naHtml = () => radky.map((r, i) => `<tr><td><input type="checkbox" data-hr="${i}" ${r.chyby.some((c) => !/použije se/.test(c)) || r.stav ? '' : 'checked'} ${r.stav ? 'disabled' : ''}></td><td><b>${esc(r.d ? r.d.pacient.prijmeni + ' ' + r.d.pacient.jmeno : '?')}</b>${r.kod ? `<div class="lbl">dřív ${esc(r.kod)}</div>` : ''}</td><td class="mono">${esc(r.d ? r.d.pacient.rc : '')}</td><td>${esc(r.d ? (r.d.pacient.datumNarozeni || r.d.pacient.rok) : '')}</td><td class="mono">${esc(r.d ? r.d.pacient.telefonKarty : '')}</td><td>${r.d ? esc(CILE[r.d.plan.cil] || r.d.plan.cil) + `<div class="lbl">${esc(r.d.plan.limity.join(', '))}</div>` : ''}</td><td>${r.d ? r.d.kontakty.length : 0}</td>
+    if (d && j.pdKde && !d.pacient.pobyt) d.pacient.pobyt = j.pdKde;   // 0.11.78: kde se pacient nachází (PéčeDoma) → místo pobytu
+    if (d) chyby = kontrola(j, d);
+    return { j, d, chyby, stav: null, kod: (j.kod || '').trim(), pd: j.pdVazba || null }; });
+  const blokuje = (r) => r.chyby.some((c) => !/použije se/.test(c));
+  const naHtml = () => radky.map((r, i) => `<tr><td><input type="checkbox" data-hr="${i}" ${blokuje(r) || r.stav ? '' : 'checked'} ${r.stav ? 'disabled' : ''}></td><td><b>${esc(r.d ? r.d.pacient.prijmeni + ' ' + r.d.pacient.jmeno : '?')}</b>${r.kod ? `<div class="lbl">dřív ${esc(r.kod)}</div>` : ''}${r.pd ? '<div class="lbl">propojí se s PéčeDoma' + (r.d && r.d.pacient.pobyt ? ' · ' + esc(r.d.pacient.pobyt) : '') + '</div>' : ''}</td><td class="mono">${esc(r.d ? r.d.pacient.rc : '')}</td><td>${esc(r.d ? (r.d.pacient.datumNarozeni || r.d.pacient.rok) : '')}</td><td class="mono">${r.d && !r.stav ? `<input data-hrtel="${i}" value="${esc(r.d.pacient.telefonKarty || '')}" placeholder="doplnit" inputmode="tel" style="width:140px">` : esc(r.d ? r.d.pacient.telefonKarty : '')}</td><td>${r.d ? esc(CILE[r.d.plan.cil] || r.d.plan.cil) + `<div class="lbl">${esc(r.d.plan.limity.join(', '))}</div>` : ''}</td><td>${r.d ? r.d.kontakty.length : 0}</td>
     <td id="hr_s${i}">${r.stav === 'ok' ? `<span class="chip ok">založen ${esc(r.vysledek)}</span>` : r.stav === 'chyba' ? `<span class="chip crit">${esc(r.vysledek)}</span>` : r.chyby.length ? `<span class="chip warn">${esc(r.chyby.join('; '))}</span>` : '<span class="chip">připraven</span>'}</td></tr>`).join('');
   modal(`<h2>Náhled: ${esc(nazevSouboru || 'soubor')} · ${radky.length} ${radky.length === 1 ? 'pacient' : radky.length < 5 ? 'pacienti' : 'pacientů'}</h2>
     <p class="muted" style="margin:0;font-size:13.5px">Zkontrolujte řádky a vyberte, koho založit. Každý se založí stejně jako ručně: s první verzí plánu a kontakty; cíl péče a limitace pak lékař potvrdí v průkazu. Řádky s chybou jsou odškrtnuté.</p>
@@ -933,17 +936,23 @@ function hromadneOkno(polozky, nazevSouboru) {
     <div class="tblwrap" style="max-height:50vh;overflow:auto"><table class="tbl"><thead><tr><th><input type="checkbox" id="hr_vse" checked></th><th>Pacient</th><th>Rodné číslo</th><th>Narození</th><th>Telefon s kartou</th><th>Cíl péče · limitace</th><th>Kontakty</th><th>Stav</th></tr></thead><tbody id="hr_b">${naHtml()}</tbody></table></div>
     <div class="quick"><button class="btn primary ulozit" id="hr_ok">Založit vybrané</button><button class="btn" data-close id="hr_zavrit">Zavřít</button></div>`, (m) => {
     m.querySelector('.box').classList.add('wide');
-    const prekresli = () => { $('hr_b').innerHTML = naHtml(); };
+    const stavHtml = (r) => r.chyby.length ? `<span class="chip warn">${esc(r.chyby.join('; '))}</span>` : '<span class="chip">připraven</span>';
+    const navaz = () => document.querySelectorAll('[data-hrtel]').forEach((el) => (el.oninput = () => { const i = Number(el.dataset.hrtel), r = radky[i], meli = blokuje(r);
+      r.d.pacient.telefonKarty = el.value.trim().slice(0, 20); r.chyby = kontrola(r.j, r.d); const b = $(`hr_s${i}`); if (b) b.innerHTML = stavHtml(r);
+      const c = document.querySelector(`[data-hr="${i}"]`); if (c && meli !== blokuje(r)) c.checked = !blokuje(r); }));
+    const prekresli = () => { $('hr_b').innerHTML = naHtml(); navaz(); };
+    navaz();
     $('hr_vse').onchange = () => document.querySelectorAll('[data-hr]:not(:disabled)').forEach((c) => (c.checked = $('hr_vse').checked));
     $('hr_ok').onclick = async () => {
       const vybrane = [...document.querySelectorAll('[data-hr]:checked')].map((c) => Number(c.dataset.hr)).filter((i) => radky[i].d && !radky[i].stav);
       if (!vybrane.length) return toast('Nic není vybráno');
+      const bezTel = vybrane.filter((i) => !radky[i].d.pacient.telefonKarty); if (bezTel.length) return toast(`U ${bezTel.length} vybraných chybí telefon s kartou – doplňte ho v tabulce, nebo je odškrtněte`, 6000);
       const garant = Number($('hr_g').value), tym = [...$('hr_t').selectedOptions].map((o) => Number(o.value));
       $('hr_ok').disabled = true; $('hr_ok').textContent = 'Zakládám…';
       let ok = 0;
       for (const i of vybrane) {
         const r = radky[i];
-        try { const res = await C('/pacient', { method: 'POST', body: { pacient: r.d.pacient, plan: r.d.plan, platnostDo: r.d.platnostDo || '', kontakty: r.d.kontakty, pecedoma: null, garantPoskytovatelId: garant, tym, aiPouzito: false } }); r.stav = 'ok'; r.vysledek = res.kod; ok++; }
+        try { const res = await C('/pacient', { method: 'POST', body: { pacient: r.d.pacient, plan: r.d.plan, platnostDo: r.d.platnostDo || '', kontakty: r.d.kontakty, pecedoma: r.pd, garantPoskytovatelId: garant, tym, aiPouzito: false } }); r.stav = 'ok'; r.vysledek = res.kod; ok++; }
         catch (e) { r.stav = 'chyba'; r.vysledek = e.message; }
         const b = $(`hr_s${i}`); if (b) b.innerHTML = r.stav === 'ok' ? `<span class="chip ok">založen ${esc(r.vysledek)}</span>` : `<span class="chip crit">${esc(r.vysledek)}</span>`;
       }
@@ -983,12 +992,16 @@ const PD_MISTA = [['doma', '🏠 Doma'], ['ds', '🏢 DS (domov pro seniory)'], 
 const pdKde = (k) => { const t = String(k.kde || '').trim(); if (!t) return ''; const ik = /^doma/i.test(t) ? '🏠' : /^ds\b|domov/i.test(t) ? '🏢' : /hospit|nemoc|ldn/i.test(t) ? '🏥' : '📍';
   return ` <span class="chip ${/^doma/i.test(t) ? 'ok' : 'dom'}" style="font-size:11px" title="Kde se pacient nachází (PéčeDoma)">${ik} ${esc(t)}</span>`; };
 const pdStitky = (k) => pdKde(k) + PD_SKUPINY.filter(([kl]) => k[kl]).map(([, , st, b]) => ` <span class="chip ${b}" style="font-size:11px">${st}</span>`).join('');
-function vyberKlientaPd(vybrano) {
+/* hromadne (0.11.78): když je zadané, u klientů jsou zatržítka a „Založit vybrané“ – označení drží i při změně hledání a filtrů */
+function vyberKlientaPd(vybrano, hromadne) {
   const filtr = { hospic: false, t720: false, lpp: false, doma: false, ds: false, hosp: false };
-  modal(`<h2>Vybrat klienta z PéčeDoma</h2><div class="form"><div class="row"><input id="pdq" placeholder="jméno, rodné číslo nebo město" style="flex:1"><button class="btn primary" id="pdh">Hledat</button></div>
+  const oznaceni = new Map();   // id → klient
+  modal(`<h2>${hromadne ? 'Vybrat klienty z PéčeDoma' : 'Vybrat klienta z PéčeDoma'}</h2><div class="form"><div class="row"><input id="pdq" placeholder="jméno, rodné číslo nebo město" style="flex:1"><button class="btn primary" id="pdh">Hledat</button></div>
     <div class="quick" id="pdf">${PD_SKUPINY.map(([k, n]) => `<button class="btn sm" data-f="${k}" type="button">${n}</button>`).join('')}</div>
     <div class="quick" id="pdm" style="margin-top:6px"><span class="lbl" style="align-self:center">Kde je:</span>${PD_MISTA.map(([k, n]) => `<button class="btn sm" data-f="${k}" type="button">${n}</button>`).join('')}</div><div class="hint" id="pdi">Stejné skupiny jako v PéčeDoma v Klientech – zapnuté tlačítko omezí seznam na skupinu, víc tlačítek najednou ukáže kohokoli z nich. Místo (Doma, DS, Hospitalizace) se se skupinou kombinuje: např. 🩺 720 + 🏢 DS = pacienti 720 v domově pro seniory.</div>
-    <div id="pdl" class="tblwrap" style="max-height:55vh;overflow:auto"><div class="hint">Zadejte část jména nebo rodné číslo a stiskněte Hledat, nebo zapněte skupinu. Prázdné hledání vypíše všechny klienty.</div></div></div>`, (m) => {
+    <div id="pdl" class="tblwrap" style="max-height:${hromadne ? '48vh' : '55vh'};overflow:auto"><div class="hint">Zadejte část jména nebo rodné číslo a stiskněte Hledat, nebo zapněte skupinu. Prázdné hledání vypíše všechny klienty.</div></div>
+    ${hromadne ? `<div class="quick" style="margin-top:4px"><button class="btn primary" id="pdhr" type="button" disabled>Založit vybrané (0)</button><button class="btn sm" id="pdvse" type="button">Označit všechny v seznamu</button><button class="btn sm" id="pdnic" type="button">Zrušit označení</button></div><div class="hint">Klepnutí na řádek otevře jednoho klienta k úpravě. Zatržítky označíte víc klientů – označení zůstává i při změně hledání a skupin – a <b>Založit vybrané</b> je otevře v náhledu pro hromadné založení.</div>` : ''}</div>`, (m) => {
+    const pocet = () => { if ($('pdhr')) { $('pdhr').textContent = `Založit vybrané (${oznaceni.size})`; $('pdhr').disabled = !oznaceni.size; } };
     $('pdq').focus();
     const hledej = async () => {
       $('pdl').innerHTML = '<div class="hint">Hledám v PéčeDoma…</div>';
@@ -999,13 +1012,31 @@ function vyberKlientaPd(vybrano) {
           m.querySelectorAll('#pdf [data-f], #pdm [data-f]').forEach((b) => { const n = r.skupiny[b.dataset.f]; if (typeof n === 'number') b.textContent = PD_SKUPINY.concat(PD_MISTA).find(([k]) => k === b.dataset.f)[1] + ' · ' + n; });
           if (r.skupiny.chyba) $('pdi').innerHTML = `<span class="chip warn">${esc(r.skupiny.chyba)}</span>`;
         }
-        $('pdl').innerHTML = r.klienti.length ? `<table class="tbl hover"><tbody>${r.klienti.map((k) => `<tr data-k="${esc(k.id)}" style="cursor:pointer"><td><b>${esc(k.prijmeni)} ${esc(k.jmeno)}</b>${pdStitky(k)}<div class="lbl">${esc(k.rc || '')}${k.narozen ? ' · ' + esc(fmtD(k.narozen)) : ''}${k.mesto ? ' · ' + esc(k.mesto) : ''}${k.posledni_aktivita ? ' · poslední aktivita ' + esc(fmtD(k.posledni_aktivita)) : ''}</div></td><td class="mono">${esc(k.telefon || '')}</td></tr>`).join('')}</tbody></table>${r.klienti.length >= 200 ? '<div class="hint">Zobrazeno prvních 200 – upřesněte hledání.</div>' : ''}` : '<div class="hint">Nikdo nenalezen.</div>';
-        m.querySelectorAll('tr[data-k]').forEach((tr) => (tr.onclick = () => { const k = r.klienti.find((x) => x.id === tr.dataset.k); closeModal(); vybrano(k); }));
+        $('pdl').innerHTML = r.klienti.length ? `<table class="tbl hover"><tbody>${r.klienti.map((k) => `<tr data-k="${esc(k.id)}" style="cursor:pointer">${hromadne ? `<td style="width:28px"><input type="checkbox" data-kv="${esc(k.id)}" ${oznaceni.has(k.id) ? 'checked' : ''} aria-label="označit ${esc(k.prijmeni)} ${esc(k.jmeno)}"></td>` : ''}<td><b>${esc(k.prijmeni)} ${esc(k.jmeno)}</b>${pdStitky(k)}<div class="lbl">${esc(k.rc || '')}${k.narozen ? ' · ' + esc(fmtD(k.narozen)) : ''}${k.mesto ? ' · ' + esc(k.mesto) : ''}${k.posledni_aktivita ? ' · poslední aktivita ' + esc(fmtD(k.posledni_aktivita)) : ''}</div></td><td class="mono">${esc(k.telefon || '')}</td></tr>`).join('')}</tbody></table>${r.klienti.length >= 200 ? '<div class="hint">Zobrazeno prvních 200 – upřesněte hledání.</div>' : ''}` : '<div class="hint">Nikdo nenalezen.</div>';
+        m.querySelectorAll('tr[data-k]').forEach((tr) => (tr.onclick = (e) => { if (e.target.closest('[data-kv]')) return; const k = r.klienti.find((x) => x.id === tr.dataset.k); closeModal(); vybrano(k); }));
+        m.querySelectorAll('[data-kv]').forEach((c) => (c.onchange = () => { const k = r.klienti.find((x) => x.id === c.dataset.kv); if (c.checked) oznaceni.set(k.id, k); else oznaceni.delete(k.id); pocet(); }));
+        if ($('pdvse')) $('pdvse').onclick = () => { r.klienti.forEach((k) => oznaceni.set(k.id, k)); m.querySelectorAll('[data-kv]').forEach((c) => (c.checked = true)); pocet(); };
       } catch (e) { $('pdl').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; }
     };
     m.querySelectorAll('#pdf [data-f], #pdm [data-f]').forEach((b) => (b.onclick = () => { filtr[b.dataset.f] = !filtr[b.dataset.f]; b.classList.toggle('primary', filtr[b.dataset.f]); hledej(); }));
     $('pdh').onclick = hledej; $('pdq').onkeydown = (e) => { if (e.key === 'Enter') hledej(); };
+    if (hromadne) {
+      $('pdnic').onclick = () => { oznaceni.clear(); m.querySelectorAll('[data-kv]').forEach((c) => (c.checked = false)); pocet(); };
+      $('pdhr').onclick = () => { const seznam = [...oznaceni.values()]; closeModal(); hromadne(seznam); };
+    }
   });
+}
+/* hromadný výběr z PéčeDoma (0.11.78): načte vybrané klienty postupně (Export pro Kartu) a otevře náhled hromadného založení */
+async function hromadneZPd(seznam) {
+  if (!seznam.length) return;
+  const polozky = [], chyby = [];
+  for (const [i, k] of seznam.entries()) {
+    toast(`Načítám z PéčeDoma ${i + 1} z ${seznam.length}…`);
+    try { const r = await C('/pecedoma/klient/' + k.id); polozky.push({ ...r.karta, pdVazba: { klientId: r.klientId || k.id, portalKlientId: (r.karta.puvod && r.karta.puvod.portalKlientId) || null }, pdKde: k.kde || '' }); }
+    catch (e) { chyby.push(`${k.prijmeni} ${k.jmeno}: ${e.message}`); }
+  }
+  if (chyby.length) toast(`Nepodařilo se načíst ${chyby.length}: ${chyby.slice(0, 3).join('; ')}${chyby.length > 3 ? '…' : ''}`, 8000);
+  if (polozky.length) hromadneOkno(polozky, 'výběr z PéčeDoma');
 }
 /* chat PéčeDoma s klientem: zprávy portálu (Data klienta → Zprávy) – tým píše jako „Tým PéčeDoma“ se značkou [Karta · jméno] */
 async function nactiNahledChatu(d) {
@@ -1047,7 +1078,7 @@ function renderNovy() {
     $('work').innerHTML = `${nav()}<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
       <div class="panel"><div class="panel-h"><h2>Načíst klienta z PéčeDoma</h2><span class="chip acc">nejrychlejší</span></div><div class="form" style="padding:14px">
         <div class="muted" style="font-size:13.5px">V portálu PéčeDoma (Data klienta → <b>Export pro Kartu pacienta</b>) uložte soubor JSON a tady ho načtěte – vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty. Cíl péče, limitace a číslo telefonu s kartou pak zkontroluje a doplní lékař.</div>
-        <div class="row">${S.pecedoma && S.pecedoma.nastaveno ? '<button class="btn primary" id="w_pd">Vybrat klienta z PéčeDoma</button>' : ''}<label class="btn ${S.pecedoma && S.pecedoma.nastaveno ? '' : 'primary'}">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div>
+        <div class="row">${S.pecedoma && S.pecedoma.nastaveno ? '<button class="btn primary" id="w_pd">Vybrat klienty z PéčeDoma</button>' : ''}<label class="btn ${S.pecedoma && S.pecedoma.nastaveno ? '' : 'primary'}">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div>
         ${S.pecedoma && S.pecedoma.nastaveno ? '' : '<div class="hint">Přímý výběr klienta z PéčeDoma zapne správce v Správa organizace → Nastavení → Propojení s PéčeDoma.</div>'}</div></div>
       <div class="panel"><div class="panel-h"><h2>Zapsat pacienta ručně</h2><span class="chip">bez PéčeDoma a bez zprávy</span></div><div class="form" style="padding:14px">
         <div class="muted" style="font-size:13.5px">Otevře prázdný formulář: údaje pacienta, telefon s kartou, cíl péče a limitace, kontakty, garant a tým. Na konci <b>Uložit</b>, nebo <b>Uložit a další</b> pro zápis více pacientů za sebou.</div>
@@ -1069,7 +1100,7 @@ function renderNovy() {
       try { const j = JSON.parse(await f.text()); if (j && j.format === 'CLB-Kartapacienta/pacienti') hromadneOkno(jsonNaPacienty(j), f.name); else prevezmi(j); }
       catch (err) { toast(err.message || 'Soubor se nepodařilo přečíst'); }
     };
-    if ($('w_pd')) $('w_pd').onclick = () => vyberKlientaPd(async (k) => { try { toast('Načítám klienta z PéčeDoma…'); const r = await C('/pecedoma/klient/' + k.id); prevezmi(r.karta, r.klientId); } catch (e) { toast(e.message); } });
+    if ($('w_pd')) $('w_pd').onclick = () => vyberKlientaPd(async (k) => { try { toast('Načítám klienta z PéčeDoma…'); const r = await C('/pecedoma/klient/' + k.id); prevezmi(r.karta, r.klientId); if (k.kde && !w.d.pacient.pobyt) { w.d.pacient.pobyt = k.kde; renderNovy(); } } catch (e) { toast(e.message); } }, hromadneZPd);
     $('w_txt').onchange = async (e) => { const f = e.target.files[0]; if (f) $('w_t').value = await f.text(); };
     $('w_img').onchange = (e) => ocr(e.target.files[0]);
     $('w_skip').onclick = () => { w.text = $('w_t').value; w.krok = 2; renderNovy(); };

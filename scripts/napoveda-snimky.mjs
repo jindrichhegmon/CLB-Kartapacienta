@@ -229,7 +229,7 @@ app.get('/api/d/leky', j({ leky: pdLeky }));
 app.post('/api/d/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky }; }));
 app.post('/api/d/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky }; }));
 app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(), f = String(req.query.filtr || '').split(',').filter(Boolean); return { klienti: pdKlienti.filter((k) => (!f.length || f.some((x) => k[x])) && (!q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q))), skupiny: { hospic: 1, t720: 2, lpp: 1, doma: 1, ds: 1, hosp: 0, chyba: null } }; }));
-app.get('/api/c/pecedoma/klient/:id', j((req) => ({ karta: pecedomaJson, klientId: req.params.id })));
+app.get('/api/c/pecedoma/klient/:id', j((req) => { const k = pdKlienti.find((x) => x.id === req.params.id); return { karta: k ? { ...pecedomaJson, pacient: { ...pecedomaJson.pacient, jmeno: k.jmeno, prijmeni: k.prijmeni, rc: k.rc, datumNarozeni: k.narozen, telefonKarty: k.telefon, telefon: k.telefon } } : pecedomaJson, klientId: req.params.id }; }));
 app.post('/api/c/pacient/:id/pecedoma', j({ sync: pdSync }));
 app.post('/api/c/pacient/:id/pecedoma/sync', j({ sync: pdSync }));
 // chat PéčeDoma (A_MSPPP_Zprava) – stejné vlákno pro centrálu, telefon i Můj průkaz
@@ -353,6 +353,10 @@ await p.setInputFiles('#w_csvp', { name: 'pacienti.csv', mimeType: 'text/csv', b
 await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(300); await foto(p, 'c-novy-csv'); await p.evaluate(() => closeModal());
 await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]'); await p.waitForTimeout(300);
 await foto(p, 'c-novy-pecedoma');
+// 0.11.78: hromadný výběr – zatržítka, Založit vybrané → náhled s doplněním telefonu
+for (const c of await p.$$('[data-kv]')) await c.check();
+await klik(p, '#pdhr'); await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(400); await foto(p, 'c-novy-pecedoma-hromadne');
+if ((await p.$$('#hr_b tr')).length !== 2 || !(await p.$('[data-hrtel]'))) throw new Error('hromadný výběr z PéčeDoma: v náhledu chybí řádky nebo pole telefonu');
 await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });
 await p.waitForSelector('#n_tk', { timeout: 8000 }).catch(async (e) => { console.error('toast:', await p.textContent('#toast').catch(() => '')); throw e; }); await p.waitForTimeout(3500); // toast zmizí
