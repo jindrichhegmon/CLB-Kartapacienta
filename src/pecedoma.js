@@ -53,16 +53,17 @@ export function normalizujSync(d = {}) {
   const kdo = n ? [n.lekar ? 'lékař ' + n.lekar : '', n.sestra ? 'sestra ' + n.sestra : ''].filter(Boolean).join(', ').slice(0, 200) : '';
   const pozn = n ? [n.sluzba, n.stav, n.misto].map((x) => String(x || '').trim()).filter(Boolean).join(' · ').slice(0, 300) : '';
   return { sos: pole(l.sos), opioidy: pole(l.opioidy), medikace: pole(l.medikace), pristiNavsteva: kdy, pristiKdo: kdo || null, pristiPozn: pozn || null,
-    vPeceDoma: !!l.vPeceDoma, kalendarChyba: d.kalendarChyba ? String(d.kalendarChyba).slice(0, 200) : null, portalKlientId: Number((d.klient || {}).portalKlientId) || null };
+    vPeceDoma: !!l.vPeceDoma, kalendarChyba: d.kalendarChyba ? String(d.kalendarChyba).slice(0, 200) : null, portalKlientId: Number((d.klient || {}).portalKlientId) || null,
+    kde: String(d.kde || '').replace(/\s+/g, ' ').trim().slice(0, 60) || null };   // 0.11.80: kde se pacient nachází (PéčeDoma)
 }
 
 /** Synchronizace jednoho pacienta (v kontextu tenanta). Vrátí uložený stav; chybu zapíše do A_KP_PdSync.Chyba a vyhodí ji dál. */
 export async function synchronizujPacienta(q, nast, pacientId, pdKlientId) {
   if (!UUID.test(String(pdKlientId || ''))) throw chyba('Pacient není propojený s klientem PéčeDoma', 400);
   const uloz = (v, chybaText) => q.exec(`MERGE dbo.A_KP_PdSync AS t USING (SELECT @p AS PacientID) AS s ON t.PacientID = s.PacientID
-      WHEN MATCHED THEN UPDATE SET Sos = @sos, Opioidy = @opi, Medikace = @med, PristiNavsteva = @pn, PristiKdo = @pk, PristiPozn = @pp, Aktualizovano = SYSDATETIME(), Chyba = @ch
-      WHEN NOT MATCHED THEN INSERT (PacientID, Sos, Opioidy, Medikace, PristiNavsteva, PristiKdo, PristiPozn, Chyba) VALUES (@p, @sos, @opi, @med, @pn, @pk, @pp, @ch);`,
-  { p: pacientId, sos: v ? JSON.stringify(v.sos) : null, opi: v ? JSON.stringify(v.opioidy) : null, med: v ? JSON.stringify(v.medikace) : null, pn: v ? v.pristiNavsteva : null, pk: v ? v.pristiKdo : null, pp: v ? v.pristiPozn : null, ch: chybaText });
+      WHEN MATCHED THEN UPDATE SET Sos = @sos, Opioidy = @opi, Medikace = @med, PristiNavsteva = @pn, PristiKdo = @pk, PristiPozn = @pp, Kde = @kde, Aktualizovano = SYSDATETIME(), Chyba = @ch
+      WHEN NOT MATCHED THEN INSERT (PacientID, Sos, Opioidy, Medikace, PristiNavsteva, PristiKdo, PristiPozn, Kde, Chyba) VALUES (@p, @sos, @opi, @med, @pn, @pk, @pp, @kde, @ch);`,
+  { p: pacientId, sos: v ? JSON.stringify(v.sos) : null, opi: v ? JSON.stringify(v.opioidy) : null, med: v ? JSON.stringify(v.medikace) : null, pn: v ? v.pristiNavsteva : null, pk: v ? v.pristiKdo : null, pp: v ? v.pristiPozn : null, kde: v ? v.kde : null, ch: chybaText });
   let d;
   try { d = await pdVolej(nast, 'sync', { klientId: String(pdKlientId).toLowerCase() }); }
   catch (e) {
@@ -148,10 +149,10 @@ export async function smazLekPd(nast, pdKlientId, lekId, kdo) {
 /** Stav synchronizace pacienta pro detail a balík telefonu. */
 export async function stavSync(q, pacientId) {
   const r = await q.one(`SELECT Sos, Opioidy, Medikace, CONVERT(char(16), PristiNavsteva, 120) AS pristiNavsteva, PristiKdo AS pristiKdo, PristiPozn AS pristiPozn,
-      CONVERT(char(16), Aktualizovano, 120) AS aktualizovano, Chyba AS chyba FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: pacientId });
+      CONVERT(char(16), Aktualizovano, 120) AS aktualizovano, Chyba AS chyba, Kde AS kde FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: pacientId });
   if (!r) return null;
   const js = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
-  return { sos: js(r.Sos), opioidy: js(r.Opioidy), medikace: js(r.Medikace), pristiNavsteva: r.pristiNavsteva, pristiKdo: r.pristiKdo, pristiPozn: r.pristiPozn, aktualizovano: r.aktualizovano, chyba: r.chyba };
+  return { sos: js(r.Sos), opioidy: js(r.Opioidy), medikace: js(r.Medikace), pristiNavsteva: r.pristiNavsteva, pristiKdo: r.pristiKdo, pristiPozn: r.pristiPozn, aktualizovano: r.aktualizovano, chyba: r.chyba, kde: r.kde || null };
 }
 
 /** Automatická synchronizace všech propojených pacientů v tenantech, které ji mají zapnutou (PD_SYNC = 1). */

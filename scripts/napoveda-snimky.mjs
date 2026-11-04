@@ -182,7 +182,8 @@ app.post('/api/c/login', j({ session: 'ukazka' }));
 app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
-app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti, upozorneni })));
+app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti: pacienti.map((x, i) => ({ ...x, kde: ['Doma', 'DS B', ''][i] ?? '' })), upozorneni })));
+app.post('/api/c/pecedoma/sync-vse', j(() => ({ celkem: 2, ok: 2, chyby: [] })));
 app.get('/api/c/pacient/:id', j(() => ({ ...detail, video: { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null } })));
 // výchozí kontakty organizace (0.11.70): zatržení / odebrání u klienta, nový výchozí, z vlastního kontaktu, zrušení u všech
 app.post('/api/c/pacient/:id/kontakt-vychozi', j((req) => { const b = req.body || {}; const dalsi = () => Math.max(0, ...kontakty.map((x) => x.poradi || 0)) + 10;
@@ -347,6 +348,10 @@ if ((await p.$$('[data-stp]')).length !== 3 || (await p.$$('[data-stp]:checked')
 if (!(await p.textContent('#st_pocet')).startsWith('2 štítků')) chyby.push('štítky: počet ' + (await p.textContent('#st_pocet')));
 await foto(p, 'c-stitky'); await p.evaluate(() => KP.closeModal());
 await foto(p, 'c-pacienti');
+if (!(await p.$('[data-misto="ds"]'))) throw new Error('seznam pacientů: chybí filtr Kde je');
+await klik(p, '[data-misto="ds"]'); await p.waitForTimeout(200);
+if ((await p.$$('tr[data-id]')).length !== 1) throw new Error('seznam pacientů: filtr DS neukazuje jednoho pacienta');
+await klik(p, '[data-misto=""]'); await p.waitForTimeout(200);
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' });
 await foto(p, 'c-novy-1');
 await p.setInputFiles('#w_csvp', { name: 'pacienti.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffjmeno;prijmeni;rodne_cislo;datum_narozeni;pohlavi;pobyt;adresa;telefon_karty;cil;limity;dg;kontakt1_jmeno;kontakt1_telefon;kontakt1_skupina\nMarie;Vzorová;460512/1234;1946-05-12;žena;doma;Dlouhá 12, Zlín;+420 777 000 123;symptom;KPR | Hospitalizace;C50 karcinom prsu;Jana Vzorová, dcera;+420 777 000 321;ROZHODUJE\nJosef;Dvořák;480508/1111;;muž;Domov Pohoda, pokoj 12;Otrokovice;601 111 222;limited;KPR;CHOPN IV;Petr Dvořák, syn;602 333 444;INFORMOVAT\nKarel;Bezčísla;;;muž;doma;;;symptom;;;;;\n') });

@@ -145,6 +145,7 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
       (SELECT TOP 1 CONVERT(char(16), g3.Navrzeno, 120) FROM dbo.A_KP_Garance g3 WHERE g3.PacientID = p.PacientID AND g3.Stav = 'NAVRZENO') AS predavaSe,
       (SELECT TOP 1 g4.PoskytovatelID FROM dbo.A_KP_Garance g4 WHERE g4.PacientID = p.PacientID AND g4.Stav = 'NAVRZENO') AS predavaSeKomu,
       (SELECT TOP 1 dps.Nazev FROM dbo.A_KP_Tym td JOIN dbo.A_KP_Poskytovatel dps ON dps.PoskytovatelID = td.PoskytovatelID WHERE td.PacientID = p.PacientID AND td.Aktivni = 1 AND dps.Typ = 'DOMOV' ORDER BY td.Od) AS domov
+      , (SELECT ps.Kde FROM dbo.A_KP_PdSync ps WHERE ps.PacientID = p.PacientID) AS kde, CASE WHEN p.PdKlientID IS NULL THEN 0 ELSE 1 END AS pd
       , (SELECT TOP 1 v.Zahajil + '|' + v.Stav FROM dbo.A_KP_Videohovor v WHERE v.PacientID = p.PacientID AND v.Stav IN ('ZVONI', 'PROBIHA') AND v.Zahajeno > DATEADD(hour, -3, SYSDATETIME()) ORDER BY v.VideohovorID DESC) AS videohovor
     FROM dbo.A_KP_Pacient p
     OUTER APPLY (SELECT TOP 1 * FROM dbo.A_KP_PlanVerze v WHERE v.PacientID = p.PacientID ORDER BY v.Verze DESC) pv
@@ -849,6 +850,17 @@ async function lekPd(q, s, req, akce) {
 }
 central.post('/pacient/:id/leky', sUzivatelem((q, s, req) => lekPd(q, s, req, 'uloz')));
 central.post('/pacient/:id/leky/smaz', sUzivatelem((q, s, req) => lekPd(q, s, req, 'smaz')));
+
+/* 0.11.80: synchronizace všech aktivních pacientů propojených s PéčeDoma najednou (léky, návštěva, kde se pacient nachází) – tlačítko v seznamu */
+central.post('/pecedoma/sync-vse', sUzivatelem(async (q, s) => {
+  const nast = await nastaveniPd(q);
+  if (!nast.nastaveno) throw chyba('Propojení s PéčeDoma není nastavené (Správa organizace → Nastavení)');
+  const pac = await q.all(`SELECT PacientID AS id, LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE Stav = 'AKTIVNI' AND PdKlientID IS NOT NULL`);
+  let ok = 0; const chyby = [];
+  for (const p of pac) { try { await synchronizujPacienta(q, nast, p.id, p.pd); ok++; } catch (e) { chyby.push(String(e.message || e).slice(0, 120)); } }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: synchronizace všech pacientů', detail: `${ok} z ${pac.length}${chyby.length ? ', chyb ' + chyby.length : ''}`, ip: s.ip });
+  return { celkem: pac.length, ok, chyby: chyby.slice(0, 5) };
+}, { lekar: true }));
 
 central.post('/pacient/:id/pecedoma/sync', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);

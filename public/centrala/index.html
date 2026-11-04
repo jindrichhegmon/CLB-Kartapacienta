@@ -214,9 +214,16 @@ function renderUcet(povinne) {
 }
 
 /* ================= přehled pacientů ================= */
-async function renderPacienti() {
-  $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav();
-  let d; try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+/* 0.11.80: kde se pacient nachází – podle PéčeDoma (synchronizace), jinak podle pracoviště DOMOV v týmu / textu pobytu */
+const mistoPac = (p) => { if (p.kde) return p.kde; const dm = vDomove(p); if (dm !== null) return dm ? 'DS ' + dm : 'DS'; return /^\s*doma\b/i.test(p.pobyt || '') ? 'Doma' : /hospit|nemocnic|ldn\b/i.test(p.pobyt || '') ? 'Hospitalizace' : ''; };
+const mistoKat = (t) => (!t ? 'nic' : /^doma/i.test(t) ? 'doma' : /^ds\b|domov/i.test(t) ? 'ds' : /hospit|nemoc|ldn/i.test(t) ? 'hosp' : 'jine');
+const MISTA_SEZ = [['', 'Vše'], ['doma', '🏠 Doma'], ['ds', '🏢 DS'], ['hosp', '🏥 Hospitalizace'], ['nic', 'neuvedeno']];
+async function renderPacienti(dCache) {
+  if (!dCache) { $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav(); }
+  let d = dCache; if (!d) try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
+  const vsichni = d.pacienti; if (S.misto === undefined) { try { S.misto = localStorage.getItem('kp_misto') || ''; } catch { S.misto = ''; } }
+  const pocty = {}; vsichni.forEach((p) => { const k = mistoKat(mistoPac(p)); pocty[k] = (pocty[k] || 0) + 1; });
+  d = { ...d, pacienti: S.misto ? vsichni.filter((p) => mistoKat(mistoPac(p)) === S.misto) : vsichni };
   const synch = (p) => !p.telefonu ? '<span class="chip">bez telefonu</span>' : `${p.telefonKarty ? `<div style="margin-bottom:3px">${telChip(p.telefonKarty)}</div>` : ''}<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ` <span class="muted" style="font-size:12px">${p.baterie} %</span>` : ''}`;
   $('work').innerHTML = `${nav()}
     ${d.upozorneni.length && S.stav === 'AKTIVNI' ? (() => {
@@ -227,9 +234,10 @@ async function renderPacienti() {
         <div class="alerts" style="padding:10px">${d.upozorneni.slice(0, 60).map((u) => `<div class="alert ${u.uroven}" data-p="${u.pacientId}">${esc(u.text)}</div>`).join('')}</div></details>`; })() : ''}
     <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>${S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_stitky" title="Samolepky 70 × 37 mm na zadní stranu telefonů – komu telefon patří a kam volat">🏷 Štítky na telefony</button>' : ''}${hledatHTML('pac', 'Hledat pacienta, adresu, garanta…')}
       <div class="seg" style="width:240px"><button data-s="AKTIVNI" class="${S.stav === 'AKTIVNI' ? 'on' : ''}">Aktivní</button><button data-s="UZAVRENY" class="${S.stav === 'UZAVRENY' ? 'on' : ''}">Uzavřené</button></div></div>
+      <div class="quick" id="p_mista" style="padding:8px 14px 0;align-items:center"><span class="lbl">Kde je:</span>${MISTA_SEZ.map(([k, n]) => `<button class="btn sm ${S.misto === k ? 'primary' : ''}" data-misto="${k}" type="button">${n}${k ? ' · ' + (pocty[k] || 0) : ' · ' + vsichni.length}</button>`).join('')}${S.pecedoma && S.pecedoma.nastaveno && jeLekar() && S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_pdsync" type="button" title="Načte z PéčeDoma u všech propojených pacientů léky, nejbližší návštěvu a kde se pacient nachází">↻ Načíst z PéčeDoma</button>' : ''}</div>
       <div class="tblwrap"><table class="tbl hover"><thead><tr><th>Průkaz</th><th>Pacient</th><th>Adresa</th><th>Garant</th><th>Plán</th><th>Telefon</th><th>Poslední zápis</th></tr></thead><tbody>
       ${d.pacienti.map((p) => `<tr data-id="${p.id}" class="${vDomove(p) !== null ? 'vdomove' : ''}"><td class="mono">${esc(p.kod)}</td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.rok || '')}${p.posledniKrize === 'Zhoršení stavu' ? ' · <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' · <span class="chip vio">předává se</span>' : ''}</div></td>
-        <td>${vDomove(p) !== null ? domovChip(vDomove(p)) + '<br>' : ''}${esc(p.adresa || p.pobyt || '—')}${p.adresa && p.pobyt && p.pobyt !== p.adresa ? `<div class="lbl">${esc(p.pobyt)}</div>` : ''}</td><td>${esc(p.garant || '—')}</td>
+        <td>${p.kde ? pdKde(p).trim() + (vDomove(p) ? ' ' + domovChip(vDomove(p)) : '') + '<br>' : vDomove(p) !== null ? domovChip(vDomove(p)) + '<br>' : mistoPac(p) ? pdKde({ kde: mistoPac(p) }).trim() + '<br>' : ''}${esc(p.adresa || p.pobyt || '—')}${p.adresa && p.pobyt && p.pobyt !== p.adresa ? `<div class="lbl">${esc(p.pobyt)}</div>` : ''}</td><td>${esc(p.garant || '—')}</td>
         <td>${p.platnostDo ? (KP.prosly(p.platnostDo) ? '<span class="chip crit">po platnosti</span>' : 'do ' + fmtD(p.platnostDo)) : '<span class="chip warn">chybí</span>'}<div class="lbl">${esc(CILE[p.cil] ? CILE[p.cil].split(' (')[0] : '')}${p.verze ? ' · v' + p.verze : ''}</div></td>
         <td>${S.stav === 'AKTIVNI' ? synch(p) : esc(fmtDT(p.uzavreno))}</td><td class="mono" style="font-size:12px">${esc(fmtDT(p.posledniZapis))}</td></tr>`).join('') || `<tr><td colspan="7" class="muted">${S.stav === 'AKTIVNI' ? 'Zatím žádný pacient.' + (jeLekar() ? ' Začněte tlačítkem „+ Nový pacient“.' : '') : 'Žádné uzavřené průkazy.'}</td></tr>`}
       </tbody></table></div></div>`;
@@ -238,6 +246,10 @@ async function renderPacienti() {
   document.querySelectorAll('.seg [data-s]').forEach((b) => (b.onclick = () => { S.stav = b.dataset.s; renderPacienti(); }));
   bindHledani('pac', 'tr[data-id]');
   if ($('p_stitky')) $('p_stitky').onclick = () => stitkyOkno(d.pacienti.filter((p) => p.telefonu).map((p) => p.id));
+  document.querySelectorAll('[data-misto]').forEach((b) => (b.onclick = () => { S.misto = b.dataset.misto; try { localStorage.setItem('kp_misto', S.misto); } catch { /* bez paměti */ } renderPacienti({ ...d, pacienti: vsichni }); }));
+  if ($('p_pdsync')) $('p_pdsync').onclick = async () => { const b = $('p_pdsync'); b.disabled = true; b.textContent = 'Načítám z PéčeDoma…';
+    try { const r = await C('/pecedoma/sync-vse', { method: 'POST', body: {} }); toast(`Načteno z PéčeDoma: ${r.ok} z ${r.celkem} propojených pacientů${r.chyby.length ? ' · chyba: ' + r.chyby[0] : ''}`, 7000); renderPacienti(); }
+    catch (e) { toast(e.message); b.disabled = false; b.textContent = '↻ Načíst z PéčeDoma'; } };
   if ($('upoz')) $('upoz').ontoggle = () => localStorage.setItem('kp_upoz', $('upoz').open ? '1' : '0');
 }
 /* 0.11.59: číslo připojeného telefonu s kartou týmu – hned v seznamu pacientů, v hlavičce detailu a v panelu Telefon u pacienta (klepnutím se volá) */
