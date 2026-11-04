@@ -978,13 +978,16 @@ function zPeceDoma(j) {
 /* stejné skupiny jako filtrační tlačítka v PéčeDoma (Klienti): 🏥 hospic (926), 🩺 odbornost 720, 📞 Linka paliativní podpory; víc najednou = sjednocení */
 const PD_SKUPINY = [['hospic', '🏥 Pacienti hospic (926)', '🏥 hospic', 'crit'], ['t720', '🩺 Pacienti odbornost 720', '🩺 720', 'acc'], ['lpp', '📞 Linka paliativní podpory', '📞 LPP', 'vio']];
 /* kde se pacient nachází (0.11.76): Doma / DS B / DS C / DS jiný / Hospitalizace – z adresáře PéčeDoma (stejná volba jako v PM103) */
+/* místo jako výběrový klíč (0.11.77) – server PéčeDoma (pecedoma-karta 2.38) vrací příznaky doma / ds / hosp a jejich počty */
+const PD_MISTA = [['doma', '🏠 Doma'], ['ds', '🏢 DS (domov pro seniory)'], ['hosp', '🏥 Hospitalizace']];
 const pdKde = (k) => { const t = String(k.kde || '').trim(); if (!t) return ''; const ik = /^doma/i.test(t) ? '🏠' : /^ds\b|domov/i.test(t) ? '🏢' : /hospit|nemoc|ldn/i.test(t) ? '🏥' : '📍';
   return ` <span class="chip ${/^doma/i.test(t) ? 'ok' : 'dom'}" style="font-size:11px" title="Kde se pacient nachází (PéčeDoma)">${ik} ${esc(t)}</span>`; };
 const pdStitky = (k) => pdKde(k) + PD_SKUPINY.filter(([kl]) => k[kl]).map(([, , st, b]) => ` <span class="chip ${b}" style="font-size:11px">${st}</span>`).join('');
 function vyberKlientaPd(vybrano) {
-  const filtr = { hospic: false, t720: false, lpp: false };
+  const filtr = { hospic: false, t720: false, lpp: false, doma: false, ds: false, hosp: false };
   modal(`<h2>Vybrat klienta z PéčeDoma</h2><div class="form"><div class="row"><input id="pdq" placeholder="jméno, rodné číslo nebo město" style="flex:1"><button class="btn primary" id="pdh">Hledat</button></div>
-    <div class="quick" id="pdf">${PD_SKUPINY.map(([k, n]) => `<button class="btn sm" data-f="${k}" type="button">${n}</button>`).join('')}</div><div class="hint" id="pdi">Stejné skupiny jako v PéčeDoma v Klientech – zapnuté tlačítko omezí seznam na skupinu, víc tlačítek najednou ukáže kohokoli z nich.</div>
+    <div class="quick" id="pdf">${PD_SKUPINY.map(([k, n]) => `<button class="btn sm" data-f="${k}" type="button">${n}</button>`).join('')}</div>
+    <div class="quick" id="pdm" style="margin-top:6px"><span class="lbl" style="align-self:center">Kde je:</span>${PD_MISTA.map(([k, n]) => `<button class="btn sm" data-f="${k}" type="button">${n}</button>`).join('')}</div><div class="hint" id="pdi">Stejné skupiny jako v PéčeDoma v Klientech – zapnuté tlačítko omezí seznam na skupinu, víc tlačítek najednou ukáže kohokoli z nich. Místo (Doma, DS, Hospitalizace) se se skupinou kombinuje: např. 🩺 720 + 🏢 DS = pacienti 720 v domově pro seniory.</div>
     <div id="pdl" class="tblwrap" style="max-height:55vh;overflow:auto"><div class="hint">Zadejte část jména nebo rodné číslo a stiskněte Hledat, nebo zapněte skupinu. Prázdné hledání vypíše všechny klienty.</div></div></div>`, (m) => {
     $('pdq').focus();
     const hledej = async () => {
@@ -993,14 +996,14 @@ function vyberKlientaPd(vybrano) {
         const f = Object.keys(filtr).filter((k) => filtr[k]).join(',');
         const r = await C('/pecedoma/klienti?q=' + encodeURIComponent($('pdq').value.trim()) + (f ? '&filtr=' + f : ''));
         if (r.skupiny) {
-          m.querySelectorAll('#pdf [data-f]').forEach((b) => { const n = r.skupiny[b.dataset.f]; if (typeof n === 'number') b.textContent = PD_SKUPINY.find(([k]) => k === b.dataset.f)[1] + ' · ' + n; });
+          m.querySelectorAll('#pdf [data-f], #pdm [data-f]').forEach((b) => { const n = r.skupiny[b.dataset.f]; if (typeof n === 'number') b.textContent = PD_SKUPINY.concat(PD_MISTA).find(([k]) => k === b.dataset.f)[1] + ' · ' + n; });
           if (r.skupiny.chyba) $('pdi').innerHTML = `<span class="chip warn">${esc(r.skupiny.chyba)}</span>`;
         }
         $('pdl').innerHTML = r.klienti.length ? `<table class="tbl hover"><tbody>${r.klienti.map((k) => `<tr data-k="${esc(k.id)}" style="cursor:pointer"><td><b>${esc(k.prijmeni)} ${esc(k.jmeno)}</b>${pdStitky(k)}<div class="lbl">${esc(k.rc || '')}${k.narozen ? ' · ' + esc(fmtD(k.narozen)) : ''}${k.mesto ? ' · ' + esc(k.mesto) : ''}${k.posledni_aktivita ? ' · poslední aktivita ' + esc(fmtD(k.posledni_aktivita)) : ''}</div></td><td class="mono">${esc(k.telefon || '')}</td></tr>`).join('')}</tbody></table>${r.klienti.length >= 200 ? '<div class="hint">Zobrazeno prvních 200 – upřesněte hledání.</div>' : ''}` : '<div class="hint">Nikdo nenalezen.</div>';
         m.querySelectorAll('tr[data-k]').forEach((tr) => (tr.onclick = () => { const k = r.klienti.find((x) => x.id === tr.dataset.k); closeModal(); vybrano(k); }));
       } catch (e) { $('pdl').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; }
     };
-    m.querySelectorAll('#pdf [data-f]').forEach((b) => (b.onclick = () => { filtr[b.dataset.f] = !filtr[b.dataset.f]; b.classList.toggle('primary', filtr[b.dataset.f]); hledej(); }));
+    m.querySelectorAll('#pdf [data-f], #pdm [data-f]').forEach((b) => (b.onclick = () => { filtr[b.dataset.f] = !filtr[b.dataset.f]; b.classList.toggle('primary', filtr[b.dataset.f]); hledej(); }));
     $('pdh').onclick = hledej; $('pdq').onkeydown = (e) => { if (e.key === 'Enter') hledej(); };
   });
 }

@@ -107,8 +107,8 @@ const pdNast = { odkaz: 'https://web-pecedoma.netlify.app/?iv=ukazka&data=ukazka
 const pdSync = { sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti', 'Midazolam 5 mg s.c. – při neklidu'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Furosemid 40 mg – 1-0-0', 'Lactulosa 15 ml – 1-0-1'],
   pristiNavsteva: den(2) + ' 09:30', pristiKdo: 'lékař MUDr. Petra Ukázková, sestra Lucie Příkladná', pristiPozn: 'Návštěva lékaře · Plánováno · Zlín', aktualizovano: cas(0, '08:05'), chyba: null };
 const pdKlienti = [
-  { id: 'a1b2c3d4-0000-4000-8000-000000000001', jmeno: 'Anna', prijmeni: 'Vzorová', rc: '505512/1234', narozen: '1950-05-12', mesto: 'Zlín', telefon: '777 000 456', posledni_aktivita: den(-5), hospic: true, t720: true, lpp: true, kde: 'Doma' },
-  { id: 'a1b2c3d4-0000-4000-8000-000000000002', jmeno: 'Josef', prijmeni: 'Vzorek', rc: '480508/1111', narozen: '1948-05-08', mesto: 'Otrokovice', telefon: '', posledni_aktivita: den(-12), hospic: false, t720: true, lpp: false, kde: 'DS C' },
+  { id: 'a1b2c3d4-0000-4000-8000-000000000001', jmeno: 'Anna', prijmeni: 'Vzorová', rc: '505512/1234', narozen: '1950-05-12', mesto: 'Zlín', telefon: '777 000 456', posledni_aktivita: den(-5), hospic: true, t720: true, lpp: true, kde: 'Doma', doma: true, ds: false, hosp: false },
+  { id: 'a1b2c3d4-0000-4000-8000-000000000002', jmeno: 'Josef', prijmeni: 'Vzorek', rc: '480508/1111', narozen: '1948-05-08', mesto: 'Otrokovice', telefon: '', posledni_aktivita: den(-12), hospic: false, t720: true, lpp: false, kde: 'DS C', doma: false, ds: true, hosp: false },
 ];
 const detail = {
   pacient, plan,
@@ -228,7 +228,7 @@ app.get('/api/c/video/aktivni', j(() => ({ server: 'https://jitsi.example.org', 
 app.get('/api/d/leky', j({ leky: pdLeky }));
 app.post('/api/d/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky }; }));
 app.post('/api/d/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky }; }));
-app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(), f = String(req.query.filtr || '').split(',').filter(Boolean); return { klienti: pdKlienti.filter((k) => (!f.length || f.some((x) => k[x])) && (!q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q))), skupiny: { hospic: 1, t720: 2, lpp: 1, chyba: null } }; }));
+app.get('/api/c/pecedoma/klienti', j((req) => { const q = String(req.query.q || '').toLowerCase(), f = String(req.query.filtr || '').split(',').filter(Boolean); return { klienti: pdKlienti.filter((k) => (!f.length || f.some((x) => k[x])) && (!q || (k.prijmeni + ' ' + k.jmeno + ' ' + k.rc + ' ' + k.mesto).toLowerCase().includes(q))), skupiny: { hospic: 1, t720: 2, lpp: 1, doma: 1, ds: 1, hosp: 0, chyba: null } }; }));
 app.get('/api/c/pecedoma/klient/:id', j((req) => ({ karta: pecedomaJson, klientId: req.params.id })));
 app.post('/api/c/pacient/:id/pecedoma', j({ sync: pdSync }));
 app.post('/api/c/pacient/:id/pecedoma/sync', j({ sync: pdSync }));
@@ -351,7 +351,7 @@ await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', 
 await foto(p, 'c-novy-1');
 await p.setInputFiles('#w_csvp', { name: 'pacienti.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffjmeno;prijmeni;rodne_cislo;datum_narozeni;pohlavi;pobyt;adresa;telefon_karty;cil;limity;dg;kontakt1_jmeno;kontakt1_telefon;kontakt1_skupina\nMarie;Vzorová;460512/1234;1946-05-12;žena;doma;Dlouhá 12, Zlín;+420 777 000 123;symptom;KPR | Hospitalizace;C50 karcinom prsu;Jana Vzorová, dcera;+420 777 000 321;ROZHODUJE\nJosef;Dvořák;480508/1111;;muž;Domov Pohoda, pokoj 12;Otrokovice;601 111 222;limited;KPR;CHOPN IV;Petr Dvořák, syn;602 333 444;INFORMOVAT\nKarel;Bezčísla;;;muž;doma;;;symptom;;;;;\n') });
 await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(300); await foto(p, 'c-novy-csv'); await p.evaluate(() => closeModal());
-await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]');
+await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]'); await p.waitForTimeout(300);
 await foto(p, 'c-novy-pecedoma');
 await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });
