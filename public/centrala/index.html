@@ -1246,6 +1246,7 @@ async function renderLide() {
   if ($('l_new')) $('l_new').onclick = () => osobaOkno({ poskytovatelId: Number(S.lideFiltr) || (spravuji.find((p) => p.id === S.ja.poskytovatelId) || spravuji[0]).id });
   if ($('l_tym')) $('l_tym').onclick = () => tymOkno({ poskytovatelId: Number(S.lideFiltr) || (spravuji.find((p) => p.id === S.ja.poskytovatelId) || spravuji[0]).id });
   document.querySelectorAll('[data-tid]').forEach((b) => (b.onclick = () => { const t = S.tymy.find((x) => x.id === Number(b.dataset.tid)); if (t && smiLidi(t.poskytovatelId)) tymOkno(t); }));
+  document.querySelectorAll('[data-tletak]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const t = (S.tymy || []).find((x) => x.id === Number(b.dataset.tletak)); if (t) letakTelefonu(t); }));   // 0.11.86
   if ($('l_csv')) $('l_csv').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const r = ctiCsv(await textSouboru(f)); if (!r.length) return toast('V souboru nejsou žádní lidé'); importOkno(r, 'CSV'); } catch (err) { toast(err.message); } };
   if ($('l_pd')) $('l_pd').onclick = async () => { try { const r = await C('/lide/pecedoma'); if (!r.lide.length) return toast('V PéčeDoma pro tuto organizaci nikdo není'); importOkno(r.lide, 'PECEDOMA'); } catch (e) { toast(e.message); } };
   if ($('l_pd_akt')) $('l_pd_akt').onclick = () => aktualizovatZPd({ poskytovatelId: Number(S.lideFiltr) || (spravuji.find((p) => p.id === S.ja.poskytovatelId) || spravuji[0]).id });
@@ -1325,8 +1326,77 @@ function tymyBlok(lide) {
   if (!tymy.length && !psIds.size) return '';
   const sk = seskup(tymy, (t) => t.poskytovatel);
   return `<div class="panel"><div class="panel-h"><h2>Týmy</h2><span class="chip acc">${tymy.filter((t) => t.aktivni).length}</span></div>
-    ${tymy.length ? `<div class="tblwrap"><table class="tbl hover"><thead><tr><th>Tým</th><th>Založil (garant)</th><th>Členů</th><th>Pacientů</th><th></th></tr></thead><tbody>${[...sk].map(([ps, ts]) => ts.map((t) => `<tr data-trow="${t.id}"><td><b>${esc(t.nazev)}</b>${t.aktivni ? '' : ' <span class="chip">zrušený</span>'}${t.prirazenVzdy ? ' <span class="chip ok" title="automaticky u každé karty pacienta, kde je pracoviště garantem">přiřazen vždy</span>' : ''}${t.telefonu ? ` <span class="chip acc" title="tým se přiřazuje pacientům v zatržených telefonech s kartou">📱 ${t.telefonu} ${t.telefonu === 1 ? 'telefon' : t.telefonu < 5 ? 'telefony' : 'telefonů'}</span>` : ''}${t.popis ? `<div class="lbl">${esc(t.popis)}</div>` : ''}</td><td>${esc(ps)}</td><td>${t.clenu}</td><td>${t.pacientu}</td><td style="text-align:right">${smiLidi(t.poskytovatelId) ? `<button class="btn sm" data-tid="${t.id}">Upravit</button>` : ''}</td></tr>`).join('')).join('')}</tbody></table></div>`
+    ${tymy.length ? `<div class="tblwrap"><table class="tbl hover"><thead><tr><th>Tým</th><th>Založil (garant)</th><th>Členů</th><th>Pacientů</th><th></th></tr></thead><tbody>${[...sk].map(([ps, ts]) => ts.map((t) => `<tr data-trow="${t.id}"><td><b>${esc(t.nazev)}</b>${t.aktivni ? '' : ' <span class="chip">zrušený</span>'}${t.prirazenVzdy ? ' <span class="chip ok" title="automaticky u každé karty pacienta, kde je pracoviště garantem">přiřazen vždy</span>' : ''}${t.telefonu ? ` <span class="chip acc" title="tým se přiřazuje pacientům v zatržených telefonech s kartou">📱 ${t.telefonu} ${t.telefonu === 1 ? 'telefon' : t.telefonu < 5 ? 'telefony' : 'telefonů'}</span>` : ''}${t.popis ? `<div class="lbl">${esc(t.popis)}</div>` : ''}</td><td>${esc(ps)}</td><td>${t.clenu}</td><td>${t.pacientu}</td><td style="text-align:right">${t.telefonu ? `<button class="btn sm" data-tletak="${t.id}" title="Leták A4 k telefonu: k čemu slouží, jak ho použít a seznam pacientů v telefonu">🖨 Leták k telefonu</button> ` : ''}${smiLidi(t.poskytovatelId) ? `<button class="btn sm" data-tid="${t.id}">Upravit</button>` : ''}</td></tr>`).join('')).join('')}</tbody></table></div>`
       : '<div class="note" style="margin:12px 14px">Zatím žádný tým. Založte ho tlačítkem + Tým a vyberte členy – i z jiných pracovišť (domov, praktik); u pacienta se pak přiřazuje celý tým.</div>'}</div>`;
+}
+/* ---- leták k telefonu oddělení (0.11.86): A4 k vytištění z agendy Lidé a týmy u týmu se zatrženým telefonem s kartou.
+   Grafika podle informačního letáku PéčeDoma a Karta pacienta (modrá #0060AA, červený štítek, logo Centra); k čemu telefon
+   slouží, jak ho použít, obrázek telefonu (snímek výběru pacienta z nápovědy) a seznam pacientů v telefonu (do 20 na jednu stranu).
+   Jen jména a kódy průkazů pacientů, které uživatel vidí – žádné zdravotní údaje. ---- */
+async function letakTelefonu(t) {
+  let r; try { r = await C('/tym-lidi/telefony?tym=' + t.id); } catch (e) { return toast(e.message); }
+  const tel = r.telefony.filter((x) => x.vybran);
+  if (!tel.length) return toast('Tým nemá zatržený žádný telefon s kartou (Upravit → Telefony s kartou)');
+  const tiskni = (x) => {
+    const ps = S.posk.find((p) => p.id === t.poskytovatelId) || {};
+    const garant = (S.posk.find((p) => p.id === (S.ja || {}).poskytovatelId) || {});
+    const volat = ps.telefon24 || garant.telefon24 || '';
+    const org = garant.nazev || ps.nazev || 'Centrum pro léčbu bolesti a paliativní medicínu s.r.o.';
+    const pac = x.pacienti.slice().sort((a, b) => a.jmeno.localeCompare(b.jmeno, 'cs'));
+    const husto = pac.length > 12;
+    const w = window.open('', '_blank'); if (!w) return toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
+    const o = location.origin;
+    w.document.write(`<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Leták k telefonu ${esc(x.hezky)} – Karta pacienta</title><style>
+      @page{size:A4;margin:10mm 12mm 12mm}*{box-sizing:border-box}body{margin:0;font-family:Calibri,'Segoe UI',system-ui,-apple-system,Arial,sans-serif;color:#1f2a37;font-size:9pt;line-height:1.3}
+      .hl{display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;border-bottom:.6mm solid #0060AA;padding-bottom:2mm}
+      .stitek{color:#D52B1E;font-weight:700;letter-spacing:.8pt;font-size:8.5pt;text-transform:uppercase}h1{color:#0060AA;font-size:17pt;margin:.5mm 0 .5mm;line-height:1.1}
+      .pod{color:#55657A;font-size:9.5pt}.logo{height:17mm}
+      .tel{display:flex;gap:6mm;align-items:center;background:#E4EEF8;border:.3mm solid #B9CDE3;border-radius:2.5mm;padding:2mm 4mm;margin:3mm 0}
+      .tel .c{font-size:16pt;font-weight:800;color:#0060AA;letter-spacing:.4pt}.tel .i{font-size:8.5pt;color:#334}.tel .i b{color:#1f2a37}
+      .grid{display:grid;grid-template-columns:1fr 38mm;gap:5mm;align-items:start}
+      h2{color:#0060AA;font-size:11pt;margin:2.2mm 0 1mm}p{margin:0 0 1.5mm}ol{margin:0;padding-left:4.5mm}ol li{margin:0 0 .8mm}
+      .pozor{background:#FFF6E5;border-left:1.2mm solid #E09B2D;padding:1.5mm 2.5mm;margin:2mm 0 0;font-size:8.5pt}
+      .mobil{width:38mm;height:72mm;border:2mm solid #1f2a37;border-radius:5mm;overflow:hidden;background:#fff;box-shadow:0 1mm 3mm rgba(0,0,0,.25)}.mobil img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
+      .popis{font-size:7.5pt;color:#55657A;text-align:center;margin-top:1mm}
+      table{width:100%;border-collapse:collapse;font-size:${husto ? '8.5pt' : '9.5pt'}}th{background:#0060AA;color:#fff;text-align:left;font-weight:600;padding:${husto ? '.8mm 1.5mm' : '1.2mm 2mm'}}
+      td{border-bottom:.2mm solid #B9CDE3;padding:${husto ? '.7mm 1.5mm' : '1.1mm 2mm'}}tr:nth-child(even) td{background:#F4F8FC}td.n{width:8mm;color:#55657A}td.k{font-family:ui-monospace,Consolas,monospace;width:${husto ? '15mm' : '24mm'}}td.r{width:${husto ? '11mm' : '22mm'}}
+      .pata{margin-top:4mm;text-align:center;font-size:7.5pt;color:#0060AA;border-top:.3mm solid #B9CDE3;padding-top:1.2mm}
+      @media screen{body{background:#888;padding:8mm}.list{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:10mm 12mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.4)}}
+    </style></head><body><div class="list">
+      <div class="hl"><div><div class="stitek">Informace k telefonu · Karta pacienta on-line</div><h1>Telefon s kartami pacientů</h1><div class="pod">${esc(t.nazev)}${t.popis ? ' · ' + esc(t.popis) : ''}</div></div>
+        <img class="logo" src="${o}/img/logo-centrum.png" alt="Centrum pro léčbu bolesti a paliativní medicínu"></div>
+      <div class="tel"><div><div class="i">Tento telefon</div><div class="c">${esc(x.hezky)}</div></div><div class="i">Telefon patří: <b>${esc(org)}</b><br>Tým: <b>${esc(t.nazev)}</b> · pacientů v telefonu: <b>${pac.length + x.skrytych}</b><br>Při ztrátě nebo potížích volejte: <b>${esc(volat || '—')}</b></div></div>
+      <div class="grid"><div>
+        <h2>K čemu telefon slouží</h2>
+        <p>V telefonu jsou <b>krizové karty pacientů</b> uvedených níže: kdo pacienta léčí, jaký je cíl péče a co se při zhoršení stavu dělá a nedělá, záchranné (SOS) léky a <b>koho volat</b>. Kartu vidí bez PINu každý u lůžka i zdravotnická záchranná služba. Tým po odemknutí svým PINem zapisuje do deníku, hlásí zhoršení stavu a může zahájit videohovor s lékařem.</p>
+        <h2>Jak ho použít</h2>
+        <ol>
+          <li>Telefon nechte <b>zapnutý, nabitý a připojený k internetu</b> (Wi-Fi) na stálém místě. Aplikace Karta pacienta se spouští sama.</li>
+          <li>Na úvodní obrazovce <b>vyberte pacienta</b> ze seznamu – otevře se jeho zamčená krizová karta.</li>
+          <li>Při zhoršení stavu postupujte podle karty a <b>volejte kontakty v oddílu Koho volat</b>; záchranná služba (155) kartu vidí bez PINu.</li>
+          <li>Člen týmu klepne na <b>Přístup tým</b> a zadá svůj <b>osobní PIN</b> – může zapsat poznámku, zhoršení nebo zahájit videohovor.</li>
+          <li>Po práci telefon <b>zamkněte</b> (ikona zámku) – vrátí se na výběr pacienta pro dalšího člověka.</li>
+        </ol>
+        <div class="pozor">PIN nikomu nesdělujte. Telefon neodnášejte z oddělení a nevkládejte do něj jinou SIM kartu. Jeho data jsou šifrovaná; při ztrátě je garant na dálku smaže.</div>
+      </div><div><div class="mobil"><img src="${o}/napoveda/img/k-zamceno.png" alt="Ukázka vzorové krizové karty v telefonu"></div><div class="popis">Ukázka vzorové krizové karty (smyšlený pacient)</div></div></div>
+      <h2>Pacienti, jejichž karta je v tomto telefonu</h2>
+      ${(() => {   // víc než 12 pacientů → dva sloupce vedle sebe, ať se 20 pacientů vejde na jednu stranu A4
+        const tab = (rows, od) => `<table><thead><tr><th></th><th>Pacient</th><th>${husto ? 'Rok' : 'Rok narození'}</th><th>${husto ? 'Kód' : 'Kód průkazu'}</th></tr></thead><tbody>${rows.map((p, i) => `<tr><td class="n">${od + i + 1}</td><td><b>${esc(p.jmeno)}</b></td><td class="r">${esc(p.rok || '')}</td><td class="k">${esc(p.kod)}</td></tr>`).join('')}</tbody></table>`;
+        const skryti = x.skrytych ? `<div style="color:#55657A;font-size:9.5pt;margin-top:1.5mm">+ ${x.skrytych} ${x.skrytych === 1 ? 'další pacient' : x.skrytych < 5 ? 'další pacienti' : 'dalších pacientů'} (mimo vaše pracoviště)</div>` : '';
+        if (!pac.length) return '<p>Zatím žádný pacient.</p>' + skryti;
+        if (!husto) return tab(pac, 0) + skryti;
+        const pul = Math.ceil(pac.length / 2);
+        return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4mm">${tab(pac.slice(0, pul), 0)}${tab(pac.slice(pul), pul)}</div>` + skryti;
+      })()}
+      <div class="pata">${esc(org)} · Karta pacienta on-line · stav k ${esc(new Date().toLocaleDateString('cs-CZ'))} – seznam se mění, při změně vytiskněte znovu</div>
+    </div><script>window.onload = () => setTimeout(() => print(), 300)<\/script></body></html>`);
+    w.document.close();
+  };
+  if (tel.length === 1) return tiskni(tel[0]);
+  modal(`<h2>Leták k telefonu</h2><p class="muted" style="margin:0">Tým má zatržených ${tel.length} telefonů – vyberte, ke kterému leták vytisknout.</p>
+    <div class="quick" style="flex-direction:column;align-items:stretch">${tel.map((x, i) => `<button class="btn" data-ltel="${i}"><b class="mono">${esc(x.hezky)}</b> · ${x.pacienti.length + x.skrytych} pacientů</button>`).join('')}</div>`, (m) => {
+    m.querySelectorAll('[data-ltel]').forEach((b) => (b.onclick = () => { closeModal(); tiskni(tel[Number(b.dataset.ltel)]); }));
+  });
 }
 function tymOkno(t) {
   const spravuji = S.posk.filter((p) => p.aktivni && smiLidi(p.id));

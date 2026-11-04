@@ -1146,12 +1146,12 @@ central.post('/tym-lidi/:id/smazat', sUzivatelem(async (q, s, req) => {
 /* 0.11.85: zapůjčené telefony s kartou a pacienti v nich – pro zatržení u týmu. Jména jen u pacientů, které uživatel vidí (jako v přehledu). */
 central.get('/tym-lidi/telefony', sUzivatelem(async (q, s, req) => {
   const tym = cislo(req.query.tym);
-  const rows = await q.all(`SELECT z.Telefon AS telefon, p.PacientID AS id, p.Prijmeni AS prijmeni, p.Jmeno AS jmeno, p.KodPrukazu AS kod, CASE WHEN ${VIDITELNI} THEN 1 ELSE 0 END AS vidim
+  const rows = await q.all(`SELECT z.Telefon AS telefon, p.PacientID AS id, p.Prijmeni AS prijmeni, p.Jmeno AS jmeno, p.KodPrukazu AS kod, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, CASE WHEN ${VIDITELNI} THEN 1 ELSE 0 END AS vidim
     FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
     WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND p.Stav = 'AKTIVNI' AND z.Telefon IS NOT NULL ORDER BY z.Telefon, p.Prijmeni, p.Jmeno`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
   const vybrane = tym ? (await q.all(`SELECT Telefon FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t`, { t: tym })).map((x) => x.Telefon) : [];
   const m = new Map();
-  for (const r of rows) { const t = m.get(r.telefon) || { telefon: r.telefon, hezky: hezkyTel(r.telefon), pacienti: [], skrytych: 0, vybran: vybrane.includes(r.telefon) }; if (r.vidim) t.pacienti.push({ id: r.id, jmeno: `${r.prijmeni} ${r.jmeno}`, kod: r.kod }); else t.skrytych++; m.set(r.telefon, t); }
+  for (const r of rows) { const t = m.get(r.telefon) || { telefon: r.telefon, hezky: hezkyTel(r.telefon), pacienti: [], skrytych: 0, vybran: vybrane.includes(r.telefon) }; if (r.vidim) t.pacienti.push({ id: r.id, jmeno: `${r.prijmeni} ${r.jmeno}`, kod: r.kod, rok: r.rok }); else t.skrytych++; m.set(r.telefon, t); }
   for (const x of vybrane) if (!m.has(x)) m.set(x, { telefon: x, hezky: hezkyTel(x), pacienti: [], skrytych: 0, vybran: true });   // zatržený telefon zatím bez průkazu
   return { telefony: [...m.values()].sort((a, b) => (b.pacienti.length + b.skrytych) - (a.pacienti.length + a.skrytych)) };
 }));

@@ -79,7 +79,7 @@ const lide = [
 // týmy lidí (0.10.0): hlavičky týmů, týmy u pacienta s členy (člen 3 u pacienta deaktivován), nabídka dalších týmů
 const tymy = [
   { id: 1, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Zlín', popis: 'Zlín a okolí', aktivni: 1, prirazenVzdy: 1, clenu: 5, pacientu: 3 },
-  { id: 2, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Otrokovice', popis: '', aktivni: 1, clenu: 2, pacientu: 1 },
+  { id: 2, poskytovatelId: 1, poskytovatel: 'Hospic Ukázka', nazev: 'Tým Otrokovice', popis: 'Domov seniorů Otrokovice C', aktivni: 1, clenu: 2, pacientu: 1, telefonu: 1 },
   { id: 3, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení A', popis: 'přízemí', aktivni: 1, clenu: 2, pacientu: 5 },
   { id: 4, poskytovatelId: 3, poskytovatel: 'Domov Pohoda', nazev: 'Oddělení B', popis: '', aktivni: 1, clenu: 1, pacientu: 3 },
 ];
@@ -249,7 +249,7 @@ app.post('/api/c/pacient/:id/zarizeni', j({ ok: true }));
 app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', 'https://kartapacienta.example/pacient/#p=…') } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
 app.get('/api/c/tym-lidi/telefony', j(() => ({ telefony: [   // 0.11.85: telefony s kartou v okně týmu
-  { telefon: '+420722916951', hezky: '+420 722 916 951', pacienti: [{ id: 1, jmeno: 'Zkušební Marie', kod: 'P-0007' }, { id: 2, jmeno: 'Příkladný Josef', kod: 'P-0008' }], skrytych: 1, vybran: true },
+  { telefon: '+420722916951', hezky: '+420 722 916 951', pacienti: [{ id: 1, jmeno: 'Zkušební Marie', kod: 'P-0007', rok: 1941 }, { id: 2, jmeno: 'Příkladný Josef', kod: 'P-0008', rok: 1938 }, ...['Vzorová Anna', 'Ukázková Jana', 'Testovací Karel', 'Příkladná Eva', 'Zkušební Jiří', 'Modelová Věra', 'Vzorný Pavel', 'Ukázkový Jan', 'Pokusná Ludmila', 'Smyšlená Olga', 'Ukázková Marta', 'Vzorová Alena', 'Pokusný Milan', 'Testovací Hana', 'Modelový Petr', 'Zkušební Věra', 'Příkladný Karel'].map((jm, i) => ({ id: 10 + i, jmeno: jm, kod: 'P-00' + (10 + i), rok: 1930 + i * 2 }))], skrytych: 1, vybran: true },
   { telefon: '+420777000123', hezky: '+420 777 000 123', pacienti: [{ id: 3, jmeno: 'Vzorová Anna', kod: 'P-0009' }], skrytych: 0, vybran: false }] })));
 app.get('/api/c/lide', j({ lide, tymy, clenstvi, role: { LEKAR: 'Lékař a spec. sestra', PL: 'Praktický lékař', HOSPIC: 'Hospic', SESTRA: 'Sestra DPS' }, smsDostupne: true }));
 app.get('/api/c/lide/pecedoma', j({ lide: pdTym }));
@@ -480,6 +480,16 @@ await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok'); await p.wait
 if ((await p.$$('[data-ttel]')).length !== 2 || (await p.$$('[data-ttel]:checked')).length !== 1) chyby.push('okno týmu: chybí telefony s kartou');
 if ((await p.$$('[data-tcl]:checked')).length !== 5) chyby.push('okno týmu nemá zaškrtnuté členy týmu');
 await foto(p, 'c-tym-okno');
+await p.evaluate(() => KP.closeModal());
+// 0.11.86: leták k telefonu – A4 z řádku týmu se zatrženým telefonem
+{ const cekej = p.context().waitForEvent('page', { timeout: 10000 }); await klik(p, '[data-tletak="2"]'); const okno = await cekej; await okno.waitForLoadState(); await okno.waitForTimeout(600);
+  await okno.setViewportSize({ width: 900, height: 1250 });
+  const t = await okno.textContent('body'); if (!t.includes('+420 722 916 951') || !t.includes('Zkušební Marie') || !t.includes('Jak ho použít')) chyby.push('leták k telefonu: chybí číslo, pacienti nebo návod');
+  if (await okno.evaluate(() => [...document.images].some((i) => !i.complete || !i.naturalWidth))) chyby.push('leták k telefonu: nenačetlo se logo nebo obrázek telefonu');
+  { const pdf = await okno.pdf({ format: 'A4', printBackground: true }); const stran = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length; require_fs_ulozit: { const fs = await import('node:fs'); fs.writeFileSync(process.env.LETAK_PDF || '/dev/null', pdf); }
+  if (stran !== 1) chyby.push(`leták k telefonu: 20 pacientů se nevešlo na jednu stranu A4 (${stran} stran)`); }
+  await okno.screenshot({ path: path.join(VYSTUP, 'c-letak-telefon.png'), fullPage: true }); console.log('  ✓ c-letak-telefon'); await okno.close(); }
+await klik(p, '[data-tid="1"]'); await p.waitForSelector('#tm_ok');
 await klik(p, '#tm_piny'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk'); await p.waitForSelector('#pn_tisk');
 if ((await p.$$('.modal .tbl tbody tr')).length !== 5) chyby.push('kartičky týmu: čekáno 5 PINů, je ' + (await p.$$('.modal .tbl tbody tr')).length);
 if (!(await p.textContent('.modal')).includes('nový PIN')) chyby.push('kartičky týmu: chybí označení nového PINu');
