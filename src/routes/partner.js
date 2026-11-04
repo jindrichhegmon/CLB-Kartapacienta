@@ -26,7 +26,7 @@ import { h, chyba, omez, ip, text } from '../http.js';
 import { desifruj, kodDne, konecDnePraha, podepis } from '../crypto.js';
 import { audit, roleSeznam, zapisDenik } from '../kp.js';
 import { normTel, hezkyTel } from '../telefon.js';
-import { zalozPacienta } from './central.js';
+import { zalozPacienta, srovnejTymyTelefonu } from './central.js';
 
 export const partner = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -138,6 +138,7 @@ partner.post('/telefon-karty', h(async (req) => {
     const n = await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @id AND Stav IN ('SPAROVANO', 'CEKA') AND Rezim = 'ZAPUJCENY' AND ISNULL(Telefon, N'') <> @tk`, { id: p.PacientID, tk: telKarty });
     await zapisDenik(q, { pacientId: p.PacientID, typ: 'Systém', text: `Číslo telefonu s kartou změněno v PéčeDoma na ${hezkyTel(telKarty)}.${n ? ' Telefon na předchozím čísle byl zablokován – při připojení se z něj karta smaže.' : ''}`, autor: kdo, role: 'system' });
     await audit(q, { kdo, pacientId: p.PacientID, akce: 'úprava údajů z PéčeDoma', detail: `telefon s kartou ${p.TelefonKarty || '–'} → ${telKarty}`, ip: ip(req) });
+    await srovnejTymyTelefonu(q, p.PacientID, null, kdo);   // 0.11.89: tým přiřazený přes předchozí telefon odejde
     return { telefonKarty: telKarty, zmeneno: true, zablokovano: n || 0 };
   });
 }));

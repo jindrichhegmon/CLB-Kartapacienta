@@ -340,6 +340,7 @@ central.post('/pacient/:id/udaje', sUzivatelem(async (q, s, req) => {
   if (dosud && dosud.TelefonKarty !== telKarty) {
     // karta smí být jen na novém čísle: telefon spárovaný s jiným číslem se zablokuje (při připojení se vymaže), čekající kódy propadnou
     const n = await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @id AND Stav IN ('SPAROVANO', 'CEKA') AND Rezim = 'ZAPUJCENY' AND ISNULL(Telefon, N'') <> @tk`, { id, tk: telKarty });
+    await srovnejTymyTelefonu(q, id, s.uzivatelId, s.jmeno);   // 0.11.89
     await zapisDenik(q, { pacientId: id, typ: 'Systém', text: `Číslo telefonu s kartou změněno na ${hezkyTel(telKarty)}.${n ? ' Telefon na předchozím čísle byl zablokován – při připojení se z něj karta smaže.' : ''}`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
   }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'úprava údajů', ip: s.ip });
@@ -656,6 +657,7 @@ central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
     ? (akce === 'zablokovat' ? 'Přístup ve vlastním telefonu pacienta ukončen – data od lékaře se v něm přestanou aktualizovat (co už pacient má, zůstává jeho kopií).' : akce === 'zrusit' ? 'Nabídka průkazu pro vlastní telefon zrušena – kód už nejde použít.' : 'Vlastní telefon pacienta odebrán ze seznamu.')
     : (akce === 'zablokovat' ? 'Telefon zablokován – při příštím připojení se data v něm smažou.' : 'Telefon vrácen provozovateli.'), autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: `telefon: ${akce}`, ip: s.ip });
+  await srovnejTymyTelefonu(q, id, s.uzivatelId, s.jmeno);   // 0.11.89: tým přiřazený přes tento telefon odejde
 }));
 
 central.post('/pacient/:id/pin', sUzivatelem(async (q, s, req) => {
@@ -995,13 +997,13 @@ async function zajistiTymyVzdy(q, pacientId, uzivatelId = null) {
 }
 
 /** 0.11.85: přiřadí jeden tým k pacientovi (stejně jako „přiřadit vždy“: obnoví dřív deaktivované členy, synchronizuje, audit). Vrací 1 = nově přiřazen. */
-async function priradTymPacientovi(q, pacientId, tymId, uzivatelId, duvod) {
+async function priradTymPacientovi(q, pacientId, tymId, uzivatelId, duvod, zdrojTelefon = null) {
   const t = await q.one(`SELECT t.TymLidiID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
     WHERE t.TymLidiID = @t AND t.Aktivni = 1 AND ps.Aktivni = 1 AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = @p AND pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1)`, { t: tymId, p: pacientId });
   if (!t) return 0;
   const puv = await q.one(`SELECT TOP 1 PacientTymID FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t ORDER BY PacientTymID DESC`, { p: pacientId, t: t.TymLidiID });
-  if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: uzivatelId });
-  else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID) VALUES (@p, @t, @u)`, { p: pacientId, t: t.TymLidiID, u: uzivatelId });
+  if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u, ZdrojTelefon = @zt WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: uzivatelId, zt: zdrojTelefon });
+  else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID, ZdrojTelefon) VALUES (@p, @t, @u, @zt)`, { p: pacientId, t: t.TymLidiID, u: uzivatelId, zt: zdrojTelefon });
   await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0
       AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba x WHERE x.PacientID = po.PacientID AND x.OsobaID = po.OsobaID AND x.Aktivni = 1)
       AND po.PacientOsobaID = (SELECT MAX(y.PacientOsobaID) FROM dbo.A_KP_PacientOsoba y WHERE y.PacientID = po.PacientID AND y.OsobaID = po.OsobaID AND y.TymLidiID = @t)`, { p: pacientId, t: t.TymLidiID });
@@ -1013,8 +1015,30 @@ async function priradTymPacientovi(q, pacientId, tymId, uzivatelId, duvod) {
 export async function priradTymyTelefonu(q, pacientId, telefon, uzivatelId = null) {
   const tel = normTel(telefon); if (!tel) return 0;
   let n = 0;
-  for (const t of await q.all(`SELECT TymLidiID FROM dbo.A_KP_TymTelefon WHERE Telefon = @tel`, { tel })) n += await priradTymPacientovi(q, pacientId, t.TymLidiID, uzivatelId, `telefon s kartou ${hezkyTel(tel)}`);
+  for (const t of await q.all(`SELECT TymLidiID FROM dbo.A_KP_TymTelefon WHERE Telefon = @tel`, { tel })) n += await priradTymPacientovi(q, pacientId, t.TymLidiID, uzivatelId, `telefon s kartou ${hezkyTel(tel)}`, tel);
   return n;
+}
+/** 0.11.89: tým přiřazený přes telefon s kartou (ZdrojTelefon) odejde od pacienta, který v tom telefonu už není (nové číslo, zablokování,
+ *  vrácení, odebrání z telefonu) nebo jehož telefon tým odtrhl. Je-li pacient v jiném telefonu téhož týmu, jen se přepíše zdroj.
+ *  Ručně přidané týmy a týmy „přiřazen vždy“ se nemění. Vrací počet odebraných týmů. */
+export async function srovnejTymyTelefonu(q, pacientId, uzivatelId = null, kdo = 'systém') {
+  const rows = await q.all(`SELECT pt.PacientTymID, pt.TymLidiID, pt.ZdrojTelefon, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_PacientTym pt
+      JOIN dbo.A_KP_TymLidi t ON t.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE pt.PacientID = @p AND pt.Aktivni = 1 AND pt.ZdrojTelefon IS NOT NULL AND t.PrirazenVzdy = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = pt.TymLidiID
+        WHERE z.PacientID = pt.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.Telefon = pt.ZdrojTelefon)`, { p: pacientId });
+  let odebrano = 0;
+  for (const r of rows) {
+    const jiny = await q.one(`SELECT TOP 1 z.Telefon FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = @t
+      WHERE z.PacientID = @p AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY'`, { p: pacientId, t: r.TymLidiID });
+    if (jiny) { await q.exec(`UPDATE dbo.A_KP_PacientTym SET ZdrojTelefon = @zt WHERE PacientTymID = @i`, { zt: jiny.Telefon, i: r.PacientTymID }); continue; }
+    await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 0, Do = SYSDATETIME() WHERE PacientTymID = @i`, { i: r.PacientTymID });
+    await synchronizujTymUPacientu(q, r.TymLidiID, uzivatelId);
+    await zapisDenik(q, { pacientId, typ: 'Systém', text: `Tým ${r.Nazev} (${r.Pracoviste}) odebrán – pacient už není v telefonu ${hezkyTel(r.ZdrojTelefon)}, přes který byl tým přiřazen.`, autor: kdo, role: 'system', uzivatelId });
+    await audit(q, { uzivatelId, kdo, pacientId, akce: 'přístup ke kartě (tým)', detail: `− ${r.Nazev} (${r.Pracoviste}) – už není v telefonu ${hezkyTel(r.ZdrojTelefon)}` });
+    odebrano++;
+  }
+  return odebrano;
 }
 
 async function synchronizujTymUPacientu(q, tymId, uzivatelId = null) {
@@ -1095,7 +1119,9 @@ central.post('/tym-lidi', sUzivatelem(async (q, s, req) => {
     for (const x of tels.filter((x) => !puvTel.includes(x))) await q.exec(`INSERT INTO dbo.A_KP_TymTelefon (TymLidiID, Telefon, PridalUzivatelID) VALUES (@t, @tel, @u)`, { t: id, tel: x, u: s.uzivatelId });
     if (aktivni) for (const p of await q.all(`SELECT DISTINCT z.PacientID, z.Telefon FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient pa ON pa.PacientID = z.PacientID
         JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = @t WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND pa.Stav = 'AKTIVNI'`, { t: id }))
-      prirazeno += await priradTymPacientovi(q, p.PacientID, id, s.uzivatelId, `telefon s kartou ${hezkyTel(p.Telefon)}`);
+      prirazeno += await priradTymPacientovi(q, p.PacientID, id, s.uzivatelId, `telefon s kartou ${hezkyTel(p.Telefon)}`, p.Telefon);
+    // 0.11.89: odtržený telefon / pacient už v telefonu není → tým přiřazený přes telefon od pacienta odejde
+    for (const p of await q.all(`SELECT DISTINCT PacientID FROM dbo.A_KP_PacientTym WHERE TymLidiID = @t AND Aktivni = 1 AND ZdrojTelefon IS NOT NULL`, { t: id })) await srovnejTymyTelefonu(q, p.PacientID, s.uzivatelId, s.jmeno);
     if (tels.length !== puvTel.length || tels.some((x) => !puvTel.includes(x))) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'telefony s kartou u týmu', detail: `${nazev}: ${tels.map(hezkyTel).join(', ') || 'žádný'}` });
   }
   if (vzdy && aktivni) { for (const p of await q.all(`SELECT pa.PacientID FROM dbo.A_KP_Pacient pa WHERE pa.Stav = 'AKTIVNI' AND EXISTS (SELECT 1 FROM dbo.A_KP_Garance g WHERE g.PacientID = pa.PacientID AND g.Stav = 'PLATNA' AND g.PoskytovatelID = @ps)`, { ps: ps.PoskytovatelID })) prirazeno += await zajistiTymyVzdy(q, p.PacientID, s.uzivatelId); }
@@ -1323,7 +1349,7 @@ central.post('/pacient/:id/tym-lidi', sUzivatelem(async (q, s, req) => {
     const vTymu = !mimo.length;
     const puv = await q.one(`SELECT PacientTymID, Aktivni FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t ORDER BY Aktivni DESC, PacientTymID DESC`, { p: id, t: t.TymLidiID });
     if (puv && puv.Aktivni) throw chyba('Tým už u pacienta je');
-    if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: s.uzivatelId });
+    if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u, ZdrojTelefon = NULL WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: s.uzivatelId });
     else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID) VALUES (@p, @t, @u)`, { p: id, t: t.TymLidiID, u: s.uzivatelId });
     // dřív deaktivovaní členové se po novém přidání týmu vrátí – tým se přidává celý
     await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0

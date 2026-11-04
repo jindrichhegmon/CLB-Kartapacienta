@@ -19,7 +19,7 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
-import { priradTymyTelefonu } from './central.js';
+import { priradTymyTelefonu, srovnejTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { podepis, overSession } from '../crypto.js';
@@ -100,7 +100,7 @@ device.post('/parovat', h(async (req) => {
     if (!znovu) await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: rezim === 'PACIENT' ? `Průkaz zpřístupněn ve vlastním telefonu pacienta (${hezkyTel(telefon)}).` : `Průkaz nahrán do telefonu u pacienta (${hezkyTel(telefon)}).`, autor: 'telefon ' + z.ZarizeniID, role: 'system', zarizeniId: z.ZarizeniID });
     await audit(q, { zarizeniId: z.ZarizeniID, kdo: rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: znovu ? 'telefon spárován znovu stejným kódem' : 'telefon spárován', detail: znovu ? 'předchozí kopie v tomto telefonu (např. v Safari) ztrácí přístup' : null, ip: ip(req) });
     // 0.11.85: týmy zatržené u tohoto telefonu (Lidé a týmy → tým → Telefony s kartou) se přiřadí i nově spárovanému pacientovi – ještě před balíkem, ať telefon dostane jejich PINy
-    if (rezim !== 'PACIENT') await priradTymyTelefonu(q, z.PacientID, telefon);
+    if (rezim !== 'PACIENT') { await srovnejTymyTelefonu(q, z.PacientID); await priradTymyTelefonu(q, z.PacientID, telefon); }   // 0.11.89: předchozí telefon zablokován → jeho týmy odejdou
     const balik = await balikProZarizeni(q, z.PacientID, { rezim });
     // kód lékaře (TOTP) má smysl jen na zapůjčeném telefonu, který odemyká tým
     return { token: `${tenant}.${z.ZarizeniID}.${raw}`, tajemstvi: rezim === 'PACIENT' ? null : tajemstvi, zarizeniId: z.ZarizeniID, telefon: hezkyTel(telefon), rezim, balik, videoToken: videoToken(tenant, z.ZarizeniID) };
@@ -357,6 +357,7 @@ device.post('/odebrat', h(async (req) => {
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'VRACENO', TokenHash = NULL, ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: zid });
     await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Průkaz odebrán z telefonu u lůžka (${kdo}). Ostatní průkazy v telefonu zůstaly; pro tohoto pacienta je potřeba telefon spárovat znovu.`, autor: kdo, role: 'system' });
     await audit(q, { zarizeniId: zid, kdo: 'telefon · ' + kdo, pacientId: z.PacientID, akce: 'průkaz odebrán z telefonu', detail: role, ip: ip(req) });
+    await srovnejTymyTelefonu(q, z.PacientID, null, 'telefon · ' + kdo);   // 0.11.89
     return { ok: true };
   });
 }));
