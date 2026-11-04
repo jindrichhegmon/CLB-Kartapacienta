@@ -93,4 +93,4 @@ a heslo správy tenantů a jednou ho vypíše), spustí migraci, pm2 a doplní d
   správa: `poskytovatel`, `uzivatele`, `uzivatel`, `zarizeni`, `audit`, `nastaveni`
 - `/api/d/*` – `parovat` (kód z QR → token + balík), `sync` (fronta zápisů → potvrzená UUID + aktuální balík / příkaz smazat)
 
-Podklady k návrhu (proč a jak): `docs/`.
+Podklady k návrhu (proč a jak): `docs/`. Informační leták pro obchodníka: `docs/letak/` (HTML + PDF, `node docs/letak/vytvor-pdf.cjs`).
