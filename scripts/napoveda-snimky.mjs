@@ -511,6 +511,7 @@ await p.fill('#p_tel', '+420 777 000 123'); await klik(p, '#p_ok');
 await p.waitForSelector('#unCarer'); await p.waitForTimeout(3500);
 if (!(await p.textContent('#rezim')).includes('Karta týmu')) chyby.push('Karta: chybí pruh Karta týmu');
 await foto(p, 'k-zamceno');
+if (!(await p.$('#t_pridat'))) chyby.push('Karta: na zamčené kartě chybí tlačítko Přidat dalšího pacienta do telefonu');   // 0.11.81
 // více průkazů v jednom telefonu (0.11.0): druhý průkaz jen v paměti stránky → obrazovka výběru pacienta, pak zpět k paní Zkušební
 await p.evaluate(() => { const k2 = JSON.parse(JSON.stringify(KARTY[0])); k2.zarizeniId = 8; k2.balik.pacient = { ...k2.balik.pacient, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12' }; k2.balik.denik = []; k2.fronta = []; KARTY.push(k2); D = null; kresli(); });
 await p.waitForSelector('[data-karta]'); await foto(p, 'k-vyber', { vyska: 900 });

@@ -5,6 +5,8 @@
  *                                                  rezim PACIENT = vlastní telefon pacienta („Můj průkaz“), číslo je u kódu (A_KP_Zarizeni.Telefon)
  *   POST /sync     Authorization: Device <token>   { fronta:[…], verzePlanu, baterie, verzeAplikace }
  *                                                  → { potvrzeno:[uuid], balik } | { prikaz:'smazat' } | { prikaz:'odpojit' } (vlastní telefon pacienta)
+ *   POST /odebrat  Authorization: Device <token>   { role, kdo } – zapůjčený telefon: tým odemčený PINem odebere průkaz tohoto pacienta
+ *                                                  z telefonu (0.11.81); zařízení → VRACENO, zápis do deníku a auditu, ostatní průkazy v telefonu zůstanou
  *   POST /sdilet   Authorization: Device <token>   { polozky:[{druh, nazev, obsah, puvod, aktualizovano}] } – jen vlastní telefon pacienta;
  *                                                  pacient vybral, viděl náhled a potvrdil → A_KP_Sdileni + zápis do deníku
  * Token zařízení = "<IDTENANT>.<ZarizeniID>.<náhodných 32 B>", v DB je jen jeho SHA-256.
@@ -335,6 +337,26 @@ function odpovedVideo(hovor, jmeno, a, z) {
   return { server: videoServer() || null, hovor: hovor ? { ...hovor, odkaz: odkazDoHovoru(hovor.mistnost, jmeno) } : null,
     videoToken: a && a.plny && z ? videoToken(a.tenant, z.ZarizeniID) : undefined };
 }
+/* 0.11.81: odvolání jednoho párování přímo z telefonu u lůžka – jen tým (ne rodina, ne ZZS); PIN ověřil telefon offline
+   stejně jako u ostatních zápisů z telefonu. Telefon u pacienta se označí jako vrácený (token přestane platit). */
+const ROLE_ODEBRAT = ['lekar', 'sestra', 'hospic', 'pl'];
+device.post('/odebrat', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('odebrat:' + zid, 10, 3600e3);
+  const b = req.body || {};
+  const role = String(b.role || '');
+  if (!ROLE_ODEBRAT.includes(role)) throw chyba('Průkaz z telefonu odebere člen týmu (odemčení PINem týmu nebo kódem lékaře)', 403);
+  const kdo = text(b.kdo, 80) || ROLE_CHAT[role] || role;
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    if (z.Rezim === 'PACIENT') throw chyba('Ve vlastním telefonu pacienta se průkaz neodebírá tady', 400);
+    if (z.Stav !== 'SPAROVANO') throw chyba('Telefon není spárovaný', 401);
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'VRACENO', TokenHash = NULL, ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: zid });
+    await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Průkaz odebrán z telefonu u lůžka (${kdo}). Ostatní průkazy v telefonu zůstaly; pro tohoto pacienta je potřeba telefon spárovat znovu.`, autor: kdo, role: 'system' });
+    await audit(q, { zarizeniId: zid, kdo: 'telefon · ' + kdo, pacientId: z.PacientID, akce: 'průkaz odebrán z telefonu', detail: role, ip: ip(req) });
+    return { ok: true };
+  });
+}));
 const JMENO_ZARIZENI = (z, role, jmeno) => (z.Rezim === 'PACIENT' ? 'Telefon pacienta' : JMENO_TELEFONU(role, jmeno));
 device.get('/video', h(async (req) => {
   const a = videoAuth(req);
