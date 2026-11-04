@@ -190,7 +190,7 @@ function hlavicka() {
   if ($('btnBack')) $('btnBack').onclick = () => { tab = 'prehled'; kresli(); };
   $('btnZamek').onclick = () => zamkni();
 }
-const puvodLekar = (b) => b.plan ? `${esc(b.plan.podepsal)}${b.garant && b.garant.poskytovatel ? ', ' + esc(b.garant.poskytovatel) : ''} · plán verze ${b.plan.verze} ze dne ${esc(fmtD(b.plan.vytvoreno))}` : 'od lékaře';
+const puvodLekar = (b) => b.plan ? `${esc((b.garant && b.garant.odbornyZastupce) || b.plan.podepsal)}${b.garant && b.garant.poskytovatel ? ', ' + esc(b.garant.poskytovatel) : ''} · plán verze ${b.plan.verze} ze dne ${esc(fmtD(b.plan.vytvoreno))}` : 'od lékaře';
 function kresli() {
   hlavicka();
   if (!D) return;
@@ -324,7 +324,7 @@ function poznamkyHTML() {
 function polozkySouhrnu(b) {
   const m = D.moje, pl = (b.plan && b.plan.data) || {};
   // u údajů od lékaře je datum v původu (verze plánu a kdy se naposledy stáhly do telefonu)
-  const lek = (b.plan ? `od lékaře – ${b.plan.podepsal}${b.garant && b.garant.poskytovatel ? ', ' + b.garant.poskytovatel : ''}, plán verze ${b.plan.verze} ze dne ${fmtD(b.plan.vytvoreno)}` : 'od lékaře') + `; staženo do telefonu ${fmtDT(D.posledniSync)}`;
+  const lek = (b.plan ? `od lékaře – ${(b.garant && b.garant.odbornyZastupce) || b.plan.podepsal}${b.garant && b.garant.poskytovatel ? ', ' + b.garant.poskytovatel : ''}, plán verze ${b.plan.verze} ze dne ${fmtD(b.plan.vytvoreno)}` : 'od lékaře') + `; staženo do telefonu ${fmtDT(D.posledniSync)}`;
   const g = b.garant || {};
   const p = m.prani;
   const out = [

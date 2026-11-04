@@ -339,7 +339,7 @@ function planHTML(b) {
     <dt>Cíl péče</dt><dd>${esc(CILE[p.cil] || '—')}</dd><dt>Limitace</dt><dd>${esc((p.limity || []).join(', ') || 'žádné')}</dd>
     <dt>Doklad</dt><dd>${KP.dokladHTML(dk)}${dk.dvp && dk.original ? '<br>originál: ' + esc(dk.original) : ''}${!dk.dvp && dk.zprava ? ' – ' + esc(dk.zprava) : ''}</dd>
     <dt>Funkční stav</dt><dd>${esc(p.funkce || '—')}</dd><dt>Alergie</dt><dd>${esc(p.alergie || '—')}</dd>
-    <dt>Stanovil</dt><dd>${esc(b.plan.podepsal)}, ${fmtDT(b.plan.vytvoreno)}</dd><dt>Platnost</dt><dd>${KP.prosly(b.plan.platnostDo) ? '<span class="chip crit">po platnosti – čeká na revizi</span>' : 'do ' + fmtD(b.plan.platnostDo)}</dd></dl></div>
+    ${b.garant && b.garant.odbornyZastupce ? `<dt>Odborný zástupce</dt><dd>${esc(b.garant.odbornyZastupce)}</dd><dt>Uložil</dt>` : '<dt>Stanovil</dt>'}<dd>${esc(b.plan.podepsal)}, ${fmtDT(b.plan.vytvoreno)}</dd><dt>Platnost</dt><dd>${KP.prosly(b.plan.platnostDo) ? '<span class="chip crit">po platnosti – čeká na revizi</span>' : 'do ' + fmtD(b.plan.platnostDo)}</dd></dl></div>
     <div class="note">Plán péče mění jen lékař v centrální aplikaci. Telefon ho jen zobrazuje a nikdy nepřepíše.</div>`;
 }
 /* Poznámky pacienta (0.11.24): co pacient sám poslal z Mého průkazu (oddíl Sdílet) – přání, poznámky, otázky, podání léků; jen ke čtení, vždy poslední verze každého druhu */

@@ -186,7 +186,7 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
 
 /* ---------------- poskytovatelé (výběr pro tým a předání) ---------------- */
 central.get('/poskytovatele', sUzivatelem(async (q) => ({
-  poskytovatele: await q.all(`SELECT PoskytovatelID AS id, Nazev AS nazev, ICO AS ico, ICP AS icp, Typ AS typ, SmiBytGarant AS smiBytGarant, Telefon24 AS telefon24, Adresa AS adresa, Aktivni AS aktivni
+  poskytovatele: await q.all(`SELECT PoskytovatelID AS id, Nazev AS nazev, ICO AS ico, ICP AS icp, Typ AS typ, SmiBytGarant AS smiBytGarant, Telefon24 AS telefon24, Adresa AS adresa, Aktivni AS aktivni, OdbornyZastupce AS odbornyZastupce
     FROM dbo.A_KP_Poskytovatel ORDER BY Aktivni DESC, Nazev`),
 })));
 
@@ -1395,9 +1395,9 @@ central.post('/poskytovatel', sUzivatelem(async (q, s, req) => {
   const typ = String(b.typ || '').toUpperCase();
   if (!TYPY_POSKYTOVATELE[typ]) throw chyba('Vyberte typ pracoviště');
   if (!text(b.nazev)) throw chyba('Vyplňte název');
-  const par = { n: text(b.nazev, 200), ico: text(b.ico, 8) || null, icp: text(b.icp, 20) || null, t: typ, tel: text(b.telefon24, 40) || null, a: text(b.adresa, 300) || null, ak: b.aktivni !== false };
-  if (cislo(b.id)) await q.exec(`UPDATE dbo.A_KP_Poskytovatel SET Nazev = @n, ICO = @ico, ICP = @icp, Typ = @t, Telefon24 = @tel, Adresa = @a, Aktivni = @ak WHERE PoskytovatelID = @id`, { ...par, id: cislo(b.id) });
-  else await q.exec(`INSERT INTO dbo.A_KP_Poskytovatel (Nazev, ICO, ICP, Typ, Telefon24, Adresa, Aktivni) VALUES (@n, @ico, @icp, @t, @tel, @a, @ak)`, par);
+  const par = { n: text(b.nazev, 200), ico: text(b.ico, 8) || null, icp: text(b.icp, 20) || null, t: typ, tel: text(b.telefon24, 40) || null, a: text(b.adresa, 300) || null, ak: b.aktivni !== false, oz: text(b.odbornyZastupce, 150) || null };
+  if (cislo(b.id)) await q.exec(`UPDATE dbo.A_KP_Poskytovatel SET Nazev = @n, ICO = @ico, ICP = @icp, Typ = @t, Telefon24 = @tel, Adresa = @a, Aktivni = @ak, OdbornyZastupce = @oz WHERE PoskytovatelID = @id`, { ...par, id: cislo(b.id) });
+  else await q.exec(`INSERT INTO dbo.A_KP_Poskytovatel (Nazev, ICO, ICP, Typ, Telefon24, Adresa, Aktivni, OdbornyZastupce) VALUES (@n, @ico, @icp, @t, @tel, @a, @ak, @oz)`, par);
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: cislo(b.id) ? 'úprava pracoviště' : 'nové pracoviště', detail: par.n, ip: s.ip });
 }, { admin: true }));
 

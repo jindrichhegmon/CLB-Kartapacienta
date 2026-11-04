@@ -22,7 +22,7 @@ const TENANT = 'ABCDEFGH12345678';
 const dnes = new Date(); const den = (d) => { const x = new Date(dnes); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
 const cas = (d, hm) => `${den(d)} ${hm}`;
 const posk = [
-  { id: 1, nazev: 'Hospic Ukázka', ico: '12345678', icp: '', typ: 'HOSPIC', smiBytGarant: true, telefon24: '777 100 200', adresa: 'Nemocniční 1, Zlín', aktivni: true },
+  { id: 1, nazev: 'Hospic Ukázka', ico: '12345678', icp: '', typ: 'HOSPIC', smiBytGarant: true, telefon24: '777 100 200', adresa: 'Nemocniční 1, Zlín', aktivni: true, odbornyZastupce: 'MUDr. Jan Vzorový, Ph.D.' },
   { id: 2, nazev: 'Praktický lékař MUDr. Vzorová', ico: '87654321', icp: '72100123', typ: 'PL', smiBytGarant: true, telefon24: '577 000 111', adresa: 'Náměstí 5, Zlín', aktivni: true },
   { id: 3, nazev: 'Domov Pohoda', ico: '11223344', icp: '', typ: 'DOMOV', smiBytGarant: false, telefon24: '577 222 333', adresa: 'Zahradní 8, Zlín', aktivni: true },
   { id: 4, nazev: 'Krajská nemocnice – interna', ico: '27661989', icp: '72000001', typ: 'NEMOCNICE', smiBytGarant: true, telefon24: '577 552 000', adresa: 'Havlíčkovo nábř. 600, Zlín', aktivni: true },
@@ -149,7 +149,7 @@ const uzivatele = [
 const salt = randomBytes(16).toString('hex');
 const balik = {
   pacient: { kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rok: 1941, pohlavi: 'žena', pobyt: 'doma', stav: 'AKTIVNI' },
-  plan, garant: { poskytovatel: 'Hospic Ukázka', typ: 'HOSPIC', telefon24: '777 100 200', lekar: 'MUDr. Petra Ukázková' },
+  plan, garant: { poskytovatel: 'Hospic Ukázka', typ: 'HOSPIC', telefon24: '777 100 200', lekar: 'MUDr. Jan Vzorový, Ph.D.', odbornyZastupce: 'MUDr. Jan Vzorový, Ph.D.' },
   kontakty: kontakty.map((k) => ({ id: k.id, jmeno: k.jmeno, tel: k.tel, skupina: k.skupina.toLowerCase(), pozn: k.pozn })),
   tym: tym.map((t) => ({ nazev: t.nazev, typ: t.typ, role: t.role, tel: t.telefon24 })),
   get lide() { return lide.slice(0, 4).map((o) => ({ id: o.id, jmeno: o.jmeno, role: String(o.role || '').toLowerCase(), tel: o.telefon || o.tel || '', poskytovatel: o.poskytovatel, tym: o.tym })); },

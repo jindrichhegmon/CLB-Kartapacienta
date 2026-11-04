@@ -195,7 +195,7 @@ Kontakty, které má mít většina klientů (např. **Linka paliativní podpory
 - **Zrušit** u sady výchozí kontakt odebere **všem** klientům (aplikace se předem zeptá a uvede počet).
 - Výchozí kontakty zakládá, upravuje a ruší **správce organizace a lékař**; zatrhnout nebo odebrat je u klienta smí celý tým. Mohou být jen ve skupině **Pečuje** nebo **Informovat** – **Rozhoduje** je vždy konkrétní osoba u konkrétního pacienta.
 
-- Krizová karta v oddílu KOHO VOLAT bere **Nejdřív volat** ze skupiny Pečuje (přednostně hospic), pak lékaře plánu a potom **všechny ostatní kontakty** v pořadí ze seznamu (Rozhoduje první) se štítkem skupiny a poznámkou. Každé číslo je na telefonu v rámečku na samostatném řádku s ikonou sluchátka – klepnutím se rovnou volá (stejně v dlaždicích Kontakty a Tým i v Mém průkazu). Kontakty upravuje celý tým kolem pacienta.
+- Krizová karta v oddílu KOHO VOLAT bere **Nejdřív volat** ze skupiny Pečuje (přednostně hospic), pak lékaře plánu (odborného zástupce pracoviště garanta, je-li vyplněný) a potom **všechny ostatní kontakty** v pořadí ze seznamu (Rozhoduje první) se štítkem skupiny a poznámkou. Každé číslo je na telefonu v rámečku na samostatném řádku s ikonou sluchátka – klepnutím se rovnou volá (stejně v dlaždicích Kontakty a Tým i v Mém průkazu). Kontakty upravuje celý tým kolem pacienta.
 
 ## 7. Tým a garance
 
@@ -406,7 +406,7 @@ Menu **Správa organizace** (jen správce) má záložky:
 
 ![Správa organizace – pracoviště](/napoveda/img/c-pracoviste.png)
 
-- **Pracoviště**: **+ Pracoviště** – název, typ (nemocnice, hospic, ambulance, praktický lékař, domov, ZZS, jiný), telefon 24/7 (toto číslo je na krizové kartě u Lékaře plánu – osobní číslo lékaře se na kartu nikdy nedává), IČO / IČP, adresa. Garantem může být jen nemocnice, hospic, ambulance nebo PL. Každý partner, který má s pacienty pracovat, musí být pracovištěm v této organizaci. Klik na řádek pracoviště upraví nebo vypne.
+- **Pracoviště**: **+ Pracoviště** – název, typ (nemocnice, hospic, ambulance, praktický lékař, domov, ZZS, jiný), telefon 24/7 (toto číslo je na krizové kartě u Lékaře plánu – osobní číslo lékaře se na kartu nikdy nedává), IČO / IČP, adresa a **Odborný zástupce** (od 0.11.87, jméno s titulem): u pacientů, jejichž garantem je pracoviště, ho krizová karta v oddílu Koho volat ukáže jako **Odborný zástupce** místo jména toho, kdo plán péče uložil (bez vyplnění zůstává jako dřív lékař plánu); v panelu Plán péče je pak **Odborný zástupce** a **Uložil** (kdo verzi plánu uložil – ten je dál i v historii verzí). Garantem může být jen nemocnice, hospic, ambulance nebo PL. Každý partner, který má s pacienty pracovat, musí být pracovištěm v této organizaci. Klik na řádek pracoviště upraví nebo vypne.
 - **Uživatelé** (přihlášení do centrální aplikace – lidé s PINem pro telefon jsou v agendě Lidé a týmy): **+ Uživatel** – jméno, přihlašovací jméno, pracoviště, role (lékař, sestra, jen čtení, správce), telefon, e-mail, číslo ČLK. Po uložení se zobrazí **první heslo**, které uživateli předáte; dokud si ho nezmění, vidíte ho v seznamu. Tlačítko pro nové heslo slouží i při zapomenutém hesle.
 
 ![Správa organizace – uživatelé](/napoveda/img/c-uzivatele.png)

@@ -251,7 +251,8 @@
     const zh = KP.aktivniZhorseni(b.denik);
     const last = zh || (b.denik || []).filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).slice(-1)[0];
     const exp = !b.plan || KP.prosly(platnost);
-    const lekarJm = (b.plan && b.plan.podepsal) || g.lekar || '—';
+    // 0.11.87: odborný zástupce pracoviště garanta (Správa organizace → Pracoviště); bez něj jako dřív lékař, který plán uložil
+    const lekarJm = g.odbornyZastupce || (b.plan && b.plan.podepsal) || g.lekar || '—';
     const lekarTel = g.telefon24 || '';   // 0.11.64: vždy hlavní číslo organizace (telefon 24/7); osobní číslo lékaře na kartu nikdy nejde
     const pd = b.pecedoma || null;   // propojení s PéčeDoma: nejbližší plánovaná návštěva (`navsteva`) – jen po odemknutí lékařem / členem týmu a v centrále; zamčená karta (ZZS), rodina a Můj průkaz ji nevidí (0.11.40)
     const leky = KP.leky(b);
@@ -275,7 +276,7 @@
         </section>
         <section class="sec blue"><h3>KOHO VOLAT</h3>
           ${first ? `<div class="callblk first"><div class="lbl">Nejdřív volat</div><div class="val"><b>${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</b></div>${KP.telHTML(first.tel)}</div>` : ''}
-          <div class="callblk"><div class="lbl">Lékař plánu${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</div><div class="val">${e(lekarJm)}</div>${KP.telHTML(lekarTel)}</div>
+          <div class="callblk"><div class="lbl">${g.odbornyZastupce ? 'Odborný zástupce' : 'Lékař plánu'}${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</div><div class="val">${e(lekarJm)}</div>${KP.telHTML(lekarTel)}</div>
           ${dalsiKontakty.map((r) => `<div class="callblk"><div class="lbl">${SKUP_NAZ[r.skupina] || e(r.skupina)}${r.pozn ? ' · ' + e(r.pozn) : ''}</div><div class="val">${e(r.jmeno)}</div>${KP.telHTML(r.tel)}</div>`).join('')}
         </section>
         ${navsteva && pd && pd.pristiNavsteva ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="val"><b>${e(KP.fmtDT(pd.pristiNavsteva))}</b></div>${pd.pristiKdo ? `<div class="val">${e(pd.pristiKdo)}</div>` : ''}${pd.pristiPozn ? `<div class="lbl">${e(pd.pristiPozn)}</div>` : ''}</section>`
