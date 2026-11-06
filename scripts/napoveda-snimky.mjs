@@ -395,6 +395,7 @@ await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam tabl
 await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.fill('#lk_n', 'Paracetamol'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce'); await p.selectOption('#lk_t', 'ZACHRANNA');
 await foto(p, 'c-leky-pridat', { vyska: 900 }); await p.evaluate(() => KP.closeModal());
 await zalozka('karta', 'c-karta', { vyska: 1000 });
+if (!((await p.textContent('#tabbody .card')) || '').includes('Zhoubný novotvar prsu')) chyby.push('krizová karta v centrále: chybí popis diagnózy z číselníku');
 // videohovor (0.11.45): z telefonu volá sestra → červený pruh s Připojit se
 if (!(await p.$('#vidZahajit'))) chyby.push('centrála: chybí tlačítko Videohovor na telefon');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 3, mistnost: 'kp-p0007-sestra', stav: 'ZVONI', zahajil: 'TELEFON', zahajilJmeno: 'hospic Sestra Lucie Příkladná', zahajeno: '2026-10-27 09:12' }) }); S.pac.video = await C(`/pacient/${S.pacId}/video`); kresliDetail(); });
@@ -418,6 +419,7 @@ await klik(p, '[data-np]'); await p.waitForSelector('#np_frame');
   const t = await fr.locator('.card').textContent();
   if (!t.includes('penicilin, náplasti') || !t.includes('DŘÍVE VYSLOVENÉ PŘÁNÍ') || !t.includes('MEDIKACE') || !t.includes('Zhoubný novotvar prsu')) chyby.push('živý náhled: karta se neaktualizovala podle formuláře nebo chybí nové dlaždice');
   if (t.includes('PŘÍŠTÍ NÁVŠTĚVA')) chyby.push('živý náhled: karta ještě ukazuje příští návštěvu');
+  if (!(await p.$('#tabbody > .grid2 > :last-child > #np_panel .iphone'))) chyby.push('živý náhled: telefon není v pravém sloupci v rámečku iPhonu');
   await p.waitForTimeout(300); await foto(p, 'c-nahled-karty', { vyska: 1050 });
   await klik(p, '[data-npr="sestra"]'); await fr.locator('.tile').first().waitFor({ timeout: 5000 }).catch(() => chyby.push('živý náhled: role sestra kartu neodemkla'));
   await klik(p, '#np_zav'); }

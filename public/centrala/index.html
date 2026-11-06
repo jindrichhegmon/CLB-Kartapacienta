@@ -152,7 +152,7 @@ function nav() {
   const pol = [['pacienti', '🪪 Pacienti'], ...(jeLekar() ? [['novy', '➕ Nový pacient']] : []), ...(S.ja.role.some((r) => r !== 'ctenar') ? [['lide', '👥 Lidé a týmy']] : []), ...(jeAdmin() ? [['sprava', '⚙️ Správa organizace']] : []), ['ucet', '👤 Můj účet']];
   return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 }
-function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { if ($('np_panel')) $('np_panel').remove(); S.view = b.dataset.v; if (b.dataset.v === 'pacienti') S.pacView = 'dash';   /* 0.11.90: menu Pacienti = přehled */ if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
+function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { zavriNahled(); S.view = b.dataset.v; if (b.dataset.v === 'pacienti') S.pacView = 'dash';   /* 0.11.90: menu Pacienti = přehled */ if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
 
 /* 0.11.58: popisky sloupců pro mobil – buňkám doplní data-l z hlavičky tabulky (CSS je ukáže jen do 640 px); běží po každém překreslení */
 function oznacTabulky() {
@@ -330,7 +330,7 @@ async function renderPacienti(dCache) {
 const telHezky = (t) => { const d = String(t || '').replace(/\D/g, ''); return !d ? '' : d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}` : (String(t).trim().startsWith('+') ? '+' : '') + d; };
 const telChip = (t, popis) => (t ? `<a class="telchip" href="tel:${esc(String(t).replace(/[^+\d]/g, ''))}" title="${esc(popis || 'Zavolat na telefon s kartou týmu')}">${KP.ICON.tel}<span>${esc(telHezky(t))}</span></a>` : '');
 const telefonyKarty = (zarizeni) => (zarizeni || []).filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT' && z.telefon);
-function otevri(id, tab) { if ($('np_panel') && S.pacId !== id) $('np_panel').remove(); S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
+function otevri(id, tab) { if (S.pacId !== id) zavriNahled(); S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
 
 /* ================= detail pacienta ================= */
 async function nactiDetail() { const d = await C('/pacient/' + S.pacId); d.denikAsc = [...d.denik].reverse(); S.pac = d; return d; }
@@ -342,7 +342,7 @@ async function renderDetail() {
 /* ---- živý náhled karty v telefonu (0.11.92): panel s telefonem (/karta/?nahled=1), karta se skládá z detailu a z právě
    rozepsaného formuláře (plán, diagnózy, léky) a mění se při psaní. Role: zamčeno (ZZS / kdokoli), rodina, sestra, lékař –
    v telefonu jde i odemknout tlačítky na kartě. Náhled nic nezapisuje ani neodesílá. ---- */
-const NAHLED = { role: '' };
+const NAHLED = { role: '', otevreno: false };
 function balikNahledu(d) {
   const b = balikZDetailu(d), base = (d.plan && d.plan.data) || {};
   let data = { ...base }, platnostDo = d.plan ? d.plan.platnostDo : null;
@@ -359,14 +359,22 @@ function posliNahled(zmenRole = false) {
   const f = $('np_frame'); if (!f || !f.contentWindow || !S.pac || S.view !== 'detail') return;
   try { f.contentWindow.postMessage({ typ: 'kp-nahled', balik: balikNahledu(S.pac), role: NAHLED.role, zmenRole }, location.origin); } catch { /* rámeček se ještě načítá */ }
 }
-function nahledKarty() {
-  if ($('np_panel')) { $('np_panel').remove(); return; }
-  const el = document.createElement('div'); el.id = 'np_panel'; el.className = 'nahled-panel noprint';
+function zavriNahled() { NAHLED.otevreno = false; if ($('np_panel')) $('np_panel').remove(); }
+function nahledKarty() { if (NAHLED.otevreno) return zavriNahled(); NAHLED.otevreno = true; umistiNahled(); const p = $('np_panel'); if (p && p.scrollIntoView) p.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+/* 0.11.93: telefon v rámečku iPhonu na začátku pravého sloupce záložky (po překreslení záložky se vloží znovu); bez pravého sloupce plovoucí vpravo dole */
+function umistiNahled() {
+  const host = S.view === 'detail' ? document.querySelector('#tabbody > .grid2 > :last-child') : null;
+  const stary = $('np_panel');
+  if (!NAHLED.otevreno) { if (stary) stary.remove(); return; }
+  if (stary && host && host.contains(stary)) return;
+  if (stary) stary.remove();
+  const el = document.createElement('div'); el.id = 'np_panel'; el.className = (host ? 'nahled-dock' : 'nahled-panel nahled-dock') + ' noprint';
   el.innerHTML = `<div class="np-h"><b>📱 Náhled karty v telefonu</b><span class="muted">nic se nezapisuje</span><button class="btn sm" id="np_zav" type="button">Zavřít</button></div>
     <div class="np-role"><span class="lbl" style="align-self:center;margin:0">Jako:</span>${[['', 'zamčeno / ZZS'], ['rodina', 'rodina'], ['sestra', 'sestra'], ['lekar', 'lékař']].map(([r, n]) => `<button class="btn sm ${NAHLED.role === r ? 'primary' : ''}" data-npr="${r}" type="button">${n}</button>`).join('')}</div>
-    <iframe id="np_frame" src="/karta/?nahled=1" title="Náhled karty v telefonu"></iframe>`;
-  document.body.appendChild(el);
-  $('np_zav').onclick = () => el.remove();
+    <div class="iphone"><div class="iph-scr"><div class="iph-sb"><b>9:41</b><span class="iph-ikony"><i></i><i></i><i></i><i></i><span class="iph-bat"></span></span></div>
+      <iframe id="np_frame" src="/karta/?nahled=1" title="Náhled karty v telefonu"></iframe><div class="iph-home"></div></div></div>`;
+  if (host) host.prepend(el); else document.body.appendChild(el);
+  $('np_zav').onclick = zavriNahled;
   el.querySelectorAll('[data-npr]').forEach((b) => (b.onclick = () => { NAHLED.role = b.dataset.npr; el.querySelectorAll('[data-npr]').forEach((x) => x.classList.toggle('primary', x === b)); posliNahled(true); }));
 }
 addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.typ === 'kp-nahled-pripraven') posliNahled(true); });
@@ -377,7 +385,7 @@ function balikZDetailu(d) {
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const gp = g && S.posk.find((p) => p.id === g.poskytovatelId);
   return { pacient: { kod: d.pacient.kod, jmeno: d.pacient.jmeno, prijmeni: d.pacient.prijmeni, rok: d.pacient.rok }, plan: d.plan, garant: g ? { poskytovatel: g.nazev, lekar: (gp && gp.odbornyZastupce) || g.lekar, odbornyZastupce: (gp && gp.odbornyZastupce) || null, telefon24: gp && gp.telefon24 } : null,   // na kartě je u lékaře vždy hlavní číslo organizace (telefon 24/7)
-    kontakty: d.kontakty.map((k) => ({ ...k, skupina: k.skupina.toLowerCase() })), denik: d.denikAsc, pecedoma: d.pecedoma && d.pecedoma.klientId ? { ...(d.pecedoma.sync || {}), propojeno: true } : null };
+    kontakty: d.kontakty.map((k) => ({ ...k, skupina: k.skupina.toLowerCase() })), denik: d.denikAsc, pecedoma: d.pecedoma && d.pecedoma.klientId ? { ...(d.pecedoma.sync || {}), propojeno: true } : null, dgPopisy: d.dgPopisy || {} };
 }
 function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
@@ -803,7 +811,7 @@ function bindTab() {
   on('vypis', vypis);
   // 0.11.92: limitace (dvě možnosti), našeptávač diagnóz, paliativní terapie na kartě
   document.querySelectorAll('[data-np]').forEach((b) => (b.onclick = () => { nahledKarty(); }));
-  posliNahled();
+  umistiNahled(); posliNahled();
   if ($('f_cil')) KP.bindPlanForm('f', { hledatDg: hledatDiagnozy });
   if ($('dg_dgq')) KP.dgNaseptavac($('dg_dgq'), $('dg_dgn'), $('dg_dg'), hledatDiagnozy);
   on('lk_ter_ok', async () => { const base = (d.plan && d.plan.data) || {}; await akce('/plan', { data: { ...base, terapieNaKarte: $('lk_ter').checked }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: $('lk_ter').checked ? 'na kartě i paliativní terapie' : 'na kartě jen opioidy a SOS medikace' }, 'Uloženo jako nová verze plánu'); });
