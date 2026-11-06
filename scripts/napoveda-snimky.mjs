@@ -458,7 +458,15 @@ await zalozka('tym', 'c-tym', { vyska: 1150 });
 await zalozka('telefon', 'c-telefon', { vyska: 1000 });
 await klik(p, '#parovat'); await p.waitForSelector('#pr_sms');
 await foto(p, 'c-parovani', { vyska: 1000 });
-await p.evaluate(() => KP.closeModal());
+// 0.11.91: vytištěné párování do terénu – platnost 3 dny, A4 s QR kódem a postupem
+await p.selectOption('#pr_plat', '72'); await p.waitForSelector('#pr_tisk');
+{ const cekej = p.context().waitForEvent('page', { timeout: 10000 }); await p.click('#pr_tisk'); const okno = await cekej; await okno.waitForSelector('.qr svg'); await okno.waitForTimeout(600);
+  await okno.setViewportSize({ width: 900, height: 1250 });
+  const t = await okno.textContent('body'); if (!t.includes('Postup u pacienta') || !t.includes('TYJR') || !t.includes('Zkušební Marie') || t.includes('Připravuji')) chyby.push('tisk párování: chybí postup, kód nebo pacient');
+  if (await okno.evaluate(() => [...document.images].some((i) => !i.complete || !i.naturalWidth))) chyby.push('tisk párování: nenačetlo se logo');
+  const pdf = await okno.pdf({ format: 'A4', printBackground: true }); if ((pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length !== 1) chyby.push('tisk párování: nevešlo se na jednu stranu A4');
+  await okno.screenshot({ path: path.join(VYSTUP, 'c-parovani-tisk.png'), fullPage: true }); console.log('  ✓ c-parovani-tisk'); await okno.close(); }
+await p.waitForSelector('#pr_sms'); await p.evaluate(() => KP.closeModal());
 if (!(await p.textContent('#tabbody')).includes('dcera Jana') || !(await p.$('[data-pzrusit="11"]')) || !(await p.$('[data-pznovu="11"]'))) chyby.push('vlastní telefony: čekající odkaz pro rodinu bez přehledu nebo tlačítek Zrušit / Poslat znovu');
 await klik(p, '#pacientovi'); await p.waitForSelector('#pz_t'); await p.fill('#pz_t', '+420 604 000 777'); await p.fill('#pz_s', 'telefon pacienta');
 if (!(await p.inputValue('#pz_txt')).includes('{odkaz}')) chyby.push('zpřístupnění pacientovi: chybí text SMS se značkou {odkaz}');

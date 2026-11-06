@@ -906,9 +906,50 @@ function pacientoviOkno(tel = '', stitek = '') {
     $('pz_qr').onclick = () => go(false);
   });
 }
-async function parovat(sms) {
+/* 0.11.91: vytištěné párování do terénu – A4 s QR kódem, kódy pro ruční zadání, číslem telefonu, platností a postupem pro sestru */
+function tiskParovani(r, platnostHodin, w) {
+  const d = S.pac, p = d.pacient;
+  const qr = qrcode(0, 'M'); qr.addData(r.odkaz); qr.make();
+  const ps = S.posk.find((x) => x.id === (d.garance.find((g) => g.stav === 'PLATNA') || {}).poskytovatelId) || {};
+  const doKdy = new Date(r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  if (!w || w.closed) return toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
+  const o = location.origin;
+  w.document.open();   // nahradí text „Připravuji…“
+  w.document.write(`<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Spárování telefonu – ${esc(p.prijmeni)} ${esc(p.jmeno)} – Karta pacienta</title><style>
+    @page{size:A4;margin:12mm 14mm}*{box-sizing:border-box}body{margin:0;font-family:Calibri,'Segoe UI',system-ui,-apple-system,Arial,sans-serif;color:#1f2a37;font-size:10.5pt;line-height:1.35}
+    .hl{display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;border-bottom:.6mm solid #0060AA;padding-bottom:2.5mm}
+    .stitek{color:#D52B1E;font-weight:700;letter-spacing:.8pt;font-size:8.5pt;text-transform:uppercase}h1{color:#0060AA;font-size:20pt;margin:1mm 0;line-height:1.1}.pod{color:#55657A}.logo{height:18mm}
+    .pac{display:flex;gap:8mm;background:#E4EEF8;border:.3mm solid #B9CDE3;border-radius:2.5mm;padding:3mm 5mm;margin:4mm 0}.pac .l{font-size:8.5pt;color:#55657A}.pac .v{font-size:13pt;font-weight:700}.pac .tel{font-size:16pt;font-weight:800;color:#0060AA}
+    .grid{display:grid;grid-template-columns:72mm 1fr;gap:7mm;align-items:start}.qr svg{width:72mm;height:72mm;display:block}.qr .p{font-size:8pt;color:#55657A;text-align:center;margin-top:1mm}
+    h2{color:#0060AA;font-size:12.5pt;margin:0 0 2mm}ol{margin:0;padding-left:5mm}ol li{margin:0 0 2mm}
+    .kody{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin:3mm 0}.kod{border:.3mm solid #B9CDE3;border-radius:2mm;padding:2mm 3mm}.kod .l{font-size:8.5pt;color:#55657A}.kod .v{font-family:ui-monospace,Consolas,monospace;font-size:15pt;font-weight:700;letter-spacing:1pt}
+    .plat{font-weight:700;color:#D52B1E}.pozor{background:#FFF6E5;border-left:1.2mm solid #E09B2D;padding:2mm 3mm;margin-top:4mm;font-size:9.5pt}
+    .pata{margin-top:6mm;text-align:center;font-size:8pt;color:#0060AA;border-top:.3mm solid #B9CDE3;padding-top:1.5mm}
+    @media screen{body{background:#888;padding:8mm}.list{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 2px 12px rgba(0,0,0,.4)}}
+  </style></head><body><div class="list">
+    <div class="hl"><div><div class="stitek">Spárování telefonu · Karta pacienta on-line</div><h1>Nahrání karty do telefonu u pacienta</h1><div class="pod">${esc(ps.nazev || S.ja.poskytovatel || '')}</div></div><img class="logo" src="${o}/img/logo-centrum.png" alt="Centrum pro léčbu bolesti a paliativní medicínu"></div>
+    <div class="pac"><div><div class="l">Pacient</div><div class="v">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</div><div class="l">průkaz ${esc(p.kod)}</div></div>
+      <div><div class="l">Karta jde nahrát jen do telefonu s číslem</div><div class="tel">${esc(r.telefonKarty)}</div></div></div>
+    ${(r.dalsiNaTelefonu || []).length ? `<p>V tomto telefonu už je karta jiného pacienta – nová se přidá vedle (${r.dalsiNaTelefonu.length} ${r.dalsiNaTelefonu.length === 1 ? 'pacient' : 'pacienti'}); po spuštění se vybírá pacient.</p>` : ''}
+    <div class="grid"><div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 1, scalable: true })}<div class="p">Naskenujte fotoaparátem telefonu</div></div>
+      <div><h2>Postup u pacienta</h2><ol>
+        <li>Zapněte telefon s číslem <b>${esc(r.telefonKarty)}</b> a připojte ho k internetu (Wi-Fi nebo data).</li>
+        <li>Otevřete <b>fotoaparát</b> a namiřte ho na QR kód vlevo, nebo v kiosku Karty pacienta klepněte na <b>Přidat dalšího pacienta do telefonu</b> → načíst QR kód.</li>
+        <li>Otevře se Karta pacienta – <b>potvrďte číslo tohoto telefonu</b> (je předvyplněné) a stiskněte <b>Spárovat</b>.</li>
+        <li>Zobrazí se zamčená krizová karta pacienta. Hotovo – telefon se dál synchronizuje sám.</li>
+      </ol>
+      <p style="margin:3mm 0 1mm">Bez QR kódu: otevřete v telefonu <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
+      <div class="kody"><div class="kod"><div class="l">Kód organizace</div><div class="v" style="font-size:12pt">${esc(r.tenant)}</div></div><div class="kod"><div class="l">Párovací kód</div><div class="v">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
+      <p>Kód platí do <span class="plat">${esc(doKdy)}</span>${platnostHodin > 0.5 ? '' : ' (30 minut)'}. Pak vydejte v centrální aplikaci nový (pacient → Telefon a PINy → Spárovat telefon).</p></div></div>
+    <div class="pozor"><b>Bezpečnost:</b> list obsahuje párovací kód – po spárování ho <b>skartujte</b>, nenechávejte ho u pacienta a nefoťte ho. Kód funguje jen v telefonu s číslem ${esc(r.telefonKarty)}; po spárování se případný předchozí telefon tohoto pacienta zablokuje. Při potížích volejte ${esc(ps.telefon24 || 'garanta průkazu')}.</div>
+    <div class="pata">${esc(ps.nazev || '')} · Karta pacienta on-line · vytiskl(a) ${esc(S.ja.jmeno)} ${esc(new Date().toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</div>
+  </div><script>window.onload = () => setTimeout(() => print(), 300)<\/script></body></html>`);
+  w.document.close();
+}
+async function parovat(sms, platnostHodin = 0.5, tiskOkno = null) {   // tiskOkno: okno otevřené rovnou při kliknutí (jinak ho Safari zablokuje)
   try {
-    const r = await C(`/pacient/${S.pacId}/parovat`, { method: 'POST', body: { sms: !!sms } });
+    const r = await C(`/pacient/${S.pacId}/parovat`, { method: 'POST', body: { sms: !!sms, platnostHodin, tisk: !!tiskOkno } });
+    if (tiskOkno) tiskParovani(r, platnostHodin, tiskOkno);
     const smsOk = r.sms && r.sms.ok;
     const qr = qrcode(0, 'M'); qr.addData(r.odkaz); qr.make();
     modal(`<h2>Spárovat telefon u pacienta</h2>
@@ -919,8 +960,11 @@ async function parovat(sms) {
       <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
       <p>Na telefonu u pacienta otevřete odkaz z SMS nebo naskenujte QR kód fotoaparátem, případně otevřete <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
       <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Párovací kód</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
-      <p class="muted">Kód platí 30 minut (do ${esc(new Date(r.platnost).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))}); ve stejném telefonu ho jde během platnosti použít znovu (třeba po přidání aplikace na plochu iPhonu). Po spárování se případný předchozí telefon tohoto pacienta zablokuje; průkazy jiných pacientů v témže telefonu zůstávají.</p>
-      <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; $('pr_sms').onclick = () => { closeModal(); parovat(true); }; });
+      <div class="quick" style="align-items:center;margin:4px 0 6px"><label class="lbl" for="pr_plat" style="margin:0">Platnost kódu</label><select id="pr_plat" style="width:auto">${[[0.5, '30 minut'], [24, '24 hodin'], [72, '3 dny'], [168, '7 dní']].map(([h, n]) => `<option value="${h}" ${h === platnostHodin ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn primary" id="pr_tisk" type="button" title="A4 s QR kódem a postupem – sestra spáruje telefon u pacienta v terénu">🖨 Vytisknout párování</button></div>
+      <p class="muted">Kód platí do ${esc(new Date(r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))}; pro tisk do terénu zvolte delší platnost (kód pak platí, dokud ho sestra u pacienta nepoužije). Ve stejném telefonu ho jde během platnosti použít znovu (třeba po přidání aplikace na plochu iPhonu). Po spárování se případný předchozí telefon tohoto pacienta zablokuje; průkazy jiných pacientů v témže telefonu zůstávají.</p>
+      <div class="quick"><button class="btn" id="pr_hot">Hotovo</button></div>`, () => { $('pr_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; $('pr_sms').onclick = () => { const h = Number($('pr_plat').value); closeModal(); parovat(true, h); };
+        $('pr_plat').onchange = () => { const h = Number($('pr_plat').value); closeModal(); parovat(false, h); };
+        $('pr_tisk').onclick = () => { const h = Number($('pr_plat').value); const w = window.open('', '_blank'); if (w) w.document.write('<p style="font-family:system-ui;padding:20px">Připravuji párování k tisku…</p>'); closeModal(); parovat(false, h, w); }; });
   } catch (e) { toast(e.message); }
 }
 

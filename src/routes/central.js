@@ -587,15 +587,19 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   const z = await q.one(`SELECT TOP 1 ZarizeniID, ParovaciKod, ParovaciPlatnost FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'ZAPUJCENY' ORDER BY ZarizeniID DESC`, { p: id });
   const platny = z && z.ParovaciKod && z.ParovaciPlatnost && new Date(z.ParovaciPlatnost).getTime() > Date.now() + 10 * 60e3;
   const kod = platny ? z.ParovaciKod : parovaciKod();
-  const platnost = platny ? new Date(z.ParovaciPlatnost) : new Date(Date.now() + 30 * 60e3);   // 0.11.10: 30 minut (stihne se i přidání na plochu iPhonu a spárování znovu)
+  // 0.11.91: delší platnost pro vytištěné párování do terénu (24 h, 3 dny, 7 dní); kód stále platí jen pro telefon s číslem karty
+  const hodin = [0.5, 24, 72, 168].includes(Number(req.body.platnostHodin)) ? Number(req.body.platnostHodin) : 0.5;
+  const chtena = Date.now() + hodin * 3600e3;
+  const platnost = platny && new Date(z.ParovaciPlatnost).getTime() >= chtena - 60e3 ? new Date(z.ParovaciPlatnost) : new Date(chtena);   // 0.11.10: výchozích 30 minut (stihne se i přidání na plochu iPhonu)
   let zid;
   if (z) { zid = z.ZarizeniID; await q.exec(`UPDATE dbo.A_KP_Zarizeni SET ParovaciKod = @k, ParovaciPlatnost = @pl, Stitek = ISNULL(@st, Stitek) WHERE ZarizeniID = @z`, { k: kod, pl: platnost, st: text(req.body.stitek, 60) || null, z: zid }); }
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost) OUTPUT inserted.ZarizeniID VALUES (@p, @st, @k, @pl)`, { p: id, st: text(req.body.stitek, 60) || null, k: kod, pl: platnost })).ZarizeniID;
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: platny ? 'párovací kód zobrazen znovu' : 'párovací kód vydán', ip: s.ip });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: platny ? 'párovací kód zobrazen znovu' : 'párovací kód vydán', detail: `platí do ${platnost.toISOString().slice(0, 16).replace('T', ' ')} UTC${req.body.tisk ? ' · vytištěno do terénu' : ''}`, ip: s.ip });
   const odkaz = `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}.T${telKarty.replace(/\D/g, '')}`;   // .T<číslo> = předvyplnění čísla v telefonu
   let sms = null;
   if (req.body.sms) {   // odkaz SMS na číslo s kartou – dostane ho jen tento telefon
-    try { await posliSms(telKarty, `Karta pacienta: otevřete odkaz v tomto telefonu a potvrďte jeho číslo. ${odkaz} (platí 30 minut)`); sms = { ok: true };
+    const doKdy = hodin <= 0.5 ? '30 minut' : `do ${platnost.toLocaleString('cs-CZ', { timeZone: 'Europe/Prague', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    try { await posliSms(telKarty, `Karta pacienta: otevřete odkaz v tomto telefonu a potvrďte jeho číslo. ${odkaz} (platí ${doKdy})`); sms = { ok: true };
       await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací odkaz poslán SMS', detail: hezkyTel(telKarty), ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }

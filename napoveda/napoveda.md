@@ -266,6 +266,10 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 
 ![Okno Spárovat telefon – QR kód, kódy a SMS](/napoveda/img/c-parovani.png)
 
+**Párování v terénu (vytištěné):** v okně Spárovat telefon zvolte **Platnost kódu** (30 minut, 24 hodin, 3 dny nebo 7 dní) a stiskněte **🖨 Vytisknout párování**. Vytiskne se A4 s logem, jménem pacienta a kódem průkazu, **číslem telefonu**, do kterého karta smí, velkým **QR kódem**, kódem organizace a párovacím kódem pro ruční zadání, datem platnosti a postupem pro sestru (zapnout telefon, naskenovat QR kód nebo v kiosku Přidat dalšího pacienta, potvrdit číslo, Spárovat). Sestra pak spáruje telefon u pacienta bez centrální aplikace. Kód funguje jen v telefonu s uvedeným číslem; po spárování list **skartujte**. Delší platnost se zapíše do logu přístupů; odeslaná SMS uvádí, do kdy odkaz platí.
+
+![Vytištěné párování telefonu – QR kód a postup pro sestru](/napoveda/img/c-parovani-tisk.png)
+
 - Párovací kód platí **30 minut**. Dokud platí ještě aspoň 10 minut, ukáže další kliknutí na Spárovat telefon i Poslat odkaz SMS **tentýž kód** – QR kód na obrazovce a odkaz v SMS jsou stejné a nové kliknutí předchozí kód neruší. Po celou dobu platnosti ho jde použít znovu **ve stejném telefonu** (stejné číslo) – typicky když kartu po spárování v Safari přidáte na plochu iPhonu: aplikace na ploše má vlastní úložiště, spárujte ji stejným kódem a kopie v Safari skončí. Jiné číslo kód nepřijme. Po vypršení klikněte znovu na Spárovat telefon.
 - Po spárování se případný předchozí telefon pacienta zablokuje.
 - Když SMS nejde odeslat, okno napíše proč a spárujete QR kódem.
