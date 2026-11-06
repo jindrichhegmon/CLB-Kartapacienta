@@ -33,7 +33,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.81';
+const APP_VERZE = 'karta-0.11.92';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -42,6 +42,20 @@ let U = { role: null, jmeno: '', posledni: 0 };   // odemčení (jen v paměti)
 let instalace = null;   // Android/Chrome: nabídka „Přidat na plochu“ (beforeinstallprompt); iPhone má v Safari vlastní návod
 addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); instalace = e; const b = $('p_inst'); if (b) b.style.display = ''; });
 let tab = 'karta', syncBezi = false, chybaSync = '';
+/* 0.11.92: NÁHLED pro centrálu (/karta/?nahled=1 v rámečku): kartu pošle centrála (postMessage), odemyká se volbou role bez PINu,
+   zápisy jdou jen do paměti náhledu a nic se neodesílá na server ani neukládá do telefonu. */
+const NAHLED = new URLSearchParams(location.search).has('nahled');
+if (NAHLED) {
+  const puvodniApi = KP.api;
+  KP.api = async (url, o = {}) => {
+    if (o.method && o.method !== 'GET') throw Object.assign(new Error('Náhled karty – nic se nezapisuje'), { status: 0 });
+    if (/\/api\/d\/leky/.test(url)) return { leky: [] };
+    if (/\/api\/d\/pecedoma\/zpravy/.test(url)) return { zpravy: [] };
+    if (/\/api\/d\/video/.test(url)) return { server: null, hovor: null };
+    if (/^\/api\/d\//.test(url)) return {};
+    return puvodniApi(url, o);
+  };
+}
 const TAB_NAZ = { karta: 'Karta', dg: 'Diagnóza', plan: 'Plán', leky: 'Léky', denik: 'Interní poznámky', odpac: 'Poznámky pacienta', zhorseni: 'Zhoršení', kontakty: 'Kontakty', udaje: 'Tým' };
 KP.napoveda.nastav({ aplikace: 'karta', auth: () => (D ? { token: D.token, typ: 'Device' } : null), kapitola: () => (D ? 14 : 13),
   obrazovka: () => (!D ? (KARTY.length ? 'Výběr pacienta (více průkazů v telefonu)' : 'Spárování telefonu') : !U.role ? 'Zamčená krizová karta' : `${TAB_NAZ[tab] || tab} (odemčeno jako ${U.role})`) });
@@ -109,6 +123,7 @@ async function kodDne(datum) {
 }
 const datumLokalni = (posunDni = 0) => { const d = new Date(); d.setDate(d.getDate() + posunDni); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 async function overKodLekare(kod) {
+  if (NAHLED) return /^\d{6}$/.test(kod);   // náhled: jakýkoli šestimístný kód
   if (!D.tajemstvi) return false;
   for (const d of [0, -1]) if (await kodDne(datumLokalni(d)) === kod) return true;
   return false;
@@ -206,6 +221,8 @@ function kresliVyber() {
 }
 function kresli() {
   hlavicka();
+  if (NAHLED && !$('nahledPruh')) { const p = document.createElement('div'); p.id = 'nahledPruh'; p.className = 'nahled-pruh'; p.textContent = 'NÁHLED Z CENTRÁLY – nic se nezapisuje ani neodesílá'; document.body.prepend(p); }
+  if (NAHLED && !D) { $('work').innerHTML = '<div class="note">Náhled karty – čekám na data z centrální aplikace…</div>'; return; }
   if (!D) return KARTY.length ? kresliVyber() : kresliParovani();
   const b = D.balik;
   const denik = [...(b.denik || []), ...D.fronta.filter((e) => !(b.denik || []).some((x) => x.uuid === e.uuid))];
@@ -307,9 +324,9 @@ function lekyHTML(b) {
   if (lk.zdroj === 'pecedoma' && lekarNaTelefonu()) return `<div class="panel"><div class="panel-h"><h2>Léky</h2>${chip}</div><div id="lk_seznam"><div class="muted" style="padding:10px 14px;font-size:13px">${navigator.onLine ? 'Načítám léky z PéčeDoma…' : 'Úprava léků potřebuje připojení k internetu.'}</div></div><div class="quick" style="padding:0 14px 14px"><button class="btn primary sm" id="lk_novy">Přidat lék</button></div></div>
     <div class="note">Léky jsou jedny pro PéčeDoma i Kartu – co tu změníte, vidí hned tým v PéčeDoma, centrální aplikace i Můj průkaz pacienta.</div>`;
   const seznam = (r, prazdne) => `<ul style="margin:0;padding:12px 14px 12px 30px">${r.map((s) => `<li>${esc(s)}</li>`).join('') || `<li>${prazdne}</li>`}</ul>`;
-  return `<div class="panel"><div class="panel-h"><h2>SOS léky</h2>${chip}</div>${seznam(lk.sos, 'neuvedeny')}</div>
-    <div class="panel"><div class="panel-h"><h2>Opioidy</h2></div>${seznam(lk.opioidy, 'žádné')}</div>
-    <div class="panel"><div class="panel-h"><h2>Pravidelná medikace</h2></div>${seznam(lk.medikace, 'neuvedena')}</div>
+  return `<div class="panel"><div class="panel-h"><h2>Opioidy</h2>${chip}</div>${seznam(lk.opioidy, 'žádné')}</div>
+    <div class="panel"><div class="panel-h"><h2>SOS medikace</h2></div>${seznam(lk.sos, 'neuvedena')}</div>
+    <div class="panel"><div class="panel-h"><h2>Paliativní terapie</h2></div>${seznam(lk.medikace, 'neuvedena')}</div>
     <div class="note">${lk.zdroj === 'pecedoma' ? 'Léky jsou jedny pro PéčeDoma i Kartu – mění je lékař tady na telefonu, v centrální aplikaci nebo tým v PéčeDoma; telefon je převezme při synchronizaci.' : 'Léky jsou součástí plánu péče a mění je lékař v centrální aplikaci.'}</div>`;
 }
 const lekarNaTelefonu = () => U.role === 'lekar' || U.role === 'pl';
@@ -549,9 +566,9 @@ function bind() {
   on('p_inst', async () => { if (!instalace) return; instalace.prompt(); try { await instalace.userChoice; } catch { /* */ } instalace = null; const b = $('p_inst'); if (b) b.style.display = 'none'; });
   document.querySelectorAll('.tile[data-tab]').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; kresli(); scrollTo(0, 0); }));
   /* oba PINy ověřuje stejný seznam (rodina = PIN vydaný u pacienta, tým = osobní PINy přiřazených lidí) – tlačítka se liší jen tím, komu jsou určená */
-  const pinOkno = (titulek, popis, poznamka) => modal(`<h2>${titulek}</h2><p class="muted" style="margin:0;font-size:13.5px">${popis}</p><div class="field"><label>PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div><button class="btn primary block" id="pinOk">Odemknout</button><div class="note">${poznamka} Ověří se i bez signálu.</div>`, () => {
+  const pinOkno = (titulek, popis, poznamka) => modal(`<h2>${titulek}</h2><p class="muted" style="margin:0;font-size:13.5px">${popis}</p>${NAHLED ? `<div class="banner warn">Náhled – PIN se neověřuje.</div>${titulek === 'Přístup rodina' ? '' : '<div class="field"><label>Role v náhledu</label><select id="pinRole"><option value="sestra">sestra DPS</option><option value="hospic">hospic</option><option value="pl">praktický lékař</option><option value="lekar">lékař</option></select></div>'}<input id="pin" type="hidden">` : '<div class="field"><label>PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div>'}<button class="btn primary block" id="pinOk">Odemknout</button><div class="note">${poznamka} Ověří se i bez signálu.</div>`, () => {
     $('pin').focus(); let pokusy = 0;
-    const go = async () => { const p = await overPin($('pin').value.trim()); if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
+    const go = async () => { const p = NAHLED ? { role: titulek === 'Přístup rodina' ? 'rodina' : ($('pinRole') || {}).value || 'sestra', jmeno: 'náhled' } : await overPin($('pin').value.trim()); if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
     $('pinOk').onclick = go; $('pin').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   });
   on('unRodina', () => pinOkno('Přístup rodina', 'Pro blízké pacienta: PIN, který vám vydal garant (hospic nebo lékař) při předání průkazu.', 'Zapomenutý PIN vám garant vydá znovu.'));
@@ -682,6 +699,18 @@ async function parovat(tenant, kod, telefon) {
 
 /* ---------------- start ---------------- */
 (async function start() {
+  if (NAHLED) {   // 0.11.92: náhled z centrály – žádné úložiště, párování, synchronizace ani videohovory
+    pametOnly = true; document.documentElement.classList.add('nahled');
+    addEventListener('message', (e) => {
+      if (e.origin !== location.origin || !e.data || e.data.typ !== 'kp-nahled' || !e.data.balik) return;
+      if (!D) { D = { tenant: 'NAHLED', token: null, tajemstvi: null, zarizeniId: 0, telefon: 'náhled', balik: e.data.balik, fronta: [], posledniSync: new Date().toISOString(), parovano: new Date().toISOString() }; KARTY = [D]; }
+      else { D.balik = e.data.balik; D.posledniSync = new Date().toISOString(); }
+      if (e.data.zmenRole) { closeModal(); U = e.data.role ? { role: e.data.role, jmeno: 'náhled', posledni: Date.now() } : { role: null }; tab = 'karta'; }
+      if (!document.querySelector('#modal .modal')) kresli();
+    });
+    kresli(); try { parent.postMessage({ typ: 'kp-nahled-pripraven' }, location.origin); } catch { /* */ }
+    return;
+  }
   KARTY = await nacti();
   D = KARTY.length === 1 ? KARTY[0] : null;   // víc průkazů → nejdřív výběr pacienta
   const h = location.hash.match(/p=([A-Z0-9]{16})\.([A-Z0-9]{8})(?:\.T(\d{9,15}))?/i);

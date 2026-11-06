@@ -4,7 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { chyba } from './http.js';
-import { stavSync, nastaveniPd } from './pecedoma.js';
+import { stavSync, nastaveniPd, popisyDiagnoz } from './pecedoma.js';
 
 export const ROLE_UZIVATELE = ['admin', 'lekar', 'sestra', 'ctenar'];
 export const TYPY_POSKYTOVATELE = { NEMOCNICE: 'Nemocnice', HOSPIC: 'Mobilní hospic', AMBULANCE: 'Paliativní ambulance', PL: 'Praktický lékař', DOMOV: 'Domov / pobytová služba', ZZS: 'Záchranná služba', JINY: 'Jiný' };
@@ -122,7 +122,9 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
   const chat = !!p.PdKlientID && (await nastaveniPd(q)).nastaveno;
   const denik = pacientuv ? [] : await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
+  const dgPopisy = await popisyDiagnoz(q, plan && plan.data && plan.data.dg);   // 0.11.92: popisy kódů diagnóz (číselník CLB1)
   return {
+    dgPopisy,
     pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, rok: p.RokNarozeni || (p.DatumNarozeni ? Number(p.DatumNarozeni.slice(0, 4)) : null), pohlavi: p.Pohlavi, pobyt: p.Pobyt, stav: p.Stav },
     plan,
     garant: g ? { poskytovatel: g.Poskytovatel, typ: g.Typ, telefon24: g.Telefon24, lekar: g.Lekar, odbornyZastupce: g.OdbornyZastupce || null } : null,
@@ -158,16 +160,23 @@ export function normalizujDoklad(k = {}) {
 export function normalizujPlan(d = {}) {
   const pole = (v) => (Array.isArray(v) ? v : String(v || '').split('\n')).map((x) => String(x).trim()).filter(Boolean).slice(0, 40);
   const cil = ['symptom', 'limited', 'full'].includes(d.cil) ? d.cil : 'symptom';
+  // 0.11.92: limitace péče = jedna ze dvou možností – „KPR neuvedeno“ (pacient nemá podepsané DVP) nebo „dříve vyslovené přání
+  // (living will)“; seznam, co si pacient nepřeje, jen u DVP. Starší plány bez `kpr` zůstávají, jak byly (verze se nemění).
+  const kpr = ['neuvedeno', 'dvp'].includes(d.kpr) ? d.kpr : null;
+  const doklad = normalizujDoklad(d.doklad);
+  if (kpr) doklad.dvp = kpr === 'dvp';
   return {
     cil,
-    limity: pole(d.limity).slice(0, 12),
-    doklad: normalizujDoklad(d.doklad),
+    ...(kpr ? { kpr } : {}),
+    limity: kpr === 'neuvedeno' ? [] : pole(d.limity).slice(0, 12),
+    doklad,
     dg: String(d.dg || '').slice(0, 1000),
     funkce: String(d.funkce || '').slice(0, 1000),
     alergie: String(d.alergie || 'žádné známé').slice(0, 300),
     sos: pole(d.sos),
     opioidy: pole(d.opioidy),
     medikace: pole(d.medikace),
+    terapieNaKarte: d.terapieNaKarte === true,   // 0.11.92: na krizové kartě i paliativní terapie (jinak jen opioidy a SOS medikace)
   };
 }
 

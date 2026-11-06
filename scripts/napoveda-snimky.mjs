@@ -28,9 +28,9 @@ const posk = [
   { id: 4, nazev: 'Krajská nemocnice – interna', ico: '27661989', icp: '72000001', typ: 'NEMOCNICE', smiBytGarant: true, telefon24: '577 552 000', adresa: 'Havlíčkovo nábř. 600, Zlín', aktivni: true },
 ];
 const planData = {
-  cil: 'symptom', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'],
+  cil: 'symptom', kpr: 'dvp', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'],
   doklad: { dvp: true, datum: den(-40), original: 'u dcery, obálka na lednici', zprava: 'zápis o rozhovoru s pacientkou a dcerou', pouceni: true, overenyPodpis: true, prijeti: '' },
-  dg: 'C50 karcinom prsu s metastázami do kostí a jater; chronické srdeční selhání', funkce: 'PPS 40 % – většinu dne na lůžku, s pomocí do křesla',
+  dg: 'C50 karcinom prsu s metastázami do kostí a jater\nI50.9 chronické srdeční selhání', funkce: 'PPS 40 % – většinu dne na lůžku, s pomocí do křesla',
   alergie: 'penicilin',
   sos: ['Morphin 10 mg s.c. při bolesti nebo dušnosti, nejvýš po 4 h', 'Midazolam 5 mg s.c. při neklidu', 'Paracetamol 1 g p.o. při horečce'],
   opioidy: ['MST Continus 30 mg 1-0-1'],
@@ -111,7 +111,7 @@ const pdKlienti = [
   { id: 'a1b2c3d4-0000-4000-8000-000000000002', jmeno: 'Josef', prijmeni: 'Vzorek', rc: '480508/1111', narozen: '1948-05-08', mesto: 'Otrokovice', telefon: '', posledni_aktivita: den(-12), hospic: false, t720: true, lpp: false, kde: 'DS C', doma: false, ds: true, hosp: false },
 ];
 const detail = {
-  pacient, plan,
+  pacient, plan, dgPopisy: { C50: 'Zhoubný novotvar prsu', I509: 'Selhání srdce NS', C509: 'ZN - prs NS' },
   verze: [{ verze: 3, typ: 'ZMENA', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-7, '10:24'), platnostDo: den(70), poznamka: 'úprava SOS medikace' },
     { verze: 2, typ: 'REVIZE', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-14, '11:00'), platnostDo: den(60), poznamka: null },
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
@@ -182,6 +182,7 @@ app.post('/api/c/login', j({ session: 'ukazka' }));
 app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
+app.get('/api/c/diagnozy', j((req) => ({ diagnozy: [{ kod: 'C509', popis: 'ZN - prs NS' }, { kod: 'C50', popis: 'Zhoubný novotvar prsu' }, { kod: 'C341', popis: 'ZN - horní lalok průdušky nebo plíce' }].filter((d) => (d.kod + ' ' + d.popis).toLowerCase().includes(String(req.query.q || '').toLowerCase().slice(0, 4)) || String(req.query.q || '').length > 3) })));
 app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti: pacienti.map((x, i) => ({ ...x, kde: ['Doma', 'DS B', ''][i] ?? '' })), upozorneni })));
 app.post('/api/c/pecedoma/sync-vse', j(() => ({ celkem: 2, ok: 2, chyby: [] })));
 app.get('/api/c/pacient/:id', j(() => ({ ...detail, video: { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null } })));
@@ -408,6 +409,18 @@ await klik(p, '#pd_chat'); await p.waitForSelector('#chat_l .msg');
 await foto(p, 'c-chat-pecedoma', { vyska: 900 });
 await p.evaluate(() => KP.closeModal());
 await zalozka('plan', 'c-plan', { vyska: 1050 });
+// 0.11.92: limitace – dvě možnosti, našeptávač diagnóz, živý náhled karty v telefonu
+if ((await p.$$('input[name="f_kpr"]')).length !== 2 || !(await p.$('#f_dvpsek:not([hidden])'))) chyby.push('plán: chybí volba limitace (KPR neuvedeno / DVP)');
+await p.fill('#f_dgq', 'novotvar'); await p.waitForSelector('#f_dgn [data-dgk]'); await klik(p, '#f_dgn [data-dgk]');
+if (!(await p.inputValue('#f_dg')).includes('C509')) chyby.push('plán: našeptávač nevložil diagnózu');
+await klik(p, '[data-np]'); await p.waitForSelector('#np_frame');
+{ const fr = p.frameLocator('#np_frame'); await fr.locator('.card').waitFor(); await p.fill('#f_al', 'penicilin, náplasti'); await p.waitForTimeout(700);
+  const t = await fr.locator('.card').textContent();
+  if (!t.includes('penicilin, náplasti') || !t.includes('DŘÍVE VYSLOVENÉ PŘÁNÍ') || !t.includes('MEDIKACE') || !t.includes('Zhoubný novotvar prsu')) chyby.push('živý náhled: karta se neaktualizovala podle formuláře nebo chybí nové dlaždice');
+  if (t.includes('PŘÍŠTÍ NÁVŠTĚVA')) chyby.push('živý náhled: karta ještě ukazuje příští návštěvu');
+  await p.waitForTimeout(300); await foto(p, 'c-nahled-karty', { vyska: 1050 });
+  await klik(p, '[data-npr="sestra"]'); await fr.locator('.tile').first().waitFor({ timeout: 5000 }).catch(() => chyby.push('živý náhled: role sestra kartu neodemkla'));
+  await klik(p, '#np_zav'); }
 await zalozka('denik', 'c-denik');
 await zalozka('kontakty', 'c-kontakty');
 // kontrola chování záložky Důležité kontakty: úprava ve formuláři, přeřazení šipkami, přidání na konec

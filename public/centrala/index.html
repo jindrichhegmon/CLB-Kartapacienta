@@ -152,7 +152,7 @@ function nav() {
   const pol = [['pacienti', '🪪 Pacienti'], ...(jeLekar() ? [['novy', '➕ Nový pacient']] : []), ...(S.ja.role.some((r) => r !== 'ctenar') ? [['lide', '👥 Lidé a týmy']] : []), ...(jeAdmin() ? [['sprava', '⚙️ Správa organizace']] : []), ['ucet', '👤 Můj účet']];
   return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 }
-function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.view = b.dataset.v; if (b.dataset.v === 'pacienti') S.pacView = 'dash';   /* 0.11.90: menu Pacienti = přehled */ if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
+function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { if ($('np_panel')) $('np_panel').remove(); S.view = b.dataset.v; if (b.dataset.v === 'pacienti') S.pacView = 'dash';   /* 0.11.90: menu Pacienti = přehled */ if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
 
 /* 0.11.58: popisky sloupců pro mobil – buňkám doplní data-l z hlavičky tabulky (CSS je ukáže jen do 640 px); běží po každém překreslení */
 function oznacTabulky() {
@@ -330,7 +330,7 @@ async function renderPacienti(dCache) {
 const telHezky = (t) => { const d = String(t || '').replace(/\D/g, ''); return !d ? '' : d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}` : (String(t).trim().startsWith('+') ? '+' : '') + d; };
 const telChip = (t, popis) => (t ? `<a class="telchip" href="tel:${esc(String(t).replace(/[^+\d]/g, ''))}" title="${esc(popis || 'Zavolat na telefon s kartou týmu')}">${KP.ICON.tel}<span>${esc(telHezky(t))}</span></a>` : '');
 const telefonyKarty = (zarizeni) => (zarizeni || []).filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT' && z.telefon);
-function otevri(id, tab) { S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
+function otevri(id, tab) { if ($('np_panel') && S.pacId !== id) $('np_panel').remove(); S.view = 'detail'; S.pacId = id; S.tab = tab || 'karta'; render(); window.scrollTo(0, 0); }
 
 /* ================= detail pacienta ================= */
 async function nactiDetail() { const d = await C('/pacient/' + S.pacId); d.denikAsc = [...d.denik].reverse(); S.pac = d; return d; }
@@ -339,6 +339,40 @@ async function renderDetail() {
   let d; try { d = await nactiDetail(); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
   kresliDetail();
 }
+/* ---- živý náhled karty v telefonu (0.11.92): panel s telefonem (/karta/?nahled=1), karta se skládá z detailu a z právě
+   rozepsaného formuláře (plán, diagnózy, léky) a mění se při psaní. Role: zamčeno (ZZS / kdokoli), rodina, sestra, lékař –
+   v telefonu jde i odemknout tlačítky na kartě. Náhled nic nezapisuje ani neodesílá. ---- */
+const NAHLED = { role: '' };
+function balikNahledu(d) {
+  const b = balikZDetailu(d), base = (d.plan && d.plan.data) || {};
+  let data = { ...base }, platnostDo = d.plan ? d.plan.platnostDo : null;
+  if ($('f_cil')) { const p = ctiPlan('f', base); data = { ...base, ...p.data }; platnostDo = p.platnostDo || platnostDo; }
+  if ($('dg_dg')) data = { ...data, dg: $('dg_dg').value, funkce: $('dg_fun').value, alergie: $('dg_al').value };
+  const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean);
+  if ($('lk_opi')) data = { ...data, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med') };
+  if ($('lk_ter')) data.terapieNaKarte = $('lk_ter').checked;
+  return { ...b, pacient: { ...b.pacient, pobyt: d.pacient.pobyt, stav: d.pacient.stav },
+    plan: { ...(d.plan || { verze: 0, podepsal: S.ja.jmeno, vytvoreno: new Date().toISOString() }), data, platnostDo },
+    tym: (d.tym || []).map((t) => ({ nazev: t.nazev, role: t.role || '', tel: t.telefon24 || '' })), piny: [], lide: [], dgPopisy: d.dgPopisy || {} };
+}
+function posliNahled(zmenRole = false) {
+  const f = $('np_frame'); if (!f || !f.contentWindow || !S.pac || S.view !== 'detail') return;
+  try { f.contentWindow.postMessage({ typ: 'kp-nahled', balik: balikNahledu(S.pac), role: NAHLED.role, zmenRole }, location.origin); } catch { /* rámeček se ještě načítá */ }
+}
+function nahledKarty() {
+  if ($('np_panel')) { $('np_panel').remove(); return; }
+  const el = document.createElement('div'); el.id = 'np_panel'; el.className = 'nahled-panel noprint';
+  el.innerHTML = `<div class="np-h"><b>📱 Náhled karty v telefonu</b><span class="muted">nic se nezapisuje</span><button class="btn sm" id="np_zav" type="button">Zavřít</button></div>
+    <div class="np-role"><span class="lbl" style="align-self:center;margin:0">Jako:</span>${[['', 'zamčeno / ZZS'], ['rodina', 'rodina'], ['sestra', 'sestra'], ['lekar', 'lékař']].map(([r, n]) => `<button class="btn sm ${NAHLED.role === r ? 'primary' : ''}" data-npr="${r}" type="button">${n}</button>`).join('')}</div>
+    <iframe id="np_frame" src="/karta/?nahled=1" title="Náhled karty v telefonu"></iframe>`;
+  document.body.appendChild(el);
+  $('np_zav').onclick = () => el.remove();
+  el.querySelectorAll('[data-npr]').forEach((b) => (b.onclick = () => { NAHLED.role = b.dataset.npr; el.querySelectorAll('[data-npr]').forEach((x) => x.classList.toggle('primary', x === b)); posliNahled(true); }));
+}
+addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.typ === 'kp-nahled-pripraven') posliNahled(true); });
+let npCas = null;
+document.addEventListener('input', () => { if (!$('np_panel')) return; clearTimeout(npCas); npCas = setTimeout(() => posliNahled(), 250); });
+document.addEventListener('change', () => { if ($('np_panel')) posliNahled(); });
 function balikZDetailu(d) {
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const gp = g && S.posk.find((p) => p.id === g.poskytovatelId);
@@ -489,7 +523,7 @@ function odPacientaHTML(d) {
 function tabKarta(d) {
   return `<div class="grid2 l"><div>${KP.kartaHTML(balikZDetailu(d))}</div>
     <div style="display:grid;gap:12px;align-content:start">
-      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button>${videoTlacitkoC(d)}</div>
+      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button><button class="btn sm" data-np type="button" title="Karta tak, jak ji vidí telefon u lůžka – zamčená (ZZS) i po odemknutí; nic se nezapisuje">📱 Náhled v telefonu</button>${videoTlacitkoC(d)}</div>
       <div class="note"><b>Toto vidí posádka ZZS bez přihlášení</b> na telefonu u pacienta. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad a telefon na lékaře.</div>
       ${d.plan ? `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${d.plan.verze}</span></div><dl class="kv" style="padding:12px 14px">${(() => { const gz = (d.garance || []).find((x) => x.stav === 'PLATNA'); const oz = gz && (S.posk.find((p) => p.id === gz.poskytovatelId) || {}).odbornyZastupce; return oz ? `<dt>Odborný zástupce</dt><dd>${esc(oz)}</dd><dt>Uložil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd>` : `<dt>Stanovil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd>`; })()}<dt>Platnost</dt><dd>${fmtD(d.plan.platnostDo)}</dd><dt>Diagnózy</dt><dd>${esc(d.plan.data.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(d.plan.data.funkce || '—')}</dd></dl></div>` : ''}
       ${pdPanel(d, { jen: 'navsteva' })}
@@ -511,16 +545,17 @@ function zzsPanelC(d) {
 function tabDg(d) {
   const p = (d.plan && d.plan.data) || {}, ro = !d.op.lekar;
   return `<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>Diagnózy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : '<span class="chip warn">bez plánu</span>'}</div><div style="padding:14px;font-size:17px;line-height:1.45;white-space:pre-wrap">${esc(p.dg || '—')}</div></div>
+      <div class="panel"><div class="panel-h"><h2>Diagnózy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : '<span class="chip warn">bez plánu</span>'}</div><div style="padding:14px;font-size:17px;line-height:1.45;white-space:pre-wrap">${esc(p.dg || '—')}</div>${KP.dgPopisRadky(p.dg, d.dgPopisy).length ? `<div style="padding:0 14px 12px">${KP.dgPopisRadky(p.dg, d.dgPopisy).map((r) => `<div class="dgpopis"><b>${esc(r.kod)}</b> – ${esc(r.popis)}</div>`).join('')}<div class="lbl">popis z číselníku diagnóz</div></div>` : ''}</div>
       <div class="panel"><div class="panel-h"><h2>Funkční stav</h2></div><div style="padding:14px;white-space:pre-wrap">${esc(p.funkce || '—')}</div></div>
       <div class="panel"><div class="panel-h"><h2>Alergie</h2></div><div style="padding:14px">${esc(p.alergie || '—')}</div></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">
-        <div class="field"><label>Diagnózy</label><textarea id="dg_dg" style="font-family:var(--font);min-height:90px">${esc(p.dg || '')}</textarea></div>
+        <div class="field"><label>Diagnózy</label><textarea id="dg_dg" style="font-family:var(--font);min-height:90px">${esc(p.dg || '')}</textarea>
+          <div class="dg-hledat"><input id="dg_dgq" placeholder="Přidat diagnózu z číselníku – kód (C50) nebo název" autocomplete="off"><div id="dg_dgn" class="dg-nab" hidden></div></div></div>
         <div class="field"><label>Obvyklý funkční stav</label><textarea id="dg_fun" style="font-family:var(--font);min-height:60px">${esc(p.funkce || '')}</textarea></div>
         <div class="field"><label>Alergie</label><input id="dg_al" value="${esc(p.alergie || '')}"></div>
-        <button class="btn primary ulozit" id="dg_ok">Uložit</button></div></div>`}
+        <div class="quick"><button class="btn primary ulozit" id="dg_ok">Uložit</button><button class="btn" data-np type="button">📱 Živý náhled karty</button></div></div></div>`}
       <div class="note">Diagnózy, funkční stav a alergie jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Léky mají vlastní agendu.</div>
     </div></div>`;
 }
@@ -536,20 +571,25 @@ function tabLeky(d) {
       <div style="display:grid;gap:12px;align-content:start">
         <div class="note">Pacient je propojený s PéčeDoma, proto jsou léky jedny: totéž vidí a mění sestry v PéčeDoma (Data klienta → Léky), centrála Karty i telefon u pacienta a Můj průkaz. Změna se do telefonů dostane při nejbližší synchronizaci. Vyřazený lék se v PéčeDoma zneaktivní, historie zůstává.</div>
         ${pd.odkaz ? `<div class="quick"><a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a></div>` : ''}
+        <div class="panel"><div class="panel-h"><h2>Na krizové kartě</h2></div><div class="form" style="padding:14px">
+          <div class="muted" style="font-size:13.5px">Karta ukazuje v dlaždici Medikace vždy <b>opioidy</b> a <b>SOS medikaci</b>. Ostatní léky z PéčeDoma (paliativní terapie) jen tehdy, když je to zatržené.</div>
+          <label class="row" style="gap:8px"><input type="checkbox" id="lk_ter" ${p.terapieNaKarte ? 'checked' : ''} ${d.op.lekar ? '' : 'disabled'}> Ukazovat i <b>paliativní terapii</b></label>
+          ${d.op.lekar ? '<button class="btn sm ulozit" id="lk_ter_ok">Uložit (nová verze plánu)</button>' : '<span class="hint">Mění lékař.</span>'}</div></div>
       </div></div>`;
   }
   const ro = !d.op.lekar;
   return `<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>SOS léky</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : ''}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedeny</li>'}</ul></div>
-      <div class="panel"><div class="panel-h"><h2>Opioidy</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.opioidy || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul></div>
-      <div class="panel"><div class="panel-h"><h2>Pravidelná medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>Opioidy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : ''}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.opioidy || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>SOS medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>Paliativní terapie</h2><span class="chip ${p.terapieNaKarte ? 'ok' : ''}">${p.terapieNaKarte ? 'na kartě' : 'jen v Lécích'}</span></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit léky</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">
-        <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="lk_sos" style="font-family:var(--font);min-height:80px">${esc((p.sos || []).join('\n'))}</textarea></div>
         <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="lk_opi" style="font-family:var(--font);min-height:60px">${esc((p.opioidy || []).join('\n'))}</textarea></div>
-        <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="lk_med" style="font-family:var(--font);min-height:90px">${esc((p.medikace || []).join('\n'))}</textarea></div>
-        <button class="btn primary ulozit" id="lk_ok">Uložit</button></div></div>`}
+        <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="lk_sos" style="font-family:var(--font);min-height:80px">${esc((p.sos || []).join('\n'))}</textarea></div>
+        <div class="field"><label>Paliativní terapie (řádek = lék)</label><textarea id="lk_med" style="font-family:var(--font);min-height:90px">${esc((p.medikace || []).join('\n'))}</textarea><span class="hint">Chronická terapie se nezadává.</span></div>
+        <label class="row" style="gap:8px"><input type="checkbox" id="lk_ter" ${p.terapieNaKarte ? 'checked' : ''}> Na krizové kartě ukazovat i <b>paliativní terapii</b></label>
+        <div class="quick"><button class="btn primary ulozit" id="lk_ok">Uložit</button><button class="btn" data-np type="button">📱 Živý náhled karty</button></div></div></div>`}
       <div class="note">Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.</div>
     </div></div>`;
 }
@@ -571,12 +611,13 @@ function lekOkno(d, l = null) {
   KP.lekOkno(l, async (b) => { const r = await C('/pacient/' + d.pacient.id + '/leky', { method: 'POST', body: b }); S.leky = r.leky || []; ukazLeky(d); toast(l ? 'Lék upraven' : 'Lék přidán'); await nactiDetail(); });
 }
 /* ---- plán ---- */
-const planForm = KP.planForm, ctiPlan = KP.ctiPlan;   // 0.11.65: formulář plánu je sdílený (kp.js) – používá ho i Karta pacienta uvnitř PéčeDoma
+const planForm = KP.planForm, ctiPlan = KP.ctiPlan;
+const hledatDiagnozy = (q) => C('/diagnozy?q=' + encodeURIComponent(q));   // 0.11.92: číselník diagnóz (CLB1 přes PéčeDoma)   // 0.11.65: formulář plánu je sdílený (kp.js) – používá ho i Karta pacienta uvnitř PéčeDoma
 function tabPlan(d) {
   const ro = !d.op.lekar;
   return `<div class="grid2 l"><div class="panel"><div class="panel-h"><h2>Cíl péče a limitace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : '<span class="chip acc">upravuje lékař</span>'}</div><div style="padding:14px">
       ${planForm(d.plan && d.plan.data, d.plan && d.plan.platnostDo, ro)}
-      ${ro ? '' : '<div class="field" style="margin-top:12px"><label>Poznámka ke změně</label><input id="f_poz"></div><div class="quick" style="margin-top:12px"><button class="btn primary" id="ulozPlan">Uložit jako novou verzi</button></div>'}
+      ${ro ? '' : '<div class="field" style="margin-top:12px"><label>Poznámka ke změně</label><input id="f_poz"></div><div class="quick" style="margin-top:12px"><button class="btn primary" id="ulozPlan">Uložit jako novou verzi</button><button class="btn" data-np type="button">📱 Živý náhled karty</button></div>'}
     </div></div>
     <div style="display:grid;gap:12px;align-content:start">
       <div class="note">Každá změna vytvoří <b>novou verzi</b> s podpisem lékaře; starší verze zůstávají. Telefon u pacienta plán jen zobrazuje – nikdy ho nepřepíše. Sestra ani rodina cíl péče a limitace vyplnit nemohou.</div>
@@ -752,7 +793,7 @@ function bindTab() {
   on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Plán péče zůstává.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
   on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
   on('dg_ok', async () => { const base = (d.plan && d.plan.data) || {}; await akce('/plan', { data: { ...base, dg: $('dg_dg').value, funkce: $('dg_fun').value, alergie: $('dg_al').value }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava diagnózy / funkčního stavu' }, 'Uloženo jako nová verze plánu'); });
-  on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med') }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
+  on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med'), terapieNaKarte: $('lk_ter').checked }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
   on('lk_novy', () => lekOkno(d));
   if ($('lk_seznam')) nactiLeky(d);
   on('revize', revize);
@@ -760,6 +801,12 @@ function bindTab() {
   on('vidZahajit', videoZahajitC);
   on('naTelefon', () => { S.tab = 'telefon'; kresliDetail(); });
   on('vypis', vypis);
+  // 0.11.92: limitace (dvě možnosti), našeptávač diagnóz, paliativní terapie na kartě
+  document.querySelectorAll('[data-np]').forEach((b) => (b.onclick = () => { nahledKarty(); }));
+  posliNahled();
+  if ($('f_cil')) KP.bindPlanForm('f', { hledatDg: hledatDiagnozy });
+  if ($('dg_dgq')) KP.dgNaseptavac($('dg_dgq'), $('dg_dgn'), $('dg_dg'), hledatDiagnozy);
+  on('lk_ter_ok', async () => { const base = (d.plan && d.plan.data) || {}; await akce('/plan', { data: { ...base, terapieNaKarte: $('lk_ter').checked }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: $('lk_ter').checked ? 'na kartě i paliativní terapie' : 'na kartě jen opioidy a SOS medikace' }, 'Uloženo jako nová verze plánu'); });
   on('ulozPlan', async () => { const p = ctiPlan('f', (d.plan && d.plan.data) || {}); await akce('/plan', { ...p, typ: 'ZMENA', poznamka: $('f_poz').value }, 'Plán uložen jako nová verze'); });
   document.querySelectorAll('tr[data-v]').forEach((r) => (r.onclick = async () => {
     try { const v = await C(`/pacient/${S.pacId}/plan/${r.dataset.v}`); modal(`<h2>Plán – verze ${v.verze}</h2><div class="muted">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))} · platnost do ${fmtD(v.platnostDo)}</div>${planForm(v.data, v.platnostDo, true, 'h')}<div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
@@ -977,7 +1024,7 @@ Pořídil: ${S.ja.jmeno}, ${S.ja.poskytovatel}, ${KP.casLokalni()}
 Garant: ${(d.garance.find((g) => g.stav === 'PLATNA') || {}).nazev || '—'}
 Plán péče: verze ${d.plan ? d.plan.verze : '—'}, stanovil ${d.plan ? d.plan.podepsal : '—'}, platnost do ${d.plan ? fmtD(d.plan.platnostDo) : '—'}
 Cíl péče: ${CILE[pl.cil] || '—'}
-Limitace: ${(pl.limity || []).join(', ') || 'žádné'}
+Limitace: ${pl.kpr === 'neuvedeno' ? 'KPR neuvedeno (bez dříve vysloveného přání)' : pl.kpr === 'dvp' ? 'dříve vyslovené přání – nepřeje si: ' + ((pl.limity || []).join(', ') || 'neuvedeno') : (pl.limity || []).join(', ') || 'žádné'}
 Doklad: ${dokladText(pl.doklad)}
 Diagnózy: ${pl.dg || '—'}
 Alergie: ${pl.alergie || '—'}
@@ -986,7 +1033,7 @@ SOS medikace${lk.zdroj === 'pecedoma' ? ' (PéčeDoma, stav ' + fmtDT(lk.aktuali
 ${lk.sos.map((s) => ' - ' + s).join('\n') || ' - žádná'}
 Opioidy:
 ${lk.opioidy.map((s) => ' - ' + s).join('\n') || ' - žádné'}
-Pravidelná medikace:
+Paliativní terapie:
 ${lk.medikace.map((s) => ' - ' + s).join('\n') || ' - neuvedena'}
 
 KONTAKTY:
@@ -1038,7 +1085,7 @@ function csvNaPacienty(t) {
     const dvp = /^(ano|a|1|true|x)$/i.test(g('doklad_dvp'));
     return { format: 'CLB-Kartapacienta/pacient', zdroj: 'CSV', kod: o.kod || '',
       pacient: { jmeno: g('jmeno'), prijmeni: g('prijmeni'), rc: g('rodne_cislo'), datumNarozeni: g('datum_narozeni'), rok: g('rok_narozeni'), pohlavi: /^(z|ž|f)/i.test(g('pohlavi')) ? 'žena' : 'muž', pojistovna: g('pojistovna'), pobyt: g('pobyt'), adresa: g('adresa'), telefonKarty: g('telefon_karty'), email: g('email') },
-      plan: { cil: CIL[bezDia(g('cil')).replace(/[^a-z]/g, '').slice(0, 13)] || CIL[bezDia(g('cil')).split(' ')[0]] || '', limity, doklad: { dvp, datum: g('doklad_datum'), original: g('doklad_original'), zprava: g('doklad_zprava'), pouceni: dvp, overenyPodpis: false, prijeti: '' },
+      plan: { cil: CIL[bezDia(g('cil')).replace(/[^a-z]/g, '').slice(0, 13)] || CIL[bezDia(g('cil')).split(' ')[0]] || '', kpr: dvp ? 'dvp' : 'neuvedeno', limity: dvp ? limity : [], doklad: { dvp, datum: g('doklad_datum'), original: g('doklad_original'), zprava: g('doklad_zprava'), pouceni: dvp, overenyPodpis: false, prijeti: '' },
         dg: g('dg'), funkce: g('funkcni_stav'), alergie: g('alergie'), sos: seznam(g('sos_leky')), opioidy: seznam(g('opioidy')), medikace: seznam(g('medikace')), platnostDo: g('platnost_do') },
       kontakty: kont };
   }).filter((x) => x.pacient.jmeno || x.pacient.prijmeni);
@@ -1103,7 +1150,7 @@ function zPeceDoma(j) {
     d: {
       pacient: { jmeno: t(p.jmeno, 80), prijmeni: t(p.prijmeni, 80), rc: t(p.rc, 11), datumNarozeni: /^\d{4}-\d{2}-\d{2}$/.test(p.datumNarozeni || '') ? p.datumNarozeni : '', rok: p.rok || '',
         pohlavi: p.pohlavi === 'žena' ? 'žena' : 'muž', pojistovna: t(p.pojistovna, 3), adresa: t(p.adresa, 300), pobyt: t(p.pobyt, 200), telefonKarty: t(p.telefonKarty || p.telefon, 20), email: t(p.email, 150) },
-      plan: { cil: CILE[pl.cil] ? pl.cil : 'symptom', limity: limity.length ? limity : ['KPR'], doklad: { dvp: !!dk.dvp, datum: t(dk.datum, 10), original: t(dk.original, 200), zprava: t(dk.zprava, 200), pouceni: !!dk.pouceni, overenyPodpis: !!dk.overenyPodpis, prijeti: t(dk.prijeti, 200) },
+      plan: { cil: CILE[pl.cil] ? pl.cil : 'symptom', kpr: ['neuvedeno', 'dvp'].includes(pl.kpr) ? pl.kpr : dk.dvp ? 'dvp' : 'neuvedeno', limity: (pl.kpr === 'dvp' || (!pl.kpr && dk.dvp)) ? limity : [], doklad: { dvp: !!dk.dvp, datum: t(dk.datum, 10), original: t(dk.original, 200), zprava: t(dk.zprava, 200), pouceni: !!dk.pouceni, overenyPodpis: !!dk.overenyPodpis, prijeti: t(dk.prijeti, 200) },
         dg: t(pl.dg, 2000), funkce: t(pl.funkce, 1000), alergie: t(pl.alergie, 300), sos: seznam(pl.sos), opioidy: seznam(pl.opioidy), medikace: seznam(pl.medikace) },
       platnostDo: /^\d{4}-\d{2}-\d{2}$/.test(pl.platnostDo || '') ? pl.platnostDo : '',
       kontakty: (Array.isArray(j.kontakty) ? j.kontakty : []).slice(0, 30).map((k) => ({ jmeno: [t(k.jmeno, 100), t(k.pozn, 60)].filter(Boolean).join(' – '), tel: t(k.tel, 40),
@@ -1187,18 +1234,18 @@ function chatPd(d) {
     nacti: () => C('/pacient/' + d.pacient.id + '/pecedoma/zpravy'),
     posli: (text) => C('/pacient/' + d.pacient.id + '/pecedoma/zprava', { method: 'POST', body: { text } }) });
 }
-/* panel PéčeDoma u pacienta: nejbližší návštěva, léky, stav synchronizace */
+/* panel PéčeDoma u pacienta: léky a stav synchronizace (příští návštěva od 0.11.92 ne) */
 function pdPanel(d, { jen = 'vse' } = {}) {
   const pd = d.pecedoma || {}, sy = pd.sync || {};
-  const navsteva = pd.klientId ? (sy.pristiNavsteva ? `<div class="panel"><div class="panel-h"><h2>Nejbližší návštěva</h2><span class="chip acc">PéčeDoma</span></div><dl class="kv" style="padding:12px 14px"><dt>Kdy</dt><dd><b>${esc(fmtDT(sy.pristiNavsteva))}</b></dd>${sy.pristiKdo ? `<dt>Kdo</dt><dd>${esc(sy.pristiKdo)}</dd>` : ''}${sy.pristiPozn ? `<dt>Poznámka</dt><dd>${esc(sy.pristiPozn)}</dd>` : ''}</dl></div>` : (sy.aktualizovano ? '<div class="note">PéčeDoma: žádná naplánovaná návštěva v kalendáři FK.</div>' : '')) : '';
+  const navsteva = '';   // 0.11.92: příští návštěva se neukazuje – při změnách v programu sester se na ni nedá spoléhat
   const chat = pd.klientId && pd.nastaveno && d.op.zapis ? '<button class="btn sm primary" id="pd_chat">💬 Chat PéčeDoma s klientem</button>' : '';
-  if (jen === 'navsteva') return pd.klientId ? `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip ok">propojeno</span></div><div style="padding:12px 14px"><div class="muted" style="font-size:13px">Nejbližší návštěva z PéčeDoma je přímo v kartě${sy.aktualizovano ? ' · synchronizováno ' + esc(fmtDT(sy.aktualizovano)) : ''}${sy.chyba ? ' · <span class="chip warn">' + esc(sy.chyba) + '</span>' : ''}.</div>
+  if (jen === 'navsteva') return pd.klientId ? `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2><span class="chip ok">propojeno</span></div><div style="padding:12px 14px"><div class="muted" style="font-size:13px">Léky a místo pacienta se přebírají z PéčeDoma${sy.aktualizovano ? ' · synchronizováno ' + esc(fmtDT(sy.aktualizovano)) : ''}${sy.chyba ? ' · <span class="chip warn">' + esc(sy.chyba) + '</span>' : ''}.</div>
       ${chat ? '<div id="pdNahled" style="margin-top:8px"><div class="muted" style="font-size:13px">Načítám poslední zprávy…</div></div>' : ''}
       ${chat || pd.odkaz ? `<div class="quick" style="margin-top:8px">${chat}${pd.odkaz ? `<a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a>` : ''}</div>` : ''}</div></div>` : '';
   const leky = pd.klientId && sy.aktualizovano ? `<div class="panel"><div class="panel-h"><h2>Léky podle PéčeDoma</h2><span class="chip acc">aktualizováno ${esc(fmtDT(sy.aktualizovano))}</span></div><div style="padding:12px 14px">
       <div class="lbl">SOS léky</div><ul style="margin:4px 0 10px;padding-left:18px">${(sy.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul>
       <div class="lbl">Opioidy</div><ul style="margin:4px 0 10px;padding-left:18px">${(sy.opioidy || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul>
-      <div class="lbl">Pravidelná medikace</div><ul style="margin:4px 0 0;padding-left:18px">${(sy.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádná</li>'}</ul>
+      <div class="lbl">Paliativní terapie</div><ul style="margin:4px 0 0;padding-left:18px">${(sy.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádná</li>'}</ul>
       ${d.op.lekar ? '<div class="quick" style="margin-top:10px"><button class="btn sm" id="pd_prevzit">Převzít léky do formuláře plánu</button></div><div class="hint">Vloží léky do polí SOS, Opioidy a Pravidelná medikace; plán se změní až tlačítkem Uložit jako novou verzi.</div>' : '<div class="hint">Do plánu péče léky převezme lékař (nová verze plánu).</div>'}</div></div>` : '';
   if (jen === 'leky') return leky;
   const stav = `<div class="panel"><div class="panel-h"><h2>PéčeDoma</h2>${pd.klientId ? '<span class="chip ok">propojeno</span>' : '<span class="chip">nepropojeno</span>'}</div><div style="padding:12px 14px;display:grid;gap:8px">
@@ -1208,7 +1255,7 @@ function pdPanel(d, { jen = 'vse' } = {}) {
   return stav + navsteva + leky;
 }
 function renderNovy() {
-  if (!S.wiz) S.wiz = { krok: 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', limity: ['KPR'] }, kontakty: [] } };
+  if (!S.wiz) S.wiz = { krok: 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } };
   const w = S.wiz;
   const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
   if (w.krok === 1) {
@@ -1257,7 +1304,7 @@ function renderNovy() {
         w.ai = r; w.import = null; const v = r.vysledek;
         const [prijmeni, ...jm] = String(v.jmenoCele || '').split(/\s+/).reverse();
         w.d.pacient = { ...w.d.pacient, prijmeni: w.d.pacient.prijmeni || (prijmeni || ''), jmeno: w.d.pacient.jmeno || jm.reverse().join(' '), rok: w.d.pacient.rok || v.rok || '', pobyt: v.pobyt || '' };
-        w.d.plan = { cil: v.cil, limity: v.limity || [], doklad: v.doklad || {}, dg: v.dg, funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [] };
+        w.d.plan = { cil: v.cil, kpr: v.doklad && v.doklad.dvp ? 'dvp' : 'neuvedeno', limity: v.doklad && v.doklad.dvp ? (v.limity || []) : [], doklad: v.doklad || {}, dg: v.dg, funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [] };
         w.d.kontakty = (v.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: '' }));
         w.krok = 2; renderNovy();
       } catch (e) { toast(e.message); } finally { if ($('w_ai')) { $('w_ai').disabled = false; $('w_ai').textContent = 'Anonymní rozbor zprávy'; } }
@@ -1290,6 +1337,7 @@ function renderNovy() {
   bindNav();
   const ulozKont = () => { w.d.kontakty = [...document.querySelectorAll('#n_kont .kontrow')].map((r) => ({ jmeno: r.querySelector('[data-k=j]').value, tel: r.querySelector('[data-k=t]').value, skupina: r.querySelector('[data-k=s]').value, pozn: '' })); };
   const ulozVse = () => { w.d.pacient = ctiUdaje('n'); const p = ctiPlan('f'); w.d.plan = p.data; w.d.platnostDo = p.platnostDo; ulozKont(); };
+  KP.bindPlanForm('f', { hledatDg: hledatDiagnozy });
   $('n_kplus').onclick = () => { ulozVse(); w.d.kontakty.push({ jmeno: '', tel: '', skupina: 'INFORMOVAT' }); renderNovy(); };
   document.querySelectorAll('[data-kx]').forEach((b) => (b.onclick = () => { ulozVse(); w.d.kontakty.splice(Number(b.dataset.kx), 1); renderNovy(); }));
   $('n_zpet').onclick = () => { ulozVse(); w.krok = 1; renderNovy(); };
@@ -1301,7 +1349,7 @@ function renderNovy() {
     try {
       const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: garant, tym, aiPouzito: !!w.ai } });
       S.wiz = null;
-      if (dalsi) { S.wizDalsi = { garant, tym }; toast(`Průkaz ${r.kod} založen – další pacient`, 4000); S.wiz = { krok: 2, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', limity: ['KPR'] }, kontakty: [] } }; renderNovy(); scrollTo(0, 0); }
+      if (dalsi) { S.wizDalsi = { garant, tym }; toast(`Průkaz ${r.kod} založen – další pacient`, 4000); S.wiz = { krok: 2, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } }; renderNovy(); scrollTo(0, 0); }
       else { toast(`Průkaz ${r.kod} založen`); otevri(r.id, 'telefon'); }
     } catch (e) { toast(e.message); $('n_ok').disabled = false; $('n_dalsi').disabled = false; }
   };

@@ -154,6 +154,8 @@ tr.vdomove>td:first-child{box-shadow:inset 5px 0 0 #1c9c84}
 .val{font-size:15px}
 .pill{display:inline-block;padding:6px 16px;border:2px solid var(--crit);background:var(--crit-soft);color:var(--crit);border-radius:10px;font-weight:800;font-size:16px;margin:2px 0 4px}
 .pill.ok{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.pill.neutral{border-color:var(--muted);background:var(--surface);color:var(--fg)}
+.dgpopis{font-size:14px;color:var(--fg);margin-top:2px}.dgpopis b{font-family:var(--mono,ui-monospace,monospace);font-weight:700}
 .callrow{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:4px}
 .callrow .num{font-family:var(--mono);font-weight:500;color:var(--accent-ink);white-space:nowrap;font-size:14px}
 .callrow.first{background:var(--surface);border:1.5px solid var(--accent);border-radius:10px;padding:8px 10px;font-weight:700}
@@ -465,3 +467,16 @@ body:has(.modal) .hlp-fab,body:has(.sheet-bg) .hlp-fab{display:none}
 .dash-row:first-child{border-top:0}.dash-row:hover{background:var(--accent-soft)}.dash-row .muted{font-size:12px;white-space:nowrap}
 .dash-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;background:var(--warn);vertical-align:middle}.dash-dot.crit{background:var(--crit)}
 @media (max-width:640px){.dash-grid,.dash-grid2{grid-template-columns:1fr}.dash-n{font-size:26px}}
+/* ---- formulář plánu 0.11.92: limitace (dvě možnosti), našeptávač diagnóz ---- */
+.kpr-volba{display:grid;gap:6px}.kpr-moz{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;background:var(--surface)}
+.kpr-moz:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}.kpr-moz input{margin-top:3px}.kpr-moz .lbl{display:block;margin:0}
+.dg-hledat{position:relative;margin-top:6px}.dg-hledat input{width:100%}
+.dg-nab{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15);max-height:260px;overflow:auto;padding:4px}
+.dg-nab button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;font:inherit;color:var(--fg);cursor:pointer}.dg-nab button:hover{background:var(--accent-soft)}.dg-nab .muted{padding:8px 10px}
+/* ---- náhled karty z centrály (0.11.92) ---- */
+.nahled-pruh{position:sticky;top:0;z-index:50;background:var(--warn);color:#fff;font-weight:700;font-size:12px;letter-spacing:.3px;text-align:center;padding:5px 8px}
+.nahled-panel{position:fixed;right:16px;bottom:16px;z-index:25;width:392px;height:min(820px,calc(100vh - 32px));background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden}
+.nahled-panel .np-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--head);font-size:12.5px}
+.nahled-panel .np-h b{margin-right:auto}.nahled-panel iframe{flex:1;width:100%;border:0;background:var(--bg)}
+.nahled-panel .np-role{display:flex;gap:4px;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--line)}
+@media (max-width:760px){.nahled-panel{left:8px;right:8px;width:auto;top:8px;bottom:8px;height:auto}}

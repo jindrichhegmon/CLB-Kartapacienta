@@ -53,6 +53,8 @@ function kresli() {
     : '<div class="note">Plán péče v Kartě pacienta zapisuje jen lékař (v PéčeDoma role Lékař). Tady je karta jen k nahlédnutí.</div>';
   $('work').innerHTML = `<div class="grid2"><div>${karta}</div><div style="display:grid;gap:12px;align-content:start">${formular}${verze}</div></div>`;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  // 0.11.92: limitace (dvě možnosti) a našeptávač diagnóz z číselníku
+  if ($('f_cil')) KP.bindPlanForm('f', { hledatDg: (q) => KP.api('/api/pd/diagnozy?q=' + encodeURIComponent(q), { token: TOKEN, typ: 'Pd' }) });
   on('ulozPlan', async () => {
     const p2 = KP.ctiPlan('f', (plan && plan.data) || {});
     if (!p2.platnostDo) return toast('Vyplňte, do kdy plán platí');

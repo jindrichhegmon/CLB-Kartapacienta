@@ -134,28 +134,84 @@
   KP.planForm = (data, platnost, ro, pref = 'f', { leky = false } = {}) => {
     const e = KP.esc;
     data = data || {}; const dk = data.doklad || {};
+    // 0.11.92: limitace péče = jedna ze dvou možností podle toho, zda má pacient podepsané dříve vyslovené přání (DVP)
+    const kpr = data.kpr || (dk.dvp ? 'dvp' : 'neuvedeno');
     return `<div class="form ${ro ? 'locked' : ''}">
     <div class="field"><label>Cíl péče</label><select id="${pref}_cil">${Object.entries(KP.CILE).map(([k, v]) => `<option value="${k}" ${data.cil === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-    <div class="field"><label>Limitace (co se neprovádí)</label><div class="checks">${KP.LIMITY.map((l) => `<label><input type="checkbox" name="${pref}_lim" value="${e(l)}" ${(data.limity || []).includes(l) ? 'checked' : ''}>${e(l)}</label>`).join('')}</div></div>
-    <div class="frow"><div class="field"><label>Dříve vyslovené přání</label><select id="${pref}_dvp"><option value="1" ${dk.dvp ? 'selected' : ''}>sepsáno</option><option value="0" ${!dk.dvp ? 'selected' : ''}>nesepsáno</option></select></div><div class="field"><label>Datum DVP</label><input type="date" id="${pref}_dvpd" value="${e(dk.datum || '')}"></div></div>
-    <div class="frow"><div class="field"><label>Písemné poučení lékařem (u DVP)</label><select id="${pref}_pou"><option value="1" ${dk.pouceni ? 'selected' : ''}>ano, je přiloženo</option><option value="0" ${!dk.pouceni ? 'selected' : ''}>neuvedeno</option></select></div><div class="field"><label>Podpis pacienta (u DVP)</label><select id="${pref}_ovp"><option value="1" ${dk.overenyPodpis ? 'selected' : ''}>úředně ověřený</option><option value="0" ${!dk.overenyPodpis ? 'selected' : ''}>neuvedeno</option></select></div></div>
+    <div class="field"><label>Limitace péče</label><div class="kpr-volba">
+      <label class="kpr-moz"><input type="radio" name="${pref}_kpr" value="neuvedeno" ${kpr === 'neuvedeno' ? 'checked' : ''}><span><b>KPR neuvedeno</b><span class="lbl">pacient nemá podepsané dříve vyslovené přání</span></span></label>
+      <label class="kpr-moz"><input type="radio" name="${pref}_kpr" value="dvp" ${kpr === 'dvp' ? 'checked' : ''}><span><b>Dříve vyslovené přání</b> (living will)<span class="lbl">pacient má podepsané DVP – vyberte, co si nepřeje</span></span></label></div>
+      ${!data.kpr && (data.limity || []).length ? `<span class="hint">Dosavadní plán (bez této volby): ${e((data.limity || []).join(', '))}${dk.dvp ? ' – s DVP' : ' – rozhodnutí lékaře'}. Uložením se použije zvolená možnost.</span>` : ''}</div>
+    <div id="${pref}_dvpsek" ${kpr === 'dvp' ? '' : 'hidden'}>
+    <div class="field"><label>Pacient si nepřeje (podle DVP)</label><div class="checks">${KP.LIMITY.map((l) => `<label><input type="checkbox" name="${pref}_lim" value="${e(l)}" ${(data.limity || []).includes(l) ? 'checked' : ''}>${e(l)}</label>`).join('')}</div></div>
+    <div class="frow"><div class="field"><label>Datum DVP</label><input type="date" id="${pref}_dvpd" value="${e(dk.datum || '')}"></div><div class="field"><label>Kde je originál DVP</label><input id="${pref}_orig" value="${e(dk.original || '')}"></div></div>
+    <div class="frow"><div class="field"><label>Písemné poučení lékařem</label><select id="${pref}_pou"><option value="1" ${dk.pouceni ? 'selected' : ''}>ano, je přiloženo</option><option value="0" ${!dk.pouceni ? 'selected' : ''}>neuvedeno</option></select></div><div class="field"><label>Podpis pacienta</label><select id="${pref}_ovp"><option value="1" ${dk.overenyPodpis ? 'selected' : ''}>úředně ověřený</option><option value="0" ${!dk.overenyPodpis ? 'selected' : ''}>neuvedeno</option></select></div></div>
     <div class="field"><label>DVP sepsané při přijetí u poskytovatele</label><input id="${pref}_prij" value="${e(dk.prijeti || '')}" placeholder="jen pokud bylo sepsáno při přijetí do péče nebo hospitalizaci – např. Nemocnice Zlín, interna"><span class="hint">Takové přání platí jen u tohoto poskytovatele – karta pro ZZS to tak i ukáže.</span></div>
-    <div class="frow"><div class="field"><label>Kde je originál DVP</label><input id="${pref}_orig" value="${e(dk.original || '')}"></div><div class="field"><label>Lékařská zpráva / zápis o rozhovoru</label><input id="${pref}_zpr" value="${e(dk.zprava || '')}"></div></div>
     <div class="note">Aplikace jen eviduje, jaký doklad existuje a kde je originál. Vyplnění zde ani v aplikaci pacienta dříve vyslovené přání nevytváří (§ 36 zákona o zdravotních službách: písemné poučení lékařem a úředně ověřený podpis, nebo zápis při přijetí do péče).</div>
-    <div class="field"><label>Diagnózy</label><textarea id="${pref}_dg" style="font-family:var(--font);min-height:60px">${e(data.dg || '')}</textarea></div>
+    </div>
+    <input type="hidden" id="${pref}_zpr" value="${e(dk.zprava || '')}">
+    <div class="field"><label>Diagnózy</label><textarea id="${pref}_dg" style="font-family:var(--font);min-height:60px">${e(data.dg || '')}</textarea>
+      ${ro ? '' : `<div class="dg-hledat"><input id="${pref}_dgq" placeholder="Přidat diagnózu z číselníku – kód (C50) nebo název" autocomplete="off"><div id="${pref}_dgn" class="dg-nab" hidden></div></div><span class="hint">Ke kódům diagnóz se na kartě doplní popis z číselníku (např. C50 – Zhoubný novotvar prsu).</span>`}</div>
     <div class="field"><label>Obvyklý funkční stav</label><textarea id="${pref}_fun" style="font-family:var(--font);min-height:60px">${e(data.funkce || '')}</textarea></div>
     <div class="frow"><div class="field"><label>Alergie</label><input id="${pref}_al" value="${e(data.alergie || '')}"></div><div class="field"><label>Platnost plánu do</label><input type="date" id="${pref}_plat" value="${e(platnost || '')}"></div></div>
-    ${leky ? `<div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="${pref}_sos" style="font-family:var(--font);min-height:80px">${e((data.sos || []).join('\n'))}</textarea></div>
-    <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="${pref}_opi" style="font-family:var(--font);min-height:60px">${e((data.opioidy || []).join('\n'))}</textarea></div>
-    <div class="field"><label>Pravidelná medikace (řádek = lék)</label><textarea id="${pref}_med" style="font-family:var(--font);min-height:90px">${e((data.medikace || []).join('\n'))}</textarea></div>` : ''}
+    ${leky ? `<div class="field"><label>Opioidy (řádek = lék)</label><textarea id="${pref}_opi" style="font-family:var(--font);min-height:60px">${e((data.opioidy || []).join('\n'))}</textarea></div>
+    <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="${pref}_sos" style="font-family:var(--font);min-height:80px">${e((data.sos || []).join('\n'))}</textarea></div>
+    <div class="field"><label>Paliativní terapie (řádek = lék)</label><textarea id="${pref}_med" style="font-family:var(--font);min-height:90px">${e((data.medikace || []).join('\n'))}</textarea><span class="hint">Chronická terapie se nezadává.</span></div>` : ''}
+    <label class="row" style="gap:8px"><input type="checkbox" id="${pref}_ter" ${data.terapieNaKarte ? 'checked' : ''}> Na krizové kartě ukazovat i <b>paliativní terapii</b> (jinak jen opioidy a SOS medikaci)</label>
   </div>`;
   };
   KP.ctiPlan = (pref = 'f', base = {}) => {
     const $ = (id) => document.getElementById(id);
     const v = (id) => ($(`${pref}_${id}`) || {}).value || '';
     const radky = (id, puvodni) => ($(`${pref}_${id}`) ? v(id).split('\n').map((x) => x.trim()).filter(Boolean) : (puvodni || []));
-    return { data: { cil: v('cil'), limity: [...document.querySelectorAll(`input[name=${pref}_lim]:checked`)].map((i) => i.value), doklad: { dvp: v('dvp') === '1', datum: v('dvpd'), original: v('orig'), zprava: v('zpr'), pouceni: v('pou') === '1', overenyPodpis: v('ovp') === '1', prijeti: v('prij').trim() },
-      dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), opioidy: radky('opi', base.opioidy), medikace: radky('med', base.medikace) }, platnostDo: v('plat') };
+    const kprEl = document.querySelector(`input[name=${pref}_kpr]:checked`);
+    const kpr = kprEl ? kprEl.value : (base.kpr || 'neuvedeno');
+    const dvp = kpr === 'dvp';
+    return { data: { cil: v('cil'), kpr, limity: dvp ? [...document.querySelectorAll(`input[name=${pref}_lim]:checked`)].map((i) => i.value) : [],
+      doklad: { dvp, datum: dvp ? v('dvpd') : '', original: dvp ? v('orig') : '', zprava: v('zpr'), pouceni: dvp && v('pou') === '1', overenyPodpis: dvp && v('ovp') === '1', prijeti: dvp ? v('prij').trim() : '' },
+      dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), opioidy: radky('opi', base.opioidy), medikace: radky('med', base.medikace),
+      terapieNaKarte: $(`${pref}_ter`) ? $(`${pref}_ter`).checked : !!base.terapieNaKarte }, platnostDo: v('plat') };
+  };
+  /* 0.11.92: oživení formuláře plánu – přepínání DVP části a našeptávač diagnóz (hledat(q) → Promise<{diagnozy}>) */
+  KP.bindPlanForm = (pref = 'f', { hledatDg } = {}) => {
+    const $ = (id) => document.getElementById(id);
+    const sek = $(`${pref}_dvpsek`);
+    document.querySelectorAll(`input[name=${pref}_kpr]`).forEach((r) => r.addEventListener('change', () => { if (sek) sek.hidden = r.value !== 'dvp' || !r.checked; }));
+    if (hledatDg) KP.dgNaseptavac($(`${pref}_dgq`), $(`${pref}_dgn`), $(`${pref}_dg`), hledatDg);
+  };
+  KP.dgNaseptavac = (vstup, nabidka, cil, hledatDg) => {
+    if (!vstup || !nabidka || !cil) return;
+    let casovac = null, posledni = '';
+    const zavri = () => { nabidka.hidden = true; nabidka.innerHTML = ''; };
+    vstup.addEventListener('input', () => {
+      clearTimeout(casovac); const t = vstup.value.trim();
+      if (t.length < 2) return zavri();
+      casovac = setTimeout(async () => {
+        posledni = t;
+        try {
+          const r = await hledatDg(t); if (posledni !== t) return;
+          const dg = r.diagnozy || [];
+          nabidka.innerHTML = dg.length ? dg.map((d) => `<button type="button" data-dgk="${KP.esc(d.kod)}" data-dgp="${KP.esc(d.popis)}"><b>${KP.esc(d.kod)}</b> ${KP.esc(d.popis)}</button>`).join('') : '<div class="muted">nic nenalezeno</div>';
+          nabidka.hidden = false;
+          nabidka.querySelectorAll('[data-dgk]').forEach((b) => (b.onclick = () => {
+            const radek = `${b.dataset.dgk} ${b.dataset.dgp}`;
+            cil.value = cil.value.trim() ? cil.value.replace(/\s+$/, '') + '\n' + radek : radek;
+            cil.dispatchEvent(new Event('input', { bubbles: true }));
+            vstup.value = ''; zavri(); vstup.focus();
+          }));
+        } catch (e) { nabidka.innerHTML = `<div class="muted">${KP.esc(e.message)}</div>`; nabidka.hidden = false; }
+      }, 250);
+    });
+    vstup.addEventListener('keydown', (e) => { if (e.key === 'Escape') { vstup.value = ''; zavri(); } });
+  };
+  /* 0.11.92: popisy kódů diagnóz z číselníku – jen ty, jejichž popis už v textu není */
+  KP.dgPopisRadky = (text, popisy) => {
+    const t = String(text || ''), maly = t.toLowerCase(), out = [];
+    for (const k of new Set((t.toUpperCase().match(/\b[A-TV-Z]\d{2}(?:\.?\d{1,2})?\b/g) || []))) {
+      const p = (popisy || {})[k.replace('.', '')];
+      if (p && !maly.includes(p.toLowerCase())) out.push({ kod: k, popis: p });
+    }
+    return out;
   };
   /** Krizová karta z balíku (stejný tvar posílá server telefonu i centrální aplikaci). */
   /* doklad k limitacím (§ 36): DVP s poučením a ověřeným podpisem, DVP z přijetí (platí jen u toho poskytovatele), nebo rozhodnutí lékaře */
@@ -210,8 +266,8 @@
     return { sos: p.sos || [], opioidy: p.opioidy || [], medikace: p.medikace || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };
   };
   /* Léky z PéčeDoma – seznam s tlačítky a okno pro přidání / úpravu (centrála i telefon lékaře) */
-  KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'pravidelně', PARENTERALNI: 'parenterálně' };
-  KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Pravidelná medikace', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
+  KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'paliativní terapie', PARENTERALNI: 'parenterálně' };
+  KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Paliativní terapie', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
   KP.lekyRadky = (leky, muze) => {
     const e = KP.esc, sk = KP.SKUPINY_LEKU;
     // každá skupina jako samostatný barevně odlišený blok (od 0.9.5): barevný pruh vlevo, podbarvené záhlaví, počet léků
@@ -261,26 +317,27 @@
       <div class="hdr"><div class="row" style="justify-content:space-between"><span>KRIZOVÝ PLÁN PÉČE · ${e(p.kod || '')}</span><span class="valid ${exp ? 'exp' : ''}">${!b.plan ? 'BEZ PLÁNU' : exp ? 'ČEKÁ NA REVIZI' : 'platí do ' + KP.fmtD(platnost)}</span></div>
         <div class="name">${e(p.prijmeni || '')} ${e(p.jmeno || '')}${p.rok ? ', ' + e(p.rok) : ''}</div></div>
       <div class="body">
-        <section class="sec navy"><h3>DIAGNÓZA</h3><div class="val" style="white-space:pre-wrap">${e(plan.dg || 'neuvedena')}</div>${plan.funkce ? `<div class="lbl">Funkční stav</div><div class="val">${e(plan.funkce)}</div>` : ''}</section>
+        <section class="sec navy"><h3>DIAGNÓZA</h3><div class="val" style="white-space:pre-wrap">${e(plan.dg || 'neuvedena')}</div>${KP.dgPopisRadky(plan.dg, b.dgPopisy).map((r) => `<div class="dgpopis"><b>${e(r.kod)}</b> – ${e(r.popis)}</div>`).join('')}${plan.funkce ? `<div class="lbl">Funkční stav</div><div class="val">${e(plan.funkce)}</div>` : ''}</section>
         <section class="sec red"><h3>LIMITACE PÉČE</h3>
-          <div class="pill ${kpr ? '' : 'ok'}">KPR: ${kpr ? 'NE' : 'ANO'}</div>
-          ${dalsi.length ? `<div class="val">Dále ne: ${e(dalsi.join(', '))}</div>` : ''}
+          ${plan.kpr === 'dvp' ? `<div class="pill">DŘÍVE VYSLOVENÉ PŘÁNÍ</div><div class="lbl" style="margin-top:0">living will – podepsáno</div>
+            ${limity.length ? `<div class="val">Nepřeje si: <b>${e(limity.join(', '))}</b></div>` : ''}`
+          : plan.kpr === 'neuvedeno' ? `<div class="pill neutral">KPR: neuvedeno</div><div class="lbl" style="margin-top:0">pacient nemá podepsané dříve vyslovené přání</div>`
+          : `<div class="pill ${kpr ? '' : 'ok'}">KPR: ${kpr ? 'NE' : 'ANO'}</div>${dalsi.length ? `<div class="val">Dále ne: ${e(dalsi.join(', '))}</div>` : ''}`}
           <div class="lbl">Cíl péče</div><div class="val">${e(KP.CILE[plan.cil] || '—')}</div>
-          <div class="lbl">Doklad</div><div class="val">${KP.dokladHTML(doklad)}</div>
-          ${doklad.original || doklad.zprava ? `<div class="lbl" style="margin-top:2px">${e(doklad.dvp && doklad.original ? 'originál: ' + doklad.original : 'zápis: ' + (doklad.zprava || ''))}</div>` : ''}
+          ${plan.kpr === 'neuvedeno' ? '' : `<div class="lbl">Doklad</div><div class="val">${KP.dokladHTML(doklad)}</div>
+          ${doklad.original || doklad.zprava ? `<div class="lbl" style="margin-top:2px">${e(doklad.dvp && doklad.original ? 'originál: ' + doklad.original : 'zápis: ' + (doklad.zprava || ''))}</div>` : ''}`}
         </section>
-        <section class="sec amber"><h3>ALERGIE A SOS LÉKY</h3>
-          <div class="val"><b>Alergie:</b> ${e(plan.alergie || 'neuvedeno')}</div>
-          <div class="lbl">SOS léky${leky.zdroj === 'pecedoma' ? ' · PéčeDoma' : ''}</div>${leky.sos.map((s) => `<div class="val">${e(s)}</div>`).join('') || '<div class="val">neuvedeny</div>'}
-          ${leky.opioidy.length ? `<div class="lbl">Opioidy</div>${leky.opioidy.map((s) => `<div class="val">${e(s)}</div>`).join('')}` : ''}
+        <section class="sec amber"><h3>ALERGIE</h3><div class="val">${e(plan.alergie || 'neuvedeno')}</div></section>
+        <section class="sec violet"><h3>MEDIKACE${leky.zdroj === 'pecedoma' ? ' · PéčeDoma' : ''}</h3>
+          <div class="lbl">Opioidy</div>${leky.opioidy.map((s) => `<div class="val">${e(s)}</div>`).join('') || '<div class="val">žádné</div>'}
+          <div class="lbl">SOS medikace</div>${leky.sos.map((s) => `<div class="val">${e(s)}</div>`).join('') || '<div class="val">neuvedena</div>'}
+          ${plan.terapieNaKarte && leky.medikace.length ? `<div class="lbl">Paliativní terapie</div>${leky.medikace.map((s) => `<div class="val">${e(s)}</div>`).join('')}` : ''}
         </section>
         <section class="sec blue"><h3>KOHO VOLAT</h3>
           ${first ? `<div class="callblk first"><div class="lbl">Nejdřív volat</div><div class="val"><b>${e(String(first.jmeno).replace(/ \(24\/7\)/, ''))}</b></div>${KP.telHTML(first.tel)}</div>` : ''}
           <div class="callblk"><div class="lbl">${g.odbornyZastupce ? 'Odborný zástupce' : 'Lékař plánu'}${g.poskytovatel ? ' · ' + e(g.poskytovatel) : ''}</div><div class="val">${e(lekarJm)}</div>${KP.telHTML(lekarTel)}</div>
           ${dalsiKontakty.map((r) => `<div class="callblk"><div class="lbl">${SKUP_NAZ[r.skupina] || e(r.skupina)}${r.pozn ? ' · ' + e(r.pozn) : ''}</div><div class="val">${e(r.jmeno)}</div>${KP.telHTML(r.tel)}</div>`).join('')}
         </section>
-        ${navsteva && pd && pd.pristiNavsteva ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="val"><b>${e(KP.fmtDT(pd.pristiNavsteva))}</b></div>${pd.pristiKdo ? `<div class="val">${e(pd.pristiKdo)}</div>` : ''}${pd.pristiPozn ? `<div class="lbl">${e(pd.pristiPozn)}</div>` : ''}</section>`
-          : navsteva && pd && pd.aktualizovano ? `<section class="sec green"><h3>PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma</h3><div class="lbl">V kalendáři PéčeDoma zatím není naplánovaná návštěva (stav ${e(KP.fmtDT(pd.aktualizovano))}).</div></section>` : ''}
         ${last ? `<section class="sec red"><h3>${zh ? 'AKTUÁLNÍ ZHORŠENÍ' : 'POSLEDNÍ ZÁPIS'} · ${e(KP.fmtDT(last.cas))} · ${e(last.autor)}</h3><div class="val">${e(last.text)}</div></section>` : ''}
       </div>
       ${tlacitka ? `<div class="foot">${tlacitka}</div>` : ''}

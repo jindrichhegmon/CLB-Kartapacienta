@@ -110,7 +110,7 @@ Panel **Více pacientů ze souboru · export** v kroku 1:
 
 - **Identifikace pacienta**: jméno, rodné číslo, datum a rok narození, pojišťovna, kde pobývá, adresa.
 - **Telefon s kartou \*** (povinné): číslo telefonu u pacienta, na kterém bude karta. Na žádném jiném telefonu ji nahrát nepůjde.
-- **Cíl péče a limitace**: potvrzuje lékař. Cíl péče je symptomatická, omezená, nebo plná léčba; limitace (KPR, ventilace, hospitalizace…) jsou to, co se neprovádí. Vyplňte doklad – dříve vyslovené přání (DVP) a kde je jeho originál, nebo lékařskou zprávu / zápis o rozhovoru.
+- **Cíl péče a limitace**: potvrzuje lékař. Cíl péče je symptomatická, omezená, nebo plná léčba. **Limitace péče** má od verze 0.11.92 dvě možnosti podle toho, jestli má pacient podepsané dříve vyslovené přání: **KPR neuvedeno** (nic podepsaného nemá – karta ukáže „KPR: neuvedeno“), nebo **Dříve vyslovené přání (living will)** – pak zatrhnete, co si pacient nepřeje (KPR, ventilace, hospitalizace…), datum DVP, kde je originál a jak bylo ověřeno. Plány uložené dřív zůstávají, jak byly, dokud lékař neuloží novou verzi.
 - **Kontakty** a **Garant a tým**: kdo rozhoduje, koho informovat, kdo pečuje; které pracoviště je garantem a která jsou v týmu.
 - Vpravo je panel, co ze souboru bylo převzato a co je potřeba zkontrolovat.
 
@@ -128,7 +128,7 @@ Záložky detailu jdou v pořadí **Krizová karta, Diagnóza, Plán péče, Lé
 
 Záložka **Léky** je jediné místo, kde se léky vedou. U pacienta **propojeného s PéčeDoma** jsou léky jedny pro portál i Kartu: Karta je čte přímo z PéčeDoma (Data klienta → Léky) a tým je tady může i měnit – **Přidat lék**, **Upravit**, **Vyřadit** (lék se v PéčeDoma zneaktivní, historie zůstává). Totéž hned vidí sestry v PéčeDoma, krizová karta, telefon u pacienta i Můj průkaz (telefony při nejbližší synchronizaci). U pacienta bez propojení jsou léky součástí plánu péče a mění je lékař (**Uložit** = nová verze plánu).
 
-Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (záchranné), **Opioidy** (silná analgetika podávaná pravidelně – morfin, fentanyl, buprenorfin, oxykodon…), **Pravidelná medikace** (ostatní léky) a **Parenterálně** (injekce a infuze sestry). Skupinu vybíráte v poli **Typ** při přidání nebo úpravě léku; opioidy jsou v krizové kartě zvlášť pod SOS léky, aby je posádka ZZS i lékař viděli na první pohled.
+Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (záchranné), **Opioidy** (silná analgetika podávaná pravidelně – morfin, fentanyl, buprenorfin, oxykodon…), **Paliativní terapie** (ostatní léky paliativní péče – chronická terapie se od 0.11.92 nezadává) a **Parenterálně** (injekce a infuze sestry). Na krizové kartě je dlaždice **Medikace** vždy s **opioidy** a **SOS medikací**; **paliativní terapii** ukáže jen tehdy, když je u pacienta zatržené **Na krizové kartě ukazovat i paliativní terapii** (záložka Léky nebo plán péče – uložení je nová verze plánu). Skupinu vybíráte v poli **Typ** při přidání nebo úpravě léku; opioidy jsou v krizové kartě zvlášť pod SOS léky, aby je posádka ZZS i lékař viděli na první pohled.
 
 ![Léky – jedna agenda s PéčeDoma](/napoveda/img/c-leky.png)
 
@@ -142,11 +142,15 @@ V detailu pacienta jsou vysvětlující poznámky sbalené na konci každé zál
 
 ![Detail pacienta – krizová karta](/napoveda/img/c-karta.png)
 
-Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telefonu bez přihlášení: nahoře **diagnózu** a funkční stav, pak cíl péče, limitace s dokladem, SOS léky, alergie, telefon na garanta a lékaře, kontakty. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad.
+Záložka **Krizová karta** ukazuje přesně to, co vidí posádka ZZS na telefonu bez přihlášení: nahoře **diagnózu** (ke kódům diagnóz se doplní **popis z číselníku** – např. C50 – Zhoubný novotvar prsu) a funkční stav, pak limitace péče (KPR neuvedeno, nebo dříve vyslovené přání s tím, co si pacient nepřeje) a cíl péče, dlaždice **Alergie**, dlaždice **Medikace** (opioidy, SOS medikace a případně paliativní terapie), koho volat a kontakty.
+
+**📱 Náhled v telefonu / Živý náhled karty** (od 0.11.92; tlačítko u Krizové karty, v plánu péče, v Diagnóze i v Lécích) otevře vpravo telefon s kartou přesně tak, jak ji vidí telefon u lůžka. Při úpravě plánu, diagnóz, limitací a léků se náhled **mění hned při psaní**, ještě před uložením. Tlačítky **Jako: zamčeno / ZZS, rodina, sestra, lékař** přepnete, jak kartu vidí záchranka bez přihlášení nebo kdo ji odemkl PINem; v telefonu jde i odemknout tlačítky na kartě (PIN se v náhledu neověřuje) a vyzkoušet zápisy – **náhled nic nezapisuje ani neodesílá**.
+
+![Živý náhled karty v telefonu vedle plánu péče](/napoveda/img/c-nahled-karty.png) Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad.
 
 Tlačítka: **Potvrdit revizi plánu** (lékař), **Výpis do dokumentace** (text celého průkazu pro zdravotnickou dokumentaci, ke zkopírování nebo stažení), **Tisk karty**. Panel **Telefon u pacienta** ukáže číslo připojeného telefonu s kartou týmu (klepnutím se volá), poslední spojení, baterii a jestli má telefon aktuální verzi plánu; stejné číslo je i v hlavičce detailu („karta týmu: +420 …“) a ve sloupci Telefon v přehledu pacientů (od 0.11.59).
 
-U pacienta propojeného s PéčeDoma má krizová karta zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** – nejbližší plánovaná návštěva z kalendáře FK (kdy a kdo: lékař, sestra). Je přímo v kartě a v tisku karty; na telefonu u pacienta se ukáže až po odemknutí lékařem nebo členem týmu (zamčená karta pro záchranku, rodina ani Můj průkaz ji neukazují – termín rodině sděluje tým); když v kalendáři nic není, karta to napíše. Vedle karty je panel **PéčeDoma** s posledními dvěma zprávami a tlačítkem **💬 Chat PéčeDoma s klientem**: stejné vlákno zpráv jako v PéčeDoma (Data klienta → Zprávy) – klient ho vidí ve své aplikaci PéčeDoma, rodina a tým v telefonu s kartou. Píšete jako Tým PéčeDoma se značkou [Karta · vaše jméno]; zprávy označené SMS odešly z PéčeDoma i textovou zprávou.
+Příští návštěva se od verze 0.11.92 na kartě ani v centrále **neukazuje** – při změnách v programu sester se na ni pacienti nemohli spolehnout. Vedle karty je panel **PéčeDoma** s posledními dvěma zprávami a tlačítkem **💬 Chat PéčeDoma s klientem**: stejné vlákno zpráv jako v PéčeDoma (Data klienta → Zprávy) – klient ho vidí ve své aplikaci PéčeDoma, rodina a tým v telefonu s kartou. Píšete jako Tým PéčeDoma se značkou [Karta · vaše jméno]; zprávy označené SMS odešly z PéčeDoma i textovou zprávou.
 
 ![Chat PéčeDoma s klientem z Karty pacienta](/napoveda/img/c-chat-pecedoma.png)
 
@@ -514,7 +518,7 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Interní poznámk
 
 ![Telefon – průvodce zhoršením stavu](/napoveda/img/k-zhorseni.png)
 
-- **Plán** – cíl péče, limitace, doklad, kdo plán stanovil a do kdy platí (léky jsou na dlaždici **Léky**: SOS léky, Opioidy, Pravidelná medikace). Plán mění jen lékař v centrální aplikaci.
+- **Plán** – cíl péče, limitace, doklad, kdo plán stanovil a do kdy platí (léky jsou na dlaždici **Léky**: Opioidy, SOS medikace, Paliativná medikace). Plán mění jen lékař v centrální aplikaci.
 - **Kontakty** a **Tým** – kontakty po skupinách, garant, tým a údaje o tomto telefonu (kdy byl spárován, poslední spojení, co čeká na odeslání).
 
 ### Videohovor

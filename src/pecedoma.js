@@ -191,3 +191,36 @@ export function spustSynchronizaci(log = console.log) {
   setTimeout(beh, 20000);
   setInterval(beh, 30 * 60 * 1000).unref();
 }
+
+/* ---- číselník diagnóz (0.11.92): CLB1 dbo.Diagnozy2025 přes PéčeDoma (pecedoma-karta, akce diagnozy, PéčeDoma 2.78).
+   Kódy v číselníku jsou bez tečky (I509), v textu diagnóz bývají s tečkou (I50.9) – porovnává se bez tečky. Popisy se drží
+   v paměti serveru (číselník se nemění); když PéčeDoma neodpoví, karta je prostě bez popisů a zkusí se to příště. */
+const DG_POPISY = new Map();
+export const kodyDiagnoz = (text) => [...new Set((String(text || '').toUpperCase().match(/\b[A-TV-Z]\d{2}(?:\.?\d{1,2})?\b/g) || []).map((k) => k.replace('.', '')))].slice(0, 30);
+export async function popisyDiagnoz(q, text) {
+  const kody = kodyDiagnoz(text);
+  if (!kody.length) return {};
+  const chybi = kody.filter((k) => !DG_POPISY.has(k));
+  if (chybi.length) {
+    try {
+      const nast = await nastaveniPd(q);
+      if (nast.nastaveno) {
+        const r = await pdVolej(nast, 'diagnozy', { kody: chybi.join(',') });
+        const m = new Map((r.diagnozy || []).map((d) => [String(d.kod || '').replace('.', '').toUpperCase(), String(d.popis || '').trim()]));
+        for (const k of chybi) DG_POPISY.set(k, m.get(k) || '');
+      }
+    } catch { /* bez popisů – zkusí se při dalším načtení */ }
+  }
+  const out = {};
+  for (const k of kody) { const p = DG_POPISY.get(k); if (p) out[k] = p; }
+  return out;
+}
+/** našeptávač diagnóz v plánu péče: q = kód nebo slova názvu → [{kod, popis}] (nejvýš 20) */
+export async function hledejDiagnozy(q, hledat) {
+  const t = String(hledat || '').trim().slice(0, 60);
+  if (t.length < 2) return [];
+  const nast = await nastaveniPd(q);
+  if (!nast.nastaveno) throw chyba('Číselník diagnóz je v PéčeDoma – propojení s PéčeDoma není nastavené');
+  const r = await pdVolej(nast, 'diagnozy', { q: t });
+  return (r.diagnozy || []).map((d) => { const kod = String(d.kod || '').trim(); DG_POPISY.set(kod.replace('.', '').toUpperCase(), String(d.popis || '').trim()); return { kod, popis: String(d.popis || '').trim() }; });
+}

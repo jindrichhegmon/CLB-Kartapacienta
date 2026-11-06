@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI } from '../pecedoma.js';
+import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI, popisyDiagnoz, hledejDiagnozy } from '../pecedoma.js';
 
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 export const central = Router();
@@ -91,7 +91,7 @@ const CSV_SLOUPCE = ['kod', 'jmeno', 'prijmeni', 'rodne_cislo', 'datum_narozeni'
   'sos_leky', 'opioidy', 'medikace', 'doklad_dvp', 'doklad_datum', 'doklad_original', 'doklad_zprava', 'platnost_do', 'garant',
   'kontakt1_jmeno', 'kontakt1_telefon', 'kontakt1_skupina', 'kontakt2_jmeno', 'kontakt2_telefon', 'kontakt2_skupina', 'kontakt3_jmeno', 'kontakt3_telefon', 'kontakt3_skupina'];
 const VZOR_PACIENT = { format: 'CLB-Kartapacienta/pacient', zdroj: 'vzor', kod: '', pacient: { jmeno: 'Marie', prijmeni: 'Vzorová', rc: '460512/1234', datumNarozeni: '1946-05-12', rok: 1946, pohlavi: 'žena', pojistovna: '111', pobyt: 'doma', adresa: 'Dlouhá 12, 760 01 Zlín', telefonKarty: '+420 777 000 123', email: '' },
-  plan: { cil: 'symptom', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'], doklad: { dvp: true, datum: '2026-09-17', original: 'u dcery, obálka na lednici', zprava: '', pouceni: true, overenyPodpis: true, prijeti: '' },
+  plan: { cil: 'symptom', kpr: 'dvp', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'], doklad: { dvp: true, datum: '2026-09-17', original: 'u dcery, obálka na lednici', zprava: '', pouceni: true, overenyPodpis: true, prijeti: '' },
     dg: 'C50 karcinom prsu s metastázami do kostí a jater', funkce: 'PPS 40 % – většinu dne na lůžku', alergie: 'penicilin', sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Dexamethason 4 mg ráno'], platnostDo: '' },
   kontakty: [{ jmeno: 'Jana Vzorová, dcera', tel: '+420 777 000 321', skupina: 'ROZHODUJE', pozn: '' }, { jmeno: 'Petr Vzorový, syn', tel: '+420 777 000 654', skupina: 'INFORMOVAT', pozn: '' }], garant: '' };
 function pacientDoCsvRadku(x) {
@@ -185,6 +185,9 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
 }));
 
 /* ---------------- poskytovatelé (výběr pro tým a předání) ---------------- */
+/* 0.11.92: našeptávač diagnóz (číselník CLB1 přes PéčeDoma) pro plán péče */
+central.get('/diagnozy', sUzivatelem(async (q, s, req) => ({ diagnozy: await hledejDiagnozy(q, req.query.q) }), { lekar: true }));
+
 central.get('/poskytovatele', sUzivatelem(async (q) => ({
   poskytovatele: await q.all(`SELECT PoskytovatelID AS id, Nazev AS nazev, ICO AS ico, ICP AS icp, Typ AS typ, SmiBytGarant AS smiBytGarant, Telefon24 AS telefon24, Adresa AS adresa, Aktivni AS aktivni, OdbornyZastupce AS odbornyZastupce
     FROM dbo.A_KP_Poskytovatel ORDER BY Aktivni DESC, Nazev`),
@@ -314,7 +317,8 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const pecedoma = { klientId: pacient.pdKlientId, portalKlientId: pacient.pdPortalKlientId, odkaz: pdNast.odkaz, nastaveno: pdNast.nastaveno, autoSync: pdNast.sync, sync: pacient.pdKlientId ? await stavSync(q, id) : null };
   const video = await videoProPacienta(q, s, id);
   op.vychozi = op.aktivni && (s.role.includes('admin') || s.role.includes('lekar'));   // výchozí kontakty organizace mění správce a lékař
-  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, pecedoma, op, video, smsDostupne: smsDostupne() };
+  const dgPopisy = await popisyDiagnoz(q, plan && plan.data && plan.data.dg);   // 0.11.92
+  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {

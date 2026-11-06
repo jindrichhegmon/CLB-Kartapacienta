@@ -12,6 +12,7 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, text } from '../http.js';
 import { overSession } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni, planAktualni, ulozPlan } from '../kp.js';
+import { hledejDiagnozy } from '../pecedoma.js';
 
 export const pd = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -45,6 +46,14 @@ pd.get('/karta', h(async (req) => {
     return { pacient: { id: p.PacientID, kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, stav: p.Stav }, balik: pasivni, plan: balik ? balik.plan : null, verze,
       lekar: v.lekar && p.Stav === 'AKTIVNI', kdo: v.kdo, interval: Math.min(12, Math.max(1, Number(nast && nast.Hodnota) || 3)), verejnaAdresa: config.verejnaAdresa };
   });
+}));
+
+/* 0.11.92: našeptávač diagnóz pro lékaře, který v PéčeDoma upravuje plán péče */
+pd.get('/diagnozy', h(async (req) => {
+  const v = vstupenka(req);
+  if (!v.lekar) throw chyba('Diagnózy v plánu péče upravuje jen lékař', 403);
+  omez('pd-dg:' + ip(req), 120, 60e3);
+  return vTenantu(v.tenant, async (q) => ({ diagnozy: await hledejDiagnozy(q, req.query.q) }));
 }));
 
 pd.post('/plan', h(async (req) => {
