@@ -35,6 +35,8 @@ app.use((req, res, next) => {
   // 0.11.70: totéž centrála /centrala/ – portál PéčeDoma ji na telefonu a v mobilní aplikaci otevírá v okně z pásu Info a dashboardy
   const vRamu = (p) => req.path === p || req.path.startsWith(p + '/');
   if (vRamu('/pd') || vRamu('/centrala')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
+  // 0.11.93: živý náhled karty – centrála vkládá /karta/?nahled=1 do rámečku; smí jen stránka ze stejného serveru (dřív DENY = prázdný náhled)
+  else if (vRamu('/karta')) res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
   else res.setHeader('X-Frame-Options', 'DENY');
   // 0.11.60: mikrofon a fotoaparát smí stránka Karty a vložený hovor ze serveru videohovorů (Jitsi v iframe) – dřív „microphone=()“
   // zakazovalo mikrofon i vloženému hovoru („Permissions policy violation: microphone is not allowed in this document“), telefon nebylo slyšet
