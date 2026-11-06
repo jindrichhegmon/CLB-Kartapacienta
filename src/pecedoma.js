@@ -195,19 +195,20 @@ export function spustSynchronizaci(log = console.log) {
 /* ---- číselník diagnóz (0.11.92): CLB1 dbo.Diagnozy2025 přes PéčeDoma (pecedoma-karta, akce diagnozy, PéčeDoma 2.78).
    Kódy v číselníku jsou bez tečky (I509), v textu diagnóz bývají s tečkou (I50.9) – porovnává se bez tečky. Popisy se drží
    v paměti serveru (číselník se nemění); když PéčeDoma neodpoví, karta je prostě bez popisů a zkusí se to příště. */
-const DG_POPISY = new Map();
+const DG_POPISY = new Map(), DG_NEZNAME = new Map();
 export const kodyDiagnoz = (text) => [...new Set((String(text || '').toUpperCase().match(/\b[A-TV-Z]\d{2}(?:\.?\d{1,2})?\b/g) || []).map((k) => k.replace('.', '')))].slice(0, 30);
 export async function popisyDiagnoz(q, text) {
   const kody = kodyDiagnoz(text);
   if (!kody.length) return {};
-  const chybi = kody.filter((k) => !DG_POPISY.has(k));
+  const chybi = kody.filter((k) => !DG_POPISY.has(k) && !(Date.now() - (DG_NEZNAME.get(k) || 0) < 3600e3));   // neznámý kód se zkusí znovu po hodině
   if (chybi.length) {
     try {
       const nast = await nastaveniPd(q);
       if (nast.nastaveno) {
-        const r = await pdVolej(nast, 'diagnozy', { kody: chybi.join(',') });
+        /* 0.11.93: PéčeDoma (2.78) přijímá kódy jen ve tvaru s tečkou (F01.9) nebo tříznakové (F01) – bez tečky (F019) je zahodila */
+        const r = await pdVolej(nast, 'diagnozy', { kody: chybi.map((k) => (k.length > 3 ? k.slice(0, 3) + '.' + k.slice(3) : k)).join(',') });
         const m = new Map((r.diagnozy || []).map((d) => [String(d.kod || '').replace('.', '').toUpperCase(), String(d.popis || '').trim()]));
-        for (const k of chybi) DG_POPISY.set(k, m.get(k) || '');
+        for (const k of chybi) { if (m.get(k)) DG_POPISY.set(k, m.get(k)); else DG_NEZNAME.set(k, Date.now()); }
       }
     } catch { /* bez popisů – zkusí se při dalším načtení */ }
   }
