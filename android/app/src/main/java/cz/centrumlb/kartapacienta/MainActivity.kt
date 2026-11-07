@@ -1,6 +1,9 @@
 package cz.centrumlb.kartapacienta
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.webkit.PermissionRequest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -72,7 +75,7 @@ class MainActivity : Activity() {
             settings.setSupportMultipleWindows(false)
             settings.userAgentString = settings.userAgentString + " KartaPacientaAndroid/" + BuildConfig.VERSION_NAME
             webViewClient = Klient()
-            webChromeClient = WebChromeClient() // bez něj by nefungovalo alert()/confirm()
+            webChromeClient = Chrome() // bez něj by nefungovalo alert()/confirm(); povoluje i kameru pro QR
         }
 
         chyba = obrazovkaChyby()
@@ -173,6 +176,34 @@ class MainActivity : Activity() {
             recreate()
             return true
         }
+    }
+
+    // Kamera jen pro skenování QR kódu (párování, výměna telefonu) a jen pro stránky karty.
+    private var cekaNaKameru: PermissionRequest? = null
+
+    private inner class Chrome : WebChromeClient() {
+        override fun onPermissionRequest(request: PermissionRequest) {
+            val jenKamera = request.resources.all { it == PermissionRequest.RESOURCE_VIDEO_CAPTURE }
+            if (!jenKamera || puvodUrl(request.origin) != puvod) {
+                request.deny()
+                return
+            }
+            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                request.grant(request.resources)
+            } else {
+                cekaNaKameru?.deny()
+                cekaNaKameru = request
+                requestPermissions(arrayOf(Manifest.permission.CAMERA), KOD_KAMERA)
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != KOD_KAMERA) return
+        val r = cekaNaKameru ?: return
+        cekaNaKameru = null
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) r.grant(r.resources) else r.deny()
     }
 
     private val sit = object : ConnectivityManager.NetworkCallback() {
@@ -300,6 +331,7 @@ class MainActivity : Activity() {
     private fun zprava(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
 
     companion object {
+        private const val KOD_KAMERA = 41
         fun puvodUrl(u: Uri) = "${u.scheme}://${u.authority}"
     }
 }
