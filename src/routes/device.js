@@ -3,6 +3,7 @@
  *   POST /parovat  { tenant, kod }                 → { token, tajemstvi, balik }
  *   POST /sync     Authorization: Device <token>   { fronta:[…], verzePlanu, baterie, verzeAplikace }
  *                                                  → { potvrzeno:[uuid], balik } | { prikaz:'smazat' }
+ *   POST /prenos/zahajit|prevzit|stav               → hromadná výměna telefonu (viz src/prenos.js)
  * Token zařízení = "<IDTENANT>.<ZarizeniID>.<náhodných 32 B>", v DB je jen jeho SHA-256.
  * Synchronizace je idempotentní: zápis se pozná podle UUID z telefonu, opakované odeslání se ignoruje.
  * Plán péče posílá jen server – telefon ho nikdy nemění.
@@ -13,6 +14,8 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
+import { config } from '../config.js';
+import { zalozPrenos, vezmiPrenos, dokonciPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE } from '../prenos.js';
 
 export const device = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -88,4 +91,91 @@ device.post('/sync', h(async (req) => {
       { b: baterie, v: text(b.verzeAplikace, 20) || null, f: Math.max(0, (Array.isArray(b.fronta) ? b.fronta.length : 0) - potvrzeno.length - odmitnuto.length), vp: balik.plan ? balik.plan.verze : null, z: zid });
     return { potvrzeno, odmitnuto, balik };
   });
+}));
+
+/* ---------------- hromadná výměna telefonu (A → B) ---------------- */
+const MAX_KARET = 50;
+
+/** Rozloží token zařízení "<tenant>.<id>.<raw>" (nebo null). */
+function rozlozToken(t) {
+  const [tenant, zidS, raw] = String(t || '').split('.');
+  const zid = Number(zidS);
+  return tenantRe.test(tenant || '') && Number.isInteger(zid) && zid > 0 && raw ? { tenant, zid, raw } : null;
+}
+
+// starý telefon: ověří všechny své tokeny a dostane jednorázový kód pro QR
+device.post('/prenos/zahajit', h(async (req) => {
+  omez('prenos-zahajit:' + ip(req), 10);
+  const tokeny = [...new Set((Array.isArray(req.body.tokeny) ? req.body.tokeny : []).map(String))].slice(0, MAX_KARET);
+  if (!tokeny.length) throw chyba('V telefonu nejsou žádné průkazy k přenosu');
+  const karty = [];
+  let neplatnych = 0;
+  for (const t of tokeny) {
+    const r = rozlozToken(t);
+    if (!r) { neplatnych++; continue; }
+    const ok = await vTenantu(r.tenant, async (q) => {
+      const z = await q.one(`SELECT ZarizeniID, PacientID, Stav, TokenHash FROM dbo.A_KP_Zarizeni WHERE ZarizeniID = @z`, { z: r.zid });
+      const sedi = z && z.TokenHash && z.Stav === 'SPAROVANO' && timingSafeEqual(Buffer.from(z.TokenHash), Buffer.from(sha256(r.raw)));
+      if (!sedi) return false;
+      await audit(q, { zarizeniId: r.zid, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu zahájena', detail: `${tokeny.length} průkazů v telefonu`, ip: ip(req) });
+      return true;
+    });
+    if (ok) karty.push({ tenant: r.tenant, zarizeniId: r.zid, tokenHash: sha256(r.raw) });
+    else neplatnych++;
+  }
+  if (!karty.length) throw chyba('Žádný průkaz v tomto telefonu už není platný – nelze ho přenést', 409);
+  const { kod, platnost } = zalozPrenos(karty);
+  return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), pocet: karty.length, neplatnych, odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}` };
+}));
+
+// nový telefon: naskenuje QR a převezme všechny průkazy (nové tokeny), starý se zablokuje
+device.post('/prenos/prevzit', h(async (req) => {
+  omez('prenos-prevzit:' + ip(req), 10);
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód pro výměnu telefonu');
+  const p = vezmiPrenos(kod);
+  if (!p) throw chyba('Kód je neplatný, už byl použit nebo vypršel – na starém telefonu vygenerujte nový', 404);
+  const karty = [];
+  let neprevzato = 0;
+  for (const k of p.karty) {
+    try {
+      const v = await vTenantu(k.tenant, async (q) => {
+        const z = await q.one(`SELECT ZarizeniID, PacientID, Stav, TokenHash, Stitek FROM dbo.A_KP_Zarizeni WHERE ZarizeniID = @z`, { z: k.zarizeniId });
+        // mezitím mohl být starý telefon zablokován nebo průkaz nahrán jinam – pak se nepřenáší
+        if (!z || z.Stav !== 'SPAROVANO' || z.TokenHash !== k.tokenHash) return null;
+        const raw = nahodny(32);
+        const tajemstvi = randomBytes(20).toString('hex');
+        const nove = await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, Stav, TokenHash, Tajemstvi, Sparovano, PosledniSync)
+          OUTPUT inserted.ZarizeniID VALUES (@p, @st, 'SPAROVANO', @th, @t, SYSDATETIME(), SYSDATETIME())`,
+        { p: z.PacientID, st: z.Stitek, th: sha256(raw), t: zasifruj(tajemstvi) });
+        await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: z.ZarizeniID });
+        await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Výměna telefonu: průkaz přenesen z telefonu ${z.ZarizeniID} na nový telefon ${nove.ZarizeniID}. Starý telefon se při připojení vymaže.`, autor: 'telefon ' + nove.ZarizeniID, role: 'system', zarizeniId: nove.ZarizeniID });
+        await audit(q, { zarizeniId: nove.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: průkaz převzat', detail: `ze zařízení ${z.ZarizeniID}`, ip: ip(req) });
+        await audit(q, { zarizeniId: z.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: telefon zablokován', detail: `nahrazen zařízením ${nove.ZarizeniID}`, ip: ip(req) });
+        const balik = await balikProZarizeni(q, z.PacientID);
+        return { tenant: k.tenant, token: `${k.tenant}.${nove.ZarizeniID}.${raw}`, tajemstvi, zarizeniId: nove.ZarizeniID, balik };
+      });
+      if (v) karty.push(v); else neprevzato++;
+    } catch (e) {
+      console.error(new Date().toISOString(), 'výměna telefonu', k.tenant, k.zarizeniId, e);
+      neprevzato++;
+    }
+  }
+  dokonciPrenos(kod, karty.length);
+  if (!karty.length) throw chyba('Žádný průkaz se nepodařilo převzít (starý telefon byl mezitím zablokován?)', 409);
+  return { karty, neprevzato };
+}));
+
+// starý telefon se ptá, jestli už nový telefon průkazy převzal (zná jen kód, žádná data)
+device.post('/prenos/stav', h(async (req) => {
+  omez('prenos-stav:' + ip(req), 400);
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return stavPrenosu(kod);
+}));
+
+device.post('/prenos/zrusit', h(async (req) => {
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return { zruseno: zrusPrenos(kod) };
 }));

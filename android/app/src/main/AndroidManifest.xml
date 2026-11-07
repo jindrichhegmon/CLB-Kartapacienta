@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Skenování QR kódu v kartě (párování, výměna telefonu). Kamera není podmínkou instalace. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Kvůli volání z karty (odkazy tel:) – aby se dialer našel i na Androidu 11+. -->
     <queries>
