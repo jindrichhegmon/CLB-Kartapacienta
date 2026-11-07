@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.95';
+const APP_VERZE = 'karta-0.11.96';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -735,7 +735,7 @@ function kresliPrevzeti({ kod = '' } = {}, chyba = '') {
   kod = fmtPrenos(kod);
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Výměna telefonu – převzít průkazy</h2></div><div class="form" style="padding:14px">
     ${chyba ? `<div class="banner crit">${esc(chyba)}</div>` : ''}
-    <div class="note">Na <b>starém</b> telefonu odemkněte kartu PINem týmu, otevřete dlaždici <b>Tým</b> a stiskněte <b>Výměna telefonu</b>. Starý telefon ukáže QR kód – naskenujte ho tady. Převezmou se všechny průkazy najednou${KARTY.length ? ' a přidají se k průkazům, které už v tomto telefonu jsou' : ''}.</div>
+    <div class="note">QR kód výměny ukáže <b>centrální aplikace</b> (u pacienta Telefon a PINy → <b>Výměna / deaktivace telefonu</b>, nebo Lidé a týmy → <b>Výměna telefonu</b>), případně starý telefon (odemknout PINem týmu → dlaždice Tým → Výměna telefonu). Naskenujte ho tady – převezmou se všechny průkazy najednou${KARTY.length ? ' a přidají se k průkazům, které už v tomto telefonu jsou' : ''} a starý telefon se deaktivuje.</div>
     <button class="btn primary" id="pr_qr" style="font-size:18px;padding:14px">Načíst QR kód ze starého telefonu</button>
     <div class="field"><label>Kód výměny (12 znaků)</label><input id="pr_k" autocapitalize="characters" placeholder="XXXX-XXXX-XXXX" value="${esc(kod)}" style="font-size:22px;letter-spacing:.12em"></div>
     <div class="field"><label>Číslo tohoto (nového) telefonu</label><input id="pr_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
@@ -749,7 +749,8 @@ function kresliPrevzeti({ kod = '' } = {}, chyba = '') {
     KP.api('/api/d/prenos/nahled', { method: 'POST', body: { kod } }).then((r) => {
       const t = $('pr_tel'), i = $('pr_info');
       if (t && !t.value && r.telefon) t.value = r.telefon;
-      if (i) i.innerHTML = `Kód načten – převezme se <b>${r.pocet}</b> průkaz(ů). ${r.telefon ? `Předvyplněné je číslo starého telefonu ${esc(r.telefon)}; má-li nový telefon <b>jiné číslo</b>, přepište ho` : 'Zadejte číslo tohoto telefonu'} – u pacientů i týmů se pak změní samo.`;
+      if (i) i.innerHTML = r.zCentraly ? `Kód z centrální aplikace – převezme se <b>${r.pocet}</b> průkaz(ů) do telefonu s číslem <b>${esc(r.telefon)}</b>. Zkontrolujte, že je to číslo tohoto telefonu, a stiskněte Převzít průkazy.`
+        : `Kód načten – převezme se <b>${r.pocet}</b> průkaz(ů). ${r.telefon ? `Předvyplněné je číslo starého telefonu ${esc(r.telefon)}; má-li nový telefon <b>jiné číslo</b>, přepište ho` : 'Zadejte číslo tohoto telefonu'} – u pacientů i týmů se pak změní samo.`;
       setTimeout(() => { const b = $('pr_ok'); if (b) b.focus(); }, 50);
     }).catch((e) => { if (e.status === 404) kresliPrevzeti({}, e.message); });
   }

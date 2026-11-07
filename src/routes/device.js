@@ -458,8 +458,8 @@ device.post('/prenos/nahled', h(async (req) => {
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód pro výměnu telefonu');
   const p = nahledPrenosu(kod);
   if (!p) throw chyba('Kód je neplatný, už byl použit nebo vypršel – na starém telefonu vytvořte nový', 404);
-  const tel = (p.karty.find((k) => k.telefon) || {}).telefon || '';
-  return { pocet: p.karty.length, telefon: tel ? hezkyTel(tel) : '' };
+  const tel = p.novyTelefon || (p.karty.find((k) => k.telefon) || {}).telefon || '';
+  return { pocet: p.karty.length, telefon: tel ? hezkyTel(tel) : '', zCentraly: p.zdroj === 'centrala' };
 }));
 
 // nový telefon: převezme všechny průkazy (nová zařízení a tokeny), starý se zablokuje
@@ -470,6 +470,8 @@ device.post('/prenos/prevzit', h(async (req) => {
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód pro výměnu telefonu');
   const novyTel = normTel(b.telefon);
   if (!novyTel) throw chyba('Zadejte číslo nového telefonu (např. +420 777 123 456)');
+  const n = nahledPrenosu(kod);   // 0.11.96: kód z centrály platí jen pro číslo nového telefonu, které tam garant zadal
+  if (n && n.novyTelefon && n.novyTelefon !== novyTel) throw chyba(`Kód z centrální aplikace je vydaný pro telefon ${hezkyTel(n.novyTelefon)} – zadejte číslo tohoto telefonu správně, nebo v centrále vytvořte kód pro toto číslo`, 403);
   const p = vezmiPrenos(kod);   // jednorázový – od teď ho nikdo jiný nepoužije
   if (!p) throw chyba('Kód je neplatný, už byl použit nebo vypršel – na starém telefonu vytvořte nový', 404);
   const poTenantech = new Map();

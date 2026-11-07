@@ -466,9 +466,21 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 - **Přidat dalšího pacienta do telefonu:** tlačítko je přímo na kartě (pod zamčenou krizovou kartou v panelu **Průkazy v tomto telefonu**), ve výběru pacienta a po odemknutí v dlaždici **Tým**. Otevře spárování QR kódem nebo kódem z centrální aplikace (u nového pacienta Telefon a PINy); stávající průkazy zůstanou. Po přidání se telefon vrátí na **výběr pacienta**, takže jsou vidět všichni.
 - **Odvolat jedno párování:** otevřete pacienta, odemkněte ho PINem týmu nebo kódem lékaře (ne rodina) a v dlaždici **Tým** stiskněte **Odebrat průkaz z tohoto telefonu**. Z telefonu se vymaže jen tento pacient, v centrální aplikaci se jeho telefon označí jako vrácený a do deníku se zapíše, kdo průkaz odebral; ostatní průkazy zůstanou. Odebrat jde jen s připojením. Stejně funguje zablokování telefonu u pacienta v centrální aplikaci nebo uzavření průkazu.
 - Když telefon průkaz odebere sám (telefon byl u pacienta zablokován, vrácen nebo spárován v jiném telefonu), ukáže okno **Průkaz byl z telefonu odebrán** se jménem pacienta – pokud má průkaz zůstat, spárujte ho znovu.
-**Výměna telefonu – přenos všech průkazů do nového telefonu** (od 0.11.95). Když se telefon u lůžka mění (porucha, nový telefon, jiné číslo), nemusí se každý pacient párovat znovu z centrály:
+**Výměna telefonu – přenos všech průkazů do nového telefonu.** Když se telefon u lůžka mění (porucha, nový telefon, jiné číslo), nemusí se každý pacient párovat znovu. **Nejjednodušší je celé to udělat z centrální aplikace** (od 0.11.96):
 
-1. **Starý telefon:** otevřete kteréhokoli pacienta, odemkněte ho **PINem týmu** nebo kódem lékaře (ne rodina), v dlaždici **Tým** stiskněte **Výměna telefonu – předat průkazy do nového** a potvrďte. Telefon nejdřív odešle čekající zápisy a pak ukáže **QR kód** a kód ve tvaru XXXX-XXXX-XXXX. Kód platí **10 minut** a jde použít jen jednou.
+1. V centrále otevřete kteréhokoli pacienta z telefonu → **Telefon a PINy** → **📱 Výměna / deaktivace telefonu** (nebo **Lidé a týmy** → u týmu **📱 Výměna telefonu**). Okno ukáže, kteří pacienti v telefonu jsou.
+2. Zadejte **číslo nového telefonu** (přendáváte-li SIM kartu, nechte stejné) a stiskněte **Vytvořit QR kód pro nový telefon**. Kód platí 30 minut a jde použít jen jednou.
+3. Na **novém telefonu** otevřete Kartu pacienta → **Výměna telefonu – převzít průkazy ze starého telefonu** → **Načíst QR kód** a namiřte na obrazovku centrály → **Převzít průkazy**.
+4. Centrála ukáže **Hotovo**: nový telefon má všechny průkazy a **starý telefon je deaktivovaný** – při příštím připojení se z něj průkazy vymažou. Na starém telefonu nemusíte nic dělat.
+
+![Výměna telefonu v centrále](/napoveda/img/c-vymena-telefonu.png)
+![QR kód pro nový telefon](/napoveda/img/c-vymena-qr.png)
+
+**Jen deaktivovat** (telefon se ztratil nebo se vrací bez náhrady): ve stejném okně **Jen deaktivovat starý telefon** – zablokuje průkazy všech pacientů v telefonu najednou.
+
+Výměnu jde spustit i **ze starého telefonu** (od 0.11.95):
+
+1. **Starý telefon:** otevřete kteréhokoli pacienta, odemkněte ho **PINem týmu** nebo kódem lékaře (ne rodina), v dlaždici **Tým** stiskněte **Výměna telefonu – předat průkazy do nového** a potvrďte. Telefon nejdřív odešle čekající zápisy a pak ukáže **QR kód** a kód ve tvaru XXXX-XXXX-XXXX. Kód platí **10 minut** a jde použít jen jednou. (Výhoda: neodeslané zápisy se nejdřív odešlou.)
 2. **Nový telefon:** otevřete Kartu pacienta (v kiosku se otevře sama) → **Výměna telefonu – převzít průkazy ze starého telefonu** → **Načíst QR kód ze starého telefonu** (nebo kód opište).
 3. Zkontrolujte **číslo nového telefonu** – předvyplní se číslo starého. Má-li nový telefon **jiné číslo**, přepište ho: u pacientů se změní *Telefon s kartou* a u týmů (*Lidé a týmy → Telefony s kartou*) se starý telefon nahradí novým, takže týmy i jejich PINy zůstanou.
 4. Stiskněte **Převzít průkazy**. Nový telefon dostane všechny průkazy najednou (každý s novým, vlastním přístupem), starý telefon do pár sekund ukáže **Hotovo** a sám se vymaže. V deníku každého pacienta je zápis o výměně telefonu.

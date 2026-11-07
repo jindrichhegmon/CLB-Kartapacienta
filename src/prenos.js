@@ -7,6 +7,10 @@
  *                                                                                   i číslo telefonu s kartou u pacientů a u týmů)
  *   A: POST /api/d/prenos/stav     { kod }                   → { stav }           (A zjistí, že je hotovo, a vymaže se)
  *
+ * Od 0.11.96 jde výměnu připravit i v centrální aplikaci (POST /api/c/telefon/vymena): kód vydá přihlášený garant nebo lékař pro
+ * všechny průkazy na čísle starého telefonu, QR ukáže centrála (platí 30 min) a v kódu je i číslo nového telefonu (novyTelefon) –
+ * nový telefon musí mít právě toto číslo. Starý telefon se po převzetí zablokuje (při připojení se vymaže).
+ *
  * Přenosový kód je jednorázový a platí 10 minut. Drží se jen v paměti serveru (běží jedna instance
  * v pm2) – po restartu stačí na starém telefonu vygenerovat nový. V kódu nejsou žádná data pacienta,
  * jen odkaz na zařízení; nový telefon dostane vlastní tokeny a starý se zablokuje (při připojení se vymaže).
@@ -33,15 +37,15 @@ export const normalizujKod = (v) => String(v || '').toUpperCase().replace(/[^A-Z
 /** Formát pro zobrazení: ABCD-EFGH-JKLM */
 export const formatujKod = (k) => String(k).replace(/(.{4})(?=.)/g, '$1-');
 
-export function zalozPrenos(karty, nyni = Date.now()) {
+export function zalozPrenos(karty, nyni = Date.now(), { platnostMs = PRENOS_PLATNOST_MS, novyTelefon = '', zdroj = 'telefon' } = {}) {
   if (!Array.isArray(karty) || !karty.length) throw new Error('Žádné průkazy k přenosu');
   // jedno zařízení smí mít jen jeden čekající přenos – starší kód se zruší
   const zid = new Set(karty.map((k) => `${k.tenant}.${k.zarizeniId}`));
   for (const [kod, p] of cekajici) if (p.karty.some((k) => zid.has(`${k.tenant}.${k.zarizeniId}`))) cekajici.delete(kod);
   let kod;
   do kod = novyKodPrenosu(); while (cekajici.has(kod) || hotove.has(kod));
-  cekajici.set(kod, { exp: nyni + PRENOS_PLATNOST_MS, karty: karty.map((k) => ({ ...k })) });
-  return { kod, platnost: new Date(nyni + PRENOS_PLATNOST_MS) };
+  cekajici.set(kod, { exp: nyni + platnostMs, karty: karty.map((k) => ({ ...k })), novyTelefon, zdroj });
+  return { kod, platnost: new Date(nyni + platnostMs) };
 }
 
 /** Náhled bez spotřebování kódu (nový telefon předvyplní číslo starého telefonu). */

@@ -290,6 +290,11 @@ app.post('/api/d/prenos/nahled', j(() => ({ pocet: 1, telefon: '+420 777 000 123
 app.post('/api/d/prenos/prevzit', j((req) => { prenos.stav = 'prevzato'; prenos.telefon = req.body.telefon; return { karty: [{ tenant: TENANT, token: `${TENANT}.21.novy`, tajemstvi: TAJEMSTVI, zarizeniId: 21, telefon: '+420 777 000 456', balik, videoToken: 'ukazka-video-token' }], neprevzato: 0 }; }));
 app.post('/api/d/prenos/stav', j(() => (prenos.stav === 'prevzato' ? { stav: 'prevzato', pocet: 1 } : { stav: 'ceka', zbyva: 540 })));
 app.post('/api/d/prenos/zrusit', j({ zruseno: true }));
+app.get('/api/c/telefon/prukazy', j({ telefon: '+420 777 000 123', pacienti: [{ id: 7, kod: 'P-0007', jmeno: 'Zkušební Marie', vymena: true, deaktivace: true }, { id: 8, kod: 'P-0008', jmeno: 'Příkladný Josef', vymena: true, deaktivace: true }] }));
+app.post('/api/c/telefon/vymena', j((req) => { prenos = { stav: 'ceka', prevzato: false }; return { kod: 'H3QZ7MWK2PRT', kodZobrazeni: 'H3QZ-7MWK-2PRT', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=H3QZ7MWK2PRT', stary: '+420 777 000 123', novy: req.body.novyTelefon || '+420 777 000 123', pacienti: ['Zkušební Marie', 'Příkladný Josef'], bezOpravneni: 0 }; }));
+app.get('/api/c/telefon/vymena/stav', j(() => (prenos.stav === 'prevzato' ? { stav: 'prevzato', pocet: 2 } : { stav: 'ceka', zbyva: 1740 })));
+app.post('/api/c/telefon/vymena/zrusit', j({ zruseno: true }));
+app.post('/api/c/telefon/deaktivovat', j({ deaktivovano: 2, zustalo: 0 }));
 app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
 app.post('/api/admin/login', j({ session: 'ukazka' }));
 app.get('/api/admin/tenanti', j({ tenanti, typy }));
@@ -478,6 +483,15 @@ await zalozka('tym', 'c-tym', { vyska: 1150 });
   await p.waitForTimeout(300);
 }
 await zalozka('telefon', 'c-telefon', { vyska: 1000 });
+// 0.11.96: výměna telefonu z centrály – QR kód pro nový telefon, po převzetí Hotovo (starý telefon deaktivovaný)
+await klik(p, '#vymenaTel'); await p.waitForSelector('#vt_qr'); await p.fill('#vt_novy', '+420 777 000 456');
+await foto(p, 'c-vymena-telefonu', { vyska: 900 });
+await klik(p, '#vt_qr'); await p.waitForSelector('#vt_stav'); await p.waitForTimeout(400);
+if (!(await p.$('#modal .qr svg'))) chyby.push('výměna telefonu v centrále: chybí QR kód');
+await foto(p, 'c-vymena-qr', { vyska: 900 });
+await p.evaluate(() => fetch('/api/d/prenos/prevzit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kod: 'H3QZ7MWK2PRT', telefon: '+420 777 000 456' }) }));
+await p.waitForFunction(() => /Hotovo/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('výměna telefonu v centrále: po převzetí se neukázalo Hotovo'));
+await p.evaluate(() => KP.closeModal()); prenos = { stav: 'ceka', prevzato: false };
 await klik(p, '#parovat'); await p.waitForSelector('#pr_sms');
 await foto(p, 'c-parovani', { vyska: 1000 });
 // 0.11.91: vytištěné párování do terénu – platnost 3 dny, A4 s QR kódem a postupem

@@ -11,6 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
+import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE } from '../prenos.js';
 import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI, popisyDiagnoz, hledejDiagnozy } from '../pecedoma.js';
 
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
@@ -666,6 +667,58 @@ central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
     : (akce === 'zablokovat' ? 'Telefon zablokován – při příštím připojení se data v něm smažou.' : 'Telefon vrácen provozovateli.'), autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: `telefon: ${akce}`, ip: s.ip });
   await srovnejTymyTelefonu(q, id, s.uzivatelId, s.jmeno);   // 0.11.89: tým přiřazený přes tento telefon odejde
+}));
+
+/* ---- výměna a deaktivace telefonu u lůžka z centrály (0.11.96) ----
+   Jeden zapůjčený telefon může nést průkazy více pacientů. Garant nebo lékař v týmu připraví výměnu pro číslo starého telefonu:
+   centrála ukáže QR kód (30 min, jednorázový, s číslem nového telefonu), nový telefon ho naskenuje a převezme všechny průkazy
+   (POST /api/d/prenos/prevzit) – starý se tím zablokuje. Deaktivace (ztráta, vrácení) jen zablokuje všechny průkazy na čísle. */
+async function prukazyNaTelefonu(q, s, telefon) {
+  const tel = normTel(telefon);
+  if (!tel) throw chyba('Neplatné číslo telefonu');
+  const rows = await q.all(`SELECT z.ZarizeniID, z.PacientID, z.TokenHash, z.Telefon, p.KodPrukazu AS Kod, p.Jmeno, p.Prijmeni FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+    WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.Telefon = @tel ORDER BY p.Prijmeni, p.Jmeno`, { tel });
+  const out = [];
+  for (const r of rows) { const op = await opravneni(q, s, r.PacientID).catch(() => ({})); out.push({ ...r, op }); }
+  return { tel, rows: out };
+}
+central.get('/telefon/prukazy', sUzivatelem(async (q, s, req) => {
+  const { tel, rows } = await prukazyNaTelefonu(q, s, req.query.telefon);
+  return { telefon: hezkyTel(tel), pacienti: rows.map((r) => ({ id: r.PacientID, kod: r.Kod, jmeno: `${r.Prijmeni} ${r.Jmeno}`.trim(), vymena: !!(r.op.garant || r.op.lekar), deaktivace: !!(r.op.garant || s.role.includes('admin')) })) };
+}));
+central.post('/telefon/vymena', sUzivatelem(async (q, s, req) => {
+  const { tel, rows } = await prukazyNaTelefonu(q, s, req.body.telefon);
+  const novy = normTel(req.body.novyTelefon) || tel;
+  const smi = rows.filter((r) => r.op.garant || r.op.lekar);
+  if (!rows.length) throw chyba(`Na telefonu ${hezkyTel(tel)} není žádný aktivní průkaz – nový telefon spárujte u pacienta (Telefon a PINy → Spárovat telefon)`, 404);
+  if (!smi.length) throw chyba('Výměnu telefonu připravuje garant nebo lékař v týmu pacientů v tomto telefonu', 403);
+  const { kod, platnost } = zalozPrenos(smi.map((r) => ({ tenant: s.tenant, zarizeniId: r.ZarizeniID, tokenHash: r.TokenHash, telefon: tel })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: novy, zdroj: 'centrala' });
+  for (const r of smi) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: 'výměna telefonu připravena v centrále', detail: `${hezkyTel(tel)} → ${hezkyTel(novy)}`, ip: s.ip });
+  return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, stary: hezkyTel(tel), novy: hezkyTel(novy),
+    pacienti: smi.map((r) => `${r.Prijmeni} ${r.Jmeno}`.trim()), bezOpravneni: rows.length - smi.length };
+}));
+central.get('/telefon/vymena/stav', sUzivatelem(async (q, s, req) => {
+  const kod = normalizujKod(req.query.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return stavPrenosu(kod);
+}));
+central.post('/telefon/vymena/zrusit', sUzivatelem(async (q, s, req) => {
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return { zruseno: zrusPrenos(kod) };
+}));
+central.post('/telefon/deaktivovat', sUzivatelem(async (q, s, req) => {
+  const { tel, rows } = await prukazyNaTelefonu(q, s, req.body.telefon);
+  const smi = rows.filter((r) => r.op.garant || s.role.includes('admin'));
+  if (!rows.length) throw chyba(`Na telefonu ${hezkyTel(tel)} už není žádný aktivní průkaz`, 404);
+  if (!smi.length) throw chyba('Telefon deaktivuje garant pacientů v tomto telefonu', 403);
+  for (const r of smi) {
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: r.ZarizeniID });
+    await zapisDenik(q, { pacientId: r.PacientID, typ: 'Systém', text: `Telefon u lůžka ${hezkyTel(tel)} deaktivován v centrální aplikaci – při příštím připojení se z něj průkaz vymaže.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: 'telefon: deaktivován (celý telefon)', detail: hezkyTel(tel), ip: s.ip });
+    await srovnejTymyTelefonu(q, r.PacientID, s.uzivatelId, s.jmeno);
+  }
+  return { deaktivovano: smi.length, zustalo: rows.length - smi.length };
 }));
 
 central.post('/pacient/:id/pin', sUzivatelem(async (q, s, req) => {
