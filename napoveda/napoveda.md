@@ -470,20 +470,22 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 
 1. V centrále otevřete kteréhokoli pacienta z telefonu → **Telefon a PINy** → **📱 Výměna / deaktivace telefonu** (nebo **Lidé a týmy** → u týmu **📱 Výměna telefonu**). Okno ukáže, kteří pacienti v telefonu jsou.
 2. Zadejte **číslo nového telefonu** (přendáváte-li SIM kartu, nechte stejné) a stiskněte **Vytvořit QR kód pro nový telefon**. Kód platí 30 minut a jde použít jen jednou.
-3. Na **novém telefonu** otevřete Kartu pacienta → **Výměna telefonu – převzít průkazy ze starého telefonu** → **Načíst QR kód** a namiřte na obrazovku centrály → **Převzít průkazy**.
-4. Centrála ukáže **Hotovo**: nový telefon má všechny průkazy a **starý telefon je deaktivovaný** – při příštím připojení se z něj průkazy vymažou. Na starém telefonu nemusíte nic dělat.
+3. Na **novém telefonu** svítí stránka **Spárovat telefon** (v kiosku hned po spuštění; je-li v telefonu už nějaký pacient, stiskněte **Přidat dalšího pacienta do telefonu**). Stiskněte **Načíst QR kód fotoaparátem**, namiřte na obrazovku centrály, zkontrolujte číslo a stiskněte **Převzít průkazy**.
+4. Centrála ukáže **Hotovo**: nový telefon má všechny průkazy. **Starý telefon zůstává funkční**, dokud ho nedeaktivujete – nejdřív si ověřte, že nový telefon ukazuje pacienty.
+5. **Deaktivace starého telefonu – až na váš pokyn:** v okně Hotovo **Deaktivovat starý telefon**, nebo kdykoli později u pacienta **Telefon a PINy → 📱 Výměna / deaktivace telefonu → Deaktivovat starý telefon**. Do té doby je u starého telefonu štítek *starý – po výměně, čeká na deaktivaci*. Po deaktivaci se ze starého telefonu při příštím připojení průkazy vymažou; nový telefon (i se stejným číslem) zůstává.
 
 ![Výměna telefonu v centrále](/napoveda/img/c-vymena-telefonu.png)
 ![QR kód pro nový telefon](/napoveda/img/c-vymena-qr.png)
+![Hotovo – starý telefon deaktivujete až na pokyn](/napoveda/img/c-vymena-hotovo.png)
 
-**Jen deaktivovat** (telefon se ztratil nebo se vrací bez náhrady): ve stejném okně **Jen deaktivovat starý telefon** – zablokuje průkazy všech pacientů v telefonu najednou.
+**Deaktivovat bez výměny** (telefon se ztratil nebo se vrací bez náhrady): ve stejném okně **Deaktivovat telefon (ztráta, vrácení)** – zablokuje průkazy všech pacientů v telefonu najednou.
 
 Výměnu jde spustit i **ze starého telefonu** (od 0.11.95):
 
 1. **Starý telefon:** otevřete kteréhokoli pacienta, odemkněte ho **PINem týmu** nebo kódem lékaře (ne rodina), v dlaždici **Tým** stiskněte **Výměna telefonu – předat průkazy do nového** a potvrďte. Telefon nejdřív odešle čekající zápisy a pak ukáže **QR kód** a kód ve tvaru XXXX-XXXX-XXXX. Kód platí **10 minut** a jde použít jen jednou. (Výhoda: neodeslané zápisy se nejdřív odešlou.)
 2. **Nový telefon:** otevřete Kartu pacienta (v kiosku se otevře sama) → **Výměna telefonu – převzít průkazy ze starého telefonu** → **Načíst QR kód ze starého telefonu** (nebo kód opište).
 3. Zkontrolujte **číslo nového telefonu** – předvyplní se číslo starého. Má-li nový telefon **jiné číslo**, přepište ho: u pacientů se změní *Telefon s kartou* a u týmů (*Lidé a týmy → Telefony s kartou*) se starý telefon nahradí novým, takže týmy i jejich PINy zůstanou.
-4. Stiskněte **Převzít průkazy**. Nový telefon dostane všechny průkazy najednou (každý s novým, vlastním přístupem), starý telefon do pár sekund ukáže **Hotovo** a sám se vymaže. V deníku každého pacienta je zápis o výměně telefonu.
+4. Stiskněte **Převzít průkazy**. Nový telefon dostane všechny průkazy najednou (každý s novým, vlastním přístupem), starý telefon ukáže **Hotovo** a zůstává funkční, dokud ho garant v centrále nedeaktivuje (viz bod 5 výše). V deníku každého pacienta je zápis o výměně telefonu.
 
 ![Starý telefon ukazuje QR kód výměny](/napoveda/img/k-vymena-stary.png)
 ![Nový telefon převezme průkazy](/napoveda/img/k-vymena-novy.png)

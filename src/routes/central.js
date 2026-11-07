@@ -276,7 +276,8 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
     LEFT JOIN dbo.A_KP_Uzivatel u ON u.UzivatelID = g.LekarUzivatelID LEFT JOIN dbo.A_KP_Uzivatel n ON n.UzivatelID = g.NavrhlUzivatelID
     WHERE g.PacientID = @p ORDER BY g.GaranceID DESC`, { p: id });
   const zarizeni = await q.all(`SELECT ZarizeniID AS id, Stitek AS stitek, Stav AS stav, CONVERT(char(16), Sparovano, 120) AS sparovano, CONVERT(char(16), PosledniSync, 120) AS sync,
-      Baterie AS baterie, VerzeAplikace AS verzeAplikace, DelkaFronty AS fronta, VerzePlanuVZarizeni AS verzePlanu, ParovaciKod AS kod, CONVERT(char(16), ParovaciPlatnost, 120) AS kodPlatnost, Telefon AS telefon, Rezim AS rezim, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno
+      Baterie AS baterie, VerzeAplikace AS verzeAplikace, DelkaFronty AS fronta, VerzePlanuVZarizeni AS verzePlanu, ParovaciKod AS kod, CONVERT(char(16), ParovaciPlatnost, 120) AS kodPlatnost, Telefon AS telefon, Rezim AS rezim, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno,
+      NahrazenoZarizenim AS nahrazeno, CONVERT(char(16), Nahrazeno, 120) AS nahrazenoKdy
     FROM dbo.A_KP_Zarizeni WHERE PacientID = @p ORDER BY ZarizeniID DESC`, { p: id });
   const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, Role AS role, PoskytovatelID AS poskytovatelId, CONVERT(char(10), Vytvoreno, 23) AS vytvoreno, CASE WHEN PinSifrovany IS NULL THEN 0 ELSE 1 END AS zobrazitelny FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1 ORDER BY PinID`, { p: id });
   const lide = await q.all(`SELECT po.PacientOsobaID AS id, o.OsobaID AS osobaId, o.Jmeno AS jmeno, o.Role AS role, o.Tym AS tym, o.PoskytovatelID AS poskytovatelId, ps.Nazev AS poskytovatel,
@@ -676,7 +677,8 @@ central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
 async function prukazyNaTelefonu(q, s, telefon) {
   const tel = normTel(telefon);
   if (!tel) throw chyba('Neplatné číslo telefonu');
-  const rows = await q.all(`SELECT z.ZarizeniID, z.PacientID, z.TokenHash, z.Telefon, p.KodPrukazu AS Kod, p.Jmeno, p.Prijmeni FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+  // 0.11.97: Nahrazeno = starý telefon po výměně, který ještě nikdo nedeaktivoval (výměna ho nebere, deaktivace po výměně jen jeho)
+  const rows = await q.all(`SELECT z.ZarizeniID, z.PacientID, z.TokenHash, z.Telefon, z.NahrazenoZarizenim, p.KodPrukazu AS Kod, p.Jmeno, p.Prijmeni FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
     WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.Telefon = @tel ORDER BY p.Prijmeni, p.Jmeno`, { tel });
   const out = [];
   for (const r of rows) { const op = await opravneni(q, s, r.PacientID).catch(() => ({})); out.push({ ...r, op }); }
@@ -684,18 +686,20 @@ async function prukazyNaTelefonu(q, s, telefon) {
 }
 central.get('/telefon/prukazy', sUzivatelem(async (q, s, req) => {
   const { tel, rows } = await prukazyNaTelefonu(q, s, req.query.telefon);
-  return { telefon: hezkyTel(tel), pacienti: rows.map((r) => ({ id: r.PacientID, kod: r.Kod, jmeno: `${r.Prijmeni} ${r.Jmeno}`.trim(), vymena: !!(r.op.garant || r.op.lekar), deaktivace: !!(r.op.garant || s.role.includes('admin')) })) };
+  const pac = (r) => ({ id: r.PacientID, zarizeniId: r.ZarizeniID, kod: r.Kod, jmeno: `${r.Prijmeni} ${r.Jmeno}`.trim(), vymena: !!(r.op.garant || r.op.lekar), deaktivace: !!(r.op.garant || s.role.includes('admin')) });
+  return { telefon: hezkyTel(tel), pacienti: rows.filter((r) => !r.NahrazenoZarizenim).map(pac), nahrazene: rows.filter((r) => r.NahrazenoZarizenim).map(pac) };
 }));
 central.post('/telefon/vymena', sUzivatelem(async (q, s, req) => {
   const { tel, rows } = await prukazyNaTelefonu(q, s, req.body.telefon);
   const novy = normTel(req.body.novyTelefon) || tel;
-  const smi = rows.filter((r) => r.op.garant || r.op.lekar);
-  if (!rows.length) throw chyba(`Na telefonu ${hezkyTel(tel)} není žádný aktivní průkaz – nový telefon spárujte u pacienta (Telefon a PINy → Spárovat telefon)`, 404);
+  const aktualni = rows.filter((r) => !r.NahrazenoZarizenim);
+  const smi = aktualni.filter((r) => r.op.garant || r.op.lekar);
+  if (!aktualni.length) throw chyba(`Na telefonu ${hezkyTel(tel)} není žádný aktivní průkaz – nový telefon spárujte u pacienta (Telefon a PINy → Spárovat telefon)`, 404);
   if (!smi.length) throw chyba('Výměnu telefonu připravuje garant nebo lékař v týmu pacientů v tomto telefonu', 403);
   const { kod, platnost } = zalozPrenos(smi.map((r) => ({ tenant: s.tenant, zarizeniId: r.ZarizeniID, tokenHash: r.TokenHash, telefon: tel })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: novy, zdroj: 'centrala' });
   for (const r of smi) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: 'výměna telefonu připravena v centrále', detail: `${hezkyTel(tel)} → ${hezkyTel(novy)}`, ip: s.ip });
   return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, stary: hezkyTel(tel), novy: hezkyTel(novy),
-    pacienti: smi.map((r) => `${r.Prijmeni} ${r.Jmeno}`.trim()), bezOpravneni: rows.length - smi.length };
+    pacienti: smi.map((r) => `${r.Prijmeni} ${r.Jmeno}`.trim()), bezOpravneni: aktualni.length - smi.length };
 }));
 central.get('/telefon/vymena/stav', sUzivatelem(async (q, s, req) => {
   const kod = normalizujKod(req.query.kod);
@@ -707,15 +711,18 @@ central.post('/telefon/vymena/zrusit', sUzivatelem(async (q, s, req) => {
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
   return { zruseno: zrusPrenos(kod) };
 }));
+/* deaktivace jen na pokyn (0.11.97): nahrazene = starý telefon po výměně (jen jeho průkazy, nový telefon se stejným číslem zůstává);
+   jinak celý telefon (ztráta, vrácení bez náhrady) – průkazy, které nejsou označené jako nahrazené */
 central.post('/telefon/deaktivovat', sUzivatelem(async (q, s, req) => {
-  const { tel, rows } = await prukazyNaTelefonu(q, s, req.body.telefon);
+  const { tel, rows: vse } = await prukazyNaTelefonu(q, s, req.body.telefon);
+  const rows = vse.filter((r) => (req.body.nahrazene ? !!r.NahrazenoZarizenim : !r.NahrazenoZarizenim));
   const smi = rows.filter((r) => r.op.garant || s.role.includes('admin'));
   if (!rows.length) throw chyba(`Na telefonu ${hezkyTel(tel)} už není žádný aktivní průkaz`, 404);
   if (!smi.length) throw chyba('Telefon deaktivuje garant pacientů v tomto telefonu', 403);
   for (const r of smi) {
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: r.ZarizeniID });
-    await zapisDenik(q, { pacientId: r.PacientID, typ: 'Systém', text: `Telefon u lůžka ${hezkyTel(tel)} deaktivován v centrální aplikaci – při příštím připojení se z něj průkaz vymaže.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
-    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: 'telefon: deaktivován (celý telefon)', detail: hezkyTel(tel), ip: s.ip });
+    await zapisDenik(q, { pacientId: r.PacientID, typ: 'Systém', text: `${req.body.nahrazene ? 'Starý telefon po výměně' : 'Telefon u lůžka'} ${hezkyTel(tel)} deaktivován v centrální aplikaci – při příštím připojení se z něj průkaz vymaže.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: req.body.nahrazene ? 'telefon: starý po výměně deaktivován' : 'telefon: deaktivován (celý telefon)', detail: hezkyTel(tel), ip: s.ip });
     await srovnejTymyTelefonu(q, r.PacientID, s.uzivatelId, s.jmeno);
   }
   return { deaktivovano: smi.length, zustalo: rows.length - smi.length };

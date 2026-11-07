@@ -491,13 +491,14 @@ device.post('/prenos/prevzit', h(async (req) => {
           const nove = await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, Stav, Rezim, Telefon, TokenHash, Tajemstvi, Sparovano, PosledniSync)
             OUTPUT inserted.ZarizeniID VALUES (@p, @st, 'SPAROVANO', 'ZAPUJCENY', @tel, @th, @t, SYSDATETIME(), SYSDATETIME())`,
           { p: z.PacientID, st: z.Stitek, tel: novyTel, th: sha256(raw), t: zasifruj(tajemstvi) });
-          await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: z.ZarizeniID });
+          // 0.11.97: starý telefon se neblokuje – jen se označí jako nahrazený; deaktivuje ho garant v centrále až na pokyn
+          await q.exec(`UPDATE dbo.A_KP_Zarizeni SET NahrazenoZarizenim = @n, Nahrazeno = SYSDATETIME() WHERE ZarizeniID = @z`, { n: nove.ZarizeniID, z: z.ZarizeniID });
           const stary = normTel(z.Telefon) || normTel(z.TelefonKarty);
           if (stary) stareTel.add(stary);
           if (stary !== novyTel) await q.exec(`UPDATE dbo.A_KP_Pacient SET TelefonKarty = @tel WHERE PacientID = @p`, { tel: novyTel, p: z.PacientID });
-          await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Výměna telefonu: průkaz přenesen ze starého telefonu${stary ? ' (' + hezkyTel(stary) + ')' : ''} do nového telefonu (${hezkyTel(novyTel)}). Starý telefon se vymaže.`, autor: 'telefon ' + nove.ZarizeniID, role: 'system', zarizeniId: nove.ZarizeniID });
+          await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Výměna telefonu: průkaz přenesen ze starého telefonu${stary ? ' (' + hezkyTel(stary) + ')' : ''} do nového telefonu (${hezkyTel(novyTel)}). Starý telefon zůstává funkční, dokud ho garant v centrální aplikaci nedeaktivuje.`, autor: 'telefon ' + nove.ZarizeniID, role: 'system', zarizeniId: nove.ZarizeniID });
           await audit(q, { zarizeniId: nove.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: průkaz převzat', detail: `ze zařízení ${z.ZarizeniID}, číslo ${hezkyTel(novyTel)}`, ip: ip(req) });
-          await audit(q, { zarizeniId: z.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: telefon zablokován', detail: `nahrazen zařízením ${nove.ZarizeniID}`, ip: ip(req) });
+          await audit(q, { zarizeniId: z.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: starý telefon nahrazen (čeká na deaktivaci)', detail: `nahrazen zařízením ${nove.ZarizeniID}`, ip: ip(req) });
           hotove.push({ pacientId: z.PacientID, zid: nove.ZarizeniID, raw, tajemstvi });
         }
         // jiné číslo nového telefonu: týmy zatržené u starého čísla (Lidé a týmy → Telefony s kartou) se přepíšou na nové

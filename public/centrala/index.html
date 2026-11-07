@@ -741,7 +741,7 @@ function tabTelefon(d) {
   const zar = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim !== 'PACIENT');
   const vlastni = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim === 'PACIENT');
   return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2>${d.pacient.telefonKarty ? `<span class="chip acc">karta jen na ${esc(d.pacient.telefonKarty)}</span>` : '<span class="chip warn">chybí číslo telefonu s kartou</span>'}</div><div class="tblwrap"><table class="tbl"><tbody>${zar.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon #' + z.id)}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `spárováno ${esc(fmtDT(z.sparovano))} · spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ' · ' + z.baterie + ' %' : ''}${z.verzeAplikace ? ' · app ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? 'čeká na spárování' + (z.kodPlatnost ? ' do ' + esc(fmtDT(z.kodPlatnost)) : '') : 'zablokováno – data se při připojení smažou'}</div></td>
+      <div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2>${d.pacient.telefonKarty ? `<span class="chip acc">karta jen na ${esc(d.pacient.telefonKarty)}</span>` : '<span class="chip warn">chybí číslo telefonu s kartou</span>'}</div><div class="tblwrap"><table class="tbl"><tbody>${zar.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon #' + z.id)}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}${z.stav === 'SPAROVANO' && z.nahrazeno ? ' <span class="chip warn" title="Průkaz převzal nový telefon; tento zůstává funkční, dokud ho nedeaktivujete">starý – po výměně, čeká na deaktivaci</span>' : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `spárováno ${esc(fmtDT(z.sparovano))} · spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ' · ' + z.baterie + ' %' : ''}${z.verzeAplikace ? ' · app ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? 'čeká na spárování' + (z.kodPlatnost ? ' do ' + esc(fmtDT(z.kodPlatnost)) : '') : 'zablokováno – data se při připojení smažou'}</div></td>
         <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${esc(z.stav.toLowerCase())}</span></td>
         <td>${d.op.garant && z.stav !== 'ZABLOKOVANO' && z.stav !== 'CEKA' ? `<button class="btn sm" data-zblok="${z.id}">Zablokovat</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Vráceno</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný telefon.</td></tr>'}</tbody></table></div>
         ${d.op.garant || d.op.lekar ? '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="parovat">Spárovat telefon</button><button class="btn" id="stitek" title="Samolepka 70 × 37 mm na zadní stranu telefonu">🏷 Štítek na telefon</button>' + (zar.some((z) => z.stav === 'SPAROVANO' && z.telefon) ? '<button class="btn" id="vymenaTel" title="Nový telefon převezme průkazy všech pacientů z tohoto telefonu (QR kód z centrály); nebo jen deaktivovat starý telefon">📱 Výměna / deaktivace telefonu</button>' : '') + (d.pacient.telefonKarty ? '<button class="btn" id="parovatSms">Poslat odkaz SMS na ' + esc(d.pacient.telefonKarty) + '</button>' : '') + (jeLekar() && zar.some((z) => z.stav === 'SPAROVANO') ? '<button class="btn" id="kodLekare">Kód lékaře na dnešek</button>' : '') + '</div>' : ''}</div>
@@ -867,7 +867,7 @@ function bindTab() {
   on('g_ok', async () => { const n = $('g_p').selectedOptions[0]; if (!n) return toast('Vyberte pracoviště'); if (await KP.confirm('Předat garanci', `Navrhnout předání garance pracovišti <b>${esc(n.textContent)}</b>? Garance přejde až po potvrzení přebírajícím lékařem.`, 'Navrhnout')) akce('/predat', { poskytovatelId: Number(n.value), poznamka: $('g_poz').value }, 'Předání navrženo'); });
   on('stitek', () => stitkyOkno([S.pacId]));
   on('parovat', () => parovat(false));
-  on('vymenaTel', () => { const z = d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon); if (z) vymenaTelefonuOkno(z.telefon); });
+  on('vymenaTel', () => { const z = d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon && x.nahrazeno) || d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon); if (z) vymenaTelefonuOkno(z.telefon); });
   on('pacientovi', () => pacientoviOkno());
   document.querySelectorAll('[data-pukoncit]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Ukončit přístup pacienta', 'Data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie – smazat ji nelze. Vlastní záznamy pacienta zůstanou v jeho telefonu.', 'Ukončit přístup', true)) akce('/zarizeni', { zarizeniId: Number(b.dataset.pukoncit), akce: 'zablokovat' }, 'Přístup ukončen'); }));
   if ($('linkaPanel')) linkaNacti();
@@ -1517,13 +1517,14 @@ function tymyBlok(lide) {
    telefon je tím zablokovaný a při připojení se vymaže. „Jen deaktivovat“ = ztráta nebo vrácení bez náhrady. */
 async function vymenaTelefonuOkno(telefon) {
   let r; try { r = await C('/telefon/prukazy?telefon=' + encodeURIComponent(telefon)); } catch (e) { return toast(e.message); }
-  if (!r.pacienti.length) return toast(`Na telefonu ${telefon} není žádný aktivní průkaz`);
-  const smiV = r.pacienti.some((p) => p.vymena), smiD = r.pacienti.some((p) => p.deaktivace);
+  if (!r.pacienti.length && !r.nahrazene.length) return toast(`Na telefonu ${telefon} není žádný aktivní průkaz`);
+  const smiV = r.pacienti.some((p) => p.vymena), smiD = r.pacienti.some((p) => p.deaktivace), smiDN = r.nahrazene.some((p) => p.deaktivace);
   modal(`<h2>Výměna telefonu ${esc(r.telefon)}</h2>
-    <p>V telefonu ${r.pacienti.length === 1 ? 'je průkaz' : `jsou průkazy ${r.pacienti.length} pacientů`}: <b>${esc(r.pacienti.map((p) => p.jmeno).join(', '))}</b>.</p>
-    ${smiV ? `<div class="field"><label>Číslo nového telefonu</label><input id="vt_novy" type="tel" value="${esc(r.telefon)}" style="font-size:18px"><div class="hint">Přendáváte SIM kartu? Nechte stejné číslo. Má-li nový telefon <b>jiné číslo</b>, zadejte ho – u pacientů i u týmů se číslo změní samo (pak vytiskněte nový štítek).</div></div>` : '<div class="banner warn">Výměnu připravuje garant nebo lékař v týmu pacientů v tomto telefonu.</div>'}
-    <div class="quick">${smiV ? '<button class="btn primary" id="vt_qr">Vytvořit QR kód pro nový telefon</button>' : ''}${smiD ? '<button class="btn crit" id="vt_deakt">Jen deaktivovat starý telefon</button>' : ''}<button class="btn" data-close>Zpět</button></div>
-    <div class="note">Výměna: nový telefon naskenuje QR kód z této obrazovky a převezme všechny průkazy najednou; <b>starý telefon se tím sám deaktivuje</b> (při připojení se vymaže). Deaktivace bez výměny: při ztrátě nebo vrácení telefonu.</div>`, (m) => {
+    ${r.nahrazene.length ? `<div class="banner warn"><b>Starý telefon po výměně</b> je pořád funkční (${r.nahrazene.length} průkaz${r.nahrazene.length > 1 ? 'y' : ''}: ${esc(r.nahrazene.map((p) => p.jmeno).join(', '))}). Až nový telefon ověříte, deaktivujte ho.${smiDN ? '<div class="quick" style="margin-top:8px"><button class="btn crit" id="vt_deakt_n">Deaktivovat starý telefon</button></div>' : ''}</div>` : ''}
+    ${r.pacienti.length ? `<p>V telefonu ${r.pacienti.length === 1 ? 'je průkaz' : `jsou průkazy ${r.pacienti.length} pacientů`}: <b>${esc(r.pacienti.map((p) => p.jmeno).join(', '))}</b>.</p>` : ''}
+    ${smiV && r.pacienti.length ? `<div class="field"><label>Číslo nového telefonu</label><input id="vt_novy" type="tel" value="${esc(r.telefon)}" style="font-size:18px"><div class="hint">Přendáváte SIM kartu? Nechte stejné číslo. Má-li nový telefon <b>jiné číslo</b>, zadejte ho – u pacientů i u týmů se číslo změní samo (pak vytiskněte nový štítek).</div></div>` : '<div class="banner warn">Výměnu připravuje garant nebo lékař v týmu pacientů v tomto telefonu.</div>'}
+    <div class="quick">${smiV && r.pacienti.length ? '<button class="btn primary" id="vt_qr">Vytvořit QR kód pro nový telefon</button>' : ''}${smiD && r.pacienti.length && !r.nahrazene.length ? '<button class="btn crit" id="vt_deakt">Deaktivovat telefon (ztráta, vrácení)</button>' : ''}<button class="btn" data-close>Zpět</button></div>
+    <div class="note">Výměna: nový telefon naskenuje QR kód z této obrazovky a převezme všechny průkazy najednou. <b>Starý telefon zůstává funkční</b>, dokud ho tady nedeaktivujete – nejdřív si ověřte, že nový telefon funguje. Deaktivace bez výměny: při ztrátě nebo vrácení telefonu.</div>`, (m) => {
     const q = m.querySelector('#vt_qr');
     if (q) q.onclick = async () => {
       q.disabled = true;
@@ -1531,13 +1532,18 @@ async function vymenaTelefonuOkno(telefon) {
       vymenaQr(v);
     };
     const dk = m.querySelector('#vt_deakt');
-    if (dk) dk.onclick = async () => {
-      if (!(await KP.confirm('Deaktivovat telefon', `Telefon ${esc(r.telefon)} přestane fungovat pro všechny pacienty (${r.pacienti.length}) a při příštím připojení se z něj průkazy vymažou. Pokud ho nahrazuje nový telefon, použijte raději <b>Vytvořit QR kód pro nový telefon</b> – starý se deaktivuje sám.`, 'Deaktivovat', true))) return;
-      try { const x = await C('/telefon/deaktivovat', { method: 'POST', body: { telefon: r.telefon } }); toast(`Telefon deaktivován (${x.deaktivovano} průkazů)${x.zustalo ? ` · ${x.zustalo} bez oprávnění zůstává` : ''}`); }
-      catch (e) { return toast(e.message); }
-      if (S.view === 'detail' && S.pacId) { await nactiDetail(); kresliDetail(); } else if (S.view === 'lide') renderLide();
-    };
+    if (dk) dk.onclick = () => deaktivovatTelefon(r.telefon, false, r.pacienti.length);
+    const dn = m.querySelector('#vt_deakt_n');
+    if (dn) dn.onclick = () => deaktivovatTelefon(r.telefon, true, r.nahrazene.length);
   });
+}
+async function deaktivovatTelefon(telefon, nahrazene, pocet) {
+  if (!(await KP.confirm(nahrazene ? 'Deaktivovat starý telefon' : 'Deaktivovat telefon', nahrazene
+    ? `Starý telefon (${esc(telefon)}) přestane fungovat a při příštím připojení se z něj průkazy (${pocet}) vymažou. <b>Nový telefon zůstává.</b> Ověřili jste, že nový telefon funguje?`
+    : `Telefon ${esc(telefon)} přestane fungovat pro všechny pacienty (${pocet}) a při příštím připojení se z něj průkazy vymažou. Pokud ho nahrazuje nový telefon, použijte raději <b>Vytvořit QR kód pro nový telefon</b>.`, 'Deaktivovat', true))) return;
+  try { const x = await C('/telefon/deaktivovat', { method: 'POST', body: { telefon, nahrazene } }); toast(`${nahrazene ? 'Starý telefon' : 'Telefon'} deaktivován (${x.deaktivovano} průkazů)${x.zustalo ? ` · ${x.zustalo} bez oprávnění zůstává` : ''}`); }
+  catch (e) { return toast(e.message); }
+  if (S.view === 'detail' && S.pacId) { await nactiDetail(); kresliDetail(); } else if (S.view === 'lide') renderLide();
 }
 function vymenaQr(v) {
   const kod = v.kod; let bezi = true;
@@ -1545,7 +1551,7 @@ function vymenaQr(v) {
   const konec = new Date(v.platnost);
   modal(`<h2>Výměna telefonu ${esc(v.stary)} → ${esc(v.novy)}</h2>
     <div class="grid2" style="align-items:center"><div class="qr" style="justify-self:center">${svg}</div>
-      <div><ol style="margin:0 0 8px 18px;padding:0;line-height:1.5"><li>Na <b>novém</b> telefonu (${esc(v.novy)}) otevřete Kartu pacienta.</li><li>Stiskněte <b>Výměna telefonu – převzít průkazy ze starého telefonu</b> (je-li v telefonu už průkaz: <b>Přidat dalšího pacienta</b> → tamtéž).</li><li><b>Načíst QR kód</b> a namiřte na tuto obrazovku, potvrďte číslo a <b>Převzít průkazy</b>.</li></ol>
+      <div><ol style="margin:0 0 8px 18px;padding:0;line-height:1.5"><li>Na <b>novém</b> telefonu (${esc(v.novy)}) svítí stránka <b>Spárovat telefon</b> (v kiosku po spuštění; je-li v telefonu už pacient: <b>Přidat dalšího pacienta do telefonu</b>).</li><li>Stiskněte <b>Načíst QR kód fotoaparátem</b> a namiřte na tuto obrazovku.</li><li>Zkontrolujte číslo telefonu a stiskněte <b>Převzít průkazy</b>.</li></ol>
       <div style="font:700 22px ui-monospace,monospace;letter-spacing:.08em">${esc(v.kodZobrazeni)}</div>
       <div class="note" id="vt_stav">Převezme se ${v.pacienti.length} průkaz(ů): ${esc(v.pacienti.join(', '))}${v.bezOpravneni ? ` · ${v.bezOpravneni} bez vašeho oprávnění se nepřenese` : ''}. Kód platí do ${esc(konec.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} a jde použít jen jednou.</div></div></div>
     <div class="quick"><button class="btn" id="vt_zrusit">Zrušit výměnu</button></div>`, (m) => { m.querySelector('#vt_zrusit').onclick = () => { bezi = false; closeModal(); C('/telefon/vymena/zrusit', { method: 'POST', body: { kod } }).catch(() => {}); }; });
@@ -1557,7 +1563,7 @@ function vymenaQr(v) {
       let st; try { st = await C('/telefon/vymena/stav?kod=' + kod); } catch { continue; }
       if (st.stav === 'prevzato') {
         bezi = false;
-        modal(`<h2>Hotovo – průkazy jsou v novém telefonu</h2><p>Nový telefon <b>${esc(v.novy)}</b> převzal ${st.pocet} průkaz(ů). Starý telefon ${esc(v.stary)} je <b>deaktivovaný</b> – při příštím připojení se z něj průkazy vymažou.</p>${v.novy !== v.stary ? '<p class="muted">Číslo telefonu s kartou se u pacientů i týmů změnilo – vytiskněte nový štítek na telefon.</p>' : ''}<div class="quick"><button class="btn primary" data-close>Rozumím</button></div>`);
+        modal(`<h2>Hotovo – průkazy jsou v novém telefonu</h2><p>Nový telefon <b>${esc(v.novy)}</b> převzal ${st.pocet} průkaz(ů). <b>Starý telefon ${esc(v.stary)} je zatím pořád funkční.</b> Ověřte, že nový telefon ukazuje pacienty, a pak starý deaktivujte – teď, nebo kdykoli později (u pacienta Telefon a PINy → Výměna / deaktivace telefonu).</p>${v.novy !== v.stary ? '<p class="muted">Číslo telefonu s kartou se u pacientů i týmů změnilo – vytiskněte nový štítek na telefon.</p>' : ''}<div class="quick"><button class="btn crit" id="vt_hot_deakt">Deaktivovat starý telefon</button><button class="btn primary" data-close>Později</button></div>`, (m) => { m.querySelector('#vt_hot_deakt').onclick = () => { closeModal(); deaktivovatTelefon(v.stary, true, st.pocet); }; });
         if (S.view === 'detail' && S.pacId) { try { await nactiDetail(); kresliDetail(); } catch { /* */ } }
         return;
       }
