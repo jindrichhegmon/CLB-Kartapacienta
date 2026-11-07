@@ -282,7 +282,14 @@ app.get('/api/d/parovaci-info', (req, res) => (String(req.query.kod).toUpperCase
 app.post('/api/d/parovat', j((req) => (req.body.rezim === 'PACIENT'
   ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient, videoToken: 'ukazka-video-token' }
   : { token: `${TENANT}.7.ukazka`, tajemstvi: TAJEMSTVI, zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
-app.post('/api/d/sync', j((req) => (String(req.headers.authorization || '').includes('.9.') ? { potvrzeno: [], odmitnuto: [], balik: balikPacient } : { potvrzeno: (req.body.fronta || []).map((e) => e.uuid), odmitnuto: [], balik })));
+app.post('/api/d/sync', j((req) => (prenos.stav === 'prevzato' && String(req.headers.authorization || '').includes('.7.') ? { prikaz: 'smazat' } : String(req.headers.authorization || '').includes('.9.') ? { potvrzeno: [], odmitnuto: [], balik: balikPacient } : { potvrzeno: (req.body.fronta || []).map((e) => e.uuid), odmitnuto: [], balik })));
+// výměna telefonu (0.11.95): starý telefon ukáže QR, nový převezme; po převzetí starý telefon synchronizací zjistí zablokování
+let prenos = { stav: 'ceka', prevzato: false };
+app.post('/api/d/prenos/zahajit', j((req) => { prenos = { stav: 'ceka', prevzato: false, role: req.body.role }; return { kod: 'K7MPX4RT9QWB', kodZobrazeni: 'K7MP-X4RT-9QWB', platnost: new Date(Date.now() + 10 * 60e3).toISOString(), pocet: (req.body.tokeny || []).length, neplatnych: 0, odkaz: 'https://kartapacienta.example/karta/#prenos=K7MPX4RT9QWB' }; }));
+app.post('/api/d/prenos/nahled', j(() => ({ pocet: 1, telefon: '+420 777 000 123' })));
+app.post('/api/d/prenos/prevzit', j((req) => { prenos.stav = 'prevzato'; prenos.telefon = req.body.telefon; return { karty: [{ tenant: TENANT, token: `${TENANT}.21.novy`, tajemstvi: TAJEMSTVI, zarizeniId: 21, telefon: '+420 777 000 456', balik, videoToken: 'ukazka-video-token' }], neprevzato: 0 }; }));
+app.post('/api/d/prenos/stav', j(() => (prenos.stav === 'prevzato' ? { stav: 'prevzato', pocet: 1 } : { stav: 'ceka', zbyva: 540 })));
+app.post('/api/d/prenos/zrusit', j({ zruseno: true }));
 app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
 app.post('/api/admin/login', j({ session: 'ukazka' }));
 app.get('/api/admin/tenanti', j({ tenanti, typy }));
@@ -618,6 +625,23 @@ await klik(p, '#btnZamek'); await p.waitForSelector('#unRodina');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 2, mistnost: 'kp-p0007-xyz', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: '2026-10-27 09:20' }) }); await videoPoll(); });
 await p.waitForSelector('#vidPrijmout', { timeout: 5000 }); await p.evaluate(() => zvonit(false)); await foto(p, 'k-video-zvoni');
 await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); await videoPoll(); });
+// výměna telefonu (0.11.95): starý telefon (tým odemčený PINem) → dlaždice Tým → Výměna telefonu → QR; nový telefon převezme
+await p.evaluate(() => { closeModal(); U = { role: 'sestra', jmeno: 'Lucie', posledni: Date.now() }; tab = 'udaje'; kresli(); });
+await p.waitForSelector('#t_prenos'); await klik(p, '#t_prenos'); await p.waitForSelector('#kpOk'); await klik(p, '#kpOk');
+await p.waitForSelector('#prenosZrusit', { timeout: 8000 }); await p.waitForTimeout(400);
+if (!(await p.$('#modal svg'))) chyby.push('výměna telefonu: starý telefon neukázal QR kód');
+await foto(p, 'k-vymena-stary', { vyska: 900 });
+{ const n = await stranka({ mobil: true });
+  await n.goto(`${URL}/karta/#prenos=K7MPX4RT9QWB`); await n.waitForSelector('#pr_ok');
+  await n.waitForFunction(() => (document.querySelector('#pr_tel') || {}).value === '+420 777 000 123', null, { timeout: 8000 });
+  await n.fill('#pr_tel', '+420 777 000 456');
+  await foto(n, 'k-vymena-novy', { vyska: 900 });
+  await klik(n, '#pr_ok'); await n.waitForSelector('#modal h2'); await n.waitForTimeout(300);
+  if (!/převzaty/.test(await n.textContent('#modal h2'))) chyby.push('výměna telefonu: nový telefon průkazy nepřevzal');
+  if ((await n.evaluate(() => KARTY.length)) !== 1) chyby.push('výměna telefonu: v novém telefonu není převzatý průkaz');
+  await n.close(); }
+await p.waitForFunction(() => /Hotovo/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('výměna telefonu: starý telefon se po převzetí nevymazal'));
+if ((await p.evaluate(() => KARTY.length)) !== 0) chyby.push('výměna telefonu: ve starém telefonu zůstal průkaz');
 await p.close();
 
 console.log('Karta pacienta uvnitř PéčeDoma');

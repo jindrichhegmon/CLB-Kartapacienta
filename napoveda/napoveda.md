@@ -466,6 +466,18 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 - **Přidat dalšího pacienta do telefonu:** tlačítko je přímo na kartě (pod zamčenou krizovou kartou v panelu **Průkazy v tomto telefonu**), ve výběru pacienta a po odemknutí v dlaždici **Tým**. Otevře spárování QR kódem nebo kódem z centrální aplikace (u nového pacienta Telefon a PINy); stávající průkazy zůstanou. Po přidání se telefon vrátí na **výběr pacienta**, takže jsou vidět všichni.
 - **Odvolat jedno párování:** otevřete pacienta, odemkněte ho PINem týmu nebo kódem lékaře (ne rodina) a v dlaždici **Tým** stiskněte **Odebrat průkaz z tohoto telefonu**. Z telefonu se vymaže jen tento pacient, v centrální aplikaci se jeho telefon označí jako vrácený a do deníku se zapíše, kdo průkaz odebral; ostatní průkazy zůstanou. Odebrat jde jen s připojením. Stejně funguje zablokování telefonu u pacienta v centrální aplikaci nebo uzavření průkazu.
 - Když telefon průkaz odebere sám (telefon byl u pacienta zablokován, vrácen nebo spárován v jiném telefonu), ukáže okno **Průkaz byl z telefonu odebrán** se jménem pacienta – pokud má průkaz zůstat, spárujte ho znovu.
+**Výměna telefonu – přenos všech průkazů do nového telefonu** (od 0.11.95). Když se telefon u lůžka mění (porucha, nový telefon, jiné číslo), nemusí se každý pacient párovat znovu z centrály:
+
+1. **Starý telefon:** otevřete kteréhokoli pacienta, odemkněte ho **PINem týmu** nebo kódem lékaře (ne rodina), v dlaždici **Tým** stiskněte **Výměna telefonu – předat průkazy do nového** a potvrďte. Telefon nejdřív odešle čekající zápisy a pak ukáže **QR kód** a kód ve tvaru XXXX-XXXX-XXXX. Kód platí **10 minut** a jde použít jen jednou.
+2. **Nový telefon:** otevřete Kartu pacienta (v kiosku se otevře sama) → **Výměna telefonu – převzít průkazy ze starého telefonu** → **Načíst QR kód ze starého telefonu** (nebo kód opište).
+3. Zkontrolujte **číslo nového telefonu** – předvyplní se číslo starého. Má-li nový telefon **jiné číslo**, přepište ho: u pacientů se změní *Telefon s kartou* a u týmů (*Lidé a týmy → Telefony s kartou*) se starý telefon nahradí novým, takže týmy i jejich PINy zůstanou.
+4. Stiskněte **Převzít průkazy**. Nový telefon dostane všechny průkazy najednou (každý s novým, vlastním přístupem), starý telefon do pár sekund ukáže **Hotovo** a sám se vymaže. V deníku každého pacienta je zápis o výměně telefonu.
+
+![Starý telefon ukazuje QR kód výměny](/napoveda/img/k-vymena-stary.png)
+![Nový telefon převezme průkazy](/napoveda/img/k-vymena-novy.png)
+
+Přenášejí se jen zapůjčené telefony (Karta pacienta). **Můj průkaz** ve vlastním telefonu pacienta se nepřenáší – pacient dostane nový kód od lékaře. Když se nové číslo liší, **vytiskněte znovu štítek** na telefon (Lidé a týmy → tým → Telefony s kartou). Kód vypršel nebo se použil? Na starém telefonu stiskněte Výměna telefonu znovu.
+
 - Hláška „Karta tohoto pacienta je určená pro jiné číslo telefonu“ znamená, že číslo neodpovídá – zkontrolujte ho v centrální aplikaci (Detail pacienta → Telefon s kartou).
 
 ## 14. Karta na telefonu – každodenní používání

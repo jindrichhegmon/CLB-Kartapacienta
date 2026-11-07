@@ -7,6 +7,8 @@
  *                                                  → { potvrzeno:[uuid], balik } | { prikaz:'smazat' } | { prikaz:'odpojit' } (vlastní telefon pacienta)
  *   POST /odebrat  Authorization: Device <token>   { role, kdo } – zapůjčený telefon: tým odemčený PINem odebere průkaz tohoto pacienta
  *                                                  z telefonu (0.11.81); zařízení → VRACENO, zápis do deníku a auditu, ostatní průkazy v telefonu zůstanou
+ *   POST /prenos/zahajit|nahled|prevzit|stav|zrusit – výměna telefonu (0.11.95): starý zapůjčený telefon ukáže jednorázový QR kód,
+ *                                                  nový ho naskenuje a převezme všechny průkazy najednou (viz src/prenos.js)
  *   POST /sdilet   Authorization: Device <token>   { polozky:[{druh, nazev, obsah, puvod, aktualizovano}] } – jen vlastní telefon pacienta;
  *                                                  pacient vybral, viděl náhled a potvrdil → A_KP_Sdileni + zápis do deníku
  * Token zařízení = "<IDTENANT>.<ZarizeniID>.<náhodných 32 B>", v DB je jen jeho SHA-256.
@@ -23,6 +25,8 @@ import { priradTymyTelefonu, srovnejTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { podepis, overSession } from '../crypto.js';
+import { config } from '../config.js';
+import { zalozPrenos, nahledPrenosu, vezmiPrenos, dokonciPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE } from '../prenos.js';
 import { nastaveniPd, zaznamyPd, DRUHY_PRO_PD, predejZhorseniPd, TYPY_ZHORSENI, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
 
 export const device = Router();
@@ -403,4 +407,135 @@ device.post('/video', h(async (req) => {
     }
     throw chyba('Neznámá akce');
   });
+}));
+
+/* ---------------- výměna telefonu (0.11.95, z úkolu Velína #2) ----------------
+   Starý zapůjčený telefon (A) ukáže jednorázový QR kód (10 min), nový telefon (B) ho naskenuje a převezme všechny průkazy najednou:
+   každý průkaz dostane v B nové zařízení s vlastním tokenem a tajemstvím, A se u všech zablokuje a po převzetí se sám vymaže.
+   Spustit smí jen tým odemčený PINem nebo kódem lékaře (role deklaruje telefon jako u odebrání průkazu). Má-li nový telefon jiné číslo,
+   změní se číslo telefonu s kartou u pacientů i u týmů (Lidé a týmy → Telefony s kartou), aby týmy a jejich PINy zůstaly. Vlastní
+   telefony pacientů (Můj průkaz) se nepřenášejí – ty si pacient spáruje znovu kódem od lékaře. */
+const MAX_KARET_PRENOS = 50;
+function rozlozToken(t) {
+  const [tenant, zidS, raw] = String(t || '').split('.');
+  const zid = Number(zidS);
+  return tenantRe.test(tenant || '') && Number.isInteger(zid) && zid > 0 && raw ? { tenant, zid, raw } : null;
+}
+
+// starý telefon: ověří všechny své průkazy a dostane jednorázový kód pro QR
+device.post('/prenos/zahajit', h(async (req) => {
+  omez('prenos-zahajit:' + ip(req), 10);
+  const b = req.body || {};
+  const role = String(b.role || '');
+  if (!ROLE_ODEBRAT.includes(role)) throw chyba('Výměnu telefonu spouští člen týmu (odemčení PINem týmu nebo kódem lékaře)', 403);
+  const kdo = text(b.kdo, 80) || ROLE_CHAT[role] || role;
+  const tokeny = [...new Set((Array.isArray(b.tokeny) ? b.tokeny : []).map(String))].slice(0, MAX_KARET_PRENOS);
+  if (!tokeny.length) throw chyba('V telefonu nejsou žádné průkazy k přenosu');
+  const karty = [];
+  let neplatnych = 0;
+  for (const t of tokeny) {
+    const r = rozlozToken(t);
+    if (!r) { neplatnych++; continue; }
+    const z = await vTenantu(r.tenant, async (q) => {
+      const z = await q.one(`SELECT ZarizeniID, PacientID, Stav, Rezim, Telefon, TokenHash FROM dbo.A_KP_Zarizeni WHERE ZarizeniID = @z`, { z: r.zid });
+      const sedi = z && z.TokenHash && z.Stav === 'SPAROVANO' && z.Rezim === 'ZAPUJCENY' && timingSafeEqual(Buffer.from(z.TokenHash), Buffer.from(sha256(r.raw)));
+      if (!sedi) return null;
+      await audit(q, { zarizeniId: r.zid, kdo: 'telefon · ' + kdo, pacientId: z.PacientID, akce: 'výměna telefonu zahájena', detail: `${tokeny.length} průkazů v telefonu`, ip: ip(req) });
+      return z;
+    });
+    if (z) karty.push({ tenant: r.tenant, zarizeniId: r.zid, tokenHash: sha256(r.raw), telefon: normTel(z.Telefon) || '' });
+    else neplatnych++;
+  }
+  if (!karty.length) throw chyba('Žádný průkaz v tomto telefonu už není platný – nelze ho přenést', 409);
+  const { kod, platnost } = zalozPrenos(karty);
+  return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), pocet: karty.length, neplatnych, odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}` };
+}));
+
+// nový telefon po naskenování: kolik průkazů a číslo starého telefonu (k předvyplnění) – kód se nespotřebuje
+device.post('/prenos/nahled', h(async (req) => {
+  omez('prenos-nahled:' + ip(req), 30);
+  const kod = normalizujKod((req.body || {}).kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód pro výměnu telefonu');
+  const p = nahledPrenosu(kod);
+  if (!p) throw chyba('Kód je neplatný, už byl použit nebo vypršel – na starém telefonu vytvořte nový', 404);
+  const tel = (p.karty.find((k) => k.telefon) || {}).telefon || '';
+  return { pocet: p.karty.length, telefon: tel ? hezkyTel(tel) : '' };
+}));
+
+// nový telefon: převezme všechny průkazy (nová zařízení a tokeny), starý se zablokuje
+device.post('/prenos/prevzit', h(async (req) => {
+  omez('prenos-prevzit:' + ip(req), 10);
+  const b = req.body || {};
+  const kod = normalizujKod(b.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód pro výměnu telefonu');
+  const novyTel = normTel(b.telefon);
+  if (!novyTel) throw chyba('Zadejte číslo nového telefonu (např. +420 777 123 456)');
+  const p = vezmiPrenos(kod);   // jednorázový – od teď ho nikdo jiný nepoužije
+  if (!p) throw chyba('Kód je neplatný, už byl použit nebo vypršel – na starém telefonu vytvořte nový', 404);
+  const poTenantech = new Map();
+  for (const k of p.karty) { if (!poTenantech.has(k.tenant)) poTenantech.set(k.tenant, []); poTenantech.get(k.tenant).push(k); }
+  const karty = [];
+  let neprevzato = 0;
+  for (const [tenant, seznam] of poTenantech) {
+    try {
+      const v = await vTenantu(tenant, async (q) => {   // jedna transakce za organizaci: buď převezme všechny její průkazy, nebo žádný
+        const hotove = [], stareTel = new Set();
+        for (const k of seznam) {
+          const z = await q.one(`SELECT z.ZarizeniID, z.PacientID, z.Stav, z.Rezim, z.TokenHash, z.Stitek, z.Telefon, p.TelefonKarty FROM dbo.A_KP_Zarizeni z
+            JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID WHERE z.ZarizeniID = @z`, { z: k.zarizeniId });
+          // mezitím mohl být starý telefon zablokován nebo průkaz spárován jinde – pak se nepřenáší
+          if (!z || z.Stav !== 'SPAROVANO' || z.Rezim !== 'ZAPUJCENY' || z.TokenHash !== k.tokenHash) { neprevzato++; continue; }
+          const raw = nahodny(32), tajemstvi = randomBytes(20).toString('hex');
+          const nove = await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, Stav, Rezim, Telefon, TokenHash, Tajemstvi, Sparovano, PosledniSync)
+            OUTPUT inserted.ZarizeniID VALUES (@p, @st, 'SPAROVANO', 'ZAPUJCENY', @tel, @th, @t, SYSDATETIME(), SYSDATETIME())`,
+          { p: z.PacientID, st: z.Stitek, tel: novyTel, th: sha256(raw), t: zasifruj(tajemstvi) });
+          await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: z.ZarizeniID });
+          const stary = normTel(z.Telefon) || normTel(z.TelefonKarty);
+          if (stary) stareTel.add(stary);
+          if (stary !== novyTel) await q.exec(`UPDATE dbo.A_KP_Pacient SET TelefonKarty = @tel WHERE PacientID = @p`, { tel: novyTel, p: z.PacientID });
+          await zapisDenik(q, { pacientId: z.PacientID, typ: 'Systém', text: `Výměna telefonu: průkaz přenesen ze starého telefonu${stary ? ' (' + hezkyTel(stary) + ')' : ''} do nového telefonu (${hezkyTel(novyTel)}). Starý telefon se vymaže.`, autor: 'telefon ' + nove.ZarizeniID, role: 'system', zarizeniId: nove.ZarizeniID });
+          await audit(q, { zarizeniId: nove.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: průkaz převzat', detail: `ze zařízení ${z.ZarizeniID}, číslo ${hezkyTel(novyTel)}`, ip: ip(req) });
+          await audit(q, { zarizeniId: z.ZarizeniID, kdo: 'telefon', pacientId: z.PacientID, akce: 'výměna telefonu: telefon zablokován', detail: `nahrazen zařízením ${nove.ZarizeniID}`, ip: ip(req) });
+          hotove.push({ pacientId: z.PacientID, zid: nove.ZarizeniID, raw, tajemstvi });
+        }
+        // jiné číslo nového telefonu: týmy zatržené u starého čísla (Lidé a týmy → Telefony s kartou) se přepíšou na nové
+        for (const stary of stareTel) {
+          if (stary === novyTel) continue;
+          await q.exec(`INSERT INTO dbo.A_KP_TymTelefon (TymLidiID, Telefon) SELECT tt.TymLidiID, @n FROM dbo.A_KP_TymTelefon tt
+            WHERE tt.Telefon = @s AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_TymTelefon x WHERE x.TymLidiID = tt.TymLidiID AND x.Telefon = @n)`, { s: stary, n: novyTel });
+          await q.exec(`DELETE FROM dbo.A_KP_TymTelefon WHERE Telefon = @s`, { s: stary });
+        }
+        const out = [];
+        for (const x of hotove) {
+          await srovnejTymyTelefonu(q, x.pacientId, null, 'výměna telefonu');
+          await priradTymyTelefonu(q, x.pacientId, novyTel);
+          const balik = await balikProZarizeni(q, x.pacientId, { rezim: 'ZAPUJCENY' });
+          out.push({ tenant, token: `${tenant}.${x.zid}.${x.raw}`, tajemstvi: x.tajemstvi, zarizeniId: x.zid, telefon: hezkyTel(novyTel), balik, videoToken: videoToken(tenant, x.zid) });
+        }
+        return out;
+      });
+      karty.push(...v);
+    } catch (e) {
+      console.error(new Date().toISOString(), 'výměna telefonu', tenant, e);
+      neprevzato += seznam.length;
+    }
+  }
+  dokonciPrenos(kod, karty.length);
+  if (!karty.length) throw chyba('Žádný průkaz se nepodařilo převzít (starý telefon byl mezitím zablokován?) – na starém telefonu vytvořte nový kód', 409);
+  return { karty, neprevzato };
+}));
+
+// starý telefon se ptá, jestli už nový telefon průkazy převzal (zná jen kód, žádná data)
+device.post('/prenos/stav', h(async (req) => {
+  omez('prenos-stav:' + ip(req), 400);
+  const kod = normalizujKod((req.body || {}).kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return stavPrenosu(kod);
+}));
+
+device.post('/prenos/zrusit', h(async (req) => {
+  omez('prenos-zrusit:' + ip(req), 30);
+  const kod = normalizujKod((req.body || {}).kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return { zruseno: zrusPrenos(kod) };
 }));
