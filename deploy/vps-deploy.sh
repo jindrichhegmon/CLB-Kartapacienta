@@ -92,3 +92,8 @@ curl -s localhost:$PORT/api/health; echo
 EOF
 echo
 echo "Hotovo: https://$DOMENA  (log: ssh -i $KEY $VPS \"su - jhnapps -c 'pm2 logs clb-kartapacienta --lines 50'\")"
+# 0.11.100: aplikace pro zavedení telefonu QR kódem musí být na serveru – jinak telefon hlásí „Zařízení nelze nastavit“
+APKKOD=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMENA/android/kartapacienta.apk" || true)
+if [ "$APKKOD" = "200" ]; then echo "Aplikace pro zavedení telefonu QR kódem: na serveru ✅"
+else echo "POZOR: na serveru chybí aplikace pro zavedení telefonu QR kódem (https://$DOMENA/android/kartapacienta.apk → $APKKOD)."
+  echo "       Zkopírujte app-release.apk do public/android/kartapacienta.apk a spusťte nasazení znovu – jinak nový telefon hlásí „Zařízení nelze nastavit“."; fi
