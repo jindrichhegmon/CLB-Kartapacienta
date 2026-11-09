@@ -316,6 +316,40 @@ async function stranka({ mobil = false, session = null, init = null } = {}) {
   if (init) await p.addInitScript(init);
   return p;
 }
+/* přetékání (0.11.98): prvky, které vyčnívají z displeje nebo z rámečku, který je ořezává (vodorovné posuvníky .tabs/.tblwrap jsou v pořádku) */
+const PRETEKANI = () => {
+  const W = document.documentElement.clientWidth;
+  const popis = (e) => (e.id ? '#' + e.id : e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : '')) + ' „' + (e.textContent || e.value || e.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 45) + '“';
+  const out = [];
+  for (const e of document.querySelectorAll('body *')) {
+    if (e.closest('svg') && e.tagName.toLowerCase() !== 'svg') continue;
+    if (e.closest('.hlp-chat,.hlp-panel,#toast,[hidden]')) continue;
+    const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position === 'fixed' && e.id === 'toast') continue;
+    const r = e.getBoundingClientRect(); if (r.width <= 2 || r.height <= 2) continue;
+    let a = e.parentElement, prava = W, leva = 0, posun = false;
+    for (; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+      const ox = getComputedStyle(a).overflowX;
+      if (ox !== 'visible') { posun = /(auto|scroll)/.test(ox); const ar = a.getBoundingClientRect(); prava = Math.min(W, ar.right); leva = Math.max(0, ar.left); break; }
+    }
+    if (posun) continue;
+    // text, který vyčnívá z vlastního rámečku (nezalomený text v pevné šířce) – jen u prvků bez ořezu; záměrné „…“ má overflow hidden
+    if (cs.overflowX === 'visible' && e.scrollWidth > e.clientWidth + 2 && e.clientWidth > 0 && !['TD', 'TH', 'TR', 'TBODY', 'TABLE', 'THEAD'].includes(e.tagName) && r.right + (e.scrollWidth - e.clientWidth) > prava + 1.5) { out.push({ e, t: popis(e) + ` (obsah ${e.scrollWidth} px v rámečku ${e.clientWidth} px)` }); continue; }
+    if (r.right > prava + 1.5 || r.left < leva - 1.5) out.push({ e, t: popis(e) + ` (${Math.round(r.left)}–${Math.round(r.right)} px, místo ${Math.round(leva)}–${Math.round(prava)})` });
+  }
+  const vrch = out.filter((x) => !out.some((y) => y !== x && y.e.contains(x.e)));
+  const sirka = document.documentElement.scrollWidth > W + 1 ? [`stránka je širší než displej (${document.documentElement.scrollWidth} > ${W} px)`] : [];
+  return [...sirka, ...vrch.map((x) => x.t)].slice(0, 6);
+};
+const pretekani = async (p, jmeno) => {
+  const vp = p.viewportSize();
+  const sirky = vp.width <= 500 ? [vp.width, 360] : [vp.width];
+  for (const w of sirky) {
+    if (w !== vp.width) { await p.setViewportSize({ width: w, height: vp.height }); await p.waitForTimeout(150); }
+    const r = await p.evaluate(PRETEKANI);
+    if (r.length) chyby.push(`${jmeno} (${w} px): přetéká – ${r.join('; ')}`);
+    if (w !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(100); }
+  }
+};
 const foto = async (p, jmeno, { cela = false, vyska = null } = {}) => {
   await p.evaluate(() => { const t = document.getElementById('toast'); if (t) t.hidden = true; });   // hlášky z předchozích kroků do snímků nepatří
   await p.evaluate(() => { scrollTo(0, 0); document.querySelectorAll('.box').forEach((b) => (b.scrollTop = 0)); });
@@ -332,6 +366,7 @@ const foto = async (p, jmeno, { cela = false, vyska = null } = {}) => {
     return vrsky.length > 1 && Math.max(...vrsky) - Math.min(...vrsky) > 1 ? `${[...f.querySelectorAll(':scope > .field > label')].map((l) => l.textContent.trim().slice(0, 20)).join(' | ')} (${vrsky.join('/')})` : '';
   }).filter(Boolean));
   if (krive.length) chyby.push(`${jmeno}: políčka vedle sebe nejsou v jedné úrovni: ${krive.join('; ')}`);
+  await pretekani(p, jmeno);
   const vp = p.viewportSize();
   const opt = { path: path.join(VYSTUP, jmeno + '.png'), animations: 'disabled' };
   if (cela || vyska) { opt.fullPage = true; if (vyska) opt.clip = { x: 0, y: 0, width: vp.width, height: vyska }; }
@@ -758,6 +793,32 @@ await klik(p, '#novy'); await p.waitForSelector('#f_ico');
 await p.fill('#f_ico', '12345678'); await p.fill('#f_nazev', 'Hospic Ukázka, z. ú.'); await p.fill('#f_adresa', 'Nemocniční 1, 760 01 Zlín');
 await p.fill('#f_sj', 'MUDr. Petra Ukázková'); await p.dispatchEvent('#f_sj', 'input'); await p.fill('#f_se', 'petra@hospic-ukazka.cz');
 await foto(p, 't-zalozit', { vyska: 1000 });
+await p.close();
+
+console.log('Centrální aplikace na mobilu (360 px) – přetékání');
+p = await stranka({ session: 'ukazka', mobil: true });
+await p.setViewportSize({ width: 360, height: 740 });
+let mobN = 0;
+const mob = async (jmeno) => { await p.waitForTimeout(250); if (process.env.MOBIL_SNIMKY) await p.screenshot({ path: path.join(process.env.MOBIL_SNIMKY, `${String(++mobN).padStart(2, '0')}-${jmeno.replace(/[^a-z0-9]+/gi, '_')}.png`), fullPage: true }); const r = await p.evaluate(PRETEKANI); if (r.length) chyby.push(`centrála mobil ${jmeno}: přetéká – ${r.join('; ')}`); };
+const mobOkno = async (sel, cekej, jmeno) => { if (!(await p.$(sel))) return chyby.push(`centrála mobil: chybí ${sel}`); await p.click(sel); await p.waitForSelector(cekej, { timeout: 8000 }).catch(() => {}); await mob(jmeno); await p.evaluate(() => KP.closeModal()); await p.waitForTimeout(150); };
+await p.goto(`${URL}/centrala/`); await p.waitForSelector('#d_agenda'); await mob('přehled');
+await klik(p, '#d_agenda'); await p.waitForSelector('tr[data-id]'); await mob('agenda pacientů');
+await p.click('tr[data-id]'); await p.waitForSelector('.tabs [data-t]');
+for (const t of await p.$$eval('.tabs [data-t]', (x) => x.map((b) => b.dataset.t))) { await p.click(`.tabs [data-t="${t}"]`); await p.waitForTimeout(400); await mob('pacient · ' + t); }
+await p.click('.tabs [data-t="telefon"]'); await p.waitForTimeout(300);
+await mobOkno('#parovat', '#pr_sms', 'okno Spárovat telefon');
+await mobOkno('#vymenaTel', '#vt_qr', 'okno Výměna telefonu');
+if (await p.$('#vymenaTel')) { await p.click('#vymenaTel'); await p.waitForSelector('#vt_qr'); await p.click('#vt_qr'); await p.waitForSelector('#vt_stav'); await mob('okno QR výměny'); await p.click('#vt_zrusit'); await p.waitForTimeout(200); }
+await p.click('.tabs [data-t="leky"]'); await p.waitForTimeout(300); await mobOkno('#lk_novy', '#lk_save', 'okno Přidat lék');
+await p.click('.tabs [data-t="plan"]'); await p.waitForTimeout(300);
+if (await p.$('[data-np]')) { await p.click('[data-np]'); await p.waitForSelector('#np_frame'); await p.waitForTimeout(800); await mob('živý náhled karty'); await p.click('#np_zav'); }
+for (const v of await p.$$eval('.nav button[data-v]', (x) => x.map((b) => b.dataset.v))) { await p.click(`.nav button[data-v="${v}"]`); await p.waitForTimeout(700); await mob('menu · ' + v); }
+await p.close();
+
+console.log('Karta v PéčeDoma a správa tenantů na mobilu (360 px) – přetékání');
+p = await stranka({ session: 'ukazka', mobil: true }); await p.setViewportSize({ width: 360, height: 740 });
+await p.goto(`${URL}/pd/#v=ukazka.vstupenka`); await p.waitForSelector('#ulozPlan'); await p.waitForTimeout(400); await mob('/pd/ plán péče');
+await p.goto(`${URL}/tenanti/`); await p.waitForSelector('tr[data-id]'); await mob('správa tenantů');
 await p.close();
 
 await b.close(); srv.close();

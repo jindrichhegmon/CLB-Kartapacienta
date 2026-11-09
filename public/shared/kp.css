@@ -499,3 +499,6 @@ body:has(.modal) .hlp-fab,body:has(.sheet-bg) .hlp-fab{display:none}
 .iph-scr iframe{flex:1;width:100%;border:0;background:var(--bg)}
 .iph-home{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:3px;background:rgba(0,0,0,.75);z-index:3;pointer-events:none}
 @media (max-width:900px){.nahled-dock{position:static}.iphone{height:760px}}
+/* ---- přetékání na mobilu (0.11.98): tlačítko nikdy nesmí být širší než displej nebo panel – na úzkém displeji se text zalomí ---- */
+.btn{max-width:100%}
+@media (max-width:600px){.btn{white-space:normal;height:auto;min-height:38px;padding-top:6px;padding-bottom:6px;text-align:center}}
