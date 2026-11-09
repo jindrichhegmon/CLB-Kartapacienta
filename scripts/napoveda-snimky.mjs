@@ -393,6 +393,10 @@ if ((await p.$$('tr[data-id]')).length !== 2 || !(await p.$('[data-misto="doma"]
 // 0.11.99: hromadné nahrání pacientů do telefonu – pacienti podle filtru Kde je, jedno číslo, jeden QR kód
 await klik(p, '#p_nahrat'); await p.waitForSelector('#nt_qr');
 if ((await p.$$('[data-nt]')).length !== 2) chyby.push('nahrát do telefonu: okno neukazuje pacienty podle filtru Kde je');
+if ((await p.$$('[data-nt]:checked')).length !== 0) chyby.push('nahrát do telefonu: na začátku nemá být vybraný nikdo');
+await p.fill('#nt_q', 'zkusebni'); await p.waitForTimeout(150);   // hledání bez diakritiky
+if ((await p.$$('tr[data-ntr]:not([hidden])')).length !== 1) chyby.push('nahrát do telefonu: hledání „zkusebni“ nenašlo jednoho pacienta');
+await p.fill('#nt_q', ''); await klik(p, '#nt_vse');
 await p.fill('#nt_tel', '+420 777 000 999'); await foto(p, 'c-nahrat-telefon', { vyska: 900 });
 await klik(p, '#nt_qr'); await p.waitForSelector('#vt_stav'); await p.waitForTimeout(300);
 if (!(await p.$('#modal .qr svg'))) chyby.push('nahrát do telefonu: chybí QR kód');

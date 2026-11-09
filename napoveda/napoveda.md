@@ -469,7 +469,7 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 **Nahrát více pacientů do jednoho telefonu najednou** (od 0.11.99) – typicky telefon na oddělení domova seniorů:
 
 1. V centrále **Pacienti → Agenda pacientů** zapněte filtr **Kde je** (např. DS C), případně hledání.
-2. Klikněte na **📱 Nahrát do telefonu**. Okno ukáže pacienty z agendy – zatrhněte, koho do telefonu chcete, a zadejte **číslo telefonu**.
+2. Klikněte na **📱 Nahrát do telefonu**. Okno ukáže pacienty z agendy. Pole **Hledat pacienta nebo umístění** hledá v jménu, kódu průkazu, umístění (např. *DS B*), adrese i telefonu – bez ohledu na diakritiku; tlačítka **Umístění** zúží seznam jedním klepnutím. Zatrhněte pacienty (klepnutím na řádek nebo **Vybrat zobrazené**; na začátku není vybraný nikdo) a zadejte **číslo telefonu**.
 3. **Vytvořit QR kód** – centrála vybraným pacientům nastaví *Telefon s kartou* na toto číslo a ukáže jeden QR kód (platí 30 minut, jde použít jen jednou).
 4. Na telefonu, na kterém svítí stránka **Spárovat telefon**, stiskněte **Načíst QR kód fotoaparátem**, namiřte na obrazovku centrály, zkontrolujte číslo a stiskněte **Převzít průkazy**. Telefon nahraje všechny vybrané pacienty najednou a centrála ukáže **Hotovo**.
 

@@ -1551,16 +1551,39 @@ function nahratDoTelefonuOkno(pacienti) {
   if (!pacienti.length) return toast('V agendě nejsou žádní pacienti – upravte filtr Kde je nebo hledání');
   const cetnost = {}; pacienti.forEach((p) => { const t = telHezky(p.telefonKarty); if (t) cetnost[t] = (cetnost[t] || 0) + 1; });
   const nej = Object.entries(cetnost).sort((a, b) => b[1] - a[1])[0];
+  /* 0.11.101: fulltextové hledání (jméno, průkaz, umístění, adresa, telefon – bez ohledu na diakritiku a velká písmena), rychlé volby
+     umístění a výběr jen zobrazených; na začátku není vybraný nikdo, ať se při desítkách pacientů nenahraje do telefonu někdo navíc */
+  const bezDiak = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const text = (p) => bezDiak([p.prijmeni, p.jmeno, p.kod, mistoPac(p), p.adresa, p.pobyt, telHezky(p.telefonKarty), String(p.telefonKarty || '').replace(/\D/g, '')].filter(Boolean).join(' '));
+  const mista = Object.entries(pacienti.reduce((m, p) => { const k = mistoPac(p) || 'bez umístění'; m[k] = (m[k] || 0) + 1; return m; }, {})).sort((a, b) => a[0].localeCompare(b[0], 'cs'));
   modal(`<h2>Nahrát pacienty do telefonu</h2>
-    <p class="muted" style="margin-top:0">Vyberte pacienty a číslo telefonu. Centrála jim nastaví <b>Telefon s kartou</b> a ukáže <b>jeden QR kód</b> – telefon ho na stránce Spárovat telefon načte tlačítkem <b>Načíst QR kód fotoaparátem</b> a nahraje všechny najednou.</p>
+    <p class="muted" style="margin-top:0">Vyhledejte a zatrhněte pacienty a zadejte číslo telefonu. Centrála jim nastaví <b>Telefon s kartou</b> a ukáže <b>jeden QR kód</b> – telefon ho na stránce Spárovat telefon načte tlačítkem <b>Načíst QR kód fotoaparátem</b> a nahraje všechny najednou.</p>
     <div class="field"><label>Číslo telefonu</label><input id="nt_tel" type="tel" value="${esc(nej ? nej[0] : '')}" placeholder="+420 777 123 456" style="font-size:18px"></div>
-    <div class="row" style="justify-content:space-between;align-items:center"><span class="lbl" style="margin:0">Pacienti (${pacienti.length})</span><span><button class="btn sm" id="nt_vse" type="button">Vybrat vše</button> <button class="btn sm" id="nt_nic" type="button">Zrušit výběr</button></span></div>
-    <div class="tblwrap" style="max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:8px"><table class="tbl"><tbody>${pacienti.map((p) => `<tr><td style="width:28px"><input type="checkbox" data-nt="${p.id}" checked></td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.kod)}${mistoPac(p) ? ' · ' + esc(mistoPac(p)) : ''}</div></td><td style="text-align:right">${p.telefonu ? `<span class="chip ${telHezky(p.telefonKarty) && cetnost[telHezky(p.telefonKarty)] ? '' : 'warn'}">${esc(telHezky(p.telefonKarty) || 'telefon')}</span>` : '<span class="chip">bez telefonu</span>'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="field"><label>Hledat pacienta nebo umístění</label><input id="nt_q" type="search" placeholder="jméno, průkaz (P-0019), umístění (DS B), adresa, telefon…" autocomplete="off"></div>
+    <div class="quick" style="margin:0 0 6px;align-items:center"><span class="lbl" style="margin:0">Umístění:</span><button class="btn sm primary" data-ntm="" type="button">vše · ${pacienti.length}</button>${mista.map(([k, n]) => `<button class="btn sm" data-ntm="${esc(k)}" type="button">${esc(k)} · ${n}</button>`).join('')}</div>
+    <div class="row" style="justify-content:space-between;align-items:center"><span class="lbl" style="margin:0" id="nt_info"></span><span><button class="btn sm" id="nt_vse" type="button">Vybrat zobrazené</button> <button class="btn sm" id="nt_nic" type="button">Zrušit výběr</button></span></div>
+    <div class="tblwrap" style="max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:8px"><table class="tbl hover"><tbody>${pacienti.map((p) => `<tr data-ntr="${p.id}" data-ntt="${esc(text(p))}" data-ntmisto="${esc(mistoPac(p) || 'bez umístění')}" style="cursor:pointer"><td style="width:28px"><input type="checkbox" data-nt="${p.id}"></td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.kod)}${mistoPac(p) ? ' · ' + esc(mistoPac(p)) : ''}${p.adresa ? ' · ' + esc(p.adresa) : ''}</div></td><td style="text-align:right">${p.telefonu ? `<span class="chip ${telHezky(p.telefonKarty) && cetnost[telHezky(p.telefonKarty)] ? '' : 'warn'}">${esc(telHezky(p.telefonKarty) || 'telefon')}</span>` : '<span class="chip">bez telefonu</span>'}</td></tr>`).join('')}<tr id="nt_zadny" hidden><td colspan="3" class="muted">Nic nenalezeno – upravte hledání.</td></tr></tbody></table></div>
     <div class="hint">Kdo už má průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívější se zablokuje, jako při novém spárování). Týmy zatržené u tohoto telefonu (Lidé a týmy → Telefony s kartou) se pacientům přiřadí samy.</div>
-    <div class="quick"><button class="btn primary" id="nt_qr">Vytvořit QR kód (${pacienti.length})</button><button class="btn" data-close>Zpět</button></div>`, (m) => {
-    const pocet = () => { const n = m.querySelectorAll('[data-nt]:checked').length; $('nt_qr').textContent = `Vytvořit QR kód (${n})`; $('nt_qr').disabled = !n; };
+    <div class="quick"><button class="btn primary" id="nt_qr" disabled>Vytvořit QR kód (0)</button><button class="btn" data-close>Zpět</button></div>`, (m) => {
+    let misto = '';
+    const radky = [...m.querySelectorAll('tr[data-ntr]')];
+    const viditelne = () => radky.filter((r) => !r.hidden);
+    const pocet = () => {
+      const n = m.querySelectorAll('[data-nt]:checked').length, v = viditelne().length;
+      $('nt_qr').textContent = `Vytvořit QR kód (${n})`; $('nt_qr').disabled = !n;
+      $('nt_info').textContent = `Zobrazeno ${v} z ${radky.length} · vybráno ${n}`;
+      $('nt_zadny').hidden = v > 0;
+    };
+    const filtruj = () => {
+      const slova = bezDiak($('nt_q').value).split(/\s+/).filter(Boolean);
+      radky.forEach((r) => { r.hidden = (misto && r.dataset.ntmisto !== misto) || !slova.every((w) => r.dataset.ntt.includes(w)); });
+      pocet();
+    };
+    $('nt_q').oninput = filtruj;
+    m.querySelectorAll('[data-ntm]').forEach((b) => (b.onclick = () => { misto = b.dataset.ntm; m.querySelectorAll('[data-ntm]').forEach((x) => x.classList.toggle('primary', x === b)); filtruj(); }));
     m.querySelectorAll('[data-nt]').forEach((c) => (c.onchange = pocet));
-    m.querySelector('#nt_vse').onclick = () => { m.querySelectorAll('[data-nt]').forEach((c) => (c.checked = true)); pocet(); };
+    radky.forEach((r) => (r.onclick = (e) => { if (e.target.matches('input')) return; const c = r.querySelector('[data-nt]'); c.checked = !c.checked; pocet(); }));
+    m.querySelector('#nt_vse').onclick = () => { viditelne().forEach((r) => (r.querySelector('[data-nt]').checked = true)); pocet(); };
     m.querySelector('#nt_nic').onclick = () => { m.querySelectorAll('[data-nt]').forEach((c) => (c.checked = false)); pocet(); };
     m.querySelector('#nt_qr').onclick = async () => {
       const ids = [...m.querySelectorAll('[data-nt]:checked')].map((c) => Number(c.dataset.nt));
@@ -1568,6 +1591,7 @@ function nahratDoTelefonuOkno(pacienti) {
       let v; try { v = await C('/telefon/nahrat', { method: 'POST', body: { telefon: $('nt_tel').value, pacienti: ids } }); } catch (e) { b.disabled = false; return toast(e.message); }
       vymenaQr({ ...v, nahrat: true });
     };
+    pocet(); setTimeout(() => $('nt_q').focus(), 50);
   });
 }
 function vymenaQr(v) {
