@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.98';
+const APP_VERZE = 'karta-0.11.99';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -747,7 +747,8 @@ function kresliPrevzeti({ kod = '' } = {}, chyba = '') {
     KP.api('/api/d/prenos/nahled', { method: 'POST', body: { kod } }).then((r) => {
       const t = $('pr_tel'), i = $('pr_info');
       if (t && !t.value && r.telefon) t.value = r.telefon;
-      if (i) i.innerHTML = r.zCentraly ? `Kód z centrální aplikace – převezme se <b>${r.pocet}</b> průkaz(ů) do telefonu s číslem <b>${esc(r.telefon)}</b>. Zkontrolujte, že je to číslo tohoto telefonu, a stiskněte Převzít průkazy.`
+      if (r.nahrat) { const h = document.querySelector('#work .panel-h h2'); if (h) h.textContent = 'Nahrát průkazy z centrální aplikace'; }
+      if (i) i.innerHTML = r.zCentraly ? `Kód z centrální aplikace – ${r.nahrat ? 'nahraje' : 'převezme'} se <b>${r.pocet}</b> průkaz(ů) do telefonu s číslem <b>${esc(r.telefon)}</b>. Zkontrolujte, že je to číslo tohoto telefonu, a stiskněte Převzít průkazy.`
         : `Kód načten – převezme se <b>${r.pocet}</b> průkaz(ů). ${r.telefon ? `Předvyplněné je číslo starého telefonu ${esc(r.telefon)}; má-li nový telefon <b>jiné číslo</b>, přepište ho` : 'Zadejte číslo tohoto telefonu'} – u pacientů i týmů se pak změní samo.`;
       setTimeout(() => { const b = $('pr_ok'); if (b) b.focus(); }, 50);
     }).catch((e) => { if (e.status === 404) kresliPrevzeti({}, e.message); });
@@ -770,7 +771,7 @@ async function prevzitPrenos(kod, telefon) {
     }
     D = KARTY.length === 1 ? KARTY[0] : null; U = { role: null }; tab = 'karta';
     await uloz(); history.replaceState(null, '', location.pathname); kresli();
-    modal(`<h2>Průkazy převzaty</h2><p>Do tohoto telefonu se přenesl${r.karty.length > 1 ? 'y' : ''} <b>${r.karty.length}</b> průkaz(y): ${esc(r.karty.map((x) => jmenoKarty(x)).join(', '))}.${r.neprevzato ? ` <b>${r.neprevzato}</b> se nepřenesl${r.neprevzato > 1 ? 'y' : ''} (byl mezitím zablokován) – spárujte ho kódem z centrální aplikace.` : ''}</p><p class="muted">Starý telefon zůstává funkční, dokud ho garant v centrální aplikaci nedeaktivuje.</p><div class="quick"><button class="btn primary" data-close>Rozumím</button></div>`);
+    modal(`<h2>Průkazy v telefonu</h2><p>Do tohoto telefonu se nahrál${r.karty.length > 1 ? 'y' : ''} <b>${r.karty.length}</b> průkaz(y): ${esc(r.karty.map((x) => jmenoKarty(x)).join(', '))}.${r.neprevzato ? ` <b>${r.neprevzato}</b> se nepřenesl${r.neprevzato > 1 ? 'y' : ''} (byl mezitím zablokován) – spárujte ho kódem z centrální aplikace.` : ''}</p><p class="muted">Starý telefon zůstává funkční, dokud ho garant v centrální aplikaci nedeaktivuje.</p><div class="quick"><button class="btn primary" data-close>Rozumím</button></div>`);
   } catch (e) {
     if (b) b.disabled = false;
     if (e.status === 404 || e.status === 409) { history.replaceState(null, '', location.pathname); return kresliPrevzeti({}, e.message); }

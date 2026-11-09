@@ -701,6 +701,32 @@ central.post('/telefon/vymena', sUzivatelem(async (q, s, req) => {
   return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, stary: hezkyTel(tel), novy: hezkyTel(novy),
     pacienti: smi.map((r) => `${r.Prijmeni} ${r.Jmeno}`.trim()), bezOpravneni: aktualni.length - smi.length };
 }));
+/* hromadné nahrání pacientů do telefonu (0.11.99): garant nebo lékař vybere pacienty (např. Kde je = DS C) a číslo telefonu; centrála
+   jim nastaví Telefon s kartou a ukáže jeden QR kód (30 min, jednorázový, jen pro toto číslo). Telefon na párovací stránce QR načte a
+   dostane všechny vybrané průkazy najednou (POST /api/d/prenos/prevzit, karty s pacientId): komu telefon zatím nebyl, založí se nový,
+   jinak nový nahradí dřívější zapůjčený telefon pacienta jako při novém spárování; týmy zatržené u telefonu se přiřadí samy. */
+central.post('/telefon/nahrat', sUzivatelem(async (q, s, req) => {
+  const tel = normTel(req.body.telefon);
+  if (!tel) throw chyba('Zadejte číslo telefonu (např. +420 777 123 456)');
+  const ids = [...new Set((Array.isArray(req.body.pacienti) ? req.body.pacienti : []).map(Number).filter((x) => Number.isInteger(x) && x > 0))].slice(0, 60);
+  if (!ids.length) throw chyba('Vyberte aspoň jednoho pacienta');
+  const ok = [], bez = [];
+  for (const id of ids) {
+    const p = await q.one(`SELECT PacientID, Jmeno, Prijmeni, Stav, TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+    if (!p || p.Stav !== 'AKTIVNI') { bez.push(id); continue; }
+    const op = await opravneni(q, s, id).catch(() => ({}));
+    if (!op.garant && !op.lekar) { bez.push(id); continue; }
+    if (normTel(p.TelefonKarty) !== tel) {
+      await q.exec(`UPDATE dbo.A_KP_Pacient SET TelefonKarty = @tel WHERE PacientID = @p`, { tel, p: id });
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'telefon s kartou změněn (hromadné nahrání)', detail: `${p.TelefonKarty || '—'} → ${hezkyTel(tel)}`, ip: s.ip });
+    }
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'hromadné nahrání do telefonu připraveno', detail: hezkyTel(tel), ip: s.ip });
+    ok.push({ id, jmeno: `${p.Prijmeni} ${p.Jmeno}`.trim() });
+  }
+  if (!ok.length) throw chyba('Žádného z vybraných pacientů nemůžete nahrát do telefonu (telefon páruje garant nebo lékař v týmu, průkaz musí být aktivní)', 403);
+  const { kod, platnost } = zalozPrenos(ok.map((x) => ({ tenant: s.tenant, pacientId: x.id })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: tel, zdroj: 'nahrat' });
+  return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, novy: hezkyTel(tel), pacienti: ok.map((x) => x.jmeno), bezOpravneni: bez.length };
+}));
 central.get('/telefon/vymena/stav', sUzivatelem(async (q, s, req) => {
   const kod = normalizujKod(req.query.kod);
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');

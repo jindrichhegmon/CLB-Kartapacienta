@@ -294,6 +294,8 @@ app.get('/api/c/telefon/prukazy', j({ telefon: '+420 777 000 123', pacienti: [{ 
 app.post('/api/c/telefon/vymena', j((req) => { prenos = { stav: 'ceka', prevzato: false }; return { kod: 'H3QZ7MWK2PRT', kodZobrazeni: 'H3QZ-7MWK-2PRT', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=H3QZ7MWK2PRT', stary: '+420 777 000 123', novy: req.body.novyTelefon || '+420 777 000 123', pacienti: ['Zkušební Marie', 'Příkladný Josef'], bezOpravneni: 0 }; }));
 app.get('/api/c/telefon/vymena/stav', j(() => (prenos.stav === 'prevzato' ? { stav: 'prevzato', pocet: 2 } : { stav: 'ceka', zbyva: 1740 })));
 app.post('/api/c/telefon/vymena/zrusit', j({ zruseno: true }));
+const nahrano = [];
+app.post('/api/c/telefon/nahrat', j((req) => { nahrano.push(req.body); prenos = { stav: 'ceka', prevzato: false }; return { kod: 'N4TR8KWZ3MXP', kodZobrazeni: 'N4TR-8KWZ-3MXP', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=N4TR8KWZ3MXP', novy: '+420 777 000 999', pacienti: ['Zkušební Marie', 'Ukázkový Jan'], bezOpravneni: 0 }; }));
 app.post('/api/c/telefon/deaktivovat', j((req) => { deaktivace.push(req.body); return { deaktivovano: 2, zustalo: 0 }; }));
 const deaktivace = [];
 app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
@@ -388,6 +390,17 @@ if (!(await p.textContent('[data-dtile="zhorseni"]')).includes('1')) chyby.push(
 await p.waitForTimeout(300); await foto(p, 'c-dashboard');
 await klik(p, '[data-dbar="misto"][data-dval="Doma"]'); await p.waitForSelector('tr[data-id]');
 if ((await p.$$('tr[data-id]')).length !== 2 || !(await p.$('[data-misto="doma"].primary'))) chyby.push('přehled → agenda: sloupec Doma nezapnul filtr Doma');
+// 0.11.99: hromadné nahrání pacientů do telefonu – pacienti podle filtru Kde je, jedno číslo, jeden QR kód
+await klik(p, '#p_nahrat'); await p.waitForSelector('#nt_qr');
+if ((await p.$$('[data-nt]')).length !== 2) chyby.push('nahrát do telefonu: okno neukazuje pacienty podle filtru Kde je');
+await p.fill('#nt_tel', '+420 777 000 999'); await foto(p, 'c-nahrat-telefon', { vyska: 900 });
+await klik(p, '#nt_qr'); await p.waitForSelector('#vt_stav'); await p.waitForTimeout(300);
+if (!(await p.$('#modal .qr svg'))) chyby.push('nahrát do telefonu: chybí QR kód');
+if (nahrano.length !== 1 || nahrano[0].pacienti.length !== 2 || !nahrano[0].telefon.includes('999')) chyby.push('nahrát do telefonu: na server neodešli vybraní pacienti a číslo');
+await foto(p, 'c-nahrat-qr', { vyska: 900 });
+await p.evaluate(() => fetch('/api/d/prenos/prevzit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kod: 'N4TR8KWZ3MXP', telefon: '+420 777 000 999' }) }));
+await p.waitForFunction(() => /pacienti jsou v telefonu/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('nahrát do telefonu: po nahrání se neukázalo Hotovo'));
+await p.evaluate(() => KP.closeModal()); prenos = { stav: 'ceka', prevzato: false };
 await klik(p, '#p_dash'); await klik(p, '#d_agenda'); await p.waitForSelector('tr[data-id]');
 if (await p.$('#upoz[open]')) chyby.push('Upozornění: při 4 upozorněních má být panel zavřený');
 if (!(await p.textContent('#upoz summary .souhrn')).includes('1× probíhá zhoršení stavu')) chyby.push('Upozornění: souhrn zavřeného panelu ' + (await p.textContent('#upoz summary .souhrn')));
@@ -692,7 +705,7 @@ await foto(p, 'k-vymena-stary', { vyska: 900 });
   await n.fill('#pr_tel', '+420 777 000 456');
   await foto(n, 'k-vymena-novy', { vyska: 900 });
   await klik(n, '#pr_ok'); await n.waitForSelector('#modal h2'); await n.waitForTimeout(300);
-  if (!/převzaty/.test(await n.textContent('#modal h2'))) chyby.push('výměna telefonu: nový telefon průkazy nepřevzal');
+  if (!/Průkazy v telefonu/.test(await n.textContent('#modal h2'))) chyby.push('výměna telefonu: nový telefon průkazy nepřevzal');
   if ((await n.evaluate(() => KARTY.length)) !== 1) chyby.push('výměna telefonu: v novém telefonu není převzatý průkaz');
   await n.close(); }
 await p.waitForFunction(() => /Hotovo/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('výměna telefonu: starý telefon neukázal Hotovo'));

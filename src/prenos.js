@@ -40,8 +40,8 @@ export const formatujKod = (k) => String(k).replace(/(.{4})(?=.)/g, '$1-');
 export function zalozPrenos(karty, nyni = Date.now(), { platnostMs = PRENOS_PLATNOST_MS, novyTelefon = '', zdroj = 'telefon' } = {}) {
   if (!Array.isArray(karty) || !karty.length) throw new Error('Žádné průkazy k přenosu');
   // jedno zařízení smí mít jen jeden čekající přenos – starší kód se zruší
-  const zid = new Set(karty.map((k) => `${k.tenant}.${k.zarizeniId}`));
-  for (const [kod, p] of cekajici) if (p.karty.some((k) => zid.has(`${k.tenant}.${k.zarizeniId}`))) cekajici.delete(kod);
+  const zid = new Set(karty.filter((k) => k.zarizeniId).map((k) => `${k.tenant}.${k.zarizeniId}`));
+  for (const [kod, p] of cekajici) if (p.karty.some((k) => k.zarizeniId && zid.has(`${k.tenant}.${k.zarizeniId}`))) cekajici.delete(kod);
   let kod;
   do kod = novyKodPrenosu(); while (cekajici.has(kod) || hotove.has(kod));
   cekajici.set(kod, { exp: nyni + platnostMs, karty: karty.map((k) => ({ ...k })), novyTelefon, zdroj });

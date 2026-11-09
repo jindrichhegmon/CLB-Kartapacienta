@@ -305,7 +305,7 @@ async function renderPacienti(dCache) {
       return `<details class="panel upoz" id="upoz" ${otevr === '1' ? 'open' : ''}><summary class="panel-h"><span class="sip">▶</span><h2>Upozornění</h2><span class="souhrn">${[...druhy].map(([k, n]) => `${n}× ${esc(k)}`).join(' · ')}</span><span class="chip ${d.upozorneni.some((u) => u.uroven === 'crit') ? 'crit' : 'warn'}">${d.upozorneni.length}</span></summary>
         <div class="alerts" style="padding:10px">${d.upozorneni.slice(0, 60).map((u) => `<div class="alert ${u.uroven}" data-p="${u.pacientId}">${esc(u.text)}</div>`).join('')}</div></details>`; })() : ''}
     <div class="dash-head"><button class="btn" id="p_dash" type="button">← Přehled pacientů</button><span class="muted">Agenda pacientů – seznam, hledání a filtry</span></div>
-    <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>${S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_stitky" title="Samolepky 70 × 37 mm na zadní stranu telefonů – komu telefon patří a kam volat">🏷 Štítky na telefony</button>' : ''}${hledatHTML('pac', 'Hledat pacienta, adresu, garanta…')}
+    <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>${S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_stitky" title="Samolepky 70 × 37 mm na zadní stranu telefonů – komu telefon patří a kam volat">🏷 Štítky na telefony</button>' + '<button class="btn sm" id="p_nahrat" title="Vybrat pacienty (např. Kde je = DS C) a nahrát je do jednoho telefonu najednou – jeden QR kód">📱 Nahrát do telefonu</button>' : ''}${hledatHTML('pac', 'Hledat pacienta, adresu, garanta…')}
       <div class="seg" style="width:240px"><button data-s="AKTIVNI" class="${S.stav === 'AKTIVNI' ? 'on' : ''}">Aktivní</button><button data-s="UZAVRENY" class="${S.stav === 'UZAVRENY' ? 'on' : ''}">Uzavřené</button></div></div>
       <div class="quick" id="p_mista" style="padding:8px 14px 0;align-items:center"><span class="lbl">Kde je:</span>${MISTA_SEZ.map(([k, n]) => `<button class="btn sm ${S.misto === k ? 'primary' : ''}" data-misto="${k}" type="button">${n}${k ? ' · ' + (pocty[k] || 0) : ' · ' + vsichni.length}</button>`).join('')}${S.pecedoma && S.pecedoma.nastaveno && jeLekar() && S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_pdsync" type="button" title="Načte z PéčeDoma u všech propojených pacientů léky, nejbližší návštěvu a kde se pacient nachází">↻ Načíst z PéčeDoma</button>' : ''}</div>
       <div class="tblwrap"><table class="tbl hover"><thead><tr><th>Průkaz</th><th>Pacient</th><th>Adresa</th><th>Garant</th><th>Plán</th><th>Telefon</th><th>Poslední zápis</th></tr></thead><tbody>
@@ -320,6 +320,7 @@ async function renderPacienti(dCache) {
   if ($('p_dash')) $('p_dash').onclick = () => { S.pacView = 'dash'; renderPacienti(); scrollTo(0, 0); };
   bindHledani('pac', 'tr[data-id]');
   if ($('p_stitky')) $('p_stitky').onclick = () => stitkyOkno(d.pacienti.filter((p) => p.telefonu).map((p) => p.id));
+  if ($('p_nahrat')) $('p_nahrat').onclick = () => { const vid = new Set([...document.querySelectorAll('tr[data-id]')].filter((tr) => tr.offsetParent).map((tr) => Number(tr.dataset.id))); nahratDoTelefonuOkno(d.pacienti.filter((p) => vid.has(p.id))); };
   document.querySelectorAll('[data-misto]').forEach((b) => (b.onclick = () => { S.misto = b.dataset.misto; try { localStorage.setItem('kp_misto', S.misto); } catch { /* bez paměti */ } renderPacienti({ ...d, pacienti: vsichni }); }));
   if ($('p_pdsync')) $('p_pdsync').onclick = async () => { const b = $('p_pdsync'); b.disabled = true; b.textContent = 'Načítám z PéčeDoma…';
     try { const r = await C('/pecedoma/sync-vse', { method: 'POST', body: {} }); toast(`Načteno z PéčeDoma: ${r.ok} z ${r.celkem} propojených pacientů${r.chyby.length ? ' · chyba: ' + r.chyby[0] : ''}`, 7000); renderPacienti(); }
@@ -1545,15 +1546,39 @@ async function deaktivovatTelefon(telefon, nahrazene, pocet) {
   catch (e) { return toast(e.message); }
   if (S.view === 'detail' && S.pacId) { await nactiDetail(); kresliDetail(); } else if (S.view === 'lide') renderLide();
 }
+/* ---- hromadné nahrání pacientů do telefonu (0.11.99): pacienti z agendy (podle filtru Kde je a hledání), číslo telefonu, jeden QR ---- */
+function nahratDoTelefonuOkno(pacienti) {
+  if (!pacienti.length) return toast('V agendě nejsou žádní pacienti – upravte filtr Kde je nebo hledání');
+  const cetnost = {}; pacienti.forEach((p) => { const t = telHezky(p.telefonKarty); if (t) cetnost[t] = (cetnost[t] || 0) + 1; });
+  const nej = Object.entries(cetnost).sort((a, b) => b[1] - a[1])[0];
+  modal(`<h2>Nahrát pacienty do telefonu</h2>
+    <p class="muted" style="margin-top:0">Vyberte pacienty a číslo telefonu. Centrála jim nastaví <b>Telefon s kartou</b> a ukáže <b>jeden QR kód</b> – telefon ho na stránce Spárovat telefon načte tlačítkem <b>Načíst QR kód fotoaparátem</b> a nahraje všechny najednou.</p>
+    <div class="field"><label>Číslo telefonu</label><input id="nt_tel" type="tel" value="${esc(nej ? nej[0] : '')}" placeholder="+420 777 123 456" style="font-size:18px"></div>
+    <div class="row" style="justify-content:space-between;align-items:center"><span class="lbl" style="margin:0">Pacienti (${pacienti.length})</span><span><button class="btn sm" id="nt_vse" type="button">Vybrat vše</button> <button class="btn sm" id="nt_nic" type="button">Zrušit výběr</button></span></div>
+    <div class="tblwrap" style="max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:8px"><table class="tbl"><tbody>${pacienti.map((p) => `<tr><td style="width:28px"><input type="checkbox" data-nt="${p.id}" checked></td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.kod)}${mistoPac(p) ? ' · ' + esc(mistoPac(p)) : ''}</div></td><td style="text-align:right">${p.telefonu ? `<span class="chip ${telHezky(p.telefonKarty) && cetnost[telHezky(p.telefonKarty)] ? '' : 'warn'}">${esc(telHezky(p.telefonKarty) || 'telefon')}</span>` : '<span class="chip">bez telefonu</span>'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="hint">Kdo už má průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívější se zablokuje, jako při novém spárování). Týmy zatržené u tohoto telefonu (Lidé a týmy → Telefony s kartou) se pacientům přiřadí samy.</div>
+    <div class="quick"><button class="btn primary" id="nt_qr">Vytvořit QR kód (${pacienti.length})</button><button class="btn" data-close>Zpět</button></div>`, (m) => {
+    const pocet = () => { const n = m.querySelectorAll('[data-nt]:checked').length; $('nt_qr').textContent = `Vytvořit QR kód (${n})`; $('nt_qr').disabled = !n; };
+    m.querySelectorAll('[data-nt]').forEach((c) => (c.onchange = pocet));
+    m.querySelector('#nt_vse').onclick = () => { m.querySelectorAll('[data-nt]').forEach((c) => (c.checked = true)); pocet(); };
+    m.querySelector('#nt_nic').onclick = () => { m.querySelectorAll('[data-nt]').forEach((c) => (c.checked = false)); pocet(); };
+    m.querySelector('#nt_qr').onclick = async () => {
+      const ids = [...m.querySelectorAll('[data-nt]:checked')].map((c) => Number(c.dataset.nt));
+      const b = $('nt_qr'); b.disabled = true;
+      let v; try { v = await C('/telefon/nahrat', { method: 'POST', body: { telefon: $('nt_tel').value, pacienti: ids } }); } catch (e) { b.disabled = false; return toast(e.message); }
+      vymenaQr({ ...v, nahrat: true });
+    };
+  });
+}
 function vymenaQr(v) {
   const kod = v.kod; let bezi = true;
   let svg = ''; try { const qr = qrcode(0, 'M'); qr.addData(v.odkaz); qr.make(); svg = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch { /* kód jde opsat */ }
   const konec = new Date(v.platnost);
-  modal(`<h2>Výměna telefonu ${esc(v.stary)} → ${esc(v.novy)}</h2>
+  modal(`<h2>${v.nahrat ? `Nahrát do telefonu ${esc(v.novy)}` : `Výměna telefonu ${esc(v.stary)} → ${esc(v.novy)}`}</h2>
     <div class="grid2" style="align-items:center"><div class="qr" style="justify-self:center">${svg}</div>
       <div><ol style="margin:0 0 8px 18px;padding:0;line-height:1.5"><li>Na <b>novém</b> telefonu (${esc(v.novy)}) svítí stránka <b>Spárovat telefon</b> (v kiosku po spuštění; je-li v telefonu už pacient: <b>Přidat dalšího pacienta do telefonu</b>).</li><li>Stiskněte <b>Načíst QR kód fotoaparátem</b> a namiřte na tuto obrazovku.</li><li>Zkontrolujte číslo telefonu a stiskněte <b>Převzít průkazy</b>.</li></ol>
       <div style="font:700 22px ui-monospace,monospace;letter-spacing:.08em">${esc(v.kodZobrazeni)}</div>
-      <div class="note" id="vt_stav">Převezme se ${v.pacienti.length} průkaz(ů): ${esc(v.pacienti.join(', '))}${v.bezOpravneni ? ` · ${v.bezOpravneni} bez vašeho oprávnění se nepřenese` : ''}. Kód platí do ${esc(konec.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} a jde použít jen jednou.</div></div></div>
+      <div class="note" id="vt_stav">${v.nahrat ? 'Nahraje se' : 'Převezme se'} ${v.pacienti.length} průkaz(ů): ${esc(v.pacienti.join(', '))}${v.bezOpravneni ? ` · ${v.bezOpravneni} bez vašeho oprávnění se nepřenese` : ''}. Kód platí do ${esc(konec.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} a jde použít jen jednou.</div></div></div>
     <div class="quick"><button class="btn" id="vt_zrusit">Zrušit výměnu</button></div>`, (m) => { m.querySelector('#vt_zrusit').onclick = () => { bezi = false; closeModal(); C('/telefon/vymena/zrusit', { method: 'POST', body: { kod } }).catch(() => {}); }; });
   (async () => {
     while (bezi) {
@@ -1561,6 +1586,12 @@ function vymenaQr(v) {
       if (!bezi) return;
       if (!$('vt_stav')) { bezi = false; return; }   // okno zavřené – kód dál platí do vypršení, stav už se nesleduje
       let st; try { st = await C('/telefon/vymena/stav?kod=' + kod); } catch { continue; }
+      if (st.stav === 'prevzato' && v.nahrat) {
+        bezi = false;
+        modal(`<h2>Hotovo – pacienti jsou v telefonu</h2><p>Telefon <b>${esc(v.novy)}</b> nahrál ${st.pocet} průkaz(ů). Kdo měl průkaz v jiném telefonu, tomu se dřívější telefon zablokoval.</p><p class="muted">Vytiskněte štítek na telefon (Agenda pacientů → 🏷 Štítky na telefony) a leták k telefonu (Lidé a týmy).</p><div class="quick"><button class="btn primary" data-close>Rozumím</button></div>`);
+        if (S.view === 'pacienti') { try { renderPacienti(); } catch { /* */ } }
+        return;
+      }
       if (st.stav === 'prevzato') {
         bezi = false;
         modal(`<h2>Hotovo – průkazy jsou v novém telefonu</h2><p>Nový telefon <b>${esc(v.novy)}</b> převzal ${st.pocet} průkaz(ů). <b>Starý telefon ${esc(v.stary)} je zatím pořád funkční.</b> Ověřte, že nový telefon ukazuje pacienty, a pak starý deaktivujte – teď, nebo kdykoli později (u pacienta Telefon a PINy → Výměna / deaktivace telefonu).</p>${v.novy !== v.stary ? '<p class="muted">Číslo telefonu s kartou se u pacientů i týmů změnilo – vytiskněte nový štítek na telefon.</p>' : ''}<div class="quick"><button class="btn crit" id="vt_hot_deakt">Deaktivovat starý telefon</button><button class="btn primary" data-close>Později</button></div>`, (m) => { m.querySelector('#vt_hot_deakt').onclick = () => { closeModal(); deaktivovatTelefon(v.stary, true, st.pocet); }; });

@@ -459,7 +459,7 @@ device.post('/prenos/nahled', h(async (req) => {
   const p = nahledPrenosu(kod);
   if (!p) throw chyba('Kód je neplatný, už byl použit nebo vypršel – na starém telefonu vytvořte nový', 404);
   const tel = p.novyTelefon || (p.karty.find((k) => k.telefon) || {}).telefon || '';
-  return { pocet: p.karty.length, telefon: tel ? hezkyTel(tel) : '', zCentraly: p.zdroj === 'centrala' };
+  return { pocet: p.karty.length, telefon: tel ? hezkyTel(tel) : '', zCentraly: p.zdroj === 'centrala' || p.zdroj === 'nahrat', nahrat: p.zdroj === 'nahrat' };
 }));
 
 // nový telefon: převezme všechny průkazy (nová zařízení a tokeny), starý se zablokuje
@@ -483,6 +483,20 @@ device.post('/prenos/prevzit', h(async (req) => {
       const v = await vTenantu(tenant, async (q) => {   // jedna transakce za organizaci: buď převezme všechny její průkazy, nebo žádný
         const hotove = [], stareTel = new Set();
         for (const k of seznam) {
+          if (k.pacientId) {   // 0.11.99: hromadné nahrání z centrály – nový průkaz v tomto telefonu jako při spárování
+            const pac = await q.one(`SELECT PacientID, Stav, TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: k.pacientId });
+            if (!pac || pac.Stav !== 'AKTIVNI' || normTel(pac.TelefonKarty) !== novyTel) { neprevzato++; continue; }
+            const raw = nahodny(32), tajemstvi = randomBytes(20).toString('hex');
+            // jako /parovat: platí jen jeden zapůjčený telefon – dřívější se zablokuje
+            const drive = await q.all(`SELECT ZarizeniID FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = 'ZAPUJCENY'`, { p: pac.PacientID });
+            await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = 'ZAPUJCENY'`, { p: pac.PacientID });
+            const nove = await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stav, Rezim, Telefon, TokenHash, Tajemstvi, Sparovano, PosledniSync)
+              OUTPUT inserted.ZarizeniID VALUES (@p, 'SPAROVANO', 'ZAPUJCENY', @tel, @th, @t, SYSDATETIME(), SYSDATETIME())`, { p: pac.PacientID, tel: novyTel, th: sha256(raw), t: zasifruj(tajemstvi) });
+            await zapisDenik(q, { pacientId: pac.PacientID, typ: 'Systém', text: `Průkaz nahrán do telefonu u pacienta (${hezkyTel(novyTel)}) – hromadně z centrální aplikace.${drive.length ? ' Dřívější telefon pacienta byl zablokován.' : ''}`, autor: 'telefon ' + nove.ZarizeniID, role: 'system', zarizeniId: nove.ZarizeniID });
+            await audit(q, { zarizeniId: nove.ZarizeniID, kdo: 'telefon', pacientId: pac.PacientID, akce: 'telefon spárován (hromadné nahrání)', detail: drive.length ? `nahrazuje zařízení ${drive.map((x) => x.ZarizeniID).join(', ')}` : null, ip: ip(req) });
+            hotove.push({ pacientId: pac.PacientID, zid: nove.ZarizeniID, raw, tajemstvi });
+            continue;
+          }
           const z = await q.one(`SELECT z.ZarizeniID, z.PacientID, z.Stav, z.Rezim, z.TokenHash, z.Stitek, z.Telefon, p.TelefonKarty FROM dbo.A_KP_Zarizeni z
             JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID WHERE z.ZarizeniID = @z`, { z: k.zarizeniId });
           // mezitím mohl být starý telefon zablokován nebo průkaz spárován jinde – pak se nepřenáší

@@ -466,6 +466,17 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 - **Přidat dalšího pacienta do telefonu:** tlačítko je přímo na kartě (pod zamčenou krizovou kartou v panelu **Průkazy v tomto telefonu**), ve výběru pacienta a po odemknutí v dlaždici **Tým**. Otevře spárování QR kódem nebo kódem z centrální aplikace (u nového pacienta Telefon a PINy); stávající průkazy zůstanou. Po přidání se telefon vrátí na **výběr pacienta**, takže jsou vidět všichni.
 - **Odvolat jedno párování:** otevřete pacienta, odemkněte ho PINem týmu nebo kódem lékaře (ne rodina) a v dlaždici **Tým** stiskněte **Odebrat průkaz z tohoto telefonu**. Z telefonu se vymaže jen tento pacient, v centrální aplikaci se jeho telefon označí jako vrácený a do deníku se zapíše, kdo průkaz odebral; ostatní průkazy zůstanou. Odebrat jde jen s připojením. Stejně funguje zablokování telefonu u pacienta v centrální aplikaci nebo uzavření průkazu.
 - Když telefon průkaz odebere sám (telefon byl u pacienta zablokován, vrácen nebo spárován v jiném telefonu), ukáže okno **Průkaz byl z telefonu odebrán** se jménem pacienta – pokud má průkaz zůstat, spárujte ho znovu.
+**Nahrát více pacientů do jednoho telefonu najednou** (od 0.11.99) – typicky telefon na oddělení domova seniorů:
+
+1. V centrále **Pacienti → Agenda pacientů** zapněte filtr **Kde je** (např. DS C), případně hledání.
+2. Klikněte na **📱 Nahrát do telefonu**. Okno ukáže pacienty z agendy – zatrhněte, koho do telefonu chcete, a zadejte **číslo telefonu**.
+3. **Vytvořit QR kód** – centrála vybraným pacientům nastaví *Telefon s kartou* na toto číslo a ukáže jeden QR kód (platí 30 minut, jde použít jen jednou).
+4. Na telefonu, na kterém svítí stránka **Spárovat telefon**, stiskněte **Načíst QR kód fotoaparátem**, namiřte na obrazovku centrály, zkontrolujte číslo a stiskněte **Převzít průkazy**. Telefon nahraje všechny vybrané pacienty najednou a centrála ukáže **Hotovo**.
+
+Kdo už měl průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívější se zablokuje – stejně jako při novém spárování). Týmy zatržené u tohoto telefonu (Lidé a týmy → tým → Telefony s kartou) se pacientům přiřadí samy. Nakonec vytiskněte štítek na telefon a leták k telefonu.
+
+![Nahrát pacienty do telefonu](/napoveda/img/c-nahrat-telefon.png)
+
 **Výměna telefonu – přenos všech průkazů do nového telefonu.** Když se telefon u lůžka mění (porucha, nový telefon, jiné číslo), nemusí se každý pacient párovat znovu. **Nejjednodušší je celé to udělat z centrální aplikace** (od 0.11.96):
 
 1. V centrále otevřete kteréhokoli pacienta z telefonu → **Telefon a PINy** → **📱 Výměna / deaktivace telefonu** (nebo **Lidé a týmy** → u týmu **📱 Výměna telefonu**). Okno ukáže, kteří pacienti v telefonu jsou.
