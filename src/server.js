@@ -65,6 +65,9 @@ app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznám�
 app.get(/^\/demo(\/.*)?$/, (req, res) => res.redirect(301, '/'));
 // statické aplikace; service worker karty smí řídit celé /karta/
 app.use('/karta', (req, res, next) => { if (req.path === '/sw.js') res.setHeader('Service-Worker-Allowed', '/karta/'); next(); });
+// 0.11.100: aplikaci pro zavedení telefonu (veřejný soubor, stahuje ji telefon při zavedení QR kódem) smí stáhnout i stránka
+// „Nový telefon“ na Netlify – spočítá z ní kontrolní součet do QR kódu a při instalaci kabelem ji nahraje do telefonu
+app.use('/android', (req, res, next) => { res.setHeader('Access-Control-Allow-Origin', '*'); next(); });
 app.use(express.static(path.join(koren, 'public'), {
   extensions: ['html'],
   setHeaders: (res, f) => { if (/\.(html|js|webmanifest)$/.test(f)) res.setHeader('Cache-Control', 'no-cache'); },
