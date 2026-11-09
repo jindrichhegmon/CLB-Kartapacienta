@@ -56,10 +56,10 @@
 
   <div class="panel" id="obsah" hidden>
     <h2 class="noprint">2. Jak telefon připravit?</h2>
-    <div class="tabs noprint"><button class="btn on" data-tab="qr">📷 Bez kabelu – QR kód (doporučeno)</button><button class="btn" data-tab="kabel">🔌 Kabelem z prohlížeče</button></div>
+    <div class="tabs noprint"><button class="btn on" data-tab="kabel">🔌 Kabelem z prohlížeče (doporučeno)</button><button class="btn" data-tab="qr">📷 Bez kabelu – QR kód</button></div>
 
     <!-- ================= A: QR kód ================= -->
-    <section id="tab-qr">
+    <section id="tab-qr" hidden>
       <p class="noprint">Telefon po továrním resetu naskenuje QR kód z této obrazovky, sám si stáhne aplikaci Karta pacienta a nastaví se jako kiosk. <b>Nic se neinstaluje do počítače</b> a nepotřebujete kabel.</p>
       <div id="apkStav" class="banner warn">Ověřuji aplikaci na serveru…</div>
       <div id="apkSoubor" class="noprint" hidden><div class="field"><label>Nebo vyberte soubor aplikace z počítače (kartapacienta.apk)</label><input type="file" id="apkFile" accept=".apk"></div><p class="muted">Soubor musí být stejný jako ten na serveru – telefon si aplikaci stahuje ze serveru a součet musí sedět.</p></div>
@@ -88,9 +88,14 @@
     </section>
 
     <!-- ================= B: kabel ================= -->
-    <section id="tab-kabel" hidden>
+    <section id="tab-kabel">
       <p>Stránka telefon připojí přes USB kabel přímo v prohlížeči, nainstaluje aplikaci, zapne kiosk a Kartu spustí. Hodí se i pro <b>aktualizaci aplikace</b> na telefonu, který už kiosk je.</p>
       <div id="usbNe" class="banner crit" hidden>Tento prohlížeč neumí připojit telefon kabelem. Otevřete stránku v <b>Google Chrome</b> nebo <b>Microsoft Edge</b>.</div>
+      <h3>Aplikace Karta pacienta</h3>
+      <div id="kabApk" class="banner warn">Ověřuji aplikaci na serveru…</div>
+      <div class="field noprint"><label>Soubor aplikace z počítače (kartapacienta.apk nebo app-release.apk)</label><input type="file" id="kabFile" accept=".apk"></div>
+      <p class="muted" data-jen="mac">Na Macu je aplikace např. v <span class="mono">Dokumenty → Claude → Projects → CLB-Kartapacienta → public → android → kartapacienta.apk</span>.</p>
+      <p class="muted" data-jen="win">Na Windows soubor aplikace (kartapacienta.apk) nejdřív zkopírujte do počítače, třeba ze sdíleného disku nebo e-mailu.</p>
       <h3>Příprava</h3>
       <div class="krok"><b class="n">1</b><div>Telefon po továrním resetu projděte průvodcem <b>bez přihlášení Google účtu</b> (účet přeskočit).</div></div>
       <div class="krok"><b class="n">2</b><div>Zapněte ladění USB: <b>Nastavení → O telefonu → 7× klepnout na Číslo sestavení</b>, pak <b>Nastavení → Systém → Možnosti pro vývojáře → Ladění USB</b> zapnout.</div></div>
@@ -150,12 +155,21 @@ async function nactiApk() {
     APK = b; SOUCET = await soucetZ(b);
     st.className = 'banner ok'; st.innerHTML = `✅ Aplikace na serveru je připravená (${mb(b.length)}, součet <span class="mono">${esc(SOUCET.slice(0, 10))}…</span>).`;
     $('vytvorQr').disabled = false; $('apkSoubor').hidden = true;
+    $('kabApk').className = 'banner ok'; $('kabApk').innerHTML = `✅ Aplikace se vezme ze serveru (${mb(b.length)}). Můžete vybrat i jiný soubor z počítače.`;
   } catch (e) {
+    $('kabApk').className = 'banner warn'; $('kabApk').innerHTML = `Aplikace na serveru není (${esc(e.message || e)}) – <b>vyberte soubor aplikace z počítače</b>.`;
     st.className = 'banner crit';
     st.innerHTML = `Aplikaci ze serveru se nepodařilo ověřit: ${esc(e.message || e)}. Telefon si ji při nastavení stahuje ze serveru – nejdřív ji tam nahrajte (na Macu: soubor <span class="mono">public/android/kartapacienta.apk</span> a <span class="mono">./deploy/vps-deploy.sh</span>). Pro kabel můžete vybrat soubor z počítače.`;
     $('apkSoubor').hidden = false;
   }
 }
+$('kabFile').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const b = new Uint8Array(await f.arrayBuffer());
+  if (b[0] !== 0x50 || b[1] !== 0x4b) { $('kabApk').className = 'banner crit'; $('kabApk').textContent = 'Vybraný soubor není aplikace pro Android (.apk).'; return; }
+  APK = b; SOUCET = await soucetZ(b);
+  $('kabApk').className = 'banner ok'; $('kabApk').innerHTML = `✅ Použije se soubor <b>${esc(f.name)}</b> (${mb(b.length)}, součet <span class="mono">${esc(SOUCET.slice(0, 10))}…</span>).`;
+};
 $('apkFile').onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
   APK = new Uint8Array(await f.arrayBuffer()); SOUCET = await soucetZ(APK);
@@ -207,7 +221,7 @@ $('usbPriprav').onclick = async () => {
   $('usbPriprav').disabled = true;
   try {
     if (!APK) { log('Stahuji aplikaci ze serveru…'); await nactiApk(); }
-    if (!APK) throw new Error('Aplikace není k dispozici – vyberte soubor v záložce QR kód.');
+    if (!APK) throw new Error('Aplikace není k dispozici – nahoře vyberte soubor aplikace z počítače.');
     log(`Instaluji aplikaci (${mb(APK.length)})…`);
     await KPADB.instaluj(APK);
     const verze = ((await KPADB.shell(`dumpsys package ${BALIK}`)).match(/versionName=(\S+)/) || [])[1] || '?';
