@@ -771,6 +771,22 @@ central.post('/telefon/potvrdit-kod', sUzivatelem(async (q, s, req) => {
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'telefon bez kamery potvrzen kódem z obrazovky', detail: hezkyTel(p.novyTelefon), ip: s.ip });
   return { ok: true, telefon: hezkyTel(p.novyTelefon) };
 }));
+/* 0.11.105: totéž v okně Spárovat telefon u pacienta – telefon dostane kód organizace a párovací kód a spáruje se sám (/api/d/parovat) */
+central.post('/pacient/:id/potvrdit-kod', sUzivatelem(async (q, s, req) => {
+  omez('potvrdit-kod:' + s.uzivatelId, 30);
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('Telefon páruje garant nebo lékař v týmu', 403);
+  const kodTel = String(req.body.kodTelefonu || '').replace(/\D/g, '');
+  if (kodTel.length !== 6) throw chyba('Kód z obrazovky telefonu má 6 číslic');
+  const p = await q.one(`SELECT TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  const tel = normTel(p && p.TelefonKarty);
+  if (!tel) throw chyba('U pacienta chybí číslo telefonu s kartou');
+  const z = await q.one(`SELECT TOP 1 ParovaciKod FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav IN ('CEKA', 'SPAROVANO') AND Rezim = 'ZAPUJCENY' AND ParovaciKod IS NOT NULL AND ParovaciPlatnost > SYSDATETIME() ORDER BY ZarizeniID DESC`, { p: id });
+  if (!z) throw chyba('Párovací kód už neplatí – otevřete Spárovat telefon znovu', 404);
+  if (!potvrdCekani(kodTel, tel, { tenant: s.tenant, kod: z.ParovaciKod })) throw chyba(`Telefon s číslem ${hezkyTel(tel)} s tímto kódem nečeká – zkontrolujte kód a číslo na telefonu (kód platí 15 minut)`, 404);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'telefon bez kamery potvrzen kódem z obrazovky (párování)', detail: hezkyTel(tel), ip: s.ip });
+  return { ok: true, telefon: hezkyTel(tel) };
+}));
 central.post('/telefon/vymena/zrusit', sUzivatelem(async (q, s, req) => {
   const kod = normalizujKod(req.body.kod);
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');

@@ -481,7 +481,7 @@ Kdo už měl průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívě
 
 ![Nahrát pacienty do telefonu](/napoveda/img/c-nahrat-telefon.png)
 
-**Telefon nenačte QR kód (bez kamery)** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**📱 Nahrát do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
+**Telefon nenačte QR kód (bez kamery)** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**Spárovat telefon** u pacienta, **📱 Nahrát do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. (U jednoho pacienta jde na telefonu také opsat kód organizace a párovací kód z okna Spárovat telefon.) Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
 
 ![Telefon bez kamery – kód na obrazovce](/napoveda/img/k-bez-kamery.png)
 

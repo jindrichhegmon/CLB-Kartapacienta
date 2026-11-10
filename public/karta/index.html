@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.104';
+const APP_VERZE = 'karta-0.11.105';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -738,7 +738,7 @@ function kresliCekani(chyba = '') {
   hlavicka();
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Bez kamery – kód na obrazovce</h2></div><div class="form" style="padding:14px">
     ${chyba ? `<div class="banner crit">${esc(chyba)}</div>` : ''}
-    <div class="note">Když fotoaparát QR kód nenačte: zadejte číslo tohoto telefonu a stiskněte <b>Zobrazit kód</b>. Telefon ukáže 6místný kód – opište ho v centrální aplikaci do okna s QR kódem (<b>📱 Nahrát do telefonu</b> nebo <b>Výměna telefonu</b>) a potvrďte. Průkazy se pak nahrají samy.</div>
+    <div class="note">Když fotoaparát QR kód nenačte: zadejte číslo tohoto telefonu a stiskněte <b>Zobrazit kód</b>. Telefon ukáže 6místný kód – opište ho v centrální aplikaci do okna s QR kódem (<b>Spárovat telefon</b> u pacienta, <b>📱 Nahrát do telefonu</b> nebo <b>Výměna telefonu</b>) a potvrďte. Průkazy se pak nahrají samy.</div>
     <div class="field"><label>Číslo tohoto telefonu</label><input id="ck_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
     <button class="btn primary" id="ck_ok" style="font-size:18px;padding:14px">Zobrazit kód</button><button class="btn" id="ck_zpet">Zpět</button></div></div>
     <div class="footer">${APP_VERZE}</div>`;
@@ -760,7 +760,9 @@ function kresliCekani(chyba = '') {
       await new Promise((ok) => setTimeout(ok, 3000));
       if (!CEKANI || CEKANI.id !== id) return;
       let st; try { st = await KP.api('/api/d/cekani/stav', { method: 'POST', body: { id } }); } catch { continue; }
-      if (st.stav === 'potvrzeno') { CEKANI = null; const el = $('ck_stav'); if (el) el.textContent = 'Potvrzeno – nahrávám průkazy…'; return prevzitPrenos(st.prenos, telefon); }
+      if (st.stav === 'potvrzeno') { CEKANI = null; const el = $('ck_stav'); if (el) el.textContent = 'Potvrzeno – nahrávám průkazy…';
+        if (st.prenos && typeof st.prenos === 'object') return parovat(st.prenos.tenant, st.prenos.kod, telefon);   // 0.11.105: z okna Spárovat telefon u pacienta
+        return prevzitPrenos(st.prenos, telefon); }
       if (st.stav !== 'ceka') { CEKANI = null; return kresliCekani('Kód vypršel – stiskněte Zobrazit kód znovu.'); }
     }
   };

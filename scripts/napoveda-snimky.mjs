@@ -301,7 +301,8 @@ const nahrano = [];
 // 0.11.104: telefon bez kamery – kód z obrazovky telefonu potvrzený v centrále
 let kodTel = { potvrzeno: false, prijato: [] };
 app.post('/api/d/cekani', j((req) => { kodTel = { potvrzeno: false, prijato: [], telefon: req.body.telefon }; return { id: 'CEKANI-UKAZKA', kod: '482913', platnost: new Date(Date.now() + 15 * 60e3).toISOString(), telefon: '+420 777 000 999' }; }));
-app.post('/api/d/cekani/stav', j(() => (kodTel.potvrzeno ? { stav: 'potvrzeno', prenos: 'N4TR8KWZ3MXP' } : { stav: 'ceka', zbyva: 880 })));
+app.post('/api/d/cekani/stav', j(() => (kodTel.potvrzeno ? { stav: 'potvrzeno', prenos: kodTel.par ? { tenant: TENANT, kod: 'TYJRRRQH' } : 'N4TR8KWZ3MXP' } : { stav: 'ceka', zbyva: 880 })));
+app.post('/api/c/pacient/:id/potvrdit-kod', j((req) => { kodTel.parPrijato = req.body; return { ok: true, telefon: '+420 777 000 123' }; }));
 app.post('/api/d/cekani/zrusit', j({ zruseno: true }));
 app.post('/api/c/telefon/potvrdit-kod', j((req) => { kodTel.prijato.push(req.body); if (req.body.kodTelefonu === '482913') kodTel.potvrzeno = true; return { ok: true, telefon: '+420 777 000 999' }; }));
 app.post('/api/c/telefon/nahrat', j((req) => { nahrano.push(req.body); prenos = { stav: 'ceka', prevzato: false }; return { kod: 'N4TR8KWZ3MXP', kodZobrazeni: 'N4TR-8KWZ-3MXP', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=N4TR8KWZ3MXP', novy: '+420 777 000 999', pacienti: ['Zkušební Marie', 'Ukázkový Jan'], bezOpravneni: 0 }; }));
@@ -574,6 +575,9 @@ if (!deaktivace.length || !deaktivace[0].nahrazene) chyby.push('výměna telefon
 await p.evaluate(() => KP.closeModal()); prenos = { stav: 'ceka', prevzato: false };
 await klik(p, '#parovat'); await p.waitForSelector('#pr_sms');
 await foto(p, 'c-parovani', { vyska: 1000 });
+// 0.11.105: i v okně Spárovat telefon u pacienta jde potvrdit kód z obrazovky telefonu bez kamery
+if (!(await p.$('#pr_kodtel'))) chyby.push('spárovat telefon: chybí pole pro kód z obrazovky telefonu');
+else { await p.fill('#pr_kodtel', '482913'); await klik(p, '#pr_kodtel_ok'); await p.waitForTimeout(300); if (!kodTel.parPrijato || kodTel.parPrijato.kodTelefonu !== '482913') chyby.push('spárovat telefon: kód z obrazovky se neposlal'); }
 // 0.11.91: vytištěné párování do terénu – platnost 3 dny, A4 s QR kódem a postupem
 await p.selectOption('#pr_plat', '72'); await p.waitForSelector('#pr_tisk');
 { const cekej = p.context().waitForEvent('page', { timeout: 10000 }); await p.click('#pr_tisk'); const okno = await cekej; await okno.waitForSelector('.qr svg'); await okno.waitForTimeout(600);
@@ -733,6 +737,12 @@ await foto(p, 'k-vymena-stary', { vyska: 900 });
   await foto(n, 'k-bez-kamery', { vyska: 900 });
   kodTel.potvrzeno = true;
   await n.waitForFunction(() => /Průkazy v telefonu/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('bez kamery: telefon po potvrzení průkazy nepřevzal'));
+  await n.close(); }
+{ const n = await stranka({ mobil: true });   // 0.11.105: kód z obrazovky potvrzený v okně Spárovat telefon u pacienta → telefon se spáruje sám
+  kodTel = { potvrzeno: false, prijato: [], par: true };
+  await n.goto(`${URL}/karta/`); await klik(n, '#p_kodtel'); await n.fill('#ck_tel', '+420 777 000 123'); await klik(n, '#ck_ok'); await n.waitForSelector('#ck_kod');
+  kodTel.potvrzeno = true;
+  await n.waitForFunction(() => typeof KARTY !== 'undefined' && KARTY.length === 1, null, { timeout: 15000 }).catch(() => chyby.push('bez kamery (párování): telefon se po potvrzení nespároval'));
   await n.close(); }
 { const n = await stranka({ mobil: true });
   await n.goto(`${URL}/karta/#prenos=K7MPX4RT9QWB`); await n.waitForSelector('#pr_ok');
