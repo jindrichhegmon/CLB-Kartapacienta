@@ -26,7 +26,7 @@ import { normTel, hezkyTel } from '../telefon.js';
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { podepis, overSession } from '../crypto.js';
 import { config } from '../config.js';
-import { zalozPrenos, nahledPrenosu, vezmiPrenos, dokonciPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE } from '../prenos.js';
+import { zalozPrenos, nahledPrenosu, vezmiPrenos, dokonciPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, zalozCekani, stavCekani, zrusCekani } from '../prenos.js';
 import { nastaveniPd, zaznamyPd, DRUHY_PRO_PD, predejZhorseniPd, TYPY_ZHORSENI, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
 
 export const device = Router();
@@ -549,6 +549,20 @@ device.post('/prenos/stav', h(async (req) => {
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
   return stavPrenosu(kod);
 }));
+
+/* telefon bez kamery (0.11.104): telefon zadá své číslo a ukáže 6místný kód; po potvrzení v centrále dostane kód přenosu a převezme sám */
+device.post('/cekani', h(async (req) => {
+  omez('cekani:' + ip(req), 20);
+  const telefon = normTel((req.body || {}).telefon);
+  if (!telefon) throw chyba('Zadejte číslo tohoto telefonu (např. +420 777 123 456)');
+  const c = zalozCekani(telefon);
+  return { id: c.id, kod: c.kod, platnost: c.platnost.toISOString(), telefon: hezkyTel(telefon) };
+}));
+device.post('/cekani/stav', h(async (req) => {
+  omez('cekani-stav:' + ip(req), 600);
+  return stavCekani((req.body || {}).id);
+}));
+device.post('/cekani/zrusit', h(async (req) => ({ zruseno: zrusCekani((req.body || {}).id) })));
 
 device.post('/prenos/zrusit', h(async (req) => {
   omez('prenos-zrusit:' + ip(req), 30);

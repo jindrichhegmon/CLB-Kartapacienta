@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE } from '../prenos.js';
+import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani } from '../prenos.js';
 import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI, popisyDiagnoz, hledejDiagnozy } from '../pecedoma.js';
 
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
@@ -755,6 +755,21 @@ central.get('/telefon/vymena/stav', sUzivatelem(async (q, s, req) => {
   const kod = normalizujKod(req.query.kod);
   if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
   return stavPrenosu(kod);
+}));
+/* telefon bez kamery (0.11.104): obsluha opíše 6místný kód z obrazovky telefonu do okna s QR kódem – sedí-li i číslo telefonu,
+   telefon dostane kód přenosu a převezme průkazy sám */
+central.post('/telefon/potvrdit-kod', sUzivatelem(async (q, s, req) => {
+  omez('potvrdit-kod:' + s.uzivatelId, 30);
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  const p = nahledPrenosu(kod);
+  if (!p) throw chyba('QR kód už neplatí – vytvořte nový', 404);
+  if (p.karty.some((k) => k.tenant !== s.tenant)) throw chyba('Kód patří jiné organizaci', 403);
+  const kodTel = String(req.body.kodTelefonu || '').replace(/\D/g, '');
+  if (kodTel.length !== 6) throw chyba('Kód z obrazovky telefonu má 6 číslic');
+  if (!potvrdCekani(kodTel, p.novyTelefon, kod)) throw chyba(`Telefon s číslem ${hezkyTel(p.novyTelefon)} s tímto kódem nečeká – zkontrolujte kód a číslo na telefonu (kód platí 15 minut)`, 404);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'telefon bez kamery potvrzen kódem z obrazovky', detail: hezkyTel(p.novyTelefon), ip: s.ip });
+  return { ok: true, telefon: hezkyTel(p.novyTelefon) };
 }));
 central.post('/telefon/vymena/zrusit', sUzivatelem(async (q, s, req) => {
   const kod = normalizujKod(req.body.kod);

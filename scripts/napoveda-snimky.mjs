@@ -298,6 +298,12 @@ let stitekVzhled = { text: '', logo: '', logoFirma: '' }; const stitekUlozeno = 
 app.get('/api/c/stitek-vzhled', j(() => stitekVzhled));
 app.post('/api/c/stitek-vzhled', j((req) => { stitekVzhled = { ...stitekVzhled, ...req.body }; stitekUlozeno.push(req.body); return { ok: true }; }));
 const nahrano = [];
+// 0.11.104: telefon bez kamery – kód z obrazovky telefonu potvrzený v centrále
+let kodTel = { potvrzeno: false, prijato: [] };
+app.post('/api/d/cekani', j((req) => { kodTel = { potvrzeno: false, prijato: [], telefon: req.body.telefon }; return { id: 'CEKANI-UKAZKA', kod: '482913', platnost: new Date(Date.now() + 15 * 60e3).toISOString(), telefon: '+420 777 000 999' }; }));
+app.post('/api/d/cekani/stav', j(() => (kodTel.potvrzeno ? { stav: 'potvrzeno', prenos: 'N4TR8KWZ3MXP' } : { stav: 'ceka', zbyva: 880 })));
+app.post('/api/d/cekani/zrusit', j({ zruseno: true }));
+app.post('/api/c/telefon/potvrdit-kod', j((req) => { kodTel.prijato.push(req.body); if (req.body.kodTelefonu === '482913') kodTel.potvrzeno = true; return { ok: true, telefon: '+420 777 000 999' }; }));
 app.post('/api/c/telefon/nahrat', j((req) => { nahrano.push(req.body); prenos = { stav: 'ceka', prevzato: false }; return { kod: 'N4TR8KWZ3MXP', kodZobrazeni: 'N4TR-8KWZ-3MXP', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=N4TR8KWZ3MXP', novy: '+420 777 000 999', pacienti: ['Zkušební Marie', 'Ukázkový Jan'], bezOpravneni: 0 }; }));
 app.post('/api/c/telefon/deaktivovat', j((req) => { deaktivace.push(req.body); return { deaktivovano: 2, zustalo: 0 }; }));
 const deaktivace = [];
@@ -404,7 +410,9 @@ await p.fill('#nt_tel', '+420 777 000 999'); await foto(p, 'c-nahrat-telefon', {
 await klik(p, '#nt_qr'); await p.waitForSelector('#vt_stav'); await p.waitForTimeout(300);
 if (!(await p.$('#modal .qr svg'))) chyby.push('nahrát do telefonu: chybí QR kód');
 if (nahrano.length !== 1 || nahrano[0].pacienti.length !== 2 || !nahrano[0].telefon.includes('999')) chyby.push('nahrát do telefonu: na server neodešli vybraní pacienti a číslo');
-await foto(p, 'c-nahrat-qr', { vyska: 900 });
+await p.fill('#vt_kodtel', '482 913'); await klik(p, '#vt_kodtel_ok'); await p.waitForTimeout(300);
+if (!kodTel.prijato.length || kodTel.prijato[0].kodTelefonu !== '482913' || kodTel.prijato[0].kod !== 'N4TR8KWZ3MXP') chyby.push('bez kamery: centrála neposlala kód z obrazovky telefonu');
+await foto(p, 'c-nahrat-qr', { vyska: 1050 });
 await p.evaluate(() => fetch('/api/d/prenos/prevzit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kod: 'N4TR8KWZ3MXP', telefon: '+420 777 000 999' }) }));
 await p.waitForFunction(() => /pacienti jsou v telefonu/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('nahrát do telefonu: po nahrání se neukázalo Hotovo'));
 await p.evaluate(() => KP.closeModal()); prenos = { stav: 'ceka', prevzato: false };
@@ -718,6 +726,14 @@ await p.waitForSelector('#t_prenos'); await klik(p, '#t_prenos'); await p.waitFo
 await p.waitForSelector('#prenosZrusit', { timeout: 8000 }); await p.waitForTimeout(400);
 if (!(await p.$('#modal svg'))) chyby.push('výměna telefonu: starý telefon neukázal QR kód');
 await foto(p, 'k-vymena-stary', { vyska: 900 });
+{ const n = await stranka({ mobil: true });   // 0.11.104: telefon bez kamery – kód z obrazovky
+  kodTel = { potvrzeno: false, prijato: [] };
+  await n.goto(`${URL}/karta/`); await klik(n, '#p_kodtel'); await n.fill('#ck_tel', '+420 777 000 999'); await klik(n, '#ck_ok');
+  await n.waitForSelector('#ck_kod'); if ((await n.textContent('#ck_kod')).replace(/\s/g, '') !== '482913') chyby.push('bez kamery: telefon neukázal kód');
+  await foto(n, 'k-bez-kamery', { vyska: 900 });
+  kodTel.potvrzeno = true;
+  await n.waitForFunction(() => /Průkazy v telefonu/.test((document.querySelector('#modal h2') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => chyby.push('bez kamery: telefon po potvrzení průkazy nepřevzal'));
+  await n.close(); }
 { const n = await stranka({ mobil: true });
   await n.goto(`${URL}/karta/#prenos=K7MPX4RT9QWB`); await n.waitForSelector('#pr_ok');
   await n.waitForFunction(() => (document.querySelector('#pr_tel') || {}).value === '+420 777 000 123', null, { timeout: 8000 });

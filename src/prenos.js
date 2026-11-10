@@ -78,8 +78,36 @@ export function stavPrenosu(kod, nyni = Date.now()) {
   return { stav: 'neplatny' };
 }
 
+/* ---- telefon bez kamery (0.11.104): kód z obrazovky telefonu ----
+   Telefon zadá své číslo a ukáže 6místný kód; obsluha ho v centrále opíše do okna s QR kódem (nahrání / výměna). Server spojí čekající
+   telefon s přenosem jen tehdy, když sedí kód i číslo nového telefonu – telefon si pak přenos převezme sám (stejně jako po QR kódu).
+   Drží se jen v paměti, platí 15 minut; telefon zná jen náhodné id, kód z obrazovky slouží jen ke spojení. */
+export const CEKANI_PLATNOST_MS = 15 * 60 * 1000;
+const cekaniTel = new Map();   // id → { kod, telefon, exp, prenos }
+export function zalozCekani(telefon, nyni = Date.now()) {
+  // jeden telefon (číslo) má jen jedno čekání – starší se zruší
+  for (const [id, c] of cekaniTel) if (c.telefon === telefon) cekaniTel.delete(id);
+  let kod;
+  do kod = String(randomInt(100000, 1000000)); while ([...cekaniTel.values()].some((c) => c.kod === kod));
+  const id = novyKodPrenosu() + novyKodPrenosu();
+  cekaniTel.set(id, { kod, telefon, exp: nyni + CEKANI_PLATNOST_MS, prenos: null });
+  return { id, kod, platnost: new Date(nyni + CEKANI_PLATNOST_MS) };
+}
+export function stavCekani(id, nyni = Date.now()) {
+  const c = cekaniTel.get(String(id || ''));
+  if (!c || c.exp < nyni) return { stav: 'neplatny' };
+  return c.prenos ? { stav: 'potvrzeno', prenos: c.prenos } : { stav: 'ceka', zbyva: Math.round((c.exp - nyni) / 1000) };
+}
+/** centrála: kód z obrazovky telefonu + číslo nového telefonu z přenosu → telefon dostane kód přenosu */
+export function potvrdCekani(kod, telefon, prenos, nyni = Date.now()) {
+  for (const c of cekaniTel.values()) if (c.kod === String(kod) && c.telefon === telefon && c.exp >= nyni) { c.prenos = prenos; c.exp = Math.max(c.exp, nyni + 5 * 60e3); return true; }
+  return false;
+}
+export function zrusCekani(id) { return cekaniTel.delete(String(id || '')); }
+
 export function uklidPrenosy(nyni = Date.now()) {
   for (const [k, p] of cekajici) if (p.exp < nyni) cekajici.delete(k);
+  for (const [k, c] of cekaniTel) if (c.exp < nyni) cekaniTel.delete(k);
   for (const [k, h] of hotove) if (nyni - h.cas > HOTOVO_DRZET_MS) hotove.delete(k);
 }
 setInterval(() => uklidPrenosy(), 60 * 1000).unref();

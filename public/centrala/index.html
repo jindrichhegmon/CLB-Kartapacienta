@@ -1603,7 +1603,16 @@ function vymenaQr(v) {
       <div><ol style="margin:0 0 8px 18px;padding:0;line-height:1.5"><li>Na <b>novém</b> telefonu (${esc(v.novy)}) svítí stránka <b>Spárovat telefon</b> (v kiosku po spuštění; je-li v telefonu už pacient: <b>Přidat dalšího pacienta do telefonu</b>).</li><li>Stiskněte <b>Načíst QR kód fotoaparátem</b> a namiřte na tuto obrazovku.</li><li>Zkontrolujte číslo telefonu a stiskněte <b>Převzít průkazy</b>.</li></ol>
       <div style="font:700 22px ui-monospace,monospace;letter-spacing:.08em">${esc(v.kodZobrazeni)}</div>
       <div class="note" id="vt_stav">${v.nahrat ? 'Nahraje se' : 'Převezme se'} ${v.pacienti.length} průkaz(ů): ${esc(v.pacienti.join(', '))}${v.bezOpravneni ? ` · ${v.bezOpravneni} bez vašeho oprávnění se nepřenese` : ''}. Kód platí do ${esc(konec.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} a jde použít jen jednou.</div></div></div>
-    <div class="quick"><button class="btn" id="vt_zrusit">Zrušit výměnu</button></div>`, (m) => { m.querySelector('#vt_zrusit').onclick = () => { bezi = false; closeModal(); C('/telefon/vymena/zrusit', { method: 'POST', body: { kod } }).catch(() => {}); }; });
+    <div class="panel" style="margin:10px 0 0"><div class="panel-h"><h2>Telefon nenačte QR kód?</h2><span class="chip">bez kamery</span></div><div style="padding:10px 14px">
+      <div class="muted" style="margin-bottom:6px">Na telefonu stiskněte <b>📟 Bez kamery – kód na obrazovce</b>, zadejte číslo ${esc(v.novy)} a opište sem kód, který telefon ukáže.</div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><input id="vt_kodtel" inputmode="numeric" maxlength="7" placeholder="123 456" style="font-size:22px;letter-spacing:.12em;width:150px"><button class="btn primary" id="vt_kodtel_ok" type="button">Potvrdit telefon</button></div></div></div>
+    <div class="quick"><button class="btn" id="vt_zrusit">Zrušit výměnu</button></div>`, (m) => {
+      m.querySelector('#vt_kodtel_ok').onclick = async () => {
+        const kt = m.querySelector('#vt_kodtel').value.replace(/\D/g, '');
+        if (kt.length !== 6) return toast('Kód z obrazovky telefonu má 6 číslic');
+        try { const r = await C('/telefon/potvrdit-kod', { method: 'POST', body: { kod, kodTelefonu: kt } }); toast(`Telefon ${r.telefon} potvrzen – nahrává průkazy…`); const st = $('vt_stav'); if (st) st.textContent = `Telefon ${r.telefon} potvrzen kódem z obrazovky – čekám, až průkazy převezme…`; }
+        catch (e) { toast(e.message); }
+      }; m.querySelector('#vt_zrusit').onclick = () => { bezi = false; closeModal(); C('/telefon/vymena/zrusit', { method: 'POST', body: { kod } }).catch(() => {}); }; });
   (async () => {
     while (bezi) {
       await new Promise((ok) => setTimeout(ok, 3000));

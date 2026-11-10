@@ -36,3 +36,15 @@ test('výměna telefonu: náhled kód nespotřebuje (nový telefon předvyplní 
   assert.ok(vezmiPrenos(kod), 'po náhledu jde kód pořád použít');
   assert.equal(nahledPrenosu(kod), null);
 });
+
+test('telefon bez kamery: kód z obrazovky spojí telefon s přenosem jen při shodě kódu i čísla', async () => {
+  const { zalozCekani, stavCekani, potvrdCekani } = await import('../src/prenos.js');
+  const c = zalozCekani('+420777000555');
+  assert.match(c.kod, /^\d{6}$/);
+  assert.equal(stavCekani(c.id).stav, 'ceka');
+  assert.equal(potvrdCekani(c.kod, '+420777000999', 'ABCDEFGHJKMN'), false, 'jiné číslo');
+  assert.equal(potvrdCekani('000000' === c.kod ? '111111' : '000000', '+420777000555', 'ABCDEFGHJKMN'), false, 'jiný kód');
+  assert.equal(potvrdCekani(c.kod, '+420777000555', 'ABCDEFGHJKMN'), true);
+  assert.deepEqual(stavCekani(c.id), { stav: 'potvrzeno', prenos: 'ABCDEFGHJKMN' });
+  assert.equal(stavCekani('neexistuje').stav, 'neplatny');
+});

@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.99';
+const APP_VERZE = 'karta-0.11.104';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -607,6 +607,7 @@ function kresliParovani(predvyplnit = {}, chyba = '') {
     ${jeIosProhlizec() ? '<div class="banner warn">Chcete kartu jako aplikaci na ploše? Přidejte ji na plochu (Sdílet → Přidat na plochu), otevřete z plochy a spárujte tam <b>stejným kódem</b> (QR kód nebo odkaz z SMS – kód platí 30 minut). Aplikace na ploše má vlastní úložiště; když spárujete i tady v Safari, po spárování na ploše tahle kopie skončí.</div>' : ''}
     ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}"><button class="btn" id="p_jiny">Mám jiný kód – načíst QR kód nebo opsat</button>` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
+    <button class="btn" id="p_kodtel">📟 Bez kamery – kód na obrazovce</button>
     <button class="btn" id="p_prenos">Výměna telefonu – převzít průkazy ze starého telefonu</button>
     <button class="btn" id="p_inst" style="display:${instalace ? '' : 'none'}">Přidat kartu na plochu telefonu</button>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy z obrazovky centrální aplikace:</div>
@@ -622,6 +623,7 @@ function kresliParovani(predvyplnit = {}, chyba = '') {
   if (predvyplnit.kod) predvyplnTelefon(predvyplnit, KARTY.length ? 'Potvrdit a přidat průkaz' : 'Potvrdit a spárovat');
   if ($('p_qr')) $('p_qr').onclick = () => nactiQr();
   if ($('p_prenos')) $('p_prenos').onclick = () => kresliPrevzeti({});
+  if ($('p_kodtel')) $('p_kodtel').onclick = () => kresliCekani();
   if ($('p_jiny')) $('p_jiny').onclick = () => { history.replaceState(null, '', location.pathname); kresliParovani(); };
   setTimeout(() => { const t = $('p_tel'); if (t && predvyplnit.kod) t.focus(); }, 50);
 }
@@ -727,6 +729,42 @@ async function zahajitPrenos() {
     if (st.stav !== 'ceka') { prenosKod = null; closeModal(); kresli(); toast('Kód pro výměnu telefonu vypršel – vytvořte nový'); return; }
     const el = $('prenosStav'); if (el && st.zbyva) el.textContent = `Čekám na nový telefon… kód platí ještě ${Math.ceil(st.zbyva / 60)} min a jde použít jen jednou.`;
   }
+}
+/* ---- telefon bez kamery (0.11.104): kód z obrazovky ----
+   Telefon zadá své číslo a ukáže 6místný kód; obsluha ho v centrální aplikaci opíše do okna s QR kódem (Nahrát do telefonu nebo
+   Výměna telefonu). Po potvrzení si telefon průkazy převezme sám – stejně jako po načtení QR kódu. */
+let CEKANI = null;
+function kresliCekani(chyba = '') {
+  hlavicka();
+  $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Bez kamery – kód na obrazovce</h2></div><div class="form" style="padding:14px">
+    ${chyba ? `<div class="banner crit">${esc(chyba)}</div>` : ''}
+    <div class="note">Když fotoaparát QR kód nenačte: zadejte číslo tohoto telefonu a stiskněte <b>Zobrazit kód</b>. Telefon ukáže 6místný kód – opište ho v centrální aplikaci do okna s QR kódem (<b>📱 Nahrát do telefonu</b> nebo <b>Výměna telefonu</b>) a potvrďte. Průkazy se pak nahrají samy.</div>
+    <div class="field"><label>Číslo tohoto telefonu</label><input id="ck_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
+    <button class="btn primary" id="ck_ok" style="font-size:18px;padding:14px">Zobrazit kód</button><button class="btn" id="ck_zpet">Zpět</button></div></div>
+    <div class="footer">${APP_VERZE}</div>`;
+  $('ck_zpet').onclick = () => { CEKANI = null; D = KARTY.length === 1 ? KARTY[0] : null; KARTY.length ? kresli() : kresliParovani(); };
+  $('ck_ok').onclick = async () => {
+    const telefon = $('ck_tel').value;
+    if (!String(telefon || '').replace(/\D/g, '')) return toast('Zadejte číslo tohoto telefonu');
+    if (!navigator.onLine) return toast('Telefon potřebuje připojení k internetu');
+    let r; try { r = await KP.api('/api/d/cekani', { method: 'POST', body: { telefon } }); } catch (e) { return toast(e.message); }
+    CEKANI = { id: r.id, telefon };
+    $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Kód pro centrální aplikaci</h2></div><div class="form" style="padding:14px;text-align:center">
+      <div class="muted">Telefon ${esc(r.telefon)} – opište tento kód v centrální aplikaci do okna s QR kódem:</div>
+      <div id="ck_kod" style="font:800 46px ui-monospace,Menlo,monospace;letter-spacing:.12em;color:var(--accent);margin:10px 0">${esc(r.kod.slice(0, 3))} ${esc(r.kod.slice(3))}</div>
+      <div class="note" id="ck_stav">Čekám na potvrzení v centrální aplikaci… kód platí 15 minut.</div>
+      <button class="btn" id="ck_zrus">Zrušit</button></div></div><div class="footer">${APP_VERZE}</div>`;
+    $('ck_zrus').onclick = () => { KP.api('/api/d/cekani/zrusit', { method: 'POST', body: { id: r.id } }).catch(() => {}); CEKANI = null; kresliCekani(); };
+    const id = r.id;
+    while (CEKANI && CEKANI.id === id) {
+      await new Promise((ok) => setTimeout(ok, 3000));
+      if (!CEKANI || CEKANI.id !== id) return;
+      let st; try { st = await KP.api('/api/d/cekani/stav', { method: 'POST', body: { id } }); } catch { continue; }
+      if (st.stav === 'potvrzeno') { CEKANI = null; const el = $('ck_stav'); if (el) el.textContent = 'Potvrzeno – nahrávám průkazy…'; return prevzitPrenos(st.prenos, telefon); }
+      if (st.stav !== 'ceka') { CEKANI = null; return kresliCekani('Kód vypršel – stiskněte Zobrazit kód znovu.'); }
+    }
+  };
+  setTimeout(() => { const t = $('ck_tel'); if (t) t.focus(); }, 50);
 }
 function kresliPrevzeti({ kod = '' } = {}, chyba = '') {
   hlavicka();

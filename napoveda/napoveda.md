@@ -481,6 +481,10 @@ Kdo už měl průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívě
 
 ![Nahrát pacienty do telefonu](/napoveda/img/c-nahrat-telefon.png)
 
+**Telefon nenačte QR kód (bez kamery)** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**📱 Nahrát do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
+
+![Telefon bez kamery – kód na obrazovce](/napoveda/img/k-bez-kamery.png)
+
 **Výměna telefonu – přenos všech průkazů do nového telefonu.** Když se telefon u lůžka mění (porucha, nový telefon, jiné číslo), nemusí se každý pacient párovat znovu. **Nejjednodušší je celé to udělat z centrální aplikace** (od 0.11.96):
 
 1. V centrále otevřete kteréhokoli pacienta z telefonu → **Telefon a PINy** → **📱 Výměna / deaktivace telefonu** (nebo **Lidé a týmy** → u týmu **📱 Výměna telefonu**). Okno ukáže, kteří pacienti v telefonu jsou.
