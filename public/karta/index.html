@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.106';
+const APP_VERZE = 'karta-0.11.107';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -571,7 +571,10 @@ function bind() {
   /* oba PINy ověřuje stejný seznam (rodina = PIN vydaný u pacienta, tým = osobní PINy přiřazených lidí) – tlačítka se liší jen tím, komu jsou určená */
   const pinOkno = (titulek, popis, poznamka) => modal(`<h2>${titulek}</h2><p class="muted" style="margin:0;font-size:13.5px">${popis}</p>${NAHLED ? `<div class="banner warn">Náhled – PIN se neověřuje.</div>${titulek === 'Přístup rodina' ? '' : '<div class="field"><label>Role v náhledu</label><select id="pinRole"><option value="sestra">sestra DPS</option><option value="hospic">hospic</option><option value="pl">praktický lékař</option><option value="lekar">lékař</option></select></div>'}<input id="pin" type="hidden">` : '<div class="field"><label>PIN (6 číslic)</label><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" style="font-size:24px;letter-spacing:.3em;text-align:center"></div>'}<button class="btn primary block" id="pinOk">Odemknout</button><div class="note">${poznamka} Ověří se i bez signálu.</div>`, () => {
     $('pin').focus(); let pokusy = 0;
-    const go = async () => { const p = NAHLED ? { role: titulek === 'Přístup rodina' ? 'rodina' : ($('pinRole') || {}).value || 'sestra', jmeno: 'náhled' } : await overPin($('pin').value.trim()); if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
+    const go = async () => { let p = NAHLED ? { role: titulek === 'Přístup rodina' ? 'rodina' : ($('pinRole') || {}).value || 'sestra', jmeno: 'náhled' } : await overPin($('pin').value.trim());
+      // 0.11.107: PIN vydaný před chvílí telefon ještě nemusí znát (synchronizace každých 5 minut) – neznámý PIN → hned stáhnout novinky a zkusit znovu
+      if (!p && !NAHLED && navigator.onLine && D) { const b = $('pinOk'); if (b) { b.disabled = true; b.textContent = 'Ověřuji u serveru…'; } try { await sync({ tichy: true }); } catch { /* bez signálu */ } p = await overPin($('pin').value.trim()); if (b) { b.disabled = false; b.textContent = 'Odemknout'; } }
+      if (!p) { pokusy++; toast(pokusy >= 5 ? 'Příliš mnoho pokusů' : 'Nesprávný PIN'); if (pokusy >= 5) closeModal(); return; } U = { role: p.role, jmeno: p.jmeno, posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
     $('pinOk').onclick = go; $('pin').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   });
   on('unRodina', () => pinOkno('Přístup rodina', 'Pro blízké pacienta: PIN, který vám vydal garant (hospic nebo lékař) při předání průkazu.', 'Zapomenutý PIN vám garant vydá znovu.'));
