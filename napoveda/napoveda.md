@@ -288,7 +288,7 @@ Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) 
 
 ![Štítek pro telefon s více pacienty – zapůjčeno komu a od kdy](/napoveda/img/c-stitky-telefon.png)
 
-**Vzhled štítku** (od 0.11.102): štítek má rozměr **70 × 70 mm** (3 × 4 = 12 štítků na arch A4, tisk v měřítku 100 % bez přizpůsobení stránce) a je v **modrém rámečku**. Nahoře je **logo hospice** – výchozí je logo Centra, tlačítkem **Nahrát logo** dáte vlastní (PNG nebo JPG). Dole může být **text** (např. *Tento telefon i jeho provoz hradí firma XY*) a **logo firmy** (Nahrát logo firmy). Vzhled je v okně štítků v panelu **Vzhled štítku** a uloží se **pro celou organizaci** – příště se předvyplní.
+**Vzhled štítku** (od 0.11.102): štítek má rozměr **70 × 70 mm** (3 × 4 = 12 štítků na arch A4, tisk v měřítku 100 % bez přizpůsobení stránce) a je v **modrém rámečku**. Nahoře je **logo hospice** – výchozí je logo **Most k domovu**, tlačítkem **Nahrát logo** dáte jiné (PNG nebo JPG). Dole je na každém štítku věta **„Tento telefon i jeho provoz hradí …“** – do pole **Kdo telefon a jeho provoz hradí** napíšete jen název (prázdné = komu telefon patří); vedle může být **logo firmy** (Nahrát logo firmy). Písmo se při tisku samo zmenší, aby se vešel i dlouhý název, a rámeček je odsazený od kraje, aby ho tiskárna neořízla. Vzhled je v okně štítků v panelu **Vzhled štítku** a uloží se **pro celou organizaci** – příště se předvyplní.
 
 ![Vzhled štítku – logo hospice, text a logo firmy](/napoveda/img/c-stitky-vzhled.png)
 

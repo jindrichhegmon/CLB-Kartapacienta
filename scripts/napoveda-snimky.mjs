@@ -433,18 +433,19 @@ await p.fill('[data-smk="0"]', 'DS C Otrokovice, 2. patro'); await foto(p, 'c-st
 await p.check('[data-smt="0"]'); await p.fill('#sm_org', 'Centrum pro léčbu bolesti a paliativní medicínu s.r.o.');   // nejdelší název – kontrola, že se text vejde
 // 0.11.102: vzhled štítku – modrý rámeček, logo hospice, text a logo firmy (70 × 70 mm)
 if (!(await p.$('#sv_text')) || !(await p.$('#sv_logo_nahled'))) chyby.push('štítek: chybí nastavení vzhledu (logo, text)');
-await p.fill('#sv_text', 'Tento telefon i jeho provoz hradí firma XY s.r.o. – děkujeme za podporu paliativní péče');
+await p.fill('#sv_text', 'Centrum pro léčbu bolesti a paliativní medicínu s.r.o., Zlín');   // nejdelší běžný název – musí se vejít
 await p.setInputFiles('#sv_firma', path.join(KOREN, 'scripts/snimky-data/logo-firma-ukazka.png')); await p.waitForFunction(() => !document.getElementById('sv_firma_nahled').hidden);
 await foto(p, 'c-stitky-vzhled', { vyska: 1000 });
-{ const cekej = p.context().waitForEvent('page', { timeout: 8000 }).catch(async (e) => { throw new Error('štítek telefonu: okno tisku se neotevřelo – ' + (await p.textContent('#toast').catch(() => ''))); }); await p.click('#sm_tisk'); const okno = await cekej; await okno.waitForLoadState(); await okno.setViewportSize({ width: 900, height: 360 }); await okno.waitForTimeout(400);
+{ const cekej = p.context().waitForEvent('page', { timeout: 8000 }).catch(async (e) => { throw new Error('štítek telefonu: okno tisku se neotevřelo – ' + (await p.textContent('#toast').catch(() => ''))); }); await p.click('#sm_tisk'); const okno = await cekej; await okno.waitForLoadState(); await okno.setViewportSize({ width: 900, height: 360 }); await okno.waitForFunction(() => document.body.dataset.hotovo === '1', null, { timeout: 8000 }).catch(() => chyby.push('štítek: nedoběhlo přizpůsobení písma'));
   const t = await okno.textContent('.st'); if (!t.includes('Tento telefon') || !t.includes('777 000 123') || !t.includes('DS C Otrokovice')) chyby.push('štítek telefonu: chybí číslo telefonu nebo komu je zapůjčený');
-  const pres = await okno.evaluate(() => [...document.querySelectorAll('.st, .ram, .o, .sp span')].some((e) => e.scrollHeight > e.clientHeight + 1)); if (pres) chyby.push('štítek telefonu: text se nevejde na 70 × 70 mm');
+  const pres = await okno.evaluate(() => [...document.querySelectorAll('.ram')].some((r) => r.scrollHeight > r.clientHeight + 1 || [...r.querySelectorAll('*')].some((e) => e.getBoundingClientRect().right > r.getBoundingClientRect().right + 0.5 || e.getBoundingClientRect().bottom > r.getBoundingClientRect().bottom + 0.5))); if (pres) chyby.push('štítek telefonu: text se nevejde na 70 × 70 mm');
   const r = await okno.evaluate(() => { const st = document.querySelector('.st').getBoundingClientRect(), mm = st.width / 70; return { pomer: Math.round(st.height / st.width * 100), obr: [...document.querySelectorAll('.st img')].map((i) => i.complete && i.naturalWidth > 0), ram: getComputedStyle(document.querySelector('.ram')).borderTopColor, sp: (document.querySelector('.sp') || {}).textContent || '' }; });
   if (r.pomer !== 100) chyby.push('štítek: není čtvercový 70 × 70 mm');
   if (r.obr.length !== 2 || r.obr.some((x) => !x)) chyby.push('štítek: nenačetlo se logo hospice nebo logo firmy');
   if (r.ram !== 'rgb(0, 96, 170)') chyby.push('štítek: chybí modrý rámeček');
-  if (!r.sp.includes('hradí firma XY')) chyby.push('štítek: chybí text dole');
-  if (!stitekUlozeno.length || !stitekUlozeno[0].logoFirma.startsWith('data:image/png') || !stitekUlozeno[0].text.includes('firma XY')) chyby.push('štítek: vzhled se neuložil pro organizaci');
+  if (!r.sp.includes('Tento telefon i jeho provoz hradí Centrum pro léčbu bolesti a paliativní medicínu s.r.o., Zlín')) chyby.push('štítek: chybí věta „Tento telefon i jeho provoz hradí …“ s celým názvem firmy');
+  const okraj = await okno.evaluate(() => { const st = document.querySelector('.st').getBoundingClientRect(), ram = document.querySelector('.ram').getBoundingClientRect(), mm = st.width / 70; return (ram.left - st.left) / mm; }); if (okraj < 4) chyby.push('štítek: rámeček je moc u kraje papíru');
+  if (!stitekUlozeno.length || !stitekUlozeno[0].logoFirma.startsWith('data:image/png') || !stitekUlozeno[0].text.startsWith('Centrum pro léčbu')) chyby.push('štítek: vzhled se neuložil pro organizaci');
   await okno.screenshot({ path: path.join(VYSTUP, 'c-stitky-tisk.png'), clip: { x: 0, y: 0, width: 900, height: 360 } }); await okno.close(); }
 await p.evaluate(() => KP.closeModal());
 await foto(p, 'c-pacienti');

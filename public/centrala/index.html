@@ -1778,7 +1778,9 @@ async function stitkyOkno(predvybrani = []) {
 /* tisk štítků (od 0.11.102 70 × 70 mm, 3 × 4 na A4; dřív 70 × 37 mm, 3 × 8) (od 0.11.83 společný pro štítek pacienta i štítek telefonu s více pacienty) */
 const STITEK = { na: 12, sl: 3, v: 70, top: 8.5 };   // 0.11.102: štítek 70 × 70 mm, 3 × 4 na A4
 /* ---- vzhled štítku (0.11.102): modrý rámeček, logo hospice, text dole a logo firmy – nastavení pro celou organizaci ---- */
-const LOGO_VYCHOZI = '/img/logo-centrum.png';
+const LOGO_VYCHOZI = '/img/logo-most-k-domovu.png';   // 0.11.103: výchozí logo hospice Most k domovu
+const HRADI = 'Tento telefon i jeho provoz hradí';     // pevná věta na každém štítku; uživatel doplní jen kdo
+const jenFirma = (t) => String(t || '').trim().replace(/^.*?hrad[ií]\s*(firma)?\s*:?\s*/i, '');   // starší uložený text celou větou → jen název firmy
 let VZHLED_STITKU = null;
 async function nactiVzhledStitku() { if (!VZHLED_STITKU) { try { VZHLED_STITKU = await C('/stitek-vzhled'); } catch { VZHLED_STITKU = { text: '', logo: '', logoFirma: '' }; } } return VZHLED_STITKU; }
 nactiVzhledStitku.cache = () => VZHLED_STITKU || { text: '', logo: '', logoFirma: '' };
@@ -1786,7 +1788,7 @@ function vzhledStitkuHTML() {
   const v = nactiVzhledStitku.cache();
   return `<details class="panel" id="sv_panel" open style="margin:8px 0"><summary class="panel-h" style="cursor:pointer"><h2>Vzhled štítku</h2><span class="chip acc">modrý rámeček</span></summary><div style="padding:10px 14px;display:grid;gap:10px">
     <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap"><span class="lbl" style="margin:0;min-width:110px">Logo hospice</span><img id="sv_logo_nahled" alt="" style="height:34px;max-width:140px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px"><label class="btn sm">Nahrát logo<input type="file" id="sv_logo" accept="image/png,image/jpeg,image/webp" hidden></label><button class="btn sm" id="sv_logo_vych" type="button">Výchozí logo</button></div>
-    <div class="field" style="margin:0"><label>Text dole na štítku (nepovinné)</label><input id="sv_text" maxlength="120" value="${esc(v.text)}" placeholder="např. Tento telefon i jeho provoz hradí firma XY"></div>
+    <div class="field" style="margin:0"><label>Kdo telefon a jeho provoz hradí</label><input id="sv_text" maxlength="120" value="${esc(jenFirma(v.text))}" placeholder="např. Centrum pro léčbu bolesti a paliativní medicínu s.r.o."><span class="hint">Na každém štítku dole: „<b>${HRADI}</b> …“ + tento název. Prázdné = komu telefon patří.</span></div>
     <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap"><span class="lbl" style="margin:0;min-width:110px">Logo firmy (nepovinné)</span><img id="sv_firma_nahled" alt="" style="height:30px;max-width:140px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px"><label class="btn sm">Nahrát logo firmy<input type="file" id="sv_firma" accept="image/png,image/jpeg,image/webp" hidden></label><button class="btn sm" id="sv_firma_pryc" type="button">Bez loga firmy</button></div>
     <div class="hint">Logo hospice, text a logo firmy se uloží pro celou organizaci a předvyplní se i příště (loga PNG nebo JPG; zmenší se samy).</div></div></details>`;
 }
@@ -1810,10 +1812,10 @@ function bindVzhledStitku(m) {
   m.querySelector('#sv_logo_vych').onclick = () => { stav.logo = ''; kresli(); };
   m.querySelector('#sv_firma_pryc').onclick = () => { stav.logoFirma = ''; kresli(); };
   kresli();
-  if (!VZHLED_STITKU) nactiVzhledStitku().then((v) => { Object.assign(stav, v); m.querySelector('#sv_text').value = v.text || ''; kresli(); });
+  if (!VZHLED_STITKU) nactiVzhledStitku().then((v) => { Object.assign(stav, v); m.querySelector('#sv_text').value = jenFirma(v.text); kresli(); });
 }
 function ctiVzhledStitku(m) {
-  const v = { ...(m._vzhled || {}), text: m.querySelector('#sv_text').value.trim() };
+  const v = { ...(m._vzhled || {}), text: jenFirma(m.querySelector('#sv_text').value) };
   const puvodni = nactiVzhledStitku.cache();
   if (v.text !== puvodni.text || v.logo !== puvodni.logo || v.logoFirma !== puvodni.logoFirma) {
     VZHLED_STITKU = { text: v.text, logo: v.logo || '', logoFirma: v.logoFirma || '' };
@@ -1823,24 +1825,28 @@ function ctiVzhledStitku(m) {
 }
 function tiskniStitky(stitky, od, vzhled = {}) {
       const w = window.open('', '_blank'); if (!w) return toast('Prohlížeč zablokoval nové okno – povolte vyskakovací okna');
-      const logo = vzhled.logo || (location.origin + LOGO_VYCHOZI), firma = vzhled.logoFirma || '', textDole = vzhled.text || '';
+      const logo = vzhled.logo || (location.origin + LOGO_VYCHOZI), firma = vzhled.logoFirma || '', hradi = jenFirma(vzhled.text);
       const archy = []; let i = od - 1; stitky.forEach((x) => { const a = Math.floor(i / STITEK.na), pos = i % STITEK.na; (archy[a] = archy[a] || []).push({ ...x, pos }); i++; });
       w.document.write(`<!doctype html><html lang="cs"><head><meta charset="utf-8"><title>Štítky na telefony – Karta pacienta</title><style>
         @page{size:A4;margin:0}body{margin:0;font-family:system-ui,-apple-system,Arial,sans-serif;color:#111}.arch{position:relative;width:210mm;height:297mm;page-break-after:always;overflow:hidden}
-        .st{position:absolute;width:70mm;height:70mm;box-sizing:border-box;padding:2mm;overflow:hidden}
-        .ram{box-sizing:border-box;height:100%;border:.8mm solid #0060AA;border-radius:4mm;padding:2.6mm 3.2mm 2.2mm;display:flex;flex-direction:column;justify-content:space-between;gap:1.2mm;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-        .hl{display:flex;align-items:center;gap:2.6mm;min-height:0;padding-bottom:1.6mm;border-bottom:.3mm solid #cfe0f1}.hl img{height:12mm;max-width:24mm;object-fit:contain;flex:none}
-        .st .k{font-size:6.6pt;letter-spacing:.5pt;text-transform:uppercase;color:#0060AA;font-weight:800;line-height:1.1}.st .o{font-size:8.6pt;font-weight:700;line-height:1.12;color:#111;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-        .st .j{font-size:9.6pt;line-height:1.15}.st .j b{font-size:10.2pt}
-        .st .v{font-size:7.2pt;color:#333;line-height:1.1}.st .t{font-size:16pt;font-weight:800;letter-spacing:.3pt;line-height:1.05;color:#0060AA}.st .c{font-size:8.4pt;line-height:1.15;border-top:.3mm solid #0060AA;border-bottom:.3mm solid #0060AA;padding:.8mm 0}.st .c b{font-size:11pt;letter-spacing:.3pt}
-        .sp{display:flex;align-items:center;gap:2.4mm;border-top:.3mm dashed #9cb8d6;padding-top:1.4mm;min-height:0}.sp span{font-size:7.2pt;line-height:1.15;color:#222;font-style:italic;flex:1;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}.sp.dlouhy span{font-size:6.4pt}.sp img{height:9mm;max-width:21mm;object-fit:contain;flex:none}
+        .st{position:absolute;width:70mm;height:70mm;box-sizing:border-box;padding:4.5mm;overflow:hidden}
+        .ram{--f:1;box-sizing:border-box;height:100%;border:.7mm solid #0060AA;border-radius:3.6mm;padding:2.2mm 2.6mm 1.8mm;display:flex;flex-direction:column;justify-content:space-between;gap:1mm;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .hl{display:flex;align-items:center;gap:2.2mm;min-height:0;padding-bottom:1.3mm;border-bottom:.3mm solid #cfe0f1}.hl img{height:calc(var(--f) * 11mm);max-width:22mm;object-fit:contain;flex:none}
+        .st .k{font-size:calc(var(--f) * 6.1pt);letter-spacing:.4pt;text-transform:uppercase;color:#0060AA;font-weight:800;line-height:1.1}.st .o{font-size:calc(var(--f) * 8pt);font-weight:700;line-height:1.12;color:#111;overflow-wrap:anywhere}
+        .st .j{font-size:calc(var(--f) * 8.8pt);line-height:1.15;overflow-wrap:anywhere}.st .j b{font-size:calc(var(--f) * 9.3pt)}
+        .st .v{font-size:calc(var(--f) * 6.6pt);color:#333;line-height:1.1}.st .t{font-size:calc(var(--f) * 14.5pt);font-weight:800;letter-spacing:.2pt;line-height:1.05;color:#0060AA;white-space:nowrap}.st .c{font-size:calc(var(--f) * 7.8pt);line-height:1.15;border-top:.3mm solid #0060AA;border-bottom:.3mm solid #0060AA;padding:.6mm 0;white-space:nowrap}.st .c b{font-size:calc(var(--f) * 10pt);letter-spacing:.2pt}
+        .sp{display:flex;align-items:center;gap:2mm;border-top:.3mm dashed #9cb8d6;padding-top:1.1mm;min-height:0}.sp span{font-size:calc(var(--f) * 6.8pt);line-height:1.15;color:#222;font-style:italic;flex:1;min-width:0;overflow-wrap:anywhere}.sp span b{font-style:normal}.sp img{height:calc(var(--f) * 8.5mm);max-width:19mm;object-fit:contain;flex:none}
         @media screen{body{background:#888;padding:10mm}.arch{background:#fff;margin:0 auto 10mm;box-shadow:0 2px 12px rgba(0,0,0,.4)}.st{outline:1px dashed #bbb}}</style></head><body>
         ${archy.map((a) => `<div class="arch">${a.map((x) => `<div class="st" style="left:${(x.pos % STITEK.sl) * 70}mm;top:${STITEK.top + Math.floor(x.pos / STITEK.sl) * STITEK.v}mm"><div class="ram">
           <div class="hl"><img src="${esc(logo)}" alt=""><div style="min-width:0"><div class="k">Karta pacienta · telefon patří</div><div class="o">${esc(x.org)}</div></div></div>
           ${x.jmeno ? `<div class="j"><b>${esc(x.jmeno)}</b> · ${esc(x.kod)}</div>` : ''}${x.zapujceno ? `<div class="j">Zapůjčeno: <b>${esc(x.zapujceno)}</b> <span class="v" style="white-space:nowrap">od ${esc(x.od)}</span></div>` : ''}${x.cislo ? `<div class="c">Tento telefon: <b>${esc(x.cislo)}</b></div>` : ''}
           <div><div class="v">Při nálezu nebo potížích s telefonem volejte</div><div class="t">${esc(x.tel)}</div></div>
-          ${textDole || firma ? `<div class="sp${textDole.length > 70 ? ' dlouhy' : ''}"><span>${esc(textDole)}</span>${firma ? `<img src="${esc(firma)}" alt="">` : ''}</div>` : ''}</div></div>`).join('')}</div>`).join('')}
-        <script>Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; }))).then(() => setTimeout(print, 150))<\/script></body></html>`);
+          <div class="sp"><span>${esc(HRADI)} <b>${esc(hradi || x.org)}</b></span>${firma ? `<img src="${esc(firma)}" alt="">` : ''}</div></div></div>`).join('')}</div>`).join('')}
+        <script>
+          const vejde = (r) => r.scrollHeight <= r.clientHeight + 0.5 && [...r.querySelectorAll('*')].every((e) => e.scrollWidth <= e.clientWidth + 1 || getComputedStyle(e).display === 'inline');
+          const prizpusob = () => document.querySelectorAll('.ram').forEach((r) => { let f = 1; while (!vejde(r) && f > 0.55) { f -= 0.03; r.style.setProperty('--f', f.toFixed(2)); } r.dataset.f = f.toFixed(2); });
+          Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; }))).then(() => { prizpusob(); document.body.dataset.hotovo = '1'; setTimeout(print, 150); });
+        <\/script></body></html>`);
       w.document.close();
 }
 /* 0.11.83: štítek na telefon s více pacienty – jeden na telefon (podle čísla telefonu s kartou), bez jmen pacientů:
