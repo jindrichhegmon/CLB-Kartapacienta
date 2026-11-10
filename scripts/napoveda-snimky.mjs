@@ -379,6 +379,12 @@ const foto = async (p, jmeno, { cela = false, vyska = null } = {}) => {
   }).filter(Boolean));
   if (krive.length) chyby.push(`${jmeno}: políčka vedle sebe nejsou v jedné úrovni: ${krive.join('; ')}`);
   await pretekani(p, jmeno);
+  // 0.11.106: v aplikaci nemá zůstat žádná emotikona – kp-ikony.js je nahrazuje vlastními ikonami (mimo <option>, bublin a polí)
+  const emo = await p.evaluate(() => { const rx = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{231A}-\u{23FF}]/u, ven = [];
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) { const el = n.parentElement; if (!el || el.closest('script,style,textarea,option,title,pre,code,.emo,[hidden]') || !el.offsetParent && getComputedStyle(el).position !== 'fixed') continue; const m = n.data.match(rx); if (m) ven.push(m[0] + ' v „' + n.data.trim().slice(0, 40) + '“'); }
+    return [...new Set(ven)].slice(0, 6); });
+  if (emo.length) chyby.push(`${jmeno}: zůstala emotikona – ${emo.join('; ')}`);
   const vp = p.viewportSize();
   const opt = { path: path.join(VYSTUP, jmeno + '.png'), animations: 'disabled' };
   if (cela || vyska) { opt.fullPage = true; if (vyska) opt.clip = { x: 0, y: 0, width: vp.width, height: vyska }; }

@@ -8,6 +8,11 @@
   const C = (barva) => ({ barva });
   /* symboly: název → vnitřek SVG (viewBox 0 0 24 24, fill none, stroke currentColor 2px) */
   const SYMBOLY = {
+    /* 0.11.106: kód na obrazovce, místo, počítač Mac / Windows */
+    'keypad': '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8v3H8z"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/>',
+    'map-pin': '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+    'apple': '<path d="M12 20.9c1.5 0 2.8 1.1 4 1.1 3 0 6-8 6-12.2A4.9 4.9 0 0 0 17 5c-2.2 0-4 1.4-5 2-1-.6-2.8-2-5-2a4.9 4.9 0 0 0-5 4.8C2 14 5 22 8 22c1.3 0 2.5-1.1 4-1.1z"/><path d="M10 2c1 .5 2 2 2 5"/>',
+    'windows': '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>',
     'clipboard': '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/>',
     'eye': '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     'eye-off': '<path d="M17.9 17.9A10.9 10.9 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 5.1-6M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2"/><path d="M1 1l22 22"/>',
@@ -103,6 +108,7 @@
     '🌅': 'sunrise', '📅': 'calendar', '🗓️': 'calendar', '🕘': 'clock', '🔁': 'refresh', '🔄': 'refresh',
     '⭐': ['star', '#e0a800'], '🎨': 'palette', '🏢': 'building', '🗺️': 'map', '⛶': 'maximize', '💳': 'credit-card',
     '📹': 'video', '🏠': 'home', '🏷': 'tag', '🖼': 'image', '☰': 'menu', '🪪': 'id-card',
+    '📟': 'keypad', '📍': 'map-pin', '↻': 'refresh', '🍎': 'apple', '🪟': 'windows',
     '🟢': ['dot', '#2fb86b'], '🟡': ['dot', '#f2c227'], '🟠': ['dot', '#f08c1e'], '🔴': ['dot', '#e5484d'], '🔵': ['dot', '#2e86d9'],
   };
   const klice = Object.keys(MAPA).map((k) => k.replace(/️/g, '')).sort((a, b) => b.length - a.length);
