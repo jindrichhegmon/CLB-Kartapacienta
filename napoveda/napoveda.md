@@ -282,13 +282,17 @@ Karta pacienta je vždy jen v jednom telefonu – s číslem uvedeným u pacient
 
 ### Štítek na telefon
 
-Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) nebo **🏷 Štítky na telefony** (v přehledu Pacienti, pro víc pacientů najednou) vytiskne samolepky na zadní stranu zapůjčeného telefonu. Na štítku je **komu telefon patří** (garant pacienta, např. Centrum pro léčbu bolesti; jde přepsat jedním textem pro všechny), **jméno pacienta a kód průkazu** (lze vypnout) a velkým písmem **kam volat** při nálezu nebo potížích (telefon 24/7 garanta, jinak zadané číslo). Formát: samolepky **70 × 37 mm, 3 vedle sebe a 8 pod sebou na archu A4** (Rayfilm / Avery 70 × 37, 24 kusů). V okně vyberete pacienty (předvybraní jsou ti s telefonem), počet štítků na pacienta a **první volný štítek** na načatém archu; tiskněte v měřítku 100 %.
+Tlačítko **🏷 Štítek na telefon** (u pacienta v záložce Telefon a PINy) nebo **🏷 Štítky na telefony** (v přehledu Pacienti, pro víc pacientů najednou) vytiskne samolepky na zadní stranu zapůjčeného telefonu. Na štítku je **komu telefon patří** (garant pacienta, např. Centrum pro léčbu bolesti; jde přepsat jedním textem pro všechny), **jméno pacienta a kód průkazu** (lze vypnout) a velkým písmem **kam volat** při nálezu nebo potížích (telefon 24/7 garanta, jinak zadané číslo). Formát: samolepky **70 × 70 mm, 3 vedle sebe a 4 pod sebou na archu A4** (12 kusů). V okně vyberete pacienty (předvybraní jsou ti s telefonem), počet štítků na pacienta a **první volný štítek** na načatém archu; tiskněte v měřítku 100 %.
 
 **Štítek pro telefon s více pacienty** (tlačítko ve stejném okně): jeden štítek **na telefon**, ne na pacienta, a **bez jmen pacientů a kódů průkazů** – hodí se pro telefon v domově pro seniory, který nese průkazy několika pacientů. Telefony se seskupí podle čísla telefonu s kartou; předzatržené jsou ty s více průkazy. U každého vyplníte **Zapůjčeno komu** (předvyplní se místem pacientů, je-li u všech stejné, např. DS C – doplňte oddělení nebo domov) a **datum zápůjčky** (předvyplní se dnem prvního spárování průkazu v telefonu). Na štítku je komu telefon patří, komu je zapůjčený a od kdy, v rámečku **číslo telefonu, na který se štítek lepí** (Tento telefon: …), a velkým písmem kam volat. Číslo telefonu s kartou je od verze 0.11.84 i na štítku pacienta.
 
 ![Štítek pro telefon s více pacienty – zapůjčeno komu a od kdy](/napoveda/img/c-stitky-telefon.png)
 
-![Vytištěný štítek telefonu s více pacienty – číslo telefonu, na který se lepí](/napoveda/img/c-stitky-tisk.png)
+**Vzhled štítku** (od 0.11.102): štítek má rozměr **70 × 70 mm** (3 × 4 = 12 štítků na arch A4, tisk v měřítku 100 % bez přizpůsobení stránce) a je v **modrém rámečku**. Nahoře je **logo hospice** – výchozí je logo Centra, tlačítkem **Nahrát logo** dáte vlastní (PNG nebo JPG). Dole může být **text** (např. *Tento telefon i jeho provoz hradí firma XY*) a **logo firmy** (Nahrát logo firmy). Vzhled je v okně štítků v panelu **Vzhled štítku** a uloží se **pro celou organizaci** – příště se předvyplní.
+
+![Vzhled štítku – logo hospice, text a logo firmy](/napoveda/img/c-stitky-vzhled.png)
+
+![Vytištěný štítek 70 × 70 mm – modrý rámeček, logo hospice, číslo telefonu a text s logem firmy](/napoveda/img/c-stitky-tisk.png)
 
 ### Kód lékaře
 

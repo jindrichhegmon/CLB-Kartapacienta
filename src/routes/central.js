@@ -65,6 +65,30 @@ central.post('/login', h(async (req) => {
   return { session: podepis({ typ: 'kp', tenant, uzivatelId: r.UzivatelID }, TTL), musiZmenitHeslo: !!r.MusiZmenitHeslo };
 }));
 
+/* vzhled štítku na telefon (0.11.102): logo hospice, text dole (např. „Tento telefon i jeho provoz hradí firma XY“) a logo firmy –
+   pro celou organizaci v A_KP_Nastaveni (STITEK_TEXT, STITEK_LOGO, STITEK_LOGO_FIRMA). Loga jako obrázek PNG/JPEG/WebP v data URL
+   (prohlížeč je před uložením zmenší), nejvýš 300 kB; SVG se nepřijímá. Měnit smí kdokoli kromě role jen čtenář. */
+const LOGO_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+central.get('/stitek-vzhled', sUzivatelem(async (q) => {
+  const n = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('STITEK_TEXT', 'STITEK_LOGO', 'STITEK_LOGO_FIRMA')`)).map((x) => [x.Klic, x.Hodnota || '']));
+  return { text: n.STITEK_TEXT || '', logo: n.STITEK_LOGO || '', logoFirma: n.STITEK_LOGO_FIRMA || '' };
+}));
+central.post('/stitek-vzhled', sUzivatelem(async (q, s, req) => {
+  if (s.role.every((r) => r === 'ctenar')) throw chyba('Vzhled štítku mění člen týmu (ne role jen čtenář)', 403);
+  const b = req.body || {};
+  const logo = (v, nazev) => { const x = String(v || ''); if (!x) return ''; if (x.length > 300000 || !LOGO_RE.test(x)) throw chyba(`${nazev}: nahrajte obrázek PNG nebo JPG (nejvýš asi 200 kB)`); return x; };
+  const zmeny = [];
+  if (b.text != null) zmeny.push(['STITEK_TEXT', text(b.text, 120)]);
+  if (b.logo != null) zmeny.push(['STITEK_LOGO', logo(b.logo, 'Logo hospice')]);
+  if (b.logoFirma != null) zmeny.push(['STITEK_LOGO_FIRMA', logo(b.logoFirma, 'Logo firmy')]);
+  for (const [k, v] of zmeny) {
+    await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
+      WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });
+  }
+  if (zmeny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'vzhled štítku na telefon změněn', detail: zmeny.map(([k]) => k).join(', '), ip: s.ip });
+  return { ok: true };
+}));
+
 central.get('/ja', sUzivatelem(async (q, s) => {
   const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni`);
   const nast = Object.fromEntries(n.map((x) => [x.Klic, x.Hodnota]));
