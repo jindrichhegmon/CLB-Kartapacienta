@@ -35,6 +35,11 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .top .ttl{min-width:0;flex:1}
 /* pruh pod hlavičkou: komu karta v tomto telefonu patří (tým × pacient a rodina) – od 0.11.11 */
 .rezim{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:4;display:flex;align-items:center;gap:6px 8px;padding:5px 12px;font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--rc,var(--accent-ink));white-space:nowrap;min-width:0}
+/* 0.11.108: v rámu (okno portálu PéčeDoma) se výřez displeje nepočítá – jinak přilepená hlavička visí o ~59 px níž přes obsah */
+html.vramu .top{top:0}
+html.vramu .rezim{top:56px}
+html.vramu .videocall-bar{padding-top:8px}
+html.vramu .hlp-top{padding-top:10px}
 .rezim .chip{background:rgba(255,255,255,.22);color:#fff;text-transform:none;letter-spacing:0;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
 .rezim.tym{--rc:#1b4f8a}.rezim.rodina{--rc:var(--violet)}
 @media print{.rezim{display:none}}

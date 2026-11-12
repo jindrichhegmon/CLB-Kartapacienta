@@ -1,6 +1,10 @@
 /* Společné funkce pro centrální aplikaci, kartu na mobilu a správu tenantů. */
 (function () {
   const KP = {};
+  // 0.11.108: stránka vložená v rámu (centrála nebo /pd/ v okně portálu PéčeDoma) – iPhone hlásí i v rámu výřez displeje
+  // (env(safe-area-inset-top) ≈ 59 px), přilepená hlavička pak visela o kus níž přes obsah; v rámu se odsazení výřezu neuplatní (kp.css html.vramu)
+  try { KP.vRamu = window.self !== window.top; } catch (e) { KP.vRamu = true; }
+  if (KP.vRamu) document.documentElement.classList.add('vramu');
   KP.CILE = { symptom: 'Symptomatická (úleva od obtíží)', limited: 'Omezená (léčba bez resuscitace a intenzivní péče)', full: 'Plná léčba' };
   KP.LIMITY = ['KPR', 'Umělá plicní ventilace', 'Hospitalizace', 'Antibiotika i.v.', 'Infuze / i.v. výživa', 'Sonda / PEG', 'Dialýza', 'Transfuze'];
   KP.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
