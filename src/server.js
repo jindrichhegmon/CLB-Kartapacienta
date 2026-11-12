@@ -36,7 +36,9 @@ app.use((req, res, next) => {
   const vRamu = (p) => req.path === p || req.path.startsWith(p + '/');
   if (vRamu('/pd') || vRamu('/centrala')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
   // 0.11.93: živý náhled karty – centrála vkládá /karta/?nahled=1 do rámečku; smí jen stránka ze stejného serveru (dřív DENY = prázdný náhled)
-  else if (vRamu('/karta')) res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  // 0.11.108: frame-ancestors platí pro všechny předky – centrála otevřená v okně portálu PéčeDoma (portál → centrála → náhled /karta/)
+  // měla prázdný telefon, protože portál nebyl mezi povolenými; povolené jsou stejné adresy jako u /pd a /centrala
+  else if (vRamu('/karta')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
   else res.setHeader('X-Frame-Options', 'DENY');
   // 0.11.60: mikrofon a fotoaparát smí stránka Karty a vložený hovor ze serveru videohovorů (Jitsi v iframe) – dřív „microphone=()“
   // zakazovalo mikrofon i vloženému hovoru („Permissions policy violation: microphone is not allowed in this document“), telefon nebylo slyšet
