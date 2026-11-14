@@ -11,7 +11,7 @@ import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, des
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
-import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani } from '../prenos.js';
+import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
 import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI, popisyDiagnoz, hledejDiagnozy } from '../pecedoma.js';
 
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
@@ -636,7 +636,8 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   // jeden telefon pro více pacientů (domov seniorů, 0.11.0): průkazy ostatních pacientů na stejném čísle v telefonu zůstanou, nový se přidá
   const dalsi = await q.all(`SELECT DISTINCT p.Prijmeni + ' ' + p.Jmeno AS jmeno FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
     WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.PacientID <> @p AND p.Stav = 'AKTIVNI' AND z.Telefon = @tel ORDER BY jmeno`, { p: id, tel: telKarty });
-  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, dalsiNaTelefonu: dalsi.map((x) => x.jmeno) };
+  const ci = vydejCislo({ typ: 'parovat', tenant: s.tenant, kod, rezim: 'ZAPUJCENY' }, telKarty, platnost);   // 0.11.110: 6místné číslo místo dlouhých kódů
+  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, dalsiNaTelefonu: dalsi.map((x) => x.jmeno), cislo: ci.cislo, cisloPlatnost: ci.platnost.toISOString() };
 }));
 
 /* vlastní telefon pacienta („Můj průkaz“): kód jen pro číslo pacienta, SMS na něj, nebo QR v ordinaci; platí 3 dny */
@@ -672,7 +673,8 @@ central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
       await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'odkaz pro vlastní telefon poslán SMS', detail: `${hezkyTel(tel)}${req.body.text && req.body.text !== SMS_PACIENT_VYCHOZI ? ' · vlastní text' : ''}`, ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }
-  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefon: hezkyTel(tel), stitek, smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms };
+  const ci = vydejCislo({ typ: 'parovat', tenant: s.tenant, kod, rezim: 'PACIENT' }, tel, platnost);   // 0.11.110: Můj průkaz i Průkaz pacienta
+  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefon: hezkyTel(tel), stitek, smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, cislo: ci.cislo, cisloPlatnost: ci.platnost.toISOString() };
 }));
 
 central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
@@ -722,7 +724,8 @@ central.post('/telefon/vymena', sUzivatelem(async (q, s, req) => {
   if (!smi.length) throw chyba('Výměnu telefonu připravuje garant nebo lékař v týmu pacientů v tomto telefonu', 403);
   const { kod, platnost } = zalozPrenos(smi.map((r) => ({ tenant: s.tenant, zarizeniId: r.ZarizeniID, tokenHash: r.TokenHash, telefon: tel })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: novy, zdroj: 'centrala' });
   for (const r of smi) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: 'výměna telefonu připravena v centrále', detail: `${hezkyTel(tel)} → ${hezkyTel(novy)}`, ip: s.ip });
-  return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, stary: hezkyTel(tel), novy: hezkyTel(novy),
+  const ci = vydejCislo({ typ: 'prenos', kod }, novy, platnost);
+  return { kod, kodZobrazeni: formatujKod(kod), cislo: ci.cislo, platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, stary: hezkyTel(tel), novy: hezkyTel(novy),
     pacienti: smi.map((r) => `${r.Prijmeni} ${r.Jmeno}`.trim()), bezOpravneni: aktualni.length - smi.length };
 }));
 /* hromadné nahrání pacientů do telefonu (0.11.99): garant nebo lékař vybere pacienty (např. Kde je = DS C) a číslo telefonu; centrála
@@ -749,7 +752,8 @@ central.post('/telefon/nahrat', sUzivatelem(async (q, s, req) => {
   }
   if (!ok.length) throw chyba('Žádného z vybraných pacientů nemůžete nahrát do telefonu (telefon páruje garant nebo lékař v týmu, průkaz musí být aktivní)', 403);
   const { kod, platnost } = zalozPrenos(ok.map((x) => ({ tenant: s.tenant, pacientId: x.id })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: tel, zdroj: 'nahrat' });
-  return { kod, kodZobrazeni: formatujKod(kod), platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, novy: hezkyTel(tel), pacienti: ok.map((x) => x.jmeno), bezOpravneni: bez.length };
+  const ci = vydejCislo({ typ: 'prenos', kod }, tel, platnost);
+  return { kod, kodZobrazeni: formatujKod(kod), cislo: ci.cislo, platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, novy: hezkyTel(tel), pacienti: ok.map((x) => x.jmeno), bezOpravneni: bez.length };
 }));
 central.get('/telefon/vymena/stav', sUzivatelem(async (q, s, req) => {
   const kod = normalizujKod(req.query.kod);

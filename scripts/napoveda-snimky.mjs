@@ -245,9 +245,9 @@ app.get('/api/c/pacient/:id/pecedoma/zpravy', j(chatOdpoved('OD_TYMU')));
 app.post('/api/c/pacient/:id/pecedoma/zprava', j(chatOdpoved('OD_TYMU')));
 app.get('/api/d/pecedoma/zpravy', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/d/pecedoma/zprava', j(chatOdpoved('OD_PACIENTA')));
-app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH.T420777000123`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
+app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', cislo: '482615', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH.T420777000123`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
 app.post('/api/c/pacient/:id/zarizeni', j({ ok: true }));
-app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', 'https://kartapacienta.example/pacient/#p=…') } : null })));
+app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', cislo: '730194', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', 'https://kartapacienta.example/pacient/#p=…') } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
 app.get('/api/c/tym-lidi/telefony', j(() => ({ telefony: [   // 0.11.85: telefony s kartou v okně týmu
   { telefon: '+420722916951', hezky: '+420 722 916 951', pacienti: [{ id: 1, jmeno: 'Zkušební Marie', kod: 'P-0007', rok: 1941 }, { id: 2, jmeno: 'Příkladný Josef', kod: 'P-0008', rok: 1938 }, ...['Vzorová Anna', 'Ukázková Jana', 'Testovací Karel', 'Příkladná Eva', 'Zkušební Jiří', 'Modelová Věra', 'Vzorný Pavel', 'Ukázkový Jan', 'Pokusná Ludmila', 'Smyšlená Olga', 'Ukázková Marta', 'Vzorová Alena', 'Pokusný Milan', 'Testovací Hana', 'Modelový Petr', 'Zkušební Věra', 'Příkladný Karel'].map((jm, i) => ({ id: 10 + i, jmeno: jm, kod: 'P-00' + (10 + i), rok: 1930 + i * 2 }))], skrytych: 1, vybran: true },
@@ -279,6 +279,8 @@ app.get('/api/c/pacient/:id/kod-lekare', j({ kod: kodDne(dnesLokalne()), platiDo
 app.get('/api/c/zarizeni', j({ zarizeni: [] }));
 app.get('/api/c/audit', j({ audit: [], ai: [] }));
 app.get('/api/d/parovaci-info', (req, res) => (String(req.query.kod).toUpperCase() === 'PROSLY00' ? res.status(404).json({ ok: false, chyba: 'Kód je neplatný nebo vypršel – vygenerujte v centrální aplikaci nový' }) : res.json({ ok: true, rezim: 'PACIENT', telefon: '+420 604 000 777' })));
+// 0.11.110: 6místné číslo z centrály → původní kód
+app.post('/api/d/cislo', j((req) => ({ '482615': { typ: 'parovat', tenant: TENANT, kod: 'TYJRRRQH', rezim: 'ZAPUJCENY' }, '730194': { typ: 'parovat', tenant: TENANT, kod: 'MPK4R7ZD', rezim: 'PACIENT' }, '264851': { typ: 'prenos', kod: 'N4TR8KWZ3MXP' } })[String(req.body.cislo)] || { ok: false, chyba: 'Číslo neplatí' }));
 app.post('/api/d/parovat', j((req) => (req.body.rezim === 'PACIENT'
   ? { token: `${TENANT}.9.ukazka`, tajemstvi: null, zarizeniId: 9, telefon: '+420 604 000 777', rezim: 'PACIENT', balik: balikPacient, videoToken: 'ukazka-video-token' }
   : { token: `${TENANT}.7.ukazka`, tajemstvi: TAJEMSTVI, zarizeniId: 7, telefon: '+420 777 000 123', rezim: 'ZAPUJCENY', balik })));
@@ -291,7 +293,7 @@ app.post('/api/d/prenos/prevzit', j((req) => { prenos.stav = 'prevzato'; prenos.
 app.post('/api/d/prenos/stav', j(() => (prenos.stav === 'prevzato' ? { stav: 'prevzato', pocet: 1 } : { stav: 'ceka', zbyva: 540 })));
 app.post('/api/d/prenos/zrusit', j({ zruseno: true }));
 app.get('/api/c/telefon/prukazy', j({ telefon: '+420 777 000 123', pacienti: [{ id: 7, kod: 'P-0007', jmeno: 'Zkušební Marie', vymena: true, deaktivace: true }, { id: 8, kod: 'P-0008', jmeno: 'Příkladný Josef', vymena: true, deaktivace: true }], nahrazene: [] }));
-app.post('/api/c/telefon/vymena', j((req) => { prenos = { stav: 'ceka', prevzato: false }; return { kod: 'H3QZ7MWK2PRT', kodZobrazeni: 'H3QZ-7MWK-2PRT', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=H3QZ7MWK2PRT', stary: '+420 777 000 123', novy: req.body.novyTelefon || '+420 777 000 123', pacienti: ['Zkušební Marie', 'Příkladný Josef'], bezOpravneni: 0 }; }));
+app.post('/api/c/telefon/vymena', j((req) => { prenos = { stav: 'ceka', prevzato: false }; return { kod: 'H3QZ7MWK2PRT', kodZobrazeni: 'H3QZ-7MWK-2PRT', cislo: '915372', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=H3QZ7MWK2PRT', stary: '+420 777 000 123', novy: req.body.novyTelefon || '+420 777 000 123', pacienti: ['Zkušební Marie', 'Příkladný Josef'], bezOpravneni: 0 }; }));
 app.get('/api/c/telefon/vymena/stav', j(() => (prenos.stav === 'prevzato' ? { stav: 'prevzato', pocet: 2 } : { stav: 'ceka', zbyva: 1740 })));
 app.post('/api/c/telefon/vymena/zrusit', j({ zruseno: true }));
 let stitekVzhled = { text: '', logo: '', logoFirma: '' }; const stitekUlozeno = [];
@@ -305,7 +307,7 @@ app.post('/api/d/cekani/stav', j(() => (kodTel.potvrzeno ? { stav: 'potvrzeno', 
 app.post('/api/c/pacient/:id/potvrdit-kod', j((req) => { kodTel.parPrijato = req.body; return { ok: true, telefon: '+420 777 000 123' }; }));
 app.post('/api/d/cekani/zrusit', j({ zruseno: true }));
 app.post('/api/c/telefon/potvrdit-kod', j((req) => { kodTel.prijato.push(req.body); if (req.body.kodTelefonu === '482913') kodTel.potvrzeno = true; return { ok: true, telefon: '+420 777 000 999' }; }));
-app.post('/api/c/telefon/nahrat', j((req) => { nahrano.push(req.body); prenos = { stav: 'ceka', prevzato: false }; return { kod: 'N4TR8KWZ3MXP', kodZobrazeni: 'N4TR-8KWZ-3MXP', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=N4TR8KWZ3MXP', novy: '+420 777 000 999', pacienti: ['Zkušební Marie', 'Ukázkový Jan'], bezOpravneni: 0 }; }));
+app.post('/api/c/telefon/nahrat', j((req) => { nahrano.push(req.body); prenos = { stav: 'ceka', prevzato: false }; return { kod: 'N4TR8KWZ3MXP', kodZobrazeni: 'N4TR-8KWZ-3MXP', cislo: '264851', platnost: new Date(Date.now() + 30 * 60e3).toISOString(), odkaz: 'https://kartapacienta.example/karta/#prenos=N4TR8KWZ3MXP', novy: '+420 777 000 999', pacienti: ['Zkušební Marie', 'Ukázkový Jan'], bezOpravneni: 0 }; }));
 app.post('/api/c/telefon/deaktivovat', j((req) => { deaktivace.push(req.body); return { deaktivovano: 2, zustalo: 0 }; }));
 const deaktivace = [];
 app.post('/api/d/sdilet', j((req) => { sdileno.push(req.body); return { cas: new Date().toISOString() }; }));
@@ -771,6 +773,16 @@ await p.fill('#f_poz', 'úprava z PéčeDoma'); await klik(p, '#ulozPlan'); awai
 if (!(await p.textContent('#work')).includes('PéčeDoma: MUDr. Petra Ukázková')) chyby.push('/pd/: nová verze plánu z PéčeDoma se po uložení neukázala');
 await p.close();
 
+console.log('6místné číslo z centrály (telefon u pacienta, Můj průkaz)');
+for (const [cesta, cislo, kod, popis] of [['/karta/', '482 615', 'TYJRRRQH', 'párovací stránka telefonu'], ['/pacient/', '730194', 'MPK4R7ZD', 'Můj průkaz']]) {
+  const pc = await stranka({ mobil: true });
+  await pc.goto(URL + cesta); await pc.waitForSelector('#p_cislo');
+  const dotaz = pc.waitForRequest((r) => r.url().endsWith('/api/d/parovat'), { timeout: 8000 }).catch(() => null);
+  await pc.fill('#p_cislo', cislo); await pc.fill('#p_tel', '+420 777 000 111'); await pc.click('#p_ok');
+  const r = await dotaz;
+  if (!r || !(r.postData() || '').includes(kod)) chyby.push(`${popis}: 6místné číslo z centrály nevedlo k párování kódem ${kod}`);
+  await pc.context().close();
+}
 console.log('Můj průkaz (telefon pacienta)');
 p = await stranka({ mobil: true });
 await p.goto(`${URL}/pacient/#p=${TENANT}.MPK4R7ZD`); await p.waitForSelector('#p_tel');

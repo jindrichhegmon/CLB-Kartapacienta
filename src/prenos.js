@@ -105,7 +105,32 @@ export function potvrdCekani(kod, telefon, prenos, nyni = Date.now()) {
 }
 export function zrusCekani(id) { return cekaniTel.delete(String(id || '')); }
 
+/* ---- 6místné číslo z centrály (0.11.110) ----
+   Centrála k párovacímu kódu (Spárovat telefon, Můj průkaz) i ke kódu přenosu (Nahrát do telefonu, Výměna telefonu) vydá
+   krátké 6místné číslo, které se do telefonu jen opíše místo dlouhých kódů. Číslo samo nic nepáruje: telefon s ním a se svým
+   číslem dostane původní kód (POST /api/d/cislo) a pokračuje obvyklou cestou, kde server znovu ověří číslo telefonu.
+   Číslo platí jen pro telefon, pro který bylo vydané, nejdéle 24 hodin a jen v paměti serveru (po restartu se vydá znovu). */
+export const CISLO_MAX_MS = 24 * 3600e3;
+const cisla = new Map();   // číslo → { cil, telefon, exp, klic }
+export function vydejCislo(cil, telefon, platnostDo, nyni = Date.now()) {
+  const klic = JSON.stringify(cil);
+  const exp = Math.min(new Date(platnostDo).getTime() || nyni, nyni + CISLO_MAX_MS);
+  for (const [c, k] of cisla) if (k.klic === klic && k.exp >= nyni) { k.exp = exp; k.telefon = telefon || ''; return { cislo: c, platnost: new Date(exp) }; }
+  let c;
+  do c = String(randomInt(100000, 1000000)); while (cisla.has(c));
+  cisla.set(c, { cil, telefon: telefon || '', exp, klic });
+  return { cislo: c, platnost: new Date(exp) };
+}
+/** telefon zadá číslo a své číslo telefonu → původní kód (cil), jinak null */
+export function najdiCislo(cislo, telefon, nyni = Date.now()) {
+  const k = cisla.get(String(cislo || '').replace(/\D/g, ''));
+  if (!k || k.exp < nyni) return null;
+  if (k.telefon && k.telefon !== telefon) return null;
+  return k.cil;
+}
+
 export function uklidPrenosy(nyni = Date.now()) {
+  for (const [k, c] of cisla) if (c.exp < nyni) cisla.delete(k);
   for (const [k, p] of cekajici) if (p.exp < nyni) cekajici.delete(k);
   for (const [k, c] of cekaniTel) if (c.exp < nyni) cekaniTel.delete(k);
   for (const [k, h] of hotove) if (nyni - h.cas > HOTOVO_DRZET_MS) hotove.delete(k);

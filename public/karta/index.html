@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.108';
+const APP_VERZE = 'karta-0.11.110';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -613,7 +613,8 @@ function kresliParovani(predvyplnit = {}, chyba = '') {
     <button class="btn" id="p_kodtel">📟 Bez kamery – kód na obrazovce</button>
     <button class="btn" id="p_prenos">Výměna telefonu – převzít průkazy ze starého telefonu</button>
     <button class="btn" id="p_inst" style="display:${instalace ? '' : 'none'}">Přidat kartu na plochu telefonu</button>
-    <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy z obrazovky centrální aplikace:</div>
+    <div class="field"><label>6místné číslo z centrální aplikace</label><input id="p_cislo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="123 456" style="font-size:28px;letter-spacing:.2em;text-align:center"><span class="hint">Centrála ho ukazuje vedle QR kódu (Spárovat telefon, Nahrát do telefonu, Výměna telefonu).</span></div>
+    <div class="muted" style="font-size:13px;text-align:center">nebo opište dlouhé kódy z obrazovky centrální aplikace:</div>
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters" value="${esc(predvyplnit.tenant || '')}"></div>
     <div class="field"><label>Párovací kód (8 znaků)</label><input id="p_k" autocapitalize="characters" value="${esc(predvyplnit.kod || '')}" style="font-size:22px;letter-spacing:.2em"></div>`}
     <div class="field"><label>Číslo tohoto telefonu</label><input id="p_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
@@ -621,7 +622,7 @@ function kresliParovani(predvyplnit = {}, chyba = '') {
     <div class="note">Po spárování telefon ukazuje krizovou kartu pacienta i bez připojení a při každém připojení se sám sesynchronizuje. Data jsou v telefonu šifrovaná. Jeden telefon může nést průkazy více pacientů (např. v domově seniorů) – po spuštění se nejdřív vybere pacient.</div>
     <div class="footer">${APP_VERZE}</div>`;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
-  $('p_ok').onclick = () => parovat($('p_t').value, $('p_k').value, $('p_tel').value);
+  $('p_ok').onclick = () => { const c = $('p_cislo'); if (c && c.value.trim()) return zCisla(c.value, $('p_tel').value); parovat($('p_t').value, $('p_k').value, $('p_tel').value); };
   if ($('p_zpet')) $('p_zpet').onclick = () => { history.replaceState(null, '', location.pathname); D = KARTY.length === 1 ? KARTY[0] : null; kresli(); };
   if (predvyplnit.kod) predvyplnTelefon(predvyplnit, KARTY.length ? 'Potvrdit a přidat průkaz' : 'Potvrdit a spárovat');
   if ($('p_qr')) $('p_qr').onclick = () => nactiQr();
@@ -820,6 +821,17 @@ async function prevzitPrenos(kod, telefon) {
     if (e.status === 404 || e.status === 409) { history.replaceState(null, '', location.pathname); return kresliPrevzeti({}, e.message); }
     toast(e.message);
   }
+}
+/* 0.11.110: 6místné číslo z centrály → původní kód (párovací nebo přenos) → obvyklá cesta */
+async function zCisla(cislo, telefon) {
+  const c = String(cislo || '').replace(/\D/g, '');
+  if (c.length !== 6) return toast('Číslo z centrální aplikace má 6 číslic');
+  if (!String(telefon || '').replace(/\D/g, '')) return toast('Zadejte číslo tohoto telefonu');
+  try {
+    const r = await KP.api('/api/d/cislo', { method: 'POST', body: { cislo: c, telefon } });
+    if (r.typ === 'prenos') return prevzitPrenos(r.kod, telefon);
+    return parovat(r.tenant, r.kod, telefon);
+  } catch (e) { toast(e.message); }
 }
 async function parovat(tenant, kod, telefon) {
   tenant = String(tenant || '').toUpperCase().trim(); kod = String(kod || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

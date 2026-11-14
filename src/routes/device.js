@@ -23,6 +23,7 @@ import { nahodny, sha256, zasifruj } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
 import { priradTymyTelefonu, srovnejTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
+import { najdiCislo } from '../prenos.js';
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { podepis, overSession } from '../crypto.js';
 import { config } from '../config.js';
@@ -263,6 +264,19 @@ device.post('/pecedoma/zprava', h(async (req) => {
     await audit(q, { zarizeniId: zid, kdo: z.Rezim === 'PACIENT' ? 'telefon pacienta' : 'telefon', pacientId: z.PacientID, akce: 'PéčeDoma: zpráva odeslána', detail: kdo, ip: ip(req) });
     return { zpravy: r.zpravy };
   });
+}));
+
+/* 0.11.110: 6místné číslo z centrály – telefon zadá číslo a své číslo telefonu, dostane původní kód (párovací, nebo kód přenosu)
+   a pokračuje jako po načtení QR kódu (/parovat, /prenos/prevzit); tam se číslo telefonu ověří znovu */
+device.post('/cislo', h(async (req) => {
+  omez('cislo:' + ip(req), 20, 3600e3);
+  const c = String(req.body.cislo || '').replace(/\D/g, '');
+  if (c.length !== 6) throw chyba('Číslo z centrální aplikace má 6 číslic');
+  const tel = normTel(req.body.telefon);
+  if (!tel) throw chyba('Zadejte číslo tohoto telefonu (např. +420 777 123 456)');
+  const cil = najdiCislo(c, tel);
+  if (!cil) throw chyba('Číslo neplatí – zkontrolujte ho i číslo telefonu (číslo platí jen pro telefon, pro který ho centrála vydala), případně si v centrální aplikaci otevřete okno znovu', 404);
+  return cil;
 }));
 
 device.post('/sdilet', h(async (req) => {

@@ -72,6 +72,9 @@ html.vramu .hlp-top{padding-top:10px}
 .plist .flag{margin-left:auto;flex:none}
 .plist .chev{color:var(--muted);flex:none}
 /* buttons */
+.cislo-tel{border:2px solid var(--accent);background:var(--accent-soft);border-radius:14px;padding:10px 14px;margin:8px 0 10px;text-align:center}
+.cislo-tel .lbl{margin:0}
+.cislo-tel .cislo{font:800 34px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;white-space:nowrap;color:var(--accent-ink);margin:2px 0}
 .btn{border:1px solid var(--accent);background:var(--surface);color:var(--accent);border-radius:6px;padding:0 12px;cursor:pointer;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;height:38px;min-height:38px;line-height:1.2}
 .btn:hover,.btn:active{background:var(--accent-soft)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}

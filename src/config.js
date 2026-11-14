@@ -49,7 +49,7 @@ export const config = {
   pdOriginy: env('KP_PD_ORIGINY', 'https://web-pecedoma.netlify.app').split(/\s+/).filter(Boolean),
   // 0.11.109: Průkaz pacienta – samostatný projekt DialogusPrukaz (web na Netlify) smí z prohlížeče volat párování, synchronizaci, sdílení a nápovědu
   prukazOriginy: env('KP_PRUKAZ_ORIGINY', 'https://dialogusprukaz.netlify.app').split(/\s+/).filter(Boolean),
-  verze: '0.11.109',
+  verze: '0.11.110',
 };
 
 export function zkontrolujKonfiguraci() {

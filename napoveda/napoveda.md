@@ -327,6 +327,8 @@ Pacient i jeho blízcí mohou mít průkaz ve svých telefonech – v aplikaci *
 
 ![Zpřístupnění průkazu v telefonu pacienta](/napoveda/img/c-pacientovi.png)
 
+- **6místné číslo** (od 0.11.110): okno ukazuje vedle QR kódu i velké číslo (např. *730 194*). Pacient ho v Mém průkazu nebo v aplikaci Průkaz pacienta zadá do pole **6místné číslo od lékaře** spolu se svým číslem telefonu – nic dlouhého se neopisuje. Číslo platí jen pro telefon, pro který bylo vydané, nejdéle 24 hodin (po aktualizaci serveru okno otevřete znovu, dostanete nové).
+
 - Kód platí **3 dny** a ve stejném telefonu (stejné číslo) jde během platnosti použít znovu – třeba po přidání aplikace na plochu iPhonu. Nový kód pro stejné číslo nahradí jen kopii v tom telefonu, ostatní telefony běží dál.
 - **Přehled**: panel ukazuje každý telefon – komu patří, číslo, stav (**čeká** = odkaz poslán, ale ještě neotevřen, s datem odeslání a platností kódu; **zpřístupněno** s časem posledního spojení; **ukončeno**). U čekajícího odkazu jsou tlačítka **Poslat znovu** (stejný kód, znovu SMS nebo QR) a **Zrušit** (kód přestane platit).
 - Pacient vidí plán, kontakty a tým. **Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí** a do deníku z něj nikdo nezapisuje.
@@ -453,7 +455,7 @@ Pod hlavičkou je v každém telefonu tmavomodrý pruh **KARTA TÝMU · telefon 
 
 1. Na telefonu u pacienta otevřete adresu karty (`…/karta/`) nebo odkaz z SMS.
 2. **iPhone**: chcete-li kartu jako aplikaci na ploše, nejdřív ji přidejte na plochu (Sdílet → **Přidat na plochu**), otevřete ji z plochy a **spárujte až tam**. Aplikace na ploše má vlastní úložiště – co se spáruje v Safari, na ploše nebude. **Android**: v Chromu menu ⋮ → Přidat na plochu / Nainstalovat aplikaci, nebo klepněte na tlačítko **Přidat kartu na plochu telefonu** na obrazovce párování (ukáže se, když to prohlížeč nabízí).
-3. Klepněte na **Načíst QR kód fotoaparátem** a namiřte na QR kód v okně Spárovat telefon v centrální aplikaci (nebo kódy opište ručně, nebo otevřete odkaz z SMS – kódy se vyplní samy). Po načtení kódu se předvyplní i číslo telefonu, pro které byl kód vydán – stačí ho potvrdit tlačítkem **Potvrdit a spárovat** (jiné číslo lze přepsat).
+3. Klepněte na **Načíst QR kód fotoaparátem** a namiřte na QR kód v okně Spárovat telefon v centrální aplikaci (nebo kódy opište ručně, nebo otevřete odkaz z SMS – kódy se vyplní samy). Po načtení kódu se předvyplní i číslo telefonu, pro které byl kód vydán – stačí ho potvrdit tlačítkem **Potvrdit a spárovat** (jiné číslo lze přepsat). **Nejjednodušší bez kamery** (od 0.11.110): okno Spárovat telefon v centrále ukazuje velké **6místné číslo** – v telefonu ho zadejte do pole **6místné číslo z centrální aplikace**, vyplňte číslo telefonu a stiskněte **Spárovat**.
 4. Zadejte **číslo tohoto telefonu** a klepněte na **Spárovat**. Karta se nahraje jen tehdy, když číslo odpovídá číslu u pacienta.
 
 ![Telefon – načtení QR kódu fotoaparátem](/napoveda/img/k-qr.png)
@@ -481,7 +483,9 @@ Kdo už měl průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívě
 
 ![Nahrát pacienty do telefonu](/napoveda/img/c-nahrat-telefon.png)
 
-**Telefon nenačte QR kód (bez kamery)** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**Spárovat telefon** u pacienta, **📱 Nahrát do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. (U jednoho pacienta jde na telefonu také opsat kód organizace a párovací kód z okna Spárovat telefon.) Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
+**Telefon nenačte QR kód – 6místné číslo** (od 0.11.110): okna **Spárovat telefon**, **📱 Nahrát do telefonu** i **Výměna telefonu** ukazují vedle QR kódu velké 6místné číslo. Na telefonu na stránce Spárovat telefon ho zadejte do pole **6místné číslo z centrální aplikace**, doplňte číslo telefonu a stiskněte **Spárovat** – telefon převezme průkazy stejně jako po QR kódu. Číslo platí jen pro telefon s číslem uvedeným v okně.
+
+**Opačně – kód z obrazovky telefonu** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**Spárovat telefon** u pacienta, **📱 Nahrát do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. (U jednoho pacienta jde na telefonu také opsat kód organizace a párovací kód z okna Spárovat telefon.) Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
 
 ![Telefon bez kamery – kód na obrazovce](/napoveda/img/k-bez-kamery.png)
 
@@ -662,7 +666,7 @@ Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří c
 ### Propojení
 
 1. Lékař průkaz zpřístupní (kapitola 8) – přijde SMS s odkazem, nebo lékař ukáže QR kód.
-2. Otevřete odkaz v telefonu (nebo `/pacient/` → **Načíst QR kód fotoaparátem**). Číslo vašeho telefonu je po načtení kódu předvyplněné – stačí klepnout na **Potvrdit a propojit** (kód byl vydán právě pro vaše číslo; jiné číslo lze přepsat).
+2. Otevřete odkaz v telefonu (nebo `/pacient/` → **Načíst QR kód fotoaparátem**, nebo zadejte **6místné číslo od lékaře** a své číslo telefonu). Číslo vašeho telefonu je po načtení kódu předvyplněné – stačí klepnout na **Potvrdit a propojit** (kód byl vydán právě pro vaše číslo; jiné číslo lze přepsat).
 3. Nastavte si **PIN** (6–12 číslic, dvakrát). Tímto PINem budete Můj průkaz otevírat a jím jsou data v telefonu zašifrovaná.
 
 ![Propojení s průkazem](/napoveda/img/p-propojeni.png)

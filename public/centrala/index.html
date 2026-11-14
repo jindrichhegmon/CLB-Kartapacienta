@@ -953,6 +953,7 @@ function pacientoviOkno(tel = '', stitek = '') {
           <div class="banner ${smsOk ? 'ok' : 'warn'}" style="margin-bottom:10px">${smsOk ? `Odkaz byl odeslán SMS na <b>${esc(r.telefon)}</b> (${esc(r.stitek || 'telefon pacienta')}). Příjemce ho otevře ve svém telefonu, potvrdí číslo a nastaví si vlastní PIN.${r.sms.text ? `<div class="lbl" style="margin-top:6px;white-space:pre-wrap">Odesláno: ${esc(r.sms.text)}</div>` : ''}` : `Kód půjde použít jen s číslem <b>${esc(r.telefon)}</b>.`}</div>
           ${r.sms && !r.sms.ok ? `<div class="banner crit" style="margin-bottom:10px">${esc(r.sms.chyba)}</div>` : ''}
           <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
+          ${cisloTelHTML(r, r.telefon, 'Můj průkaz nebo Průkaz pacienta')}
           <p>Pacient QR kód načte fotoaparátem telefonu, nebo otevře <b>${esc(S.verejna)}/pacient/</b> a zadá:</p>
           <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Kód od lékaře</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
           <p class="muted">Platí do ${esc(new Date(r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))} ; ve stejném telefonu ho jde během platnosti použít znovu (třeba po přidání aplikace na plochu). Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.</p>
@@ -1015,6 +1016,7 @@ async function parovat(sms, platnostHodin = 0.5, tiskOkno = null) {   // tiskOkn
       ${(r.dalsiNaTelefonu || []).length ? `<div class="banner ok" style="margin-bottom:10px">Na tomto čísle už je průkaz: <b>${r.dalsiNaTelefonu.map(esc).join(', ')}</b>. Nový průkaz se v telefonu přidá vedle, po spuštění se vybírá pacient (jeden telefon pro více pacientů, např. v domově).</div>` : ''}
       <div class="quick" style="margin-bottom:8px"><button class="btn ${smsOk ? '' : 'primary'}" id="pr_sms"${r.smsDostupne ? '' : ' disabled'}>${smsOk ? 'Poslat SMS znovu' : 'Poslat odkaz SMS na ' + esc(r.telefonKarty)}</button>${r.smsDostupne ? '' : `<span class="muted" style="font-size:13px">SMS teď nejde – ${esc(r.smsDuvod || 'není nastavená')}</span>`}</div>
       <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
+      ${cisloTelHTML(r, r.telefonKarty, 'Párovací stránka telefonu')}
       <p>Na telefonu u pacienta otevřete odkaz z SMS nebo naskenujte QR kód fotoaparátem, případně otevřete <b>${esc(S.verejna)}/karta/</b> a zadejte:</p>
       <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Párovací kód</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
       <div class="quick" style="align-items:center;margin:4px 0 6px"><label class="lbl" for="pr_plat" style="margin:0">Platnost kódu</label><select id="pr_plat" style="width:auto">${[[0.5, '30 minut'], [24, '24 hodin'], [72, '3 dny'], [168, '7 dní']].map(([h, n]) => `<option value="${h}" ${h === platnostHodin ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn primary" id="pr_tisk" type="button" title="A4 s QR kódem a postupem – sestra spáruje telefon u pacienta v terénu">🖨 Vytisknout párování</button></div>
@@ -1602,6 +1604,9 @@ function nahratDoTelefonuOkno(pacienti) {
     pocet(); setTimeout(() => $('nt_q').focus(), 50);
   });
 }
+/* 0.11.110: 6místné číslo pro telefon – zadá se v telefonu místo QR kódu nebo dlouhých kódů (jen telefon se správným číslem) */
+const cisloTelHTML = (r, tel, kde) => r.cislo ? `<div class="cislo-tel"><div class="lbl">Nebo v telefonu zadejte číslo</div><div class="cislo">${esc(r.cislo.slice(0, 3))} ${esc(r.cislo.slice(3))}</div>
+  <div class="muted" style="font-size:12.5px">${esc(kde)} → pole <b>6místné číslo</b> · jen pro telefon ${esc(tel)} · platí do ${esc(new Date(r.cisloPlatnost || r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))}</div></div>` : '';
 function vymenaQr(v) {
   const kod = v.kod; let bezi = true;
   let svg = ''; try { const qr = qrcode(0, 'M'); qr.addData(v.odkaz); qr.make(); svg = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch { /* kód jde opsat */ }
@@ -1609,7 +1614,8 @@ function vymenaQr(v) {
   modal(`<h2>${v.nahrat ? `Nahrát do telefonu ${esc(v.novy)}` : `Výměna telefonu ${esc(v.stary)} → ${esc(v.novy)}`}</h2>
     <div class="grid2" style="align-items:center"><div class="qr" style="justify-self:center">${svg}</div>
       <div><ol style="margin:0 0 8px 18px;padding:0;line-height:1.5"><li>Na <b>novém</b> telefonu (${esc(v.novy)}) svítí stránka <b>Spárovat telefon</b> (v kiosku po spuštění; je-li v telefonu už pacient: <b>Přidat dalšího pacienta do telefonu</b>).</li><li>Stiskněte <b>Načíst QR kód fotoaparátem</b> a namiřte na tuto obrazovku.</li><li>Zkontrolujte číslo telefonu a stiskněte <b>Převzít průkazy</b>.</li></ol>
-      <div style="font:700 22px ui-monospace,monospace;letter-spacing:.08em">${esc(v.kodZobrazeni)}</div>
+      ${cisloTelHTML(v, v.novy, 'Párovací stránka telefonu')}
+      <div class="muted" style="font-size:12.5px">dlouhý kód: <span style="font:700 14px ui-monospace,monospace;letter-spacing:.06em">${esc(v.kodZobrazeni)}</span></div>
       <div class="note" id="vt_stav">${v.nahrat ? 'Nahraje se' : 'Převezme se'} ${v.pacienti.length} průkaz(ů): ${esc(v.pacienti.join(', '))}${v.bezOpravneni ? ` · ${v.bezOpravneni} bez vašeho oprávnění se nepřenese` : ''}. Kód platí do ${esc(konec.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }))} a jde použít jen jednou.</div></div></div>
     <div class="panel" style="margin:10px 0 0"><div class="panel-h"><h2>Telefon nenačte QR kód?</h2><span class="chip">bez kamery</span></div><div style="padding:10px 14px">
       <div class="muted" style="margin-bottom:6px">Na telefonu stiskněte <b>📟 Bez kamery – kód na obrazovce</b>, zadejte číslo ${esc(v.novy)} a opište sem kód, který telefon ukáže.</div>

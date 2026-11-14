@@ -61,7 +61,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - vše je v IndexedDB šifrované dvakrát: klíčem odvozeným z PINu pacienta (PBKDF2) a klíčem telefonu, který nejde vyexportovat;
  *    bez PINu z telefonu nic přečíst nejde – ani token pro spojení se serverem
  */
-const APP_VERZE = 'pacient-0.11.106';
+const APP_VERZE = 'pacient-0.11.110';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let D = null;          // odemčená data: { tenant, token, zarizeniId, telefon, balik, posledniSync, parovano, odpojeno, moje:{…} }
@@ -559,7 +559,8 @@ function propojeniHTML(predvyplnit = {}, chyba = '') {
     ${jeIosProhlizec() ? '<div class="banner warn">Chcete Můj průkaz jako aplikaci na ploše? Přidejte ho na plochu (Sdílet → Přidat na plochu), otevřete z plochy a propojte tam <b>stejným kódem</b> (QR kód nebo odkaz z SMS – platí 3 dny). Aplikace na ploše má vlastní úložiště; kopie tady v Safari po propojení na ploše skončí.</div>' : ''}
     ${predvyplnit.kod ? `<div class="banner ok" id="p_info">Kód načten (${esc(predvyplnit.kod.slice(0, 4))} ${esc(predvyplnit.kod.slice(4))}) – zjišťuji číslo telefonu…</div><input type="hidden" id="p_t" value="${esc(predvyplnit.tenant || '')}"><input type="hidden" id="p_k" value="${esc(predvyplnit.kod || '')}"><button class="btn" id="p_jiny">Mám jiný kód – načíst QR kód nebo opsat</button>` : `
     <button class="btn primary" id="p_qr" style="font-size:18px;padding:14px">Načíst QR kód fotoaparátem</button>
-    <div class="muted" style="font-size:13px;text-align:center">nebo opište kódy od lékaře:</div>
+    <div class="field"><label>6místné číslo od lékaře</label><input id="p_cislo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="123 456" style="font-size:28px;letter-spacing:.2em;text-align:center"></div>
+    <div class="muted" style="font-size:13px;text-align:center">nebo opište dlouhé kódy od lékaře:</div>
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters"></div>
     <div class="field"><label>Kód od lékaře (8 znaků)</label><input id="p_k" autocapitalize="characters" style="font-size:22px;letter-spacing:.2em"></div>`}
     <div class="field"><label>Číslo vašeho telefonu</label><input id="p_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
@@ -567,7 +568,18 @@ function propojeniHTML(predvyplnit = {}, chyba = '') {
     <div class="note">Po propojení si nastavíte vlastní PIN. Uvidíte svůj plán péče, kontakty a tým od lékaře a můžete si vést vlastní přání, léky a poznámky – ty zůstávají jen ve vašem telefonu.</div>
     <div class="footer">${APP_VERZE}</div>`;
   KP.sbalVysvetlivky($('work'), { pred: '.footer' });
-  $('p_ok').onclick = () => propojit($('p_t').value, $('p_k').value, $('p_tel').value);
+  $('p_ok').onclick = async () => {
+    const c = $('p_cislo');
+    if (!c || !c.value.trim()) return propojit($('p_t').value, $('p_k').value, $('p_tel').value);
+    // 0.11.110: 6místné číslo z centrály → kód od lékaře
+    const ci = c.value.replace(/\D/g, '');
+    if (ci.length !== 6) return toast('Číslo od lékaře má 6 číslic');
+    if (!$('p_tel').value.replace(/\D/g, '')) return toast('Zadejte číslo svého telefonu');
+    try { const r = await KP.api('/api/d/cislo', { method: 'POST', body: { cislo: ci, telefon: $('p_tel').value } });
+      if (r.typ !== 'parovat') return toast('Toto číslo je pro telefon zapůjčený od hospice (Karta pacienta), ne pro Můj průkaz');
+      propojit(r.tenant, r.kod, $('p_tel').value);
+    } catch (e) { toast(e.message); }
+  };
   if (predvyplnit.kod) predvyplnTelefon(predvyplnit, 'Potvrdit a propojit');
   if ($('p_qr')) $('p_qr').onclick = () => nactiQr();
   if ($('p_jiny')) $('p_jiny').onclick = () => { history.replaceState(null, '', location.pathname); propojeniHTML(); };
