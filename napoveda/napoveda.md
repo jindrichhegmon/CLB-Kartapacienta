@@ -730,6 +730,8 @@ Když vám lékař zavolá z centrální aplikace (u pacienta tlačítko **Video
 
 Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus, verze 0.1, říjen 2026). Na rozdíl od Mého průkazu (kapitola 19) **nemá žádný server ani garanta**: kartu si pacient založí sám, všechno zůstává jen v jeho telefonu, šifrované PINem, a o každém sdílení rozhoduje pacient. Je to prototyp k diskusi, ne součást ostré sítě Karty pacienta.
 
+**Od listopadu 2026 se Průkaz vyvíjí samostatně** (projekt DialogusPrukaz) na adrese **https://dialogusprukaz.netlify.app/prukaz/**, s aplikací *Průkaz pacienta* pro Android a iPhone. Stránka `/prukaz/` na serveru Karty zůstává jako původní prototyp. Nová verze se umí **propojit s Kartou pacienta** stejným kódem jako Můj průkaz (kapitola 19): v Přehledu *Propojit s Kartou pacienta* → QR kód, odkaz z SMS nebo opsané kódy. Údaje od lékaře (diagnózy, léky, plán péče, kontakty a tým) se pak doplní se štítkem *z Karty pacienta* a mění je jen lékař; přání, léky a otázky pacienta tým vidí v centrále stejně jako z Mého průkazu (Od pacienta). Propojení Průkazu odpojí Můj průkaz se stejným číslem telefonu.
+
 ![Průkaz pro plán péče – úvod](/napoveda/img/q-uvod.png)
 
 - **Úvod**: Vytvořit moji kartu (zvolíte PIN), Obnovit ze zálohy (soubor .prukaz + heslo), Otevřít ukázku (smyšlená data, nic se neukládá).

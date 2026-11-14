@@ -48,6 +48,20 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
   next();
 });
+/* 0.11.109: CORS pro Průkaz pacienta (DialogusPrukaz, web na Netlify / aplikace pro Android a iPhone) – jen vyjmenované cesty
+   a jen z adres v KP_PRUKAZ_ORIGINY; přihlášení je hlavičkou Authorization (token zařízení), cookies se nepoužívají */
+const PRUKAZ_CESTY = new Set(['/api/d/parovat', '/api/d/parovaci-info', '/api/d/sync', '/api/d/sdilet', '/api/napoveda', '/api/napoveda/dotaz']);
+app.use((req, res, next) => {
+  const o = req.headers.origin;
+  if (!o || !PRUKAZ_CESTY.has(req.path.replace(/\/$/, '')) || !config.prukazOriginy.includes(o)) return next();
+  res.setHeader('Access-Control-Allow-Origin', o);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Max-Age', '600');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
 app.use('/api', express.json({ limit: '12mb' }));
 
 app.get('/api/health', async (req, res) => {
