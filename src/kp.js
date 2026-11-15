@@ -78,11 +78,15 @@ export async function opravneni(q, s, pacientId) {
   const vidi = admin || vTymu || !!navrh;
   if (!vidi) throw chyba('K tomuto pacientovi nemáte přístup (vaše pracoviště není v týmu kolem pacienta)', 403);
   const aktivni = pac.Stav === 'AKTIVNI';
+  // 0.11.111: jednoduchý režim organizace – kdo v týmu zapisuje (lékař i sestra, ne „jen čtení“ ani host), smí vše, co lékař:
+  // diagnózy, léky, alergie a plán (nová verze, v plánu je uvedeno, kdo ji uložil) a předání pacientovi do Průkazu pacienta
+  const jednoduse = !!s.jednoduchy && aktivni && tym.some((t) => t.Role !== 'HOST') && s.role.some((r) => r !== 'ctenar');
   return {
     vidi: true,
     aktivni,
-    lekar: aktivni && jeLekar && (jeGarant || tym.some((t) => ['GARANT', 'LEKAR'].includes(t.Role))),
-    garant: aktivni && ((jeGarant && (jeLekar || admin)) || admin),
+    jednoduchy: !!s.jednoduchy,
+    lekar: (aktivni && jeLekar && (jeGarant || tym.some((t) => ['GARANT', 'LEKAR'].includes(t.Role)))) || jednoduse,
+    garant: (aktivni && ((jeGarant && (jeLekar || admin)) || admin)) || jednoduse,
     // host v týmu (např. nemocnice při hospitalizaci) jen čte – zapisuje garant, lékař a péče
     zapis: aktivni && (tym.some((t) => t.Role !== 'HOST') || admin) && !s.role.every((r) => r === 'ctenar'),
     prijmoutGaranci: aktivni && !!navrh && jeLekar,
@@ -180,10 +184,12 @@ export function normalizujPlan(d = {}) {
   };
 }
 
+/** 0.11.111: kdo verzi plánu uložil – v jednoduchém režimu ji smí uložit i sestra, u jména je pak „(sestra)“ */
+export const kdoPlan = (s) => (s.role && !s.role.includes('lekar') && s.role.includes('sestra') ? `${s.jmeno} (sestra)` : s.jmeno);
 export async function ulozPlan(q, { pacientId, data, platnostDo, s, typ = 'ZMENA', poznamka = null }) {
   const r = await q.one(`SELECT ISNULL(MAX(Verze), 0) + 1 AS v FROM dbo.A_KP_PlanVerze WITH (UPDLOCK, HOLDLOCK) WHERE PacientID = @p`, { p: pacientId });
   await q.exec(`INSERT INTO dbo.A_KP_PlanVerze (PacientID, Verze, Data, PlatnostDo, PodepsalUzivatelID, PodepsalJmeno, Typ, Poznamka)
-    VALUES (@p, @v, @d, @pl, @u, @j, @t, @poz)`, { p: pacientId, v: r.v, d: JSON.stringify(normalizujPlan(data)), pl: platnostDo || null, u: s.uzivatelId, j: s.jmeno, t: typ, poz: poznamka });
+    VALUES (@p, @v, @d, @pl, @u, @j, @t, @poz)`, { p: pacientId, v: r.v, d: JSON.stringify(normalizujPlan(data)), pl: platnostDo || null, u: s.uzivatelId, j: kdoPlan(s), t: typ, poz: poznamka });
   return r.v;
 }
 

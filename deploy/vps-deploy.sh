@@ -34,7 +34,6 @@ CHRAN=()
 echo "2/3 Kopíruji kód na server…"
 rsync -az --delete -e "$SSH" --exclude node_modules --exclude .git --exclude .DS_Store --exclude .env \
   --exclude 'android/app/build' --exclude 'android/build' --exclude 'android/.gradle' --exclude 'android/app/release' \
-  --exclude 'prukaz-android/android/app/build' --exclude 'prukaz-android/android/build' --exclude 'prukaz-android/android/.gradle' \
   "${CHRAN[@]}" ./ "$VPS:$DIR/"
 [ ${#CHRAN[@]} -eq 0 ] || echo "   (aplikace pro QR kód public/android/kartapacienta.apk na tomto Macu není – na serveru zůstává ta stávající)"
 echo "3/3 Instaluji balíčky, aktualizuji databázi a restartuji aplikaci na serveru (1–2 minuty)…"

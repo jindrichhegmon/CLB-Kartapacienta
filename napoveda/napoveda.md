@@ -10,7 +10,7 @@ Aplikace má čtyři části, všechny na jedné adrese:
 |---|---|---|
 | Centrální aplikace | `/centrala/` | garant a tým kolem pacienta – lékaři, sestry, správce organizace |
 | Karta na telefonu | `/karta/` | zapůjčený telefon u lůžka pacienta (jen karta) – pečující (rodina, sestry), lékař na místě, posádka ZZS |
-| Můj průkaz | `/pacient/` | vlastní telefon pacienta a rodiny – plán od lékaře, záznam podání léků, vlastní přání a poznámky (kapitola 19) |
+| Průkaz pacienta | samostatná aplikace (DialogusPrukaz) | vlastní telefon pacienta a rodiny – údaje od lékaře si pacient zkopíruje do svého telefonu (kapitola 19); dřívější Můj průkaz (`/pacient/`) je od 0.11.111 zrušený |
 | Správa tenantů | `/tenanti/` | provozovatel platformy – zakládá organizace |
 
 Jak to funguje v kostce:
@@ -126,7 +126,7 @@ Záložky detailu jdou v pořadí **Krizová karta, Diagnóza, Plán péče, Lé
 
 ### Léky – jedna agenda
 
-Záložka **Léky** je jediné místo, kde se léky vedou. U pacienta **propojeného s PéčeDoma** jsou léky jedny pro portál i Kartu: Karta je čte přímo z PéčeDoma (Data klienta → Léky) a tým je tady může i měnit – **Přidat lék**, **Upravit**, **Vyřadit** (lék se v PéčeDoma zneaktivní, historie zůstává). Totéž hned vidí sestry v PéčeDoma, krizová karta, telefon u pacienta i Můj průkaz (telefony při nejbližší synchronizaci). U pacienta bez propojení jsou léky součástí plánu péče a mění je lékař (**Uložit** = nová verze plánu).
+Záložka **Léky** je jediné místo, kde se léky vedou. U pacienta **propojeného s PéčeDoma** jsou léky jedny pro portál i Kartu: Karta je čte přímo z PéčeDoma (Data klienta → Léky) a tým je tady může i měnit – **Přidat lék**, **Upravit**, **Vyřadit** (lék se v PéčeDoma zneaktivní, historie zůstává). Totéž hned vidí sestry v PéčeDoma, krizová karta a telefon u pacienta (při nejbližší synchronizaci). U pacienta bez propojení jsou léky součástí plánu péče a mění je lékař (**Uložit** = nová verze plánu).
 
 Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (záchranné), **Opioidy** (silná analgetika podávaná pravidelně – morfin, fentanyl, buprenorfin, oxykodon…), **Paliativní terapie** (ostatní léky paliativní péče – chronická terapie se od 0.11.92 nezadává) a **Parenterálně** (injekce a infuze sestry). Na krizové kartě je dlaždice **Medikace** vždy s **opioidy** a **SOS medikací**; **paliativní terapii** ukáže jen tehdy, když je u pacienta zatržené **Na krizové kartě ukazovat i paliativní terapii** (záložka Léky nebo plán péče – uložení je nová verze plánu). Skupinu vybíráte v poli **Typ** při přidání nebo úpravě léku; opioidy jsou v krizové kartě zvlášť pod SOS léky, aby je posádka ZZS i lékař viděli na první pohled.
 
@@ -154,7 +154,7 @@ Příští návštěva se od verze 0.11.92 na kartě ani v centrále **neukazuje
 
 ![Chat PéčeDoma s klientem z Karty pacienta](/napoveda/img/c-chat-pecedoma.png)
 
-Panel **Od pacienta** ukazuje, co pacient vede v aplikaci Můj průkaz – hodnoty a přání, poznámky a otázky, záznam podání léků (od verze 0.11.26 se přenášejí **automaticky** při každé změně v jeho telefonu; dřív jen po ručním odeslání v oddílu Sdílet). U každé položky je původ (např. „jak si pamatuji rozhovor se zdravotníkem“) a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam ani dříve vyslovené přání; v deníku je o tom zápis **Sdíleno pacientem**.
+Panel **Od pacienta** ukazuje, co pacient dříve poslal z aplikace Můj průkaz (zrušená v 0.11.111) – hodnoty a přání, poznámky a otázky, záznam podání léků. Nové záznamy už nepřibývají: Průkaz pacienta do Karty nic neposílá. U každé položky je původ a datum aktualizace. Jsou to údaje pacienta, ne lékařský záznam.
 
 ![Panel Od pacienta v záložce Krizová karta](/napoveda/img/c-od-pacienta.png)
 
@@ -252,7 +252,7 @@ Týmy u pacienta vybírá garant nebo lékař v týmu pro všechna pracoviště;
 
 ![Telefon u pacienta a PINy pro pečující](/napoveda/img/c-telefon.png)
 
-**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní všechny telefony pacienta – kartu u lůžka i Můj průkaz, i zamčené (od 0.11.55; stačí, aby byla aplikace na obrazovce) – a hovor se otevře v okně přímo v centrále (povolte fotoaparát a mikrofon). **Zavřít okno** nechá hovor běžet na pozadí (znovu ho otevřete tlačítkem Připojit se), **Ukončit hovor** ho ukončí i pro telefon – stejně jako zavěšení červeným sluchátkem uvnitř hovoru. U probíhajícího hovoru je i **Zavolat na telefon znovu** (starý hovor ukončí a telefon rozezvoní). Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
+**Videohovor na telefon** (záložka Krizová karta, od 0.11.45): tlačítko rozezvoní telefony pacienta s kartou u lůžka, i zamčené (od 0.11.55; stačí, aby byla aplikace na obrazovce) – a hovor se otevře v okně přímo v centrále (povolte fotoaparát a mikrofon). **Zavřít okno** nechá hovor běžet na pozadí (znovu ho otevřete tlačítkem Připojit se), **Ukončit hovor** ho ukončí i pro telefon – stejně jako zavěšení červeným sluchátkem uvnitř hovoru. U probíhajícího hovoru je i **Zavolat na telefon znovu** (starý hovor ukončí a telefon rozezvoní). Když naopak zavolá rodina nebo sestra z telefonu, u pacienta se objeví červený pruh *Z telefonu u pacienta volá…* s tlačítkem **Připojit se** a v přehledu pacientů upozornění; zvonící nebo probíhající hovor je vidět **v každé agendě** jako pruh pod hlavičkou (s tlačítky Připojit se, Odmítnout a Otevřít pacienta) a centrála na něj zazvoní; stav se obnovuje každých 15 sekund. Funguje jen s nastaveným serverem videohovorů (správce, `KP_JITSI_URL`).
 
 ![Centrála – z telefonu u pacienta volá sestra](/napoveda/img/c-video.png)
 
@@ -300,7 +300,7 @@ Tlačítko **Kód lékaře na dnešek** (jen lékař, když je telefon spárovan
 
 ### Linka paliativní podpory
 
-Panel **📞 Linka paliativní podpory** v záložce Telefon a PINy ukazuje všechna čísla přidělená kartě – **telefon s kartou** (z Detailu pacienta), zapůjčené telefony a vlastní telefony pacienta a rodiny (Můj průkaz) – a u každého, zda je **registrován k lince** ambulance. Registrované číslo se na linku dovolá, neregistrované ne.
+Panel **📞 Linka paliativní podpory** v záložce Telefon a PINy ukazuje všechna čísla přidělená kartě – **telefon s kartou** (z Detailu pacienta), zapůjčené telefony a vlastní telefony pacienta a rodiny (Průkaz pacienta) – a u každého, zda je **registrován k lince** ambulance. Registrované číslo se na linku dovolá, neregistrované ne.
 
 - **Aktivovat** zaregistruje číslo k lince, **Deaktivovat** registraci zruší (obojí s potvrzením). Mění lékař nebo garant, ostatní v týmu stav jen vidí.
 - Registrace se zapisuje do **PéčeDoma** – je to stejný seznam, jaký ukazuje filtr 📞 Linka v Klientech a zelený pruh „registrován k lince ✓“ v Datech klienta. Číslo registrované už z PéčeDoma má poznámku „z PéčeDoma“.
@@ -317,23 +317,21 @@ Rodině vydejte PIN přímo u pacienta: **jméno držitele**, role **rodina** a 
 
 **Záchranná služba** žádný PIN ani seznam lidí nepotřebuje – krizovou kartu vidí bez přihlášení a jméno a posádku zapíše až u zápisu výjezdu.
 
-### Vlastní telefony pacienta a rodiny (Můj průkaz)
+### Předání do Průkazu pacienta (vlastní telefon pacienta a rodiny)
 
-Pacient i jeho blízcí mohou mít průkaz ve svých telefonech – v aplikaci **Můj průkaz** (kapitola 19), **ve více telefonech najednou** (např. pacient, dcera, syn; nejvýš 6). Zpřístupňuje garant nebo lékař v týmu:
+Pacient i jeho blízcí si údaje od lékaře zkopírují do vlastního telefonu v aplikaci **Průkaz pacienta** (kapitola 19), **do více telefonů najednou** (např. pacient, dcera, syn; nejvýš 6). Předává garant nebo lékař v týmu, v jednoduchém režimu (kapitola 21) i sestra:
 
-1. V panelu **Vlastní telefony pacienta a rodiny** klikněte na **Zpřístupnit pacientovi v jeho telefonu** (nebo **Zpřístupnit v dalším telefonu**).
-2. Zadejte **mobil** a **komu** telefon patří (např. „dcera Jana“) – štítek se ukáže v přehledu. Kód půjde použít jen s tímto číslem.
-3. **Poslat SMS** – pacientovi přijde odkaz; **text SMS vidíte v okně a můžete ho upravit nebo doplnit** (např. jméno lékaře, co má pacient udělat), značka `{odkaz}` se nahradí odkazem pro jeho telefon; aplikace ukazuje délku a počet SMS a upravený text si pamatuje pro příště (tlačítko Původní text ho vrátí). Nebo **Zobrazit QR kód (v ordinaci)** – pacient ho načte fotoaparátem.
+1. V panelu **Průkaz pacienta v telefonu pacienta** klikněte na **Předat pacientovi do Průkazu** (nebo **Předat do dalšího telefonu**). V jednoduchém režimu je stejné tlačítko i na **Krizové kartě**.
+2. Zadejte **mobil** a **komu** telefon patří (např. „dcera Jana“). Kód půjde použít jen s tímto číslem.
+3. **Poslat SMS** – přijde odkaz na Průkaz pacienta a 6místné číslo; text SMS vidíte v okně a můžete ho upravit (`{odkaz}` = odkaz na Průkaz, `{cislo}` = 6místné číslo). Nebo **Zobrazit QR kód (v ordinaci)**.
 
-![Zpřístupnění průkazu v telefonu pacienta](/napoveda/img/c-pacientovi.png)
+![Předání do Průkazu pacienta](/napoveda/img/c-pacientovi.png)
 
-- **6místné číslo** (od 0.11.110): okno ukazuje vedle QR kódu i velké číslo (např. *730 194*). Pacient ho v Mém průkazu nebo v aplikaci Průkaz pacienta zadá do pole **6místné číslo od lékaře** spolu se svým číslem telefonu – nic dlouhého se neopisuje. Číslo platí jen pro telefon, pro který bylo vydané, nejdéle 24 hodin (po aktualizaci serveru okno otevřete znovu, dostanete nové).
-
-- Kód platí **3 dny** a ve stejném telefonu (stejné číslo) jde během platnosti použít znovu – třeba po přidání aplikace na plochu iPhonu. Nový kód pro stejné číslo nahradí jen kopii v tom telefonu, ostatní telefony běží dál.
-- **Přehled**: panel ukazuje každý telefon – komu patří, číslo, stav (**čeká** = odkaz poslán, ale ještě neotevřen, s datem odeslání a platností kódu; **zpřístupněno** s časem posledního spojení; **ukončeno**). U čekajícího odkazu jsou tlačítka **Poslat znovu** (stejný kód, znovu SMS nebo QR) a **Zrušit** (kód přestane platit).
-- Pacient vidí plán, kontakty a tým. **Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí** a do deníku z něj nikdo nezapisuje.
-- **Ukončit přístup** (u zpřístupněného telefonu) – data od lékaře se v tom telefonu přestanou aktualizovat; ostatní telefony to neovlivní. Co už pacient má, je jeho kopie a smazat ji nelze. Ukončený záznam odeberete ze seznamu tlačítkem **Odebrat**.
+- **6místné číslo** (od 0.11.110): okno ukazuje vedle QR kódu velké číslo (např. *730 194*). Pacient v Průkazu pacienta klepne na **Propojit s Kartou pacienta**, zadá číslo a své číslo telefonu – nic dlouhého se neopisuje. Číslo platí jen pro tento telefon, nejdéle 24 hodin (po aktualizaci serveru okno otevřete znovu).
+- Po propojení si pacient **sám, na svůj pokyn** zkopíruje diagnózy, léky, alergie, kontakty a plán – zkontroluje je a uloží. Nic se nesynchronizuje samo a **z Průkazu se do Karty nic neposílá**. Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí.
+- **Přehled**: panel ukazuje každý telefon – komu patří, číslo, stav (**čeká** s platností kódu; **propojeno** s časem posledního načtení; **ukončeno**). U čekajícího **Poslat znovu** a **Zrušit**, u propojeného **Ukončit přístup** (další načtení z Karty už nepůjde; co si pacient zkopíroval, je jeho).
 - Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
+- Dřívější aplikace **Můj průkaz** (`/pacient/`) je od 0.11.111 zrušená; její odkaz otevře stránku s odkazem na Průkaz pacienta.
 
 ## 9. Detail pacienta, dokumenty a uzavření průkazu
 
@@ -343,7 +341,7 @@ V záložce **Detail pacienta** (dříve Údaje) jsou identifikační údaje pac
 
 - **Detail pacienta**: identifikace pacienta a **Telefon s kartou**. Upravuje garant nebo lékař (**Uložit údaje**). Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci; telefon dostane jméno a rok narození, AI nedostane nic z toho.
 - **Informace pacientovi** – lékař tlačítkem **Potvrdit podpis** zaznamená, že pacient / zástupce dostal informace a podepsal je.
-- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** (záložka Léky – jedna agenda pro portál i Kartu) a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5). Přání, poznámky a otázky, které pacient zapíše v Mém průkazu, Karta u propojeného pacienta předá i do PéčeDoma (Data klienta → **🪪 Z Karty pacienta**), takže je lékař vidí i tam.
+- **PéčeDoma** (panel vpravo): zda je pacient propojený s klientem PéčeDoma, kdy proběhla synchronizace, tlačítka **Otevřít PéčeDoma** (odkaz z nastavení), **Synchronizovat teď**, **Propojit s klientem PéčeDoma** / **Odpojit** (lékař nebo garant). Z PéčeDoma se přebírají **aktivní léky** (záložka Léky – jedna agenda pro portál i Kartu) a **nejbližší plánovaná návštěva**; automaticky každých 30 minut, pokud to správce zapnul. Tlačítko **💬 Chat PéčeDoma s klientem** otevře zprávy portálu (kapitola 5). Přání, poznámky a otázky, které pacient dříve poslal z Mého průkazu (zrušeného v 0.11.111), Karta u propojeného pacienta předala i do PéčeDoma (Data klienta → **🪪 Z Karty pacienta**), takže je lékař vidí i tam.
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
 
 ![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
@@ -449,7 +447,7 @@ Od 0.11.65 jde Kartu pacienta otevřít i přímo z portálu PéčeDoma: v **Dat
 
 ## 13. Karta na telefonu – instalace a spárování
 
-Pod hlavičkou je v každém telefonu tmavomodrý pruh **KARTA TÝMU · telefon u pacienta** – tenhle telefon odemyká tým a rodina PINem a lékař v něm mění léky. Fialový pruh **KARTA PACIENTA A RODINY · vlastní telefon pacienta** má aplikace Můj průkaz (kapitola 19), kde léky nikdo nepřidává – pacient a rodina jen zaznamenávají podání. Po odemknutí ukazuje pruh karty týmu i roli a jméno, kdo ji odemkl.
+Pod hlavičkou je v každém telefonu tmavomodrý pruh **KARTA TÝMU · telefon u pacienta** – tenhle telefon odemyká tým a rodina PINem a lékař v něm mění léky. Fialový pruh **KARTA PACIENTA A RODINY · vlastní telefon pacienta** měla dřívější aplikace Můj průkaz (zrušená v 0.11.111, kapitola 19), kde léky nikdo nepřidával – pacient a rodina jen zaznamenávali podání. Po odemknutí ukazuje pruh karty týmu i roli a jméno, kdo ji odemkl.
 
 ![Telefon – spárování karty](/napoveda/img/k-parovani.png)
 
@@ -513,7 +511,7 @@ Výměnu jde spustit i **ze starého telefonu** (od 0.11.95):
 ![Starý telefon ukazuje QR kód výměny](/napoveda/img/k-vymena-stary.png)
 ![Nový telefon převezme průkazy](/napoveda/img/k-vymena-novy.png)
 
-Přenášejí se jen zapůjčené telefony (Karta pacienta). **Můj průkaz** ve vlastním telefonu pacienta se nepřenáší – pacient dostane nový kód od lékaře. Když se nové číslo liší, **vytiskněte znovu štítek** na telefon (Lidé a týmy → tým → Telefony s kartou). Kód vypršel nebo se použil? Na starém telefonu stiskněte Výměna telefonu znovu.
+Přenášejí se jen zapůjčené telefony (Karta pacienta). **Průkaz pacienta** ve vlastním telefonu pacienta se nepřenáší – je to pacientova aplikace s vlastními daty. Když se nové číslo liší, **vytiskněte znovu štítek** na telefon (Lidé a týmy → tým → Telefony s kartou). Kód vypršel nebo se použil? Na starém telefonu stiskněte Výměna telefonu znovu.
 
 - Hláška „Karta tohoto pacienta je určená pro jiné číslo telefonu“ znamená, že číslo neodpovídá – zkontrolujte ho v centrální aplikaci (Detail pacienta → Telefon s kartou).
 
@@ -550,7 +548,7 @@ Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité info
 
 Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Interní poznámky, Poznámky pacienta, Zprávy** (u pacienta propojeného s PéčeDoma)**, Zhoršení, Kontakty, Tým**; diagnóza je prvním oddílem krizové karty, takže je vidět už na zamčené první stránce. **Léky** jsou jedny: u pacienta propojeného s PéčeDoma přímo z PéčeDoma, jinak z plánu péče. **Lékař** (odemčení kódem lékaře nebo PINem lékaře) vidí na dlaždici Léky u propojeného pacienta rovnou jeden upravitelný seznam po skupinách (SOS léky, Opioidy, Pravidelná medikace, Parenterálně) s tlačítky **Upravit**, **Vyřadit** a **Přidat lék** – stejně jako v PéčeDoma; zápis jde do PéčeDoma a potřebuje připojení. Ostatní role vidí léky jen ke čtení (SOS léky, Opioidy, Pravidelná medikace).
 
-![Telefon – lékař upravuje léky](/napoveda/img/k-leky-lekar.png) U pacienta propojeného s PéčeDoma má krizová karta po odemknutí lékařem nebo členem týmu zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde; zamčená karta a rodina ho nevidí) a SOS léky v kartě jsou ty z PéčeDoma. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**; celé vlákno – všechno, co pacient a rodina napsali z Mého průkazu nebo z aplikace PéčeDoma, a odpovědi týmu – má od 0.11.34 vlastní dlaždici **Zprávy** s tlačítkem **💬 Odpovědět**. Lékař (i praktický) zprávy na telefonu **jen čte** – z telefonu se píše za stranu pacienta, lékař odpovídá z portálu PéčeDoma (Data klienta → Zprávy) nebo z centrály Karty, kde zpráva jde za Tým PéčeDoma: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Zprávy jsou barevně podle autora: **modře** píše poskytovatel (lékař, sestry, tým PéčeDoma), **fialově** strana klienta (pacient, rodina, karta u lůžka) – stejně v centrální aplikaci i v Mém průkazu. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
+![Telefon – lékař upravuje léky](/napoveda/img/k-leky-lekar.png) U pacienta propojeného s PéčeDoma má krizová karta po odemknutí lékařem nebo členem týmu zelený oddíl **PŘÍŠTÍ NÁVŠTĚVA · PéčeDoma** (kdy a kdo přijde; zamčená karta a rodina ho nevidí) a SOS léky v kartě jsou ty z PéčeDoma. Po odemknutí je na Kartě i panel **PéčeDoma** s posledními dvěma zprávami (vidět rovnou, bez rozklikávání) a tlačítkem **💬 Napsat týmu PéčeDoma**; celé vlákno – všechno, co pacient a rodina napsali z aplikace PéčeDoma (dříve i z Mého průkazu), a odpovědi týmu – má od 0.11.34 vlastní dlaždici **Zprávy** s tlačítkem **💬 Odpovědět**. Lékař (i praktický) zprávy na telefonu **jen čte** – z telefonu se píše za stranu pacienta, lékař odpovídá z portálu PéčeDoma (Data klienta → Zprávy) nebo z centrály Karty, kde zpráva jde za Tým PéčeDoma: rodina nebo tým u pacienta napíše sestrám a lékaři, zpráva se objeví v PéčeDoma u klienta (Data klienta → Zprávy) i v aplikaci PéčeDoma klienta a odpověď přijde sem. Zprávy jsou barevně podle autora: **modře** píše poskytovatel (lékař, sestry, tým PéčeDoma), **fialově** strana klienta (pacient, rodina, karta u lůžka) – stejně v centrální aplikaci. Píše se pod jménem a rolí odemknutí (např. „rodina Jana Zkušební“), chat potřebuje připojení k internetu.
 
 ![Telefon – chat s týmem PéčeDoma](/napoveda/img/k-chat.png)
 ![Telefon – dlaždice Zprávy s celým vláknem](/napoveda/img/k-zpravy.png)
@@ -559,7 +557,7 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Interní poznámk
 
 ![Telefon – zápis do deníku](/napoveda/img/k-denik.png)
 
-- **Poznámky pacienta** – přání a hodnoty, poznámky, otázky pro lékaře a záznam podání léků z aplikace Můj průkaz. Přenášejí se **automaticky** při každé změně v telefonu pacienta (je-li připojený); karta ukazuje poslední verzi každého druhu, jen ke čtení. Totéž vidí tým v centrální aplikaci v panelu Od pacienta.
+- **Poznámky pacienta** – přání a hodnoty, poznámky a otázky, které pacient dříve poslal z aplikace Můj průkaz (zrušená v 0.11.111); jen ke čtení.
 
 ![Telefon – Poznámky pacienta ze sdílení](/napoveda/img/k-od-pacienta.png)
 
@@ -578,7 +576,7 @@ Po odemknutí PINem (rodina i tým) je na kartě dlaždice **Videohovor**. Naho�
 
 ![Telefon – příchozí videohovor z centrály](/napoveda/img/k-video-zvoni.png)
 
-Když lékař zavolá z centrály (u pacienta tlačítko **Videohovor na telefon**), zazvoní **všechny telefony pacienta** – karta u lůžka i Můj průkaz (kapitola 19) – **v jakémkoli stavu**: zamčená karta, i výběr pacienta, je-li v telefonu více průkazů (telefon si pacienta sám otevře). Uprostřed obrazovky se otevře okno **Příchozí videohovor** se jménem volajícího a tlačítky **Přijmout** a **Odmítnout**; telefon zvoní a vibruje, dokud někdo hovor nevezme (nebo lékař nezavěsí). Přijmout může kdokoli u lůžka bez PINu. Hovor ukončíte tlačítkem **Ukončit** nahoře, nebo červeným sluchátkem uvnitř hovoru – obojí ho ukončí i pro centrálu. Jediná podmínka: aplikace je na obrazovce (v kiosku je vždy) – upozornění mimo aplikaci se neposílá. V kiosku na Androidu (aplikace 0.1.8 a novější) telefon při hovoru z centrály **sám probudí zhasnutý displej** a karta zazvoní; během zvonění a hovoru displej nezhasne. Nepřijatý hovor po 15 minutách skončí sám. Dlaždice se neukáže, dokud správce server videohovorů nenastaví.
+Když lékař zavolá z centrály (u pacienta tlačítko **Videohovor na telefon**), zazvoní **telefon s kartou u lůžka** – **v jakémkoli stavu**: zamčená karta, i výběr pacienta, je-li v telefonu více průkazů (telefon si pacienta sám otevře). Uprostřed obrazovky se otevře okno **Příchozí videohovor** se jménem volajícího a tlačítky **Přijmout** a **Odmítnout**; telefon zvoní a vibruje, dokud někdo hovor nevezme (nebo lékař nezavěsí). Přijmout může kdokoli u lůžka bez PINu. Hovor ukončíte tlačítkem **Ukončit** nahoře, nebo červeným sluchátkem uvnitř hovoru – obojí ho ukončí i pro centrálu. Jediná podmínka: aplikace je na obrazovce (v kiosku je vždy) – upozornění mimo aplikaci se neposílá. V kiosku na Androidu (aplikace 0.1.8 a novější) telefon při hovoru z centrály **sám probudí zhasnutý displej** a karta zazvoní; během zvonění a hovoru displej nezhasne. Nepřijatý hovor po 15 minutách skončí sám. Dlaždice se neukáže, dokud správce server videohovorů nenastaví.
 
 Při ohrožení života volejte **155** – karta nenahrazuje záchrannou službu.
 
@@ -621,7 +619,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 - Prohlížeč neposílá do databáze žádné příkazy – vše jde přes server a je vázané na přihlášeného uživatele. Každá organizace vidí jen svá data.
 - Pacienta vidí jen pracoviště v týmu kolem pacienta a správce organizace. Každé zobrazení a změna se zapisuje do neměnného logu přístupů.
 - Telefon: data v telefonu jsou šifrovaná klíčem, který nejde z telefonu vyexportovat; v databázi je jen otisk tokenu telefonu. Zablokovaný nebo uzavřený průkaz se ze zapůjčeného telefonu při připojení vymaže.
-- **Můj průkaz** (vlastní telefon pacienta): data jsou šifrovaná dvakrát – PINem pacienta a klíčem telefonu. Vlastní přání, poznámky a záznamy podání léků jsou jen v jeho telefonu; provozovatel ani tým je nevidí, dokud je pacient sám nepošle (výběr → náhled → potvrzení).
+- **Průkaz pacienta** (vlastní telefon pacienta): data má jen pacientův telefon, šifrovaná jeho PINem. Údaje od lékaře si zkopíruje jednosměrně na svůj pokyn; z Průkazu se do Karty ani týmu nic neposílá.
 - **AI jen anonymně**: rozbor propouštěcí zprávy i chat nápovědy dostávají text až po anonymizaci (jména, rodná čísla, data, adresy, telefony, e-maily → značky). Když v textu zůstane něco jako identifikátor, dotaz se neodešle.
 - Deník, historie garance, verze plánu a log přístupů nejde mazat ani přepisovat.
 
@@ -629,7 +627,7 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Telefon hlásí „Kód je neplatný nebo vypršel“.** Obrazovka párování se po této hlášce vrátí k tlačítku **Načíst QR kód fotoaparátem** a polím pro opsání kódů, takže nový kód načtete hned; prošlý odkaz z adresy zmizí a při dalším spuštění už se nenabízí. Tlačítko **Mám jiný kód** je i u načteného kódu. Nejčastěji byl kód mezitím nahrazen novým (každé další Spárovat telefon nebo Poslat SMS po vypršení vydá nový kód) nebo uběhlo 30 minut. Otevřete v centrální aplikaci Spárovat telefon znovu a použijte kód, který je na obrazovce teď; v kioskové aplikaci bez fotoaparátu ho opište ručně i s kódem organizace. Kiosková aplikace nesmí při nečinnosti mazat data webu (cache, úložiště), jinak se karta z telefonu ztratí a bude chtít spárovat znovu.
 
-**Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy / hlásí neplatný kód.** Aplikace na ploše má vlastní úložiště, co se spárovalo v Safari, na ploše není. Od verze 0.11.10 použijte v aplikaci na ploše **stejný kód** (odkaz z SMS nebo Načíst QR kód fotoaparátem, kapitola 13) – kód platí 30 minut (Můj průkaz 3 dny) i po prvním spárování; kopie v Safari tím skončí. Po vypršení vydejte v centrální aplikaci nový kód.
+**Po přidání karty na plochu iPhonu se aplikace ptá znovu na kódy / hlásí neplatný kód.** Aplikace na ploše má vlastní úložiště, co se spárovalo v Safari, na ploše není. Od verze 0.11.10 použijte v aplikaci na ploše **stejný kód** (odkaz z SMS nebo Načíst QR kód fotoaparátem, kapitola 13) – kód platí 30 minut i po prvním spárování; kopie v Safari tím skončí. Po vypršení vydejte v centrální aplikaci nový kód.
 
 **Telefon hlásí „určená pro jiné číslo telefonu“.** Zadané číslo neodpovídá poli Telefon s kartou u pacienta. Opravte číslo v Detailu pacienta, nebo zadejte číslo telefonu, který držíte.
 
@@ -653,88 +651,32 @@ Tlačítko **💬 Zeptat se** (nebo modré **?** vlevo dole v centrální aplika
 
 **Pacient chce průkaz ve svém telefonu.** V Telefon a PINy klikněte na Zpřístupnit pacientovi v jeho telefonu (kapitola 8, pro pacienta kapitola 19).
 
-**Pacient zapomněl PIN do Můj průkaz.** PIN nikdo neobnoví. Pacient v aplikaci zvolí Zapomněl(a) jsem PIN → Smazat vše a začít znovu a vy mu vydáte nový kód. Jeho vlastní záznamy, které předtím neposlal ani nevytiskl, jsou ztracené.
+**Pacient zapomněl PIN do Průkazu pacienta.** PIN nikdo neobnoví – pomůže jen jeho vlastní záloha. Údaje od lékaře mu znovu předáte tlačítkem **Předat pacientovi do Průkazu**.
 
-**Je to, co pacient napíše do Můj průkaz, dříve vyslovené přání?** Ne. Je to jeho osobní záznam. Platné DVP vyžaduje písemné poučení lékařem a úředně ověřený podpis (nebo zápis při přijetí do péče) – evidujte ho v plánu péče a v dokumentech.
+**Je to, co pacient napíše do Průkazu pacienta, dříve vyslovené přání?** Ne. Je to jeho osobní záznam. Platné DVP vyžaduje písemné poučení lékařem a úředně ověřený podpis (nebo zápis při přijetí do péče) – evidujte ho v plánu péče a v dokumentech.
 
 **Data na telefonu jsou stará.** Připojte telefon k internetu a klepněte na pruh s časem aktualizace (synchronizovat). Karta se synchronizuje i sama při každém otevření a každých 5 minut.
 
-## 19. Můj průkaz – průkaz ve vlastním telefonu pacienta
+## 19. Průkaz pacienta – údaje ve vlastním telefonu pacienta
 
-Aplikace **Můj průkaz** (`/pacient/`) je pro soběstačné pacienty, kteří chtějí mít svůj průkaz u sebe a připravit se na rozhovor s lékařem. Na rozdíl od zapůjčeného telefonu (kapitola 13) běží ve vlastním telefonu pacienta vedle jiných aplikací a otevírá ji jen pacient svým PINem.
+**Průkaz pacienta** je samostatná aplikace pacienta (projekt DialogusPrukaz, https://dialogusprukaz.netlify.app/prukaz/, i jako aplikace pro Android a iPhone). Pacient si v ní vede vlastní zdravotní kartu – data má **jen ve svém telefonu**, šifrovaná PINem. Karta pacienta je pro něj jen jeden ze zdrojů: údaje od lékaře si z ní **jednosměrně zkopíruje na svůj pokyn**. Do Karty ani týmu se z Průkazu nic neposílá.
 
-### Propojení
+Postup:
 
-1. Lékař průkaz zpřístupní (kapitola 8) – přijde SMS s odkazem, nebo lékař ukáže QR kód.
-2. Otevřete odkaz v telefonu (nebo `/pacient/` → **Načíst QR kód fotoaparátem**, nebo zadejte **6místné číslo od lékaře** a své číslo telefonu). Číslo vašeho telefonu je po načtení kódu předvyplněné – stačí klepnout na **Potvrdit a propojit** (kód byl vydán právě pro vaše číslo; jiné číslo lze přepsat).
-3. Nastavte si **PIN** (6–12 číslic, dvakrát). Tímto PINem budete Můj průkaz otevírat a jím jsou data v telefonu zašifrovaná.
+1. Pacient si nainstaluje Průkaz pacienta a založí si kartu (PIN).
+2. V Kartě pacienta tým klikne u pacienta na **Předat pacientovi do Průkazu** (kapitola 8 – Předání do Průkazu pacienta) a zadá mobil pacienta.
+3. Pacient v Průkazu klepne na **Propojit s Kartou pacienta** a zadá **6místné číslo** a své číslo telefonu (nebo načte QR kód, nebo vloží odkaz z SMS).
+4. Průkaz nabídne diagnózy, léky, alergie, kontakty a plán ke kontrole; pacient je uloží do své karty. Kdykoli později si může načíst aktuální stav znovu.
 
-![Propojení s průkazem](/napoveda/img/p-propojeni.png)
-![Nastavení PINu](/napoveda/img/p-pin.png)
+Rodina se ke kartě pacienta dostane buď **PINem na telefonu u lůžka** (kapitola 14), nebo si sama nainstaluje Průkaz pacienta a tým jí předá údaje do jejího telefonu.
 
-> Na iPhonu nejdřív přidejte Můj průkaz na plochu (Sdílet → Přidat na plochu) a propojte ho až v aplikaci na ploše.
-
-Je-li pacient propojený s PéčeDoma, je na hlavní stránce Průkaz hned pod krizovou kartou panel **Zprávy pro a od lékaře** – poslední dvě zprávy jsou vidět rovnou bez rozklikávání (načítají se na pozadí, naposledy načtené zůstanou i bez připojení), tlačítko otevře celé vlákno a odpověď; stejné zprávy jako v aplikaci PéčeDoma; lékař a sestry je vidí u klienta v portálu a odpoví sem. Ve vlákně je pacient označený „Vy“, druhá strana „Lékař a tým“.
-
-![Můj průkaz – Zprávy pro a od lékaře](/napoveda/img/p-zpravy-chat.png)
-
-### Co v aplikaci najdete
-
-Vysvětlující texty nejsou mezi údaji: obrazovka ukazuje jen důležité informace a tlačítka, všechny vysvětlivky jsou až dole v bloku **ⓘ Vysvětlivky**, který se rozbalí klepnutím.
-
-![Můj průkaz – přehled s krizovou kartou](/napoveda/img/p-prehled.png)
-
-- **Průkaz** – krizová karta tak, jak ji vede váš lékař, a přehled vašich záznamů.
-- **Od lékaře** – plán péče, doklad k limitacím, SOS léky, léky podle lékaře, kontakty a tým. Vše je **jen ke čtení** a s původem (kdo a kdy plán stanovil). Mění to jen lékař.
-- **Přání** – vaše hodnoty a přání: co je pro vás důležité, čeho se obáváte, co mají lékaři zohlednit, koho chcete mít u rozhodování. U záznamu vyberte, **odkud je**: vlastní příprava, jak si pamatujete rozhovor se zdravotníkem (s kým, kdy), nebo opsáno ze záznamu zdravotníka.
-- **Léky** – **Předepsané léky** od lékaře, rozdělené jako v centrální aplikaci na SOS léky, opioidy a pravidelnou medikaci. Léky předepisuje a mění jen lékař, v telefonu je nejde přidat ani upravit. U každého léku klepnete na **Podán**, když ho vezmete (u SOS léků i vícekrát za den), nebo **Nepodán**, když jste ho vynechali; u léku je hned vidět, kdy byl podán naposled a co bylo dnes, **Historie** ukáže všechny dny. Záznamy zůstávají v telefonu a nejde je měnit ani mazat; týmu je pošlete v oddílu Sdílet.
-- **Poznámky pacienta** – otázky pro lékaře a poznámky, jak se máte. Přání, poznámky, otázky i záznam podání léků vidí **tým automaticky** – v centrální aplikaci (panel Od pacienta) i na kartě u lůžka (dlaždice Poznámky pacienta); u přání a poznámek je zelený pruh s časem posledního odeslání, bez připojení se změna pošle při nejbližší synchronizaci. Oddíl **Sdílet** slouží k tisku a poslání jinam; prázdné položky jsou v něm šedě s radou, kde je vyplnit. U pacienta propojeného s PéčeDoma jdou přání, poznámky a otázky automaticky i lékaři do portálu PéčeDoma (Data klienta → záložka **🪪 Z Karty pacienta**). Termín příští návštěvy se v Mém průkazu neukazuje – pacient ho má od týmu.
-- **Sdílet** – souhrn k tisku nebo k předání (níže).
-- **Nouzové info** – text do Zdravotního ID na zamčené obrazovce.
-- **Nastavení** – změna PINu, smazání všeho z telefonu.
-
-![Moje hodnoty a přání](/napoveda/img/p-prani.png)
-![Předepsané léky s denním záznamem podání](/napoveda/img/p-leky.png)
-
-> **Přání v aplikaci není dříve vyslovené přání podle zákona.** Platné DVP se sepisuje písemně s poučením od lékaře a s úředně ověřeným podpisem (nebo při přijetí do péče u konkrétního poskytovatele). Poraďte se se svým lékařem.
-
-### Sdílení a tisk
-
-1. V oddílu **Sdílet** zaškrtněte, co chcete předat (u každé položky je, zda je *od lékaře*, nebo *údaj pacienta*, a kdy byla aktualizovaná).
-2. **Zobrazit náhled** – uvidíte přesně to, co předáte, s datem vytvoření a původem každé položky.
-3. Vyberte: **Vytisknout / PDF**, **Poslat svému týmu** (ruční odeslání se zápisem do deníku týmu – vaše záznamy tým vidí i tak automaticky, tohle se hodí, když chcete výslovně upozornit), nebo **Poslat jinam** (e-mail, zpráva).
-
-![Výběr, co předat](/napoveda/img/p-sdilet.png)
-![Náhled souhrnu](/napoveda/img/p-nahled.png)
-
-Po předání už nejde zaručit, že příjemce kopii smaže; u zdravotníků se může stát součástí zdravotnické dokumentace.
-
-### Nouzové info – Zdravotní ID
-
-Do zamčeného telefonu se záchranka nedostane. Telefon ale umí ukázat **Zdravotní ID** na zamčené obrazovce. V oddílu **Nouzové info** je připravený text (máte paliativní průkaz, koho volat, alergie; diagnózu a limitace přidáte jen když chcete) – **Zkopírovat text** a vložit podle návodu pro iPhone (aplikace Zdraví → Zdravotní ID) nebo Android (Nastavení → Bezpečnost a nouzové situace). Vytiskněte si i krizovou kartu.
-
-![Nouzové info pro Zdravotní ID](/napoveda/img/p-nouze.png)
-
-### Zamykání a PIN
-
-![Zamčený Můj průkaz](/napoveda/img/p-zamek.png)
-
-- Můj průkaz se zamkne po 5 minutách nečinnosti, při odchodu z aplikace na déle než minutu a tlačítkem **zamknout**.
-- Po 5 špatných pokusech je nutné chvíli počkat.
-- **Zapomenutý PIN nikdo neobnoví** – ani lékař, ani provozovatel. Zvolte **Zapomněl(a) jsem PIN → Smazat vše a začít znovu** a požádejte lékaře o nový kód. Údaje od lékaře se vrátí, vaše vlastní záznamy ne – proto je občas vytiskněte nebo pošlete týmu.
-- Když lékař ukončí přístup, údaje od lékaře se přestanou aktualizovat; vše, co v telefonu máte, zůstává.
-
-### Videohovor od lékaře
-
-![Zamčený Můj průkaz – volá lékař](/napoveda/img/p-video-zvoni.png)
-
-Když vám lékař zavolá z centrální aplikace (u pacienta tlačítko **Videohovor na telefon**), Můj průkaz **zazvoní i zamčený** – uprostřed obrazovky se otevře okno **Příchozí videohovor** se jménem lékaře a tlačítky **Přijmout** a **Odmítnout**; zvoní a vibruje, dokud hovor nevezmete nebo lékař nezavěsí. Přijmout jde bez PINu; hovor se otevře přes celou obrazovku a na konci klepněte na **Ukončit** nahoře (nebo na červené sluchátko uvnitř hovoru – obojí hovor ukončí i pro lékaře). Během hovoru se průkaz nezamyká. Podmínka je jediná: **Můj průkaz musí být na obrazovce** (aplikace otevřená, telefon odemčený) – za to odpovídá majitel telefonu; upozornění mimo aplikaci se neposílá. Nepřijatý hovor po 15 minutách skončí sám. Zvonění zařizuje zvláštní klíč jen pro hovory, který je v telefonu uložený bez PINu – k údajům průkazu s ním nikdo nepřistoupí. Z Mého průkazu hovor zahájit nejde, jen přijmout.
+> Dřívější aplikace **Můj průkaz** (`/pacient/`, karta pro pacienta a rodinu) je od verze 0.11.111 zrušená. Starý odkaz z SMS otevře stránku s odkazem na Průkaz pacienta; záznamy, které z ní pacient dříve poslal, zůstávají v centrále v panelu Od pacienta.
 
 ## 20. Průkaz pro plán péče – prototyp pacientem řízené karty
 
-Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus, verze 0.1, říjen 2026). Na rozdíl od Mého průkazu (kapitola 19) **nemá žádný server ani garanta**: kartu si pacient založí sám, všechno zůstává jen v jeho telefonu, šifrované PINem, a o každém sdílení rozhoduje pacient. Je to prototyp k diskusi, ne součást ostré sítě Karty pacienta.
+Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus, verze 0.1, říjen 2026). Na rozdíl od zapůjčené karty **nemá žádný server ani garanta**: kartu si pacient založí sám, všechno zůstává jen v jeho telefonu, šifrované PINem, a o každém sdílení rozhoduje pacient. Je to prototyp k diskusi, ne součást ostré sítě Karty pacienta.
 
-**Od listopadu 2026 se Průkaz vyvíjí samostatně** (projekt DialogusPrukaz) na adrese **https://dialogusprukaz.netlify.app/prukaz/**, s aplikací *Průkaz pacienta* pro Android a iPhone. Stránka `/prukaz/` na serveru Karty zůstává jako původní prototyp. Nová verze se umí **propojit s Kartou pacienta** stejným kódem jako Můj průkaz (kapitola 19): v Přehledu *Propojit s Kartou pacienta* → QR kód, odkaz z SMS nebo opsané kódy. Údaje od lékaře (diagnózy, léky, plán péče, kontakty a tým) se pak doplní se štítkem *z Karty pacienta* a mění je jen lékař; přání, léky a otázky pacienta tým vidí v centrále stejně jako z Mého průkazu (Od pacienta). Propojení Průkazu odpojí Můj průkaz se stejným číslem telefonu.
+**Od listopadu 2026 se Průkaz vyvíjí samostatně** (projekt DialogusPrukaz) na adrese **https://dialogusprukaz.netlify.app/prukaz/**, s aplikací *Průkaz pacienta* pro Android a iPhone. Stránka `/prukaz/` na serveru Karty zůstává jako původní prototyp. Nová verze se umí **propojit s Kartou pacienta** kódem, který tým vydá tlačítkem Předat pacientovi do Průkazu (kapitola 19): v Přehledu *Propojit s Kartou pacienta* → QR kód, odkaz z SMS nebo opsané kódy. Údaje od lékaře (diagnózy, léky, plán péče, kontakty a tým) se pak doplní se štítkem *z Karty pacienta* a mění je jen lékař; z Průkazu se do Karty nic neposílá (kapitola 19).
 
 ![Průkaz pro plán péče – úvod](/napoveda/img/q-uvod.png)
 
@@ -763,3 +705,20 @@ Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus
 ![Průkaz – bezpečnost a obnova](/napoveda/img/q-bezpecnost.png)
 
 Co prototyp zatím neumí a je k rozhodnutí: biometrie místo PINu, zobrazení na zamčené obrazovce iPhonu a Androidu (webová aplikace tam nemůže – zůstává Zdravotní ID systému telefonu nebo tištěná karta), pomoc pověřené blízké osoby v rozsahu oprávnění, předání ověřeného dokumentu od zdravotníka přímo do karty (QR nebo soubor s podpisem) a jakékoli propojení s poskytovatelským systémem (Karta pacienta, PéčeDoma) – to je podle zadání až pozdější etapa a musí mít nové posouzení.
+
+## 21. Jednoduchý režim
+
+Pro malou ordinaci nebo ambulanci, která Kartu pacienta používá jen k **přípravě údajů pro pacienta do aplikace Průkaz pacienta**. Zapíná ho správce organizace ve **Správě organizace → Nastavení → Jednoduchý režim** (nebo provozovatel už při založení organizace ve správě tenantů). Ostatní uživatelé ho uvidí po novém načtení stránky.
+
+![Nastavení – jednoduchý režim](/napoveda/img/c-jednoduchy-nastaveni.png)
+
+**Co zůstane:** Pacienti, Nový pacient, Můj účet, Správa organizace (jen správce: Uživatelé a Nastavení). U pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, **Předání do Průkazu** a Detail pacienta.
+
+**Co se skryje:** Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma, ve Správě Pracoviště, Telefony a Log přístupů. **Skrývá se jen obrazovka** – data ani oprávnění se nemažou a log přístupů se zapisuje dál. Po vypnutí režimu je vidět plná Karta se všemi dříve zapsanými údaji.
+
+![Pacient v jednoduchém režimu – Krizová karta s tlačítkem Předat pacientovi do Průkazu](/napoveda/img/c-jednoduchy-karta.png)
+
+- **Nový pacient** je zkrácený: rovnou formulář (načtení ze zprávy nebo ze souboru zůstává pod tlačítkem), bez rodného čísla, telefonu s kartou a e-mailu, bez výběru garanta a týmu. **Garantem je vždy vaše pracoviště** a garance platí hned.
+- **Sestra smí totéž co lékař**: založit pacienta, zapsat diagnózy, léky, alergie, plán péče a kontakty a předat pacientovi do Průkazu. Plán zůstává verzovaný – u verze, kterou uložila sestra, je jméno s „(sestra)“. Uživatel s rolí *jen čtení* dál jen čte.
+- **Předání do Průkazu**: tlačítko **Předat pacientovi do Průkazu** na Krizové kartě i v záložce Předání do Průkazu – SMS, QR kód nebo 6místné číslo (kapitola 8).
+

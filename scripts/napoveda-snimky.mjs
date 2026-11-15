@@ -179,7 +179,9 @@ const j = (o) => (req, res) => res.json({ ok: true, ...(typeof o === 'function' 
 app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 'napoveda.md'), 'utf8') }));
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
-app.get('/api/c/ja', j({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3 }, verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }));
+let mockJednoduchy = false;   // 0.11.111: jednoduchý režim (přepíná /__mock/jednoduchy)
+app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
+app.get('/api/c/ja', j(() => ({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast })));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
 app.get('/api/c/diagnozy', j((req) => ({ diagnozy: [{ kod: 'C509', popis: 'ZN - prs NS' }, { kod: 'C50', popis: 'Zhoubný novotvar prsu' }, { kod: 'C341', popis: 'ZN - horní lalok průdušky nebo plíce' }].filter((d) => (d.kod + ' ' + d.popis).toLowerCase().includes(String(req.query.q || '').toLowerCase().slice(0, 4)) || String(req.query.q || '').length > 3) })));
@@ -773,8 +775,8 @@ await p.fill('#f_poz', 'úprava z PéčeDoma'); await klik(p, '#ulozPlan'); awai
 if (!(await p.textContent('#work')).includes('PéčeDoma: MUDr. Petra Ukázková')) chyby.push('/pd/: nová verze plánu z PéčeDoma se po uložení neukázala');
 await p.close();
 
-console.log('6místné číslo z centrály (telefon u pacienta, Můj průkaz)');
-for (const [cesta, cislo, kod, popis] of [['/karta/', '482 615', 'TYJRRRQH', 'párovací stránka telefonu'], ['/pacient/', '730194', 'MPK4R7ZD', 'Můj průkaz']]) {
+console.log('6místné číslo z centrály (telefon u pacienta)');
+for (const [cesta, cislo, kod, popis] of [['/karta/', '482 615', 'TYJRRRQH', 'párovací stránka telefonu']]) {
   const pc = await stranka({ mobil: true });
   await pc.goto(URL + cesta); await pc.waitForSelector('#p_cislo');
   const dotaz = pc.waitForRequest((r) => r.url().endsWith('/api/d/parovat'), { timeout: 8000 }).catch(() => null);
@@ -783,70 +785,38 @@ for (const [cesta, cislo, kod, popis] of [['/karta/', '482 615', 'TYJRRRQH', 'p�
   if (!r || !(r.postData() || '').includes(kod)) chyby.push(`${popis}: 6místné číslo z centrály nevedlo k párování kódem ${kod}`);
   await pc.context().close();
 }
-console.log('Můj průkaz (telefon pacienta)');
+console.log('Můj průkaz – zrušeno (0.11.111)');
 p = await stranka({ mobil: true });
-await p.goto(`${URL}/pacient/#p=${TENANT}.MPK4R7ZD`); await p.waitForSelector('#p_tel');
-await p.waitForFunction(() => (document.querySelector('#p_tel') || {}).value === '+420 604 000 777', null, { timeout: 8000 });   // číslo předvyplněné ze serveru
-await foto(p, 'p-propojeni');
-await klik(p, '#p_ok'); await p.waitForSelector('#np1');
-await p.fill('#np1', '258147'); await p.fill('#np2', '258147');
-await foto(p, 'p-pin');
-await klik(p, '#np_ok'); await p.waitForSelector('.tile[data-tab="prani"]', { timeout: 20000 }); await p.waitForTimeout(3500);
-await foto(p, 'p-prehled', { vyska: 1500 });
-await p.evaluate(() => { const el = document.querySelector('#pdChat'); if (el) el.scrollIntoView({ block: 'center' }); });
-await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'p-zpravy.png') }); console.log('  ✓ p-zpravy');
-await klik(p, '#pdChat'); await p.waitForSelector('#chat_l .msg'); await p.waitForTimeout(300);
-await p.screenshot({ path: path.join(VYSTUP, 'p-zpravy-chat.png') }); console.log('  ✓ p-zpravy-chat');
-await p.evaluate(() => KP.closeModal());
-await klik(p, '.tile[data-tab="prani"]'); await p.waitForSelector('#pr_ok');
-await p.fill('#pr_dulezite', 'Zůstat doma s dcerou a vnoučaty, nemít bolesti, mít jasnou hlavu na rozhovory.');
-await p.fill('#pr_obavy', 'Dušení a převozu do nemocnice v noci.');
-await p.fill('#pr_rozhodovani', 'Raději úleva než léčba za každou cenu.');
-await p.fill('#pr_kdo', 'dcera Jana, 777 000 321');
-await p.selectOption('#pr_puvod', 'rozhovor'); await p.fill('#pr_rk', 'MUDr. Ukázková, hospic');
-await klik(p, '#pr_ok'); await p.waitForSelector('.banner.ok.keep'); await p.waitForTimeout(3300);
-await foto(p, 'p-prani', { vyska: 1500 });
-await klik(p, '.tile[data-tab="leky"]'); await p.waitForSelector('.lkskup');
-if (await p.$('#lk_novy')) chyby.push('Můj průkaz: pacient nesmí mít tlačítko Přidat lék');
-if (!(await p.textContent('#rezim')).includes('Karta pacienta a rodiny')) chyby.push('Můj průkaz: chybí pruh Karta pacienta a rodiny');
-if (!(await p.textContent('#work')).includes('Předepsané léky')) chyby.push('Můj průkaz: chybí panel Předepsané léky');
-if ((await p.$$('.lkskup')).length !== 3) chyby.push('Můj průkaz: předepsané léky nejsou ve 3 skupinách');
-await klik(p, '.lkskup.crit [data-pod]');                                   // opioid: Podán
-await p.waitForSelector('.lkskup.crit .lbl b');
-if (!(await p.textContent('.lkskup.crit')).includes('dnes')) chyby.push('Můj průkaz: záznam podání se nezapsal do řádku léku');
-await klik(p, '#pod_hist'); await p.waitForSelector('.modal .chip.ok'); await p.evaluate(() => KP.closeModal());
-await p.waitForTimeout(3500);
-await foto(p, 'p-leky', { vyska: 1700 });
-await klik(p, '.tile[data-tab="poznamky"]'); await p.fill('#pz_t', 'Můžu brát Morphin i přes den, když bolí víc?'); await klik(p, '#pz_ok'); await p.waitForTimeout(300);
-await klik(p, '.tile[data-tab="sdilet"]'); await p.waitForSelector('#sd_nahled');
-await p.check('.vyber input[value="KARTA"]'); await p.waitForTimeout(3300);   // toast „Uloženo“ zmizí
-await foto(p, 'p-sdilet', { vyska: 1200 });
-await klik(p, '#sd_nahled'); await p.waitForSelector('#sd_tym');
-await foto(p, 'p-nahled');
-await klik(p, '#sd_tym'); await klik(p, '#kpOk'); await p.waitForTimeout(500);
-const rucni = sdileno.filter((x) => !x.auto), auto = sdileno.filter((x) => x.auto);
-if (rucni.length !== 1 || rucni[0].polozky.some((x) => !['PRANI', 'LEKY', 'PODANI', 'OTAZKY', 'POZNAMKA'].includes(x.druh))) chyby.push('sdílení týmu poslalo něco jiného než údaje pacienta');
-if (!auto.length || !auto.some((x) => x.polozky.some((p) => p.druh === 'PRANI')) || !auto.some((x) => x.polozky.some((p) => p.druh === 'PODANI'))) chyby.push('automatický přenos přání / podání léků týmu neproběhl');
-await klik(p, '.tile[data-tab="nouze"]'); await p.waitForSelector('#nz_kop'); await p.waitForTimeout(3300);
-await foto(p, 'p-nouze', { vyska: 1400 });
-// zamknutí a znovu odemknutí PINem (data jsou šifrovaná PINem)
-await klik(p, '#btnZamek'); await p.waitForSelector('#pin');
-await foto(p, 'p-zamek');
-// 0.11.55: lékař volá z centrály → zamčený Můj průkaz zazvoní (token jen pro zvonění, bez PINu), Přijmout otevře hovor
-await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 5, mistnost: 'kp-p0007-pac', stav: 'ZVONI', zahajil: 'CENTRALA', zahajilJmeno: 'MUDr. Petra Ukázková', zahajeno: '2026-10-27 09:40' }) }); await videoPoll(); });
-await p.waitForSelector('#vidPrijmout');
-if (!(await p.$('#pin'))) chyby.push('zvonění na zamčeném Mém průkazu smazalo zámek');
-await foto(p, 'p-video-zvoni');
-await klik(p, '#vidPrijmout'); await p.waitForSelector('.videocall iframe');
-if (!(await p.textContent('.videocall-bar')).includes('Petra Ukázková')) chyby.push('okno hovoru v Mém průkazu nemá jméno volajícího');
-await klik(p, '#vidKonec'); await p.waitForTimeout(400);
-if (await p.$('.videocall')) chyby.push('Ukončit v Mém průkazu nezavřelo okno hovoru');
-await p.evaluate(async () => { await fetch('/__mock/video', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); await videoPoll(); });
-await p.fill('#pin', '111111'); await klik(p, '#pinOk'); await p.waitForTimeout(1500);
-if (await p.$('.tile[data-tab]')) chyby.push('špatný PIN odemkl Můj průkaz');
-await p.fill('#pin', '258147'); await klik(p, '#pinOk'); await p.waitForSelector('.tile[data-tab="leky"]', { timeout: 20000 });
-await klik(p, '.tile[data-tab="leky"]');
-if (!(await p.textContent('#work')).includes('Furosemid')) chyby.push('po odemknutí chybí vlastní léky pacienta');
+await p.goto(`${URL}/pacient/#p=${TENANT}.MPK4R7ZD`); await p.waitForSelector('#prukaz');
+if (!(await p.getAttribute('#prukaz', 'href')).includes('/prukaz/#p=')) chyby.push('zrušený Můj průkaz: odkaz z SMS se nepředal do Průkazu pacienta');
+await p.close();
+
+console.log('Jednoduchý režim (0.11.111)');
+p = await stranka({ session: 'ukazka' });
+await p.goto(`${URL}/centrala/`); await p.waitForSelector('#d_agenda');
+await p.evaluate(() => fetch('/__mock/jednoduchy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: true }) }));
+await p.reload(); await p.waitForSelector('#d_agenda');
+if (await p.$('.nav button[data-v="lide"]')) chyby.push('jednoduchý režim: v nabídce zůstaly Lidé a týmy');
+await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
+const zalozkyJed = await p.$$eval('.tabs [data-t]', (b) => b.map((x) => x.dataset.t).join(','));
+if (zalozkyJed !== 'karta,dg,plan,leky,kontakty,telefon,udaje') chyby.push('jednoduchý režim: záložky pacienta ' + zalozkyJed);
+if (!(await p.$('#predatPrukaz')) || await p.$('[data-np]') || await p.$('#vidZahajit') || await p.$$eval('#tabbody .panel-h h2', (h) => h.some((x) => /^(PéčeDoma|Telefon u pacienta)$/.test(x.textContent.trim())))) chyby.push('jednoduchý režim: na Krizové kartě chybí Předat do Průkazu, nebo zůstal náhled telefonu, videohovor, panel PéčeDoma či zapůjčený telefon');
+await p.waitForTimeout(300); await foto(p, 'c-jednoduchy-karta');
+await klik(p, '#predatPrukaz'); await p.waitForSelector('#pz_t');
+if (!(await p.textContent('#modal')).includes('Průkaz pacienta')) chyby.push('jednoduchý režim: okno předání nemluví o Průkazu pacienta');
+await p.click('#modal [data-close]');
+await klik(p, '.tabs [data-t="telefon"]'); await p.waitForSelector('#pacientovi');
+if (await p.$('#parovat') || await p.$('#pin_ok')) chyby.push('jednoduchý režim: záložka Předání do Průkazu ukazuje zapůjčený telefon nebo PINy');
+await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#n_ok');
+if (await p.isVisible('#n_g') || await p.isVisible('#n_tk') || await p.isVisible('#n_rc')) chyby.push('jednoduchý režim: Nový pacient ukazuje garanta, telefon s kartou nebo RČ');
+await klik(p, '.nav button[data-v="sprava"]'); await p.waitForSelector('[data-st]');
+const spravaJed = await p.$$eval('[data-st]', (b) => b.map((x) => x.dataset.st).join(','));
+if (spravaJed !== 'uziv,nast') chyby.push('jednoduchý režim: Správa organizace ' + spravaJed);
+await klik(p, '[data-st="nast"]'); await p.waitForSelector('#ns_jed');
+await p.waitForTimeout(300); await foto(p, 'c-jednoduchy-nastaveni');
+await p.evaluate(() => fetch('/__mock/jednoduchy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: false }) }));
+await p.reload(); await p.waitForSelector('#d_agenda');
+if (!(await p.$('.nav button[data-v="lide"]'))) chyby.push('po vypnutí jednoduchého režimu chybí Lidé a týmy');
 await p.close();
 
 console.log('Průkaz pro plán péče (prototyp)');

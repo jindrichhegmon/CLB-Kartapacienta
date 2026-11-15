@@ -30,12 +30,13 @@ function sUzivatelem(fn, { admin = false, lekar = false } = {}) {
       const u = await q.one(`SELECT u.UzivatelID, u.Jmeno, u.Login, u.Role, u.Aktivni, u.PoskytovatelID, u.Telefon, u.MusiZmenitHeslo, p.Nazev AS Poskytovatel, p.Typ AS TypPoskytovatele, p.SmiBytGarant
         FROM dbo.A_KP_Uzivatel u JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = u.PoskytovatelID WHERE u.UzivatelID = @u`, { u: ses.uzivatelId });
       if (!u || !u.Aktivni) throw chyba('Účet není aktivní', 401);
-      const kp = await q.one(`SELECT Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic = 'KP_AKTIVNI'`);
-      if (!kp || kp.Hodnota !== '1') throw chyba('Karta pacienta je pro tuto organizaci vypnutá', 403);
-      const s = { tenant: ses.tenant, uzivatelId: u.UzivatelID, jmeno: u.Jmeno, login: u.Login, role: roleSeznam(u.Role), poskytovatelId: u.PoskytovatelID,
+      const nast = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('KP_AKTIVNI', 'REZIM_JEDNODUCHY')`)).map((x) => [x.Klic, x.Hodnota]));
+      if (nast.KP_AKTIVNI !== '1') throw chyba('Karta pacienta je pro tuto organizaci vypnutá', 403);
+      const s = { jednoduchy: nast.REZIM_JEDNODUCHY === '1', tenant: ses.tenant, uzivatelId: u.UzivatelID, jmeno: u.Jmeno, login: u.Login, role: roleSeznam(u.Role), poskytovatelId: u.PoskytovatelID,
         poskytovatel: u.Poskytovatel, typPoskytovatele: u.TypPoskytovatele, smiBytGarant: !!u.SmiBytGarant, telefon: u.Telefon, musiZmenitHeslo: !!u.MusiZmenitHeslo, ip: ip(req) };
       if (admin && !s.role.includes('admin')) throw chyba('Tuto akci smí jen správce organizace', 403);
-      if (lekar && !s.role.includes('lekar')) throw chyba('Tuto akci smí jen lékař', 403);
+      // 0.11.111: v jednoduchém režimu smí „lékařské“ akce (založit pacienta…) každý, kdo zapisuje – lékař i sestra
+      if (lekar && !s.role.includes('lekar') && !(s.jednoduchy && s.role.some((r) => r !== 'ctenar'))) throw chyba('Tuto akci smí jen lékař', 403);
       return fn(q, s, req, res);
     });
   });
@@ -93,7 +94,7 @@ central.get('/ja', sUzivatelem(async (q, s) => {
   const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni`);
   const nast = Object.fromEntries(n.map((x) => [x.Klic, x.Hodnota]));
   const pd = await nastaveniPd(q);
-  return { ja: s, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) },
+  return { ja: s, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, prukazAdresa: config.prukazAdresa, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3), jednoduchy: nast.REZIM_JEDNODUCHY === '1' },
     // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
     pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, portal: pd.portal, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
@@ -233,15 +234,18 @@ export async function zalozPacienta(q, s, b) {
   const rok = cislo(pa.rok) || (datum ? Number(datum.slice(0, 4)) : null);
   if (!rok || rok < 1900 || rok > new Date().getFullYear()) throw chyba('Vyplňte rok nebo datum narození');
   const telKarty = normTel(pa.telefonKarty);
-  if (!telKarty) throw chyba('Vyplňte číslo telefonu, na kterém bude karta (např. +420 777 123 456) – na žádném jiném telefonu karta nebude');
+  // 0.11.111: jednoduchý režim nemá zapůjčený telefon u lůžka – číslo telefonu s kartou je nepovinné
+  if (!telKarty && !s.jednoduchy) throw chyba('Vyplňte číslo telefonu, na kterém bude karta (např. +420 777 123 456) – na žádném jiném telefonu karta nebude');
+  if (pa.telefonKarty && !telKarty) throw chyba('Číslo telefonu s kartou má tvar +420 777 123 456');
   if (rc) {
     const dup = await q.one(`SELECT KodPrukazu FROM dbo.A_KP_Pacient WHERE RodneCislo = @rc AND Stav = 'AKTIVNI'`, { rc });
     if (dup) throw chyba(`Pacient s tímto rodným číslem už má aktivní průkaz ${dup.KodPrukazu}`, 409);
   }
-  const garantId = cislo(b.garantPoskytovatelId) || s.poskytovatelId;
+  // 0.11.111: jednoduchý režim – garantem je vždy pracoviště přihlášeného uživatele (garance hned platná), v týmu jen ono
+  const garantId = s.jednoduchy ? s.poskytovatelId : (cislo(b.garantPoskytovatelId) || s.poskytovatelId);
   const gp = await q.one(`SELECT PoskytovatelID, Nazev, SmiBytGarant FROM dbo.A_KP_Poskytovatel WHERE PoskytovatelID = @p AND Aktivni = 1`, { p: garantId });
   if (!gp) throw chyba('Garantující pracoviště nenalezeno');
-  if (!gp.SmiBytGarant) throw chyba(`${gp.Nazev} nemůže být garantem (garantem je nemocnice, hospic, paliativní ambulance nebo praktický lékař)`);
+  if (!gp.SmiBytGarant && !s.jednoduchy) throw chyba(`${gp.Nazev} nemůže být garantem (garantem je nemocnice, hospic, paliativní ambulance nebo praktický lékař)`);
 
   const kod = await dalsiKod(q);
   const pac = await q.one(`INSERT INTO dbo.A_KP_Pacient (KodPrukazu, Jmeno, Prijmeni, RodneCislo, DatumNarozeni, RokNarozeni, Pohlavi, Pojistovna, Adresa, Pobyt, TelefonKarty, Email, ZalozilUzivatelID)
@@ -250,7 +254,7 @@ export async function zalozPacienta(q, s, b) {
   const id = pac.PacientID;
   await q.exec(`INSERT INTO dbo.A_KP_Garance (PacientID, PoskytovatelID, LekarUzivatelID, Stav, Od, NavrhlUzivatelID) VALUES (@p, @ps, @l, 'PLATNA', SYSDATETIME(), @u)`,
     { p: id, ps: garantId, l: garantId === s.poskytovatelId ? s.uzivatelId : null, u: s.uzivatelId });
-  const tym = new Set([garantId, s.poskytovatelId, ...(Array.isArray(b.tym) ? b.tym.map(Number).filter(Boolean) : [])]);
+  const tym = new Set([garantId, s.poskytovatelId, ...(!s.jednoduchy && Array.isArray(b.tym) ? b.tym.map(Number).filter(Boolean) : [])]);
   for (const t of tym) await q.exec(`INSERT INTO dbo.A_KP_Tym (PacientID, PoskytovatelID, Role) SELECT @p, @ps, @r WHERE EXISTS (SELECT 1 FROM dbo.A_KP_Poskytovatel WHERE PoskytovatelID = @ps)`,
     { p: id, ps: t, r: t === garantId ? 'GARANT' : (t === s.poskytovatelId ? 'LEKAR' : 'PECE') });
   const platnost = /^\d{4}-\d{2}-\d{2}$/.test(b.platnostDo || '') ? b.platnostDo : new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
@@ -641,10 +645,11 @@ central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
 }));
 
 /* vlastní telefon pacienta („Můj průkaz“): kód jen pro číslo pacienta, SMS na něj, nebo QR v ordinaci; platí 3 dny */
-export const SMS_PACIENT_VYCHOZI = 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)';
+// 0.11.111: aplikace Můj průkaz (/pacient/) je zrušená – pacient má Průkaz pacienta (DialogusPrukaz); {cislo} = 6místné číslo, {odkaz} = Průkaz s kódem
+export const SMS_PACIENT_VYCHOZI = 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.';
 central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
-  if (!op.garant && !op.lekar) throw chyba('Průkaz pacientovi zpřístupňuje garant nebo lékař v týmu', 403);
+  if (!op.garant && !op.lekar) throw chyba('Průkaz pacientovi zpřístupňuje garant nebo lékař v týmu (v jednoduchém režimu kdokoli z týmu, kdo zapisuje)', 403);
   if (!op.aktivni) throw chyba('Průkaz je uzavřený');
   const tel = normTel(req.body.telefon);
   if (!tel) throw chyba('Zadejte číslo mobilu (např. +420 777 123 456) – kód půjde použít jen s ním');
@@ -663,17 +668,18 @@ central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost, Telefon, Rezim) OUTPUT inserted.ZarizeniID VALUES (@p, @st, @k, @pl, @t, 'PACIENT')`,
     { p: id, st: stitek, k: kod, pl: platnost, t: tel })).ZarizeniID;
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: platny ? 'kód pro vlastní telefon zobrazen znovu' : 'kód pro vlastní telefon pacienta vydán', detail: `${hezkyTel(tel)} · ${stitek}`, ip: s.ip });
-  const odkaz = `${config.verejnaAdresa}/pacient/#p=${s.tenant}.${kod}.T${tel.replace(/\D/g, '')}`;   // .T<číslo> = pacient číslo jen potvrdí
+  const odkaz = `${config.prukazAdresa}/prukaz/#p=${s.tenant}.${kod}.T${tel.replace(/\D/g, '')}`;   // Průkaz pacienta; .T<číslo> = předvyplněné číslo
+  const ci = vydejCislo({ typ: 'parovat', tenant: s.tenant, kod, rezim: 'PACIENT' }, tel, platnost);   // 0.11.110: 6místné číslo
   let sms = null;
   if (req.body.sms) {
     // text SMS (0.11.20): lékař ho vidí a doplní v okně; {odkaz} se nahradí odkazem, chybí-li, odkaz se připojí na konec
     let textSms = text(req.body.text, 600).replace(/\s+/g, ' ').trim() || SMS_PACIENT_VYCHOZI;
+    textSms = textSms.replace(/\{cislo\}/g, `${ci.cislo.slice(0, 3)} ${ci.cislo.slice(3)}`);
     textSms = textSms.includes('{odkaz}') ? textSms.replace(/\{odkaz\}/g, odkaz) : `${textSms} ${odkaz}`;
     try { await posliSms(tel, textSms); sms = { ok: true, text: textSms };
       await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'odkaz pro vlastní telefon poslán SMS', detail: `${hezkyTel(tel)}${req.body.text && req.body.text !== SMS_PACIENT_VYCHOZI ? ' · vlastní text' : ''}`, ip: s.ip });
     } catch (e) { sms = { ok: false, chyba: e.message }; }
   }
-  const ci = vydejCislo({ typ: 'parovat', tenant: s.tenant, kod, rezim: 'PACIENT' }, tel, platnost);   // 0.11.110: Můj průkaz i Průkaz pacienta
   return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefon: hezkyTel(tel), stitek, smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, cislo: ci.cislo, cisloPlatnost: ci.platnost.toISOString() };
 }));
 
@@ -1641,10 +1647,14 @@ central.post('/nastaveni', sUzivatelem(async (q, s, req) => {
   if (b.pdTokenSmazat) zmeny.push(['PD_TOKEN', '']);
   if (b.pdPortal != null) zmeny.push(['PD_PORTAL', b.pdPortal === 'plus' ? 'plus' : '']);
   if (b.pdSync != null) zmeny.push(['PD_SYNC', b.pdSync === true || b.pdSync === '1' || b.pdSync === 1 ? '1' : '0']);
+  // 0.11.111: jednoduchý režim (jen obrazovka – data ani záznamy se nemění, přepnout jde tam i zpět)
+  if (b.jednoduchy != null) zmeny.push(['REZIM_JEDNODUCHY', b.jednoduchy === true || b.jednoduchy === '1' || b.jednoduchy === 1 ? '1' : '0']);
   for (const [k, v] of zmeny) {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
       WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });
   }
+  const rz = zmeny.find(([k]) => k === 'REZIM_JEDNODUCHY');
+  if (rz) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: rz[1] === '1' ? 'jednoduchý režim zapnut' : 'jednoduchý režim vypnut', ip: s.ip });
 }, { admin: true }));
 
 /* ---------------- videohovor (0.11.45) ----------------

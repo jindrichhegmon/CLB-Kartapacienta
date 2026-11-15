@@ -72,6 +72,7 @@ html.vramu .hlp-top{padding-top:10px}
 .plist .flag{margin-left:auto;flex:none}
 .plist .chev{color:var(--muted);flex:none}
 /* buttons */
+.jednoduchy .jen-plny{display:none!important}
 .cislo-tel{border:2px solid var(--accent);background:var(--accent-soft);border-radius:14px;padding:10px 14px;margin:8px 0 10px;text-align:center}
 .cislo-tel .lbl{margin:0}
 .cislo-tel .cislo{font:800 34px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;white-space:nowrap;color:var(--accent-ink);margin:2px 0}

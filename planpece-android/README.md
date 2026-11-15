@@ -9,8 +9,7 @@ nový build je potřeba jen při změně obalu (ikona, název, adresa serveru, o
 - Oprávnění jen INTERNET. Výběr souboru (obnova ze zálohy, přiložení zprávy/fotky) řeší Capacitor.
 - `android:allowBackup="false"` – obsah karty se nezálohuje automaticky do Googlu (karta slibuje, že nic neodchází);
   zálohu dělá pacient sám v části Bezpečnost a obnova.
-- Nezaměňovat s `prukaz-android/` (Karta pacienta pro domácnost – Můj průkaz, `/pacient/`, párování kódem)
-  ani s `android/` (kiosková aplikace zapůjčeného telefonu).
+- Nezaměňovat s `android/` (kiosková aplikace zapůjčeného telefonu). Dřívější `prukaz-android/` (Můj průkaz) je od 0.11.111 zrušený.
 
 ## Co obal doplňuje (MainActivity.java)
 
@@ -24,7 +23,7 @@ na začátku načtení vloží malý skript (jen pro adresu serveru Karty):
 
 GitHub Actions → *Android – Plán péče* → *Run workflow* (spustí se i sám po změně v `planpece-android/` na `main` nebo
 `claude/*`). Podepisuje se stejným klíčem pro nahrávání jako Můj průkaz (Secrets `PRUKAZ_KEYSTORE_B64`,
-`PRUKAZ_KEYSTORE_PASSWORD`, alias `mujprukaz`, postup v `prukaz-android/README.md`). Artefakty běhu:
+`PRUKAZ_KEYSTORE_PASSWORD`, alias `mujprukaz`, postup vytvoření klíče je v historii gitu – `prukaz-android/README.md` do verze 0.11.110 – a v README repozitáře DialogusPrukaz). Artefakty běhu:
 
 - `PlanPece-android-<číslo>` – podepsané APK pro instalaci na telefon (povolit instalaci z neznámého zdroje),
 - `PlanPece-google-play-<číslo>` – AAB pro Play Console (nová aplikace, např. „Průkaz pro plán péče“; zásady soukromí

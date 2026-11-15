@@ -67,13 +67,14 @@ admin.get('/tenanti', h(async (req) => {
     SELECT t.IDTENANT AS id, t.ICO AS ico, t.JmenoPoskytovatele AS nazev, t.Aktivni AS aktivni, CONVERT(char(16), t.Vytvoreno, 120) AS vytvoreno, t.Poznamka AS poznamka,
       (SELECT Hodnota FROM dbo.A_KP_Nastaveni n WHERE n.IDTENANT = t.IDTENANT AND n.Klic = 'KP_AKTIVNI') AS kp,
       (SELECT Hodnota FROM dbo.A_KP_Nastaveni n WHERE n.IDTENANT = t.IDTENANT AND n.Klic = 'NAZEV_SITE') AS nazevSite,
+      (SELECT Hodnota FROM dbo.A_KP_Nastaveni n WHERE n.IDTENANT = t.IDTENANT AND n.Klic = 'REZIM_JEDNODUCHY') AS jednoduchy,
       (SELECT COUNT(*) FROM dbo.A_KP_Pacient p WHERE p.IDTENANT = t.IDTENANT AND p.Stav = 'AKTIVNI') AS pacientu,
       (SELECT COUNT(*) FROM dbo.A_KP_Poskytovatel p WHERE p.IDTENANT = t.IDTENANT AND p.Aktivni = 1) AS poskytovatelu,
       (SELECT COUNT(*) FROM dbo.A_KP_Uzivatel u WHERE u.IDTENANT = t.IDTENANT AND u.Aktivni = 1) AS uzivatelu,
       (SELECT COUNT(*) FROM dbo.A_KP_Zarizeni z WHERE z.IDTENANT = t.IDTENANT AND z.Stav = 'SPAROVANO') AS telefonu,
       (SELECT CONVERT(char(16), MAX(z.PosledniSync), 120) FROM dbo.A_KP_Zarizeni z WHERE z.IDTENANT = t.IDTENANT) AS posledniSync
     FROM dbo.Tenants t ORDER BY t.Vytvoreno`));
-  return { tenanti: tenanti.map((t) => ({ ...t, kp: t.kp === '1', odkaz: `${config.verejnaAdresa}/centrala/?t=${t.id}` })), typy: TYPY_POSKYTOVATELE };
+  return { tenanti: tenanti.map((t) => ({ ...t, kp: t.kp === '1', jednoduchy: t.jednoduchy === '1', odkaz: `${config.verejnaAdresa}/centrala/?t=${t.id}` })), typy: TYPY_POSKYTOVATELE };
 }));
 
 /* ---------- založení tenanta / zapnutí karty pro existujícího ---------- */
@@ -111,6 +112,9 @@ admin.post('/zalozit', h(async (req) => {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES ('KP_AKTIVNI', '1'), ('NAZEV_SITE', @n), ('ZALOZENO', CONVERT(nvarchar(30), SYSDATETIME(), 120))) AS s(Klic, Hodnota)
       ON t.Klic = s.Klic WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`,
     { n: text(b.nazevSite, 200) || nazev });
+    // 0.11.111: jednoduchý režim hned při založení (malá ordinace / ambulance – jen příprava údajů pro Průkaz pacienta)
+    if (b.jednoduchy) await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES ('REZIM_JEDNODUCHY', '1')) AS s(Klic, Hodnota) ON t.Klic = s.Klic
+      WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`);
     let posk = await q.one(`SELECT TOP 1 PoskytovatelID FROM dbo.A_KP_Poskytovatel WHERE ICO = @ico`, { ico });
     if (!posk) {
       posk = await q.one(`INSERT INTO dbo.A_KP_Poskytovatel (Nazev, ICO, Typ, Telefon24, Adresa) OUTPUT inserted.PoskytovatelID VALUES (@n, @ico, @t, @tel, @a)`,

@@ -75,7 +75,7 @@ async function renderSeznam() {
       <div class="panel stat"><span class="muted">Uživatelé</span><b>${kp.reduce((a, t) => a + t.uzivatelu, 0)}</b></div>
     </div>
     <div class="panel"><div class="panel-h"><h2>Tenanti</h2></div><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Organizace</th><th>IDTENANT</th><th>Karta pacienta</th><th>Pacienti</th><th>Pracoviště</th><th>Uživatelé</th><th>Telefony</th><th>Poslední sync</th></tr></thead><tbody>
-      ${d.tenanti.map((t) => `<tr data-id="${esc(t.id)}"><td><b>${esc(t.nazev)}</b><div class="lbl">IČO ${esc(t.ico)}${t.nazevSite && t.nazevSite !== t.nazev ? ' · síť ' + esc(t.nazevSite) : ''}</div></td><td class="mono" style="font-size:12.5px">${esc(t.id)}</td>
+      ${d.tenanti.map((t) => `<tr data-id="${esc(t.id)}"><td><b>${esc(t.nazev)}</b><div class="lbl">IČO ${esc(t.ico)}${t.nazevSite && t.nazevSite !== t.nazev ? ' · síť ' + esc(t.nazevSite) : ''}${t.jednoduchy ? ' · jednoduchý režim' : ''}</div></td><td class="mono" style="font-size:12.5px">${esc(t.id)}</td>
         <td>${t.kp ? '<span class="chip ok">zapnuta</span>' : t.uzivatelu ? '<span class="chip warn">vypnuta</span>' : '<span class="chip">ne</span>'}</td><td>${t.pacientu}</td><td>${t.poskytovatelu}</td><td>${t.uzivatelu}</td><td>${t.telefonu}</td><td class="mono" style="font-size:12px">${esc(t.posledniSync || '—')}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   $('novy').onclick = () => formular();
@@ -97,6 +97,7 @@ function formular(predvyplnit = {}) {
       <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="f_sj" placeholder="MUDr. Jana Nová"></div><div class="field"><label>Přihlašovací jméno</label><input id="f_sl" placeholder="jana.nova" autocapitalize="off"></div></div>
       <div class="frow"><div class="field"><label>E-mail</label><input id="f_se" type="email"></div><div class="field"><label>Telefon</label><input id="f_st"></div></div>
       <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label></div>
+      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_jed" style="accent-color:var(--accent)"> jednoduchý režim (malá ordinace: jen údaje pro Průkaz pacienta – správce ho může později vypnout)</label></div>
       <div class="quick"><button class="btn primary ulozit" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
       <div class="note">Vznikne: tenant v PeceDomaPlus (IDTENANT = IČO + 8 písmen z názvu), první pracoviště, účet správce s vygenerovaným heslem a odkaz pro přihlášení. Heslo se zobrazí jen jednou – správce si ho po prvním přihlášení změní.</div>
     </div>`, () => {
@@ -108,7 +109,7 @@ function formular(predvyplnit = {}) {
     };
     $('f_ok').onclick = async () => {
       const b = { ico: $('f_ico').value, nazev: $('f_nazev').value, adresa: $('f_adresa').value, typ: $('f_typ').value, telefon24: $('f_tel').value, nazevSite: $('f_sit').value,
-        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked };
+        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked, jednoduchy: $('f_jed').checked };
       $('f_ok').disabled = true;
       try { const r = await A('/zalozit', { method: 'POST', body: b }); vysledek(r); renderSeznam(); } catch (e) { toast(e.message); $('f_ok').disabled = false; }
     };

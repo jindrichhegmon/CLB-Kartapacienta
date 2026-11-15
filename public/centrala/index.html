@@ -123,6 +123,8 @@ function bindHledani(klic, radky) {
 const C = (p, o = {}) => api('/api/c' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { odhlas(); } throw e; });
 const jeLekar = () => S.ja && S.ja.role.includes('lekar');
 const jeAdmin = () => S.ja && S.ja.role.includes('admin');
+/* 0.11.111: jednoduchý režim organizace (Správa → Nastavení) – v něm zakládá pacienty a zapisuje plán i sestra */
+const smiZakladat = () => jeLekar() || (S.jednoduchy && !!S.ja && S.ja.role.some((r) => r !== 'ctenar'));
 const ROLE_NAZ = { admin: 'správce', lekar: 'lékař', sestra: 'sestra', ctenar: 'jen čtení' };
 const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'host (čtení)' };
 
@@ -149,7 +151,8 @@ function hlavicka() {
 }
 function nav() {
   // 0.11.52: ikony agend (emotikona je značka, kp-ikony.js ji vykreslí jako SVG – stejně jako v PéčeDoma)
-  const pol = [['pacienti', '🪪 Pacienti'], ...(jeLekar() ? [['novy', '➕ Nový pacient']] : []), ...(S.ja.role.some((r) => r !== 'ctenar') ? [['lide', '👥 Lidé a týmy']] : []), ...(jeAdmin() ? [['sprava', '⚙️ Správa organizace']] : []), ['ucet', '👤 Můj účet']];
+  // 0.11.111: jednoduchý režim – bez Lidí a týmů; pacienta zakládá i sestra
+  const pol = [['pacienti', '🪪 Pacienti'], ...(smiZakladat() ? [['novy', '➕ Nový pacient']] : []), ...(S.ja.role.some((r) => r !== 'ctenar') && !S.jednoduchy ? [['lide', '👥 Lidé a týmy']] : []), ...(jeAdmin() ? [['sprava', '⚙️ Správa organizace']] : []), ['ucet', '👤 Můj účet']];
   return `<div class="nav noprint">${pol.map(([k, n]) => `<button data-v="${k}" class="${S.view === k || (k === 'pacienti' && S.view === 'detail') ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 }
 function bindNav() { document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { zavriNahled(); S.view = b.dataset.v; if (b.dataset.v === 'pacienti') S.pacView = 'dash';   /* 0.11.90: menu Pacienti = přehled */ if (b.dataset.v === 'novy') S.wiz = null; render(); window.scrollTo(0, 0); })); }
@@ -169,7 +172,7 @@ new MutationObserver(() => oznacTabulky()).observe(document.documentElement, { c
 async function render() {
   if (!S.session) return renderLogin();
   if (!S.ja) {
-    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.smsPacientVychozi = d.smsPacientVychozi || ''; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; } catch (e) { return; }
+    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.smsPacientVychozi = d.smsPacientVychozi || ''; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; S.prukazAdresa = d.prukazAdresa || ''; S.jednoduchy = !!(d.nastaveni && d.nastaveni.jednoduchy); document.documentElement.classList.toggle('jednoduchy', S.jednoduchy); } catch (e) { return; }
     try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
   }
   hlavicka();
@@ -392,13 +395,13 @@ function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const navrh = d.garance.find((x) => x.stav === 'NAVRZENO');
-  const tabs = [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Detail pacienta'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
-  const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
+  const tabs = S.jednoduchy ? [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['kontakty', 'Důležité kontakty'], ['telefon', 'Předání do Průkazu'], ['udaje', 'Detail pacienta']] : [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Detail pacienta'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
+  const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: S.jednoduchy ? tabPredani : tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
-      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}${telefonyKarty(d.zarizeni).length ? ' · karta týmu: ' + telefonyKarty(d.zarizeni).map((z) => telChip(z.telefon, z.stitek ? `Zavolat na telefon s kartou (${z.stitek})` : 'Zavolat na telefon s kartou týmu')).join(' ') : ''}</div></div></div>
+      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}${telefonyKarty(d.zarizeni).length && !S.jednoduchy ? ' · karta týmu: ' + telefonyKarty(d.zarizeni).map((z) => telChip(z.telefon, z.stitek ? `Zavolat na telefon s kartou (${z.stitek})` : 'Zavolat na telefon s kartou týmu')).join(' ') : ''}</div></div></div>
     ${navrh && op.prijmoutGaranci ? `<div class="banner crit">Bylo vám navrženo převzetí garance (navrhl ${esc(navrh.navrhl || '—')}, ${esc(fmtDT(navrh.navrzeno))}).<button class="btn sm primary" id="prevzit">Převzít garanci</button><button class="btn sm" id="odmitnout">Odmítnout</button></div>` : navrh ? `<div class="banner warn">Předání garance na ${esc(navrh.nazev)} čeká na potvrzení (od ${esc(fmtDT(navrh.navrzeno))}). Do potvrzení zůstává garantem ${esc(g ? g.nazev : '—')}.</div>` : ''}
-    ${videoBannerC(d)}
+    ${S.jednoduchy ? '' : videoBannerC(d)}
     ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
     <div class="tabs noprint">${tabs.map(([k, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div id="tabbody">${body(d)}</div>`;
@@ -425,7 +428,7 @@ function videoBannerC(d) {
 function videoTlacitkoC(d) {
   const v = d.video; if (!v || !v.server || !d.op.aktivni || (S.ja && S.ja.role.every((r) => r === 'ctenar'))) return '';
   if (v.hovor) return '';
-  return `<button class="btn sm" id="vidZahajit" title="${v.telefon ? 'Zazvoní všechny telefony pacienta – karta u lůžka i Můj průkaz (i zamčené, stačí, aby byly na obrazovce); kdokoli u nich hovor přijme' : 'Pacient zatím nemá spárovaný žádný telefon (kartu u lůžka ani Můj průkaz)'}">📹 Videohovor na telefon</button>`;
+  return `<button class="btn sm" id="vidZahajit" title="${v.telefon ? 'Zazvoní všechny telefony pacienta – karta u lůžka (i zamčená, stačí, aby byly na obrazovce); kdokoli u nich hovor přijme' : 'Pacient zatím nemá spárovaný žádný telefon (kartu u lůžka ani Můj průkaz)'}">📹 Videohovor na telefon</button>`;
 }
 /* 0.11.48: hovor běží v okně přímo v centrále (iframe serveru videohovorů), ne v nové záložce; „Zavřít okno“ hovor nechá běžet na pozadí,
    „Ukončit hovor“ ho ukončí i pro telefon */
@@ -505,7 +508,7 @@ async function videoZnovuC(hovorId) {
   return videoZahajitC();
 }
 async function videoZahajitC() {
-  if (!S.pac.video.telefon && !(await KP.confirm('Pacient nemá žádný telefon', 'Pacient nemá spárovanou kartu u lůžka ani Můj průkaz, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
+  if (!S.pac.video.telefon && !(await KP.confirm('Pacient nemá žádný telefon', 'Pacient nemá spárovanou kartu u lůžka, hovor nikdo nepřijme. Přesto otevřít místnost?', 'Otevřít'))) return;
   try { const r = await C(`/pacient/${S.pacId}/video`, { method: 'POST', body: { akce: 'zahajit' } }); S.pac.video = r; kresliDetail(); if (r.hovor) otevriHovorC(r.hovor, S.pacId); toast('Telefon u pacienta zvoní'); videoGlobalPoll(); } catch (e) { toast(e.message); }
 }
 setInterval(async () => {
@@ -525,19 +528,20 @@ const DRUH_OD_PACIENTA = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, kter�
 function odPacientaHTML(d) {
   if (!(d.odPacienta || []).length) return '';
   return `<div class="panel"><div class="panel-h"><h2>Od pacienta</h2><span class="chip vio">údaje pacienta</span></div>
-    <div class="rolehelp">Pacient to sám vybral a poslal z vlastního telefonu (Můj průkaz). Jde o jeho údaje a přání, ne o lékařský záznam ani o dříve vyslovené přání.</div>
+    <div class="rolehelp">Pacient to sám vybral a poslal z vlastního telefonu (dřívější aplikace Můj průkaz, zrušená v 0.11.111). Jde o jeho údaje a přání, ne o lékařský záznam ani o dříve vyslovené přání.</div>
     ${d.odPacienta.slice(0, 10).map((x) => `<details style="padding:8px 14px;border-top:1px solid var(--line)"><summary><b>${esc(fmtDT(x.cas))}</b> · ${esc(x.polozky.map((p) => p.nazev).join(', '))}</summary>
       ${x.polozky.map((p) => `<div style="margin:8px 0"><div class="lbl">${esc(DRUH_OD_PACIENTA[p.druh] || p.nazev)} · ${esc(p.puvod || 'údaj pacienta')}${p.aktualizovano ? ' · aktualizováno ' + esc(fmtDT(p.aktualizovano)) : ''}</div><div style="white-space:pre-wrap">${esc(p.obsah)}</div></div>`).join('')}</details>`).join('')}</div>`;
 }
 function tabKarta(d) {
   return `<div class="grid2 l"><div>${KP.kartaHTML(balikZDetailu(d))}</div>
     <div style="display:grid;gap:12px;align-content:start">
-      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button><button class="btn sm" data-np type="button" title="Karta tak, jak ji vidí telefon u lůžka – zamčená (ZZS) i po odemknutí; nic se nezapisuje">📱 Náhled v telefonu</button>${videoTlacitkoC(d)}</div>
+      <div class="actions noprint">${d.op.lekar ? '<button class="btn sm" id="revize">Potvrdit revizi plánu</button>' : ''}${jeLekar() ? '<button class="btn sm" id="vypis">Výpis do dokumentace</button>' : ''}<button class="btn sm" id="tisk">Tisk karty</button>${S.jednoduchy ? '' : `<button class="btn sm" data-np type="button" title="Karta tak, jak ji vidí telefon u lůžka – zamčená (ZZS) i po odemknutí; nic se nezapisuje">📱 Náhled v telefonu</button>${videoTlacitkoC(d)}`}</div>
+      ${S.jednoduchy && (d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? `<div class="panel predat-panel"><div class="panel-h"><h2>Průkaz pacienta</h2><span class="chip vio">${d.zarizeni.filter((z) => z.rezim === 'PACIENT' && z.stav === 'SPAROVANO').length ? 'propojeno' : 'zatím nepředáno'}</span></div><div style="padding:14px;display:grid;gap:8px"><button class="btn primary" id="predatPrukaz" style="height:52px;font-size:16px">Předat pacientovi do Průkazu</button><div class="muted" style="font-size:13px">Pacient si v aplikaci Průkaz pacienta zkopíruje diagnózy, léky, alergie, kontakty a plán – SMS, QR kódem nebo 6místným číslem.</div></div></div>` : ''}
       <div class="note"><b>Toto vidí posádka ZZS bez přihlášení</b> na telefonu u pacienta. Limitace je pro posádku závazná jen s doloženým dříve vysloveným přáním nebo rozhodnutím lékaře – karta proto vždy uvádí doklad a telefon na lékaře.</div>
       ${d.plan ? `<div class="panel"><div class="panel-h"><h2>Plán péče</h2><span class="chip acc">verze ${d.plan.verze}</span></div><dl class="kv" style="padding:12px 14px">${(() => { const gz = (d.garance || []).find((x) => x.stav === 'PLATNA'); const oz = gz && (S.posk.find((p) => p.id === gz.poskytovatelId) || {}).odbornyZastupce; return oz ? `<dt>Odborný zástupce</dt><dd>${esc(oz)}</dd><dt>Uložil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd>` : `<dt>Stanovil</dt><dd>${esc(d.plan.podepsal)}, ${esc(fmtDT(d.plan.vytvoreno))}</dd>`; })()}<dt>Platnost</dt><dd>${fmtD(d.plan.platnostDo)}</dd><dt>Diagnózy</dt><dd>${esc(d.plan.data.dg || '—')}</dd><dt>Funkční stav</dt><dd>${esc(d.plan.data.funkce || '—')}</dd></dl></div>` : ''}
-      ${pdPanel(d, { jen: 'navsteva' })}
+      ${S.jednoduchy ? '' : pdPanel(d, { jen: 'navsteva' })}
       ${odPacientaHTML(d)}
-      ${d.zarizeni.filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">${z.telefon ? `${telChip(z.telefon)} · ` : ''}Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
+      ${S.jednoduchy ? '' : d.zarizeni.filter((z) => z.stav === 'SPAROVANO' && z.rezim !== 'PACIENT').map((z) => `<div class="panel"><div class="panel-h"><h2>Telefon u pacienta</h2><span class="chip ${z.verzePlanu === (d.plan && d.plan.verze) ? 'ok' : 'warn'}">${z.verzePlanu === (d.plan && d.plan.verze) ? 'plán aktuální' : 'čeká na synchronizaci'}</span></div><div class="rolehelp">${z.telefon ? `${telChip(z.telefon)} · ` : ''}Poslední spojení ${esc(fmtDT(z.sync))}${z.baterie != null ? ` · baterie ${z.baterie} %` : ''}${z.fronta ? ` · ${z.fronta} zápisů čeká` : ''}</div></div>`).join('') || '<div class="banner warn">Průkaz zatím není v telefonu u pacienta.<button class="btn sm" id="naTelefon">Spárovat telefon</button></div>'}
       ${zzsPanelC(d)}
     </div></div>`;
 }
@@ -738,6 +742,20 @@ async function linkaNacti() {
   }));
 }
 /* ---- telefon a PINy ---- */
+/* 0.11.111: jednoduchý režim – záložka Předání do Průkazu: jen vlastní telefony pacienta (Průkaz pacienta), bez zapůjčeného telefonu a PINů */
+function tabPredani(d) {
+  const vlastni = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim === 'PACIENT');
+  return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">${predaniPanel(d, vlastni)}</div>
+    <div style="display:grid;gap:12px;align-content:start"><div class="note"><b>Jak předat údaje pacientovi:</b> pacient si do svého telefonu nainstaluje <b>Průkaz pacienta</b> (${esc(S.prukazAdresa || '')}/prukaz/). Tady klikněte na <b>Předat pacientovi do Průkazu</b>, zadejte jeho mobil a buď mu pošlete SMS, nebo mu v ordinaci ukažte QR kód či řekněte <b>6místné číslo</b>. Pacient v Průkazu klepne na <b>Propojit s Kartou pacienta</b> a zadá číslo – nabídnou se mu diagnózy, léky, alergie, kontakty a plán ke zkopírování. Data pak má jen ve svém telefonu, do Karty se nic nevrací.</div></div></div>`;
+}
+/* panel vlastních telefonů pacienta (Průkaz pacienta) – plná Karta i jednoduchý režim */
+function predaniPanel(d, vlastni) {
+  return `<div class="panel"><div class="panel-h"><h2>Průkaz pacienta v telefonu pacienta</h2><span class="chip vio">${vlastni.filter((z) => z.stav === 'SPAROVANO').length} propojeno</span></div><div class="tblwrap"><table class="tbl"><tbody>${vlastni.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon pacienta')}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `propojeno ${esc(fmtDT(z.sparovano))} · naposledy načteno ${esc(fmtDT(z.sync))}${z.verzeAplikace ? ' · ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? `čeká na propojení${z.kodPlatnost ? ', kód platí do ' + esc(fmtDT(z.kodPlatnost)) : ''}` : 'ukončeno'}</div></td>
+        <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${z.stav === 'SPAROVANO' ? 'propojeno' : z.stav === 'CEKA' ? 'čeká' : 'ukončeno'}</span></td>
+        <td style="white-space:nowrap;text-align:right">${(d.op.garant || d.op.lekar) && z.stav === 'CEKA' ? `<button class="btn sm" data-pznovu="${z.id}" title="Znovu poslat SMS nebo ukázat QR kód a číslo">Poslat znovu</button> <button class="btn sm" data-pzrusit="${z.id}">Zrušit</button>` : ''}${d.op.garant && z.stav === 'SPAROVANO' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient zatím Průkaz pacienta s Kartou nepropojil.</td></tr>'}</tbody></table></div>
+    ${(d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? `<div style="padding:12px 14px"><button class="btn primary" id="pacientovi">${vlastni.length ? 'Předat do dalšího telefonu' : 'Předat pacientovi do Průkazu'}</button></div>` : ''}
+    <div class="rolehelp">Pacient nebo jeho blízcí mají v telefonu aplikaci <b>Průkaz pacienta</b>. Po propojení si z Karty jednorázově zkopírují, co lékař zapsal (diagnózy, léky, alergie, kontakty, plán) – na jejich pokyn, nic se nesynchronizuje samo a z Průkazu se do Karty nic neposílá. Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a ZZS se do něj nedostane.</div></div>`;
+}
 function tabTelefon(d) {
   const zar = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim !== 'PACIENT');
   const vlastni = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim === 'PACIENT');
@@ -746,11 +764,7 @@ function tabTelefon(d) {
         <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${esc(z.stav.toLowerCase())}</span></td>
         <td>${d.op.garant && z.stav !== 'ZABLOKOVANO' && z.stav !== 'CEKA' ? `<button class="btn sm" data-zblok="${z.id}">Zablokovat</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Vráceno</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Zatím žádný telefon.</td></tr>'}</tbody></table></div>
         ${d.op.garant || d.op.lekar ? '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="parovat">Spárovat telefon</button><button class="btn" id="stitek" title="Samolepka 70 × 70 mm na zadní stranu telefonu">🏷 Štítek na telefon</button>' + (zar.some((z) => z.stav === 'SPAROVANO' && z.telefon) ? '<button class="btn" id="vymenaTel" title="Nový telefon převezme průkazy všech pacientů z tohoto telefonu (QR kód z centrály); nebo jen deaktivovat starý telefon">📱 Výměna / deaktivace telefonu</button>' : '') + (d.pacient.telefonKarty ? '<button class="btn" id="parovatSms">Poslat odkaz SMS na ' + esc(d.pacient.telefonKarty) + '</button>' : '') + (jeLekar() && zar.some((z) => z.stav === 'SPAROVANO') ? '<button class="btn" id="kodLekare">Kód lékaře na dnešek</button>' : '') + '</div>' : ''}</div>
-      <div class="panel"><div class="panel-h"><h2>Vlastní telefony pacienta a rodiny</h2><span class="chip vio">Můj průkaz · ${vlastni.filter((z) => z.stav === 'SPAROVANO').length} aktivní</span></div><div class="tblwrap"><table class="tbl"><tbody>${vlastni.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon pacienta')}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `zpřístupněno ${esc(fmtDT(z.sparovano))} · spojení ${esc(fmtDT(z.sync))}${z.verzeAplikace ? ' · app ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? `odkaz poslán ${esc(fmtDT(z.vytvoreno))} · čeká na otevření${z.kodPlatnost ? ', kód platí do ' + esc(fmtDT(z.kodPlatnost)) : ''}` : `přístup ukončen${z.sparovano ? ' (zpřístupněno ' + esc(fmtDT(z.sparovano)) + ')' : ''} – data od lékaře se už neaktualizují`}</div></td>
-        <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${z.stav === 'SPAROVANO' ? 'zpřístupněno' : z.stav === 'CEKA' ? 'čeká' : 'ukončeno'}</span></td>
-        <td style="white-space:nowrap;text-align:right">${(d.op.garant || d.op.lekar) && z.stav === 'CEKA' ? `<button class="btn sm" data-pznovu="${z.id}" title="Znovu poslat odkaz nebo ukázat QR kód">Poslat znovu</button> <button class="btn sm" data-pzrusit="${z.id}">Zrušit</button>` : ''}${d.op.garant && z.stav === 'SPAROVANO' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient ani rodina zatím nemají průkaz ve svém telefonu.</td></tr>'}</tbody></table></div>
-        ${(d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? `<div style="padding:12px 14px"><button class="btn" id="pacientovi">${vlastni.length ? 'Zpřístupnit v dalším telefonu' : 'Zpřístupnit pacientovi v jeho telefonu'}</button></div>` : ''}
-        <div class="rolehelp">Pro soběstačné pacienty: v aplikaci <b>Můj průkaz</b> uvidí plán, kontakty a tým od lékaře a vede si vlastní přání, léky a otázky. Ty zůstávají jen v jeho telefonu – týmu je pošle, až když sám vybere a potvrdí. Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a ZZS se do něj nedostane.</div></div>
+      ${predaniPanel(d, vlastni)}
       <div class="panel" id="linkaPanel"><div class="panel-h"><h2>📞 Linka paliativní podpory</h2><span class="chip">zjišťuji…</span></div></div>
       <div class="note"><b>Jak to funguje:</b> karta je jen v jednom telefonu – s číslem uvedeným u pacienta (záložka Detail pacienta). Odkaz na spárování přijde SMS na toto číslo (nebo naskenujte QR kód) a telefon při spárování potvrdí své číslo; jiné číslo server odmítne. Telefon komunikuje jen se serverem, šifrovaně, s vlastním tokenem. Poslední stav ukazuje i bez signálu a při každém připojení se sám sesynchronizuje. Nový telefon automaticky zablokuje předchozí. Ztracený telefon zablokujte – při připojení se vymaže.</div>
     </div>
@@ -768,16 +782,16 @@ function tabUdaje(d) {
   return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Identifikace</h2>${ro ? '<span class="chip">jen ke čtení</span>' : ''}</div><div class="form ${ro ? 'locked' : ''}" style="padding:14px">${udajeForm(p, 'u')}${ro ? '' : '<button class="btn primary ulozit" id="u_ok">Uložit údaje</button>'}</div></div>
     <div style="display:grid;gap:12px;align-content:start"><div class="note">Identifikační údaje (jméno, RČ, adresa) zůstávají jen v centrální aplikaci. Telefon dostane jméno a rok narození, AI nedostane nic z toho – rozbor zpráv běží přes anonymizační bránu.</div>
       <dl class="kv panel" style="padding:12px 14px"><dt>Průkaz</dt><dd class="mono">${esc(p.kod)}</dd><dt>Založen</dt><dd>${esc(fmtDT(p.zalozeno))}</dd><dt>Informace pacientovi</dt><dd>${p.souhlas ? esc(p.souhlas) : (d.op.lekar ? '<button class="btn sm" id="souhlas">Potvrdit podpis</button>' : '<span class="chip warn">nepotvrzeno</span>')}</dd>${p.stav === 'UZAVRENY' ? `<dt>Uzavřeno</dt><dd>${esc(fmtDT(p.uzavreno))} · ${esc(p.duvodUzavreni || '')}</dd>` : ''}</dl>
-      ${pdPanel(d)}
+      ${S.jednoduchy ? '' : pdPanel(d)}
       ${d.op.garant ? '<div class="panel"><div class="panel-h"><h2>Ukončení</h2></div><div style="padding:12px 14px"><button class="btn crit" id="uzavrit">Uzavřít průkaz</button></div></div>' : ''}</div></div>`;
 }
 function udajeForm(p, pref) {
   return `<div class="frow"><div class="field"><label>Jméno</label><input id="${pref}_j" value="${esc(p.jmeno || '')}"></div><div class="field"><label>Příjmení</label><input id="${pref}_p" value="${esc(p.prijmeni || '')}"></div></div>
-    <div class="frow"><div class="field"><label>Rodné číslo</label><input id="${pref}_rc" value="${esc(p.rc || '')}" placeholder="123456/7890"></div><div class="field"><label>Datum narození</label><input type="date" id="${pref}_dn" value="${esc(p.datumNarozeni || '')}"></div></div>
+    <div class="frow"><div class="field jen-plny"><label>Rodné číslo</label><input id="${pref}_rc" value="${esc(p.rc || '')}" placeholder="123456/7890"></div><div class="field"><label>Datum narození</label><input type="date" id="${pref}_dn" value="${esc(p.datumNarozeni || '')}"></div></div>
     <div class="frow"><div class="field"><label>Rok narození</label><input type="number" id="${pref}_r" value="${esc(p.rok || '')}"></div><div class="field"><label>Pohlaví</label><select id="${pref}_po"><option ${p.pohlavi === 'muž' ? 'selected' : ''}>muž</option><option ${p.pohlavi === 'žena' ? 'selected' : ''}>žena</option></select></div></div>
     <div class="frow"><div class="field"><label>Pojišťovna</label><input id="${pref}_poj" maxlength="3" value="${esc(p.pojistovna || '')}" placeholder="111"></div><div class="field"><label>Kde pacient pobývá</label><input id="${pref}_pb" value="${esc(p.pobyt || '')}" placeholder="doma / domov, pokoj…"></div></div>
     <div class="field"><label>Adresa</label><input id="${pref}_a" value="${esc(p.adresa || '')}"></div>
-    <div class="frow"><div class="field"><label>Telefon s kartou *</label><input id="${pref}_tk" type="tel" value="${esc(p.telefonKarty || '')}" placeholder="+420 777 123 456"><span class="hint">Číslo telefonu u pacienta, na kterém bude karta – na žádném jiném telefonu ji nahrát nepůjde. Při změně čísla se telefon na předchozím čísle zablokuje.</span></div>
+    <div class="frow jen-plny"><div class="field"><label>Telefon s kartou *</label><input id="${pref}_tk" type="tel" value="${esc(p.telefonKarty || '')}" placeholder="+420 777 123 456"><span class="hint">Číslo telefonu u pacienta, na kterém bude karta – na žádném jiném telefonu ji nahrát nepůjde. Při změně čísla se telefon na předchozím čísle zablokuje.</span></div>
     <div class="field"><label>E-mail pacienta</label><input id="${pref}_em" type="email" value="${esc(p.email || '')}" placeholder="např. marie@example.cz"><span class="hint">Informativní údaj, do telefonu u lůžka se neposílá.</span></div></div>`;
 }
 const ctiUdaje = (pref) => ({ jmeno: $(`${pref}_j`).value, prijmeni: $(`${pref}_p`).value, rc: $(`${pref}_rc`).value, datumNarozeni: $(`${pref}_dn`).value, rok: $(`${pref}_r`).value, pohlavi: $(`${pref}_po`).value, pojistovna: $(`${pref}_poj`).value, pobyt: $(`${pref}_pb`).value, adresa: $(`${pref}_a`).value, telefonKarty: $(`${pref}_tk`).value, email: $(`${pref}_em`) ? $(`${pref}_em`).value : '' });
@@ -870,6 +884,7 @@ function bindTab() {
   on('parovat', () => parovat(false));
   on('vymenaTel', () => { const z = d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon && x.nahrazeno) || d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon); if (z) vymenaTelefonuOkno(z.telefon); });
   on('pacientovi', () => pacientoviOkno());
+  on('predatPrukaz', () => pacientoviOkno());
   document.querySelectorAll('[data-pukoncit]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Ukončit přístup pacienta', 'Data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie – smazat ji nelze. Vlastní záznamy pacienta zůstanou v jeho telefonu.', 'Ukončit přístup', true)) akce('/zarizeni', { zarizeniId: Number(b.dataset.pukoncit), akce: 'zablokovat' }, 'Přístup ukončen'); }));
   if ($('linkaPanel')) linkaNacti();
   on('parovatSms', () => parovat(true));
@@ -932,29 +947,29 @@ function bindTab() {
 
 /* vlastní telefon pacienta – kód jen pro jeho číslo; SMS s odkazem, nebo QR kód v ordinaci */
 function pacientoviOkno(tel = '', stitek = '') {
-  modal(`<h2>Zpřístupnit průkaz v telefonu pacienta nebo rodiny</h2>
-    <p class="muted" style="margin:0">Aplikace <b>Můj průkaz</b> (${esc(S.verejna)}/pacient/) ukáže plán, kontakty, tým a předepsané léky se záznamem podání. Průkaz jde zpřístupnit ve více telefonech – pacientovi i blízkým, každému zvlášť. Kód půjde použít jen s tímto číslem a platí 3 dny.</p>
+  modal(`<h2>Předat pacientovi do Průkazu</h2>
+    <p class="muted" style="margin:0">Pacient (nebo jeho blízký) má v telefonu aplikaci <b>Průkaz pacienta</b> (${esc(S.prukazAdresa || '')}/prukaz/). Po propojení si z Karty zkopíruje diagnózy, léky, alergie, kontakty a plán. Jde předat do více telefonů – každému zvlášť. Kód půjde použít jen s tímto číslem.</p>
     <div class="frow"><div class="field"><label>Mobil</label><input id="pz_t" type="tel" value="${esc(tel)}" placeholder="+420 777 123 456"></div><div class="field"><label>Komu (ukáže se v přehledu)</label><input id="pz_s" value="${esc(stitek || 'telefon pacienta')}" placeholder="např. dcera Jana" maxlength="60"></div></div>
-    <div class="field"><label>Text SMS pro pacienta</label><textarea id="pz_txt" style="min-height:96px">${esc(localStorage.getItem('kp_sms_pacient') || S.smsPacientVychozi || 'Můj průkaz: lékař vám zpřístupnil váš paliativní průkaz. Otevřete odkaz v tomto telefonu: {odkaz} (platí 3 dny)')}</textarea><span class="hint"><b>{odkaz}</b> se nahradí odkazem pro telefon pacienta (když ho smažete, přidá se na konec). <span id="pz_len"></span> <button type="button" class="btn sm" id="pz_vychozi" style="height:26px;min-height:26px;font-size:12px;margin-left:6px">Původní text</button></span></div>
+    <div class="field"><label>Text SMS pro pacienta</label><textarea id="pz_txt" style="min-height:96px">${esc(localStorage.getItem('kp_sms_prukaz') || S.smsPacientVychozi || '')}</textarea><span class="hint"><b>{odkaz}</b> se nahradí odkazem na Průkaz pacienta (když ho smažete, přidá se na konec), <b>{cislo}</b> 6místným číslem. <span id="pz_len"></span> <button type="button" class="btn sm" id="pz_vychozi" style="height:26px;min-height:26px;font-size:12px;margin-left:6px">Původní text</button></span></div>
     <div class="quick"><button class="btn primary" id="pz_sms"${S.pac.smsDostupne ? '' : ' disabled'}>Poslat SMS</button><button class="btn" id="pz_qr">Zobrazit QR kód (v ordinaci)</button><button class="btn" data-close>Zpět</button></div>
     ${S.pac.smsDostupne ? '' : '<div class="note">SMS teď nejde odeslat – použijte QR kód.</div>'}`, () => {
     $('pz_t').focus();
-    const delka = () => { const t = $('pz_txt').value.replace('{odkaz}', 'x'.repeat(70)); const n = t.length, dia = /[^\x00-\x7F]/.test(t); const na = dia ? 70 : 160, na2 = dia ? 67 : 153; $('pz_len').textContent = `${n} znaků s odkazem ≈ ${n <= na ? 1 : Math.ceil(n / na2)} SMS`; };
+    const delka = () => { const t = $('pz_txt').value.replace('{odkaz}', 'x'.repeat(90)).replace('{cislo}', '123 456'); const n = t.length, dia = /[^\x00-\x7F]/.test(t); const na = dia ? 70 : 160, na2 = dia ? 67 : 153; $('pz_len').textContent = `${n} znaků s odkazem ≈ ${n <= na ? 1 : Math.ceil(n / na2)} SMS`; };
     $('pz_txt').oninput = delka; delka();
-    $('pz_vychozi').onclick = () => { $('pz_txt').value = S.smsPacientVychozi; localStorage.removeItem('kp_sms_pacient'); delka(); };
+    $('pz_vychozi').onclick = () => { $('pz_txt').value = S.smsPacientVychozi; localStorage.removeItem('kp_sms_prukaz'); delka(); };
     const go = async (sms) => {
       const telefon = $('pz_t').value, textSms = $('pz_txt').value.trim();
-      if (sms) { if (textSms && textSms !== S.smsPacientVychozi) localStorage.setItem('kp_sms_pacient', textSms); else localStorage.removeItem('kp_sms_pacient'); }
+      if (sms) { if (textSms && textSms !== S.smsPacientVychozi) localStorage.setItem('kp_sms_prukaz', textSms); else localStorage.removeItem('kp_sms_prukaz'); }
       try {
         const r = await C(`/pacient/${S.pacId}/pacientovi`, { method: 'POST', body: { telefon, sms, text: sms ? textSms : undefined, stitek: $('pz_s').value.trim() } });
         const smsOk = r.sms && r.sms.ok;
         const qr = qrcode(0, 'M'); qr.addData(r.odkaz); qr.make();
-        modal(`<h2>Průkaz pro telefon pacienta</h2>
+        modal(`<h2>Předání do Průkazu pacienta</h2>
           <div class="banner ${smsOk ? 'ok' : 'warn'}" style="margin-bottom:10px">${smsOk ? `Odkaz byl odeslán SMS na <b>${esc(r.telefon)}</b> (${esc(r.stitek || 'telefon pacienta')}). Příjemce ho otevře ve svém telefonu, potvrdí číslo a nastaví si vlastní PIN.${r.sms.text ? `<div class="lbl" style="margin-top:6px;white-space:pre-wrap">Odesláno: ${esc(r.sms.text)}</div>` : ''}` : `Kód půjde použít jen s číslem <b>${esc(r.telefon)}</b>.`}</div>
           ${r.sms && !r.sms.ok ? `<div class="banner crit" style="margin-bottom:10px">${esc(r.sms.chyba)}</div>` : ''}
           <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
-          ${cisloTelHTML(r, r.telefon, 'Můj průkaz nebo Průkaz pacienta')}
-          <p>Pacient QR kód načte fotoaparátem telefonu, nebo otevře <b>${esc(S.verejna)}/pacient/</b> a zadá:</p>
+          ${cisloTelHTML(r, r.telefon, 'Průkaz pacienta → Propojit s Kartou pacienta')}
+          <p>Pacient v Průkazu pacienta klepne na <b>Propojit s Kartou pacienta</b> a zadá číslo, nebo QR kód načte tlačítkem <b>Načíst QR kód</b>. Ruční opsání kódů:</p>
           <div class="frow"><div class="field"><label>Kód organizace</label><div class="secret" style="font-size:15px">${esc(r.tenant)}</div></div><div class="field"><label>Kód od lékaře</label><div class="secret">${esc(r.kod.slice(0, 4))} ${esc(r.kod.slice(4))}</div></div></div>
           <p class="muted">Platí do ${esc(new Date(r.platnost).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }))} ; ve stejném telefonu ho jde během platnosti použít znovu (třeba po přidání aplikace na plochu). Na novém telefonu vydejte nový kód – předchozí telefon pacienta tím přestane dostávat data.</p>
           <div class="quick"><button class="btn" id="pz_hot">Hotovo</button></div>`, () => { $('pz_hot').onclick = async () => { closeModal(); await nactiDetail(); kresliDetail(); }; });
@@ -1275,7 +1290,7 @@ function pdPanel(d, { jen = 'vse' } = {}) {
   return stav + navsteva + leky;
 }
 function renderNovy() {
-  if (!S.wiz) S.wiz = { krok: 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } };
+  if (!S.wiz) S.wiz = { krok: S.jednoduchy ? 2 : 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } };   // 0.11.111: jednoduchý režim rovnou formulář
   const w = S.wiz;
   const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
   if (w.krok === 1) {
@@ -1337,11 +1352,12 @@ function renderNovy() {
       <div class="panel"><div class="panel-h"><h2>2. Identifikace pacienta</h2></div><div class="form" style="padding:14px">${udajeForm(w.d.pacient, 'n')}</div></div>
       <div class="panel"><div class="panel-h"><h2>3. Cíl péče a limitace</h2><span class="chip acc">potvrzuje lékař</span></div><div style="padding:14px">${planForm(w.d.plan, w.d.platnostDo || new Date(Date.now() + (S.interval || 3) * 30 * 864e5).toISOString().slice(0, 10), false, 'f', { leky: true })}</div></div>
       <div class="panel"><div class="panel-h"><h2>4. Kontakty</h2></div><div style="padding:14px;display:grid;gap:8px" id="n_kont">${w.d.kontakty.map((k, i) => kontRow(k, i)).join('')}</div><div style="padding:0 14px 14px"><button class="btn sm" id="n_kplus">+ Kontakt</button></div></div>
-      <div class="panel"><div class="panel-h"><h2>5. Garant a tým</h2></div><div class="form" style="padding:14px">
+      <div class="panel jen-plny"><div class="panel-h"><h2>5. Garant a tým</h2></div><div class="form" style="padding:14px">
         <div class="field"><label>Garant průkazu</label><select id="n_g">${garanti.map((p) => `<option value="${p.id}" ${p.id === ((S.wizDalsi && S.wizDalsi.garant) || S.ja.poskytovatelId) ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select><span class="hint">Nemocnice je garantem dočasně (max. 30 dní) – pak garanci předá hospici, ambulanci nebo PL.</span></div>
         <div class="field"><label>Další pracoviště v týmu (Ctrl/⌘ pro více)</label><select id="n_t" multiple>${S.posk.filter((p) => p.aktivni && p.id !== S.ja.poskytovatelId).map((p) => `<option value="${p.id}" ${S.wizDalsi && S.wizDalsi.tym.includes(p.id) ? 'selected' : ''}>${esc(p.nazev)}</option>`).join('')}</select></div>
       </div></div>
-      <div class="quick"><button class="btn" id="n_zpet">Zpět ke zprávě</button><button class="btn primary ulozit" id="n_ok" title="Založí průkaz a otevře ho (záložka Telefon a PINy)">Uložit</button><button class="btn ulozit" id="n_dalsi" title="Založí průkaz a hned otevře prázdný formulář pro dalšího pacienta – garant a tým zůstanou předvybrané">Uložit a další</button></div>
+      ${S.jednoduchy ? '<div class="note">Garantem průkazu bude vaše pracoviště. Po uložení předáte údaje pacientovi do Průkazu tlačítkem <b>Předat pacientovi do Průkazu</b> na Krizové kartě.</div>' : ''}
+      <div class="quick"><button class="btn" id="n_zpet">${S.jednoduchy ? 'Načíst ze zprávy nebo ze souboru' : 'Zpět ke zprávě'}</button><button class="btn primary ulozit" id="n_ok" title="Založí průkaz a otevře ho (záložka Telefon a PINy)">Uložit</button><button class="btn ulozit" id="n_dalsi" title="Založí průkaz a hned otevře prázdný formulář pro dalšího pacienta – garant a tým zůstanou předvybrané">Uložit a další</button></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
@@ -1352,7 +1368,7 @@ function renderNovy() {
         <div><b style="font-size:13.5px">Zkontrolovat a doplnit:</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${['číslo telefonu s kartou (předvyplněný je telefon klienta z PéčeDoma)'].concat(w.import.cilVychozi ? ['cíl péče a limitace – předvyplněné výchozí hodnoty, potvrďte nebo upravte'] : [], w.import.doplnit.filter((x) => !(w.import.cilVychozi && /^(cíl péče|limitace)/i.test(x)))).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
         ${w.import.prevzato.length ? `<div class="muted" style="font-size:13px;margin-top:6px">Převzato z vyšetření PM103: ${esc(w.import.prevzato.join('; '))}</div>` : ''}</div>`
       : '<div class="note">Vyplňte údaje ručně podle rozhovoru o cílech péče.</div>'}
-      <div class="note">Po založení průkaz spárujte s telefonem u pacienta (záložka Telefon a PINy) a vydejte PINy rodině a sestrám.</div>
+      <div class="note jen-plny">Po založení průkaz spárujte s telefonem u pacienta (záložka Telefon a PINy) a vydejte PINy rodině a sestrám.</div>
     </div></div>`;
   bindNav();
   const ulozKont = () => { w.d.kontakty = [...document.querySelectorAll('#n_kont .kontrow')].map((r) => ({ jmeno: r.querySelector('[data-k=j]').value, tel: r.querySelector('[data-k=t]').value, skupina: r.querySelector('[data-k=s]').value, pozn: '' })); };
@@ -1365,12 +1381,12 @@ function renderNovy() {
   const zaloz = async (dalsi) => {
     ulozVse();
     $('n_ok').disabled = true; $('n_dalsi').disabled = true;
-    const garant = Number($('n_g').value), tym = [...$('n_t').selectedOptions].map((o) => Number(o.value));
+    const garant = S.jednoduchy ? S.ja.poskytovatelId : Number($('n_g').value), tym = S.jednoduchy ? [] : [...$('n_t').selectedOptions].map((o) => Number(o.value));
     try {
       const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: garant, tym, aiPouzito: !!w.ai } });
       S.wiz = null;
       if (dalsi) { S.wizDalsi = { garant, tym }; toast(`Průkaz ${r.kod} založen – další pacient`, 4000); S.wiz = { krok: 2, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } }; renderNovy(); scrollTo(0, 0); }
-      else { toast(`Průkaz ${r.kod} založen`); otevri(r.id, 'telefon'); }
+      else { toast(`Průkaz ${r.kod} založen`); otevri(r.id, S.jednoduchy ? 'karta' : 'telefon'); }
     } catch (e) { toast(e.message); $('n_ok').disabled = false; $('n_dalsi').disabled = false; }
   };
   $('n_ok').onclick = () => zaloz(false);
@@ -2003,8 +2019,8 @@ function lidePanel(d) {
 
 /* ================= správa organizace ================= */
 async function renderSprava() {
-  S.sTab = S.sTab || 'posk';
-  const tabs = [['posk', 'Pracoviště'], ['uziv', 'Uživatelé'], ['zar', 'Telefony'], ['audit', 'Log přístupů a AI'], ['nast', 'Nastavení']];
+  const tabs = S.jednoduchy ? [['uziv', 'Uživatelé'], ['nast', 'Nastavení']] : [['posk', 'Pracoviště'], ['uziv', 'Uživatelé'], ['zar', 'Telefony'], ['audit', 'Log přístupů a AI'], ['nast', 'Nastavení']];   // 0.11.111
+  if (!tabs.some(([k]) => k === S.sTab)) S.sTab = tabs[0][0];
   $('work').innerHTML = `${nav()}<div class="tabs">${tabs.map(([k, n]) => `<button data-st="${k}" class="${S.sTab === k ? 'on' : ''}">${n}</button>`).join('')}</div><div id="sbody"><div class="note">Načítám…</div></div>`;
   bindNav();
   document.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { S.sTab = b.dataset.st; renderSprava(); }));
@@ -2072,6 +2088,10 @@ async function spravaNast() {
     <div class="field"><label>Výchozí interval revize plánu (měsíce)</label><input id="ns_i" type="number" min="1" max="12" value="${esc(S.interval || 3)}"></div>
     <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
     <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
+    <div class="panel" style="max-width:560px"><div class="panel-h"><h2>Jednoduchý režim</h2><span class="chip ${S.jednoduchy ? 'ok' : ''}">${S.jednoduchy ? 'zapnuto' : 'vypnuto'}</span></div><div class="form" style="padding:14px">
+      <label class="lbl" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="ns_jed" ${S.jednoduchy ? 'checked' : ''}> Jednoduchý režim – jen příprava údajů pro Průkaz pacienta</label>
+      <div class="muted" style="font-size:13px">Pro malou ordinaci nebo ambulanci: zůstanou Pacienti, Nový pacient, u pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, Předání do Průkazu a Detail pacienta. Skryje se Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma a ve Správě Pracoviště, Telefony a Log. Garantem nového pacienta je vždy vaše pracoviště a <b>sestra smí totéž co lékař</b> (založit pacienta, zapsat plán, předat do Průkazu). Přepnutí nic nemaže – po vypnutí je vidět plná Karta se všemi údaji.</div>
+      <button class="btn ulozit" id="ns_jed_ok">Uložit režim</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
     <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Detail pacienta) – otevře PéčeDoma, kde je klient.</span></div>
     <div class="field"><label>Portál organizace</label><select id="pd_p"><option value=""${pd.portal === 'plus' ? '' : ' selected'}>PéčeDoma (Centrum pro léčbu bolesti)</option><option value="plus"${pd.portal === 'plus' ? ' selected' : ''}>PéčeDoma Plus (organizace se stejným tenantem)</option></select><span class="hint">PéčeDoma Plus: Karta volá aplikaci pecedomaplus-karta a posílá tenant této organizace – klienti, léky, chat a záznamy z Mého průkazu jsou z dat organizace v PéčeDoma Plus.</span></div>
@@ -2081,6 +2101,12 @@ async function spravaNast() {
     ${pd.partnerKlic ? '' : '<div class="banner warn">Na serveru chybí KP_PARTNER_KLIC – spusťte nasazení deploy/vps-deploy.sh.</div>'}
     <button class="btn primary ulozit" id="pd_ok">Uložit propojení</button>
     <div class="note">Co se přebírá z PéčeDoma: při založení pacienta údaje, diagnózy, léky, funkční stav a kontakty (výběr klienta v průvodci Nový pacient); u propojeného pacienta pak průběžně <b>aktivní léky</b> a <b>nejbližší plánovaná návštěva</b> (kalendář FK). Plán péče se tím nemění – léky lékař převezme do nové verze plánu v záložce Plán péče.</div></div></div>`; })()}`;
+  $('ns_jed_ok').onclick = async () => {
+    const zap = $('ns_jed').checked;
+    if (zap === S.jednoduchy) return toast('Beze změny');
+    try { await C('/nastaveni', { method: 'POST', body: { jednoduchy: zap } }); S.jednoduchy = zap; document.documentElement.classList.toggle('jednoduchy', zap); toast(zap ? 'Jednoduchý režim zapnut – ostatní uživatelé ho uvidí po novém načtení' : 'Jednoduchý režim vypnut – plná Karta'); renderSprava(); }
+    catch (e) { toast(e.message); }
+  };
   $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };
   $('pd_ok').onclick = async () => {
     try {

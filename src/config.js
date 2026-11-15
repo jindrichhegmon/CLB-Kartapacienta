@@ -49,7 +49,9 @@ export const config = {
   pdOriginy: env('KP_PD_ORIGINY', 'https://web-pecedoma.netlify.app').split(/\s+/).filter(Boolean),
   // 0.11.109: Průkaz pacienta – samostatný projekt DialogusPrukaz (web na Netlify) smí z prohlížeče volat párování, synchronizaci, sdílení a nápovědu
   prukazOriginy: env('KP_PRUKAZ_ORIGINY', 'https://dialogusprukaz.netlify.app').split(/\s+/).filter(Boolean),
-  verze: '0.11.110',
+  // 0.11.111: adresa aplikace Průkaz pacienta – odkaz v SMS a v QR kódu pro telefon pacienta (Můj průkaz /pacient/ je zrušený)
+  prukazAdresa: env('KP_PRUKAZ_ADRESA', 'https://dialogusprukaz.netlify.app').replace(/\/+$/, ''),
+  verze: '0.11.111',
 };
 
 export function zkontrolujKonfiguraci() {

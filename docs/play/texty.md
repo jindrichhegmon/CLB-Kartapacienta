@@ -1,3 +1,5 @@
+> **Archiv:** aplikace Můj průkaz (`cz.centrumlb.mujprukaz`) je od Karty 0.11.111 zrušená – pacient používá Průkaz pacienta (DialogusPrukaz).
+
 # Karta pacienta pro domácnost – podklady pro Google Play
 
 Texty a obrázky pro záznam v obchodě Google Play (aplikace `cz.centrumlb.mujprukaz`, sestavení viz `prukaz-android/README.md`).
