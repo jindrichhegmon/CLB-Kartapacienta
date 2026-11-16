@@ -107,6 +107,13 @@ tr.vybito{outline:2px solid var(--crit);outline-offset:-2px}
 .dg-radek{padding:8px 0;border-bottom:1px solid var(--line)}
 .dg-radek:last-child{border-bottom:0}
 .dg-radek .dg-t{font-size:17px;line-height:1.4;font-weight:600}
+/* 0.11.124: léky ze zprávy do PéčeDoma (okno Doplnit údaje ze zprávy) a přidání léku ze seznamu SÚKL */
+.navrh-lek{padding:8px 0;border-top:1px solid var(--line)}
+.navrh-lek-pole{display:flex;flex-wrap:wrap;gap:6px}
+.navrh-lek-pole select{flex:0 0 auto;max-width:100%}
+.navrh-lek-pole input{flex:1 1 140px;min-width:0}
+.navrh-lek-pole input[readonly]{background:transparent;border-color:transparent;padding-left:2px}
+input.sukl-pridat{width:100%;margin-top:6px;font-size:13.5px}
 .chip.zalom{white-space:normal;height:auto;min-height:22px;line-height:1.3;padding-top:2px;padding-bottom:2px;max-width:100%}
 .historie-predani{border-top:1px solid var(--line)}
 .historie-predani>summary{cursor:pointer;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none;font-size:14px}

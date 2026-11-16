@@ -198,7 +198,11 @@ app.post('/api/c/pacient/:id/dokument', j({ id: 3 }));
 app.post('/api/c/pacient/:id/dokument/:did/pro-pacienta', j({ ok: true }));
 app.post('/api/c/pacient/:id/dokument/:did/rozbor', j({ blokovano: false, zdroj: 'ai', pocetNahrad: 4, dokument: { id: 2, nazev: 'Propouštěcí zpráva – interna' },
   anonymniText: 'Ambulantní zpráva\nPacientka: [JMENO_1], nar. [DATUM_1]\nDg.: C50.9 Zhoubný novotvar prsu, I50.0 Městnavé srdeční selhání\nAlergie: penicilin\nMedikace: Furosemid 40 mg 1-0-0\nPři dušnosti Morphin 5 mg s.c.',
-  vysledek: { dg: 'C50.9 Zhoubný novotvar prsu; I50.0 Městnavé srdeční selhání; E11.9 Diabetes mellitus 2. typu bez komplikací', alergie: 'penicilin', funkce: 'PPS 40 % – většinu dne na lůžku', sos: ['Morphin 5 mg s.c. – při dušnosti'], opioidy: [], medikace: ['Furosemid 40 mg 1-0-0'], kontakty: [], chybi: ['Ve zprávě není určena osoba pro zástupné rozhodování.'] } }));
+  vysledek: { dg: 'C50.9 Zhoubný novotvar prsu; I50.0 Městnavé srdeční selhání; E11.9 Diabetes mellitus 2. typu bez komplikací', alergie: 'penicilin', funkce: 'PPS 40 % – většinu dne na lůžku', sos: ['Morphin 5 mg s.c. při dušnosti'], opioidy: ['MST Continus 30 mg 1-0-1'], medikace: ['Furosemid 40 mg 1-0-0', 'Dexamethason 4 mg 1-0-0'], kontakty: [], chybi: ['Ve zprávě není určena osoba pro zástupné rozhodování.'] } }));
+// 0.11.124: seznam léčiv SÚKL (smyšlený výřez) a léky ze zprávy do PéčeDoma
+const suklUkazka = [['0094114', 'PARALEN', '500MG', 'tableta'], ['0107760', 'PARACETAMOL ACCORD', '500MG', 'tableta'], ['0158279', 'MST CONTINUS', '30MG', 'tableta s řízeným uvolňováním'], ['0098219', 'MORPHIN BIOTIKA', '10MG/ML', 'injekční roztok']];
+app.get('/api/c/sukl', j((req) => ({ verze: 'DLP-ukazka', leky: suklUkazka.filter(([, n]) => n.toLowerCase().startsWith(String(req.query.q || '').toLowerCase().slice(0, 4))).map(([kod, nazev, sila, forma]) => ({ kod, nazev, sila, forma, text: nazev + ' ' + sila })) })));
+app.post('/api/c/pacient/:id/leky/ze-zpravy', j((req) => { for (const x of (req.body || {}).polozky || []) { if (x.akce === 'potvrdit') continue; if (x.id) pdLeky = pdLeky.map((l) => (l.id === String(x.id) ? { ...l, ...x, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: x.typ, nazev: x.nazev, davka: x.davka || '', instr: x.instr || '', popis: '' }); } return { leky: pdLeky, zmen: ((req.body || {}).polozky || []).length }; }));
 app.post('/api/c/pacient/:id/obnovit', j((req) => ({ ok: true, sms: req.body.sms ? { ok: true } : null, telefon: '+420 604 000 777' })));
 app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
 app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; const role = chce ? [chce] : ['admin', 'lekar']; return { roleMoznosti: ['admin', 'lekar', 'sestra', 'ctenar'], jednoduchyAktivni: mockJednoduchy && !role.includes('admin'), ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role, roleVlastni: ['admin', 'lekar'], roleNahled: chce || null, musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }; }));
@@ -512,8 +516,14 @@ await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); awa
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('dg', 'c-dg', { vyska: 900 });
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });
-await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.fill('#lk_n', 'Paracetamol'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce'); await p.selectOption('#lk_t', 'ZACHRANNA');
-await foto(p, 'c-leky-pridat', { vyska: 900 }); await p.evaluate(() => KP.closeModal());
+await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.selectOption('#lk_t', 'ZACHRANNA'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce');
+// 0.11.124: našeptávač ze seznamu SÚKL (jako Průkaz pacienta)
+await p.focus('#lk_n'); await p.type('#lk_n', 'Para', { delay: 30 });
+try { await p.waitForSelector('#modal .dg-nab button', { timeout: 3000 }); } catch { chyby.push('léky: u názvu se nenabízí seznam SÚKL'); }
+await p.waitForTimeout(300);
+await foto(p, 'c-leky-pridat', { vyska: 900 });
+if (await p.$('#modal .dg-nab button')) { await p.click('#modal .dg-nab button'); if (!(await p.textContent('#lk_sukl')).includes('SÚKL')) chyby.push('léky: po výběru ze seznamu SÚKL chybí „v seznamu SÚKL“'); }
+await p.evaluate(() => KP.closeModal());
 await zalozka('karta', 'c-karta', { vyska: 1000 });
 if (!((await p.textContent('#tabbody .card')) || '').includes('Zhoubný novotvar prsu')) chyby.push('krizová karta v centrále: chybí popis diagnózy z číselníku');
 // videohovor (0.11.45): z telefonu volá sestra → červený pruh s Připojit se
@@ -870,6 +880,11 @@ await foto(p, 'c-dokument-pro-pacienta');
 // 0.11.120: rozbor zprávy (AI) – návrh doplnění údajů ke kontrole
 await klik(p, '[data-dokai="2"]'); await p.waitForSelector('#np_ulozit');
 { const dgN = await p.inputValue('[data-np-t="dg"]'); if (!dgN.includes('E11.9') || dgN.includes('C50.9') || dgN.includes('I50.0')) chyby.push('rozbor zprávy: návrh má přidat jen novou skupinu diagnóz (E11), ne C50.9 / I50.0, které už v Kartě jsou: ' + dgN); }
+{ // 0.11.124: propojený pacient – léky ze zprávy do PéčeDoma: nový přidat, shodný potvrdit, jiná dávka upravit
+  const t = await p.textContent('#modal'), n = (await p.$$('[data-nl]')).length;
+  if (n !== 4) chyby.push('rozbor zprávy: čekám 4 léky do PéčeDoma, je ' + n);
+  if (!t.includes('nový – přidat do PéčeDoma') || !t.includes('v PéčeDoma stejně') || !t.includes('s jinou dávkou')) chyby.push('rozbor zprávy: chybí stav léku (nový / stejně / jiná dávka)');
+  if (t.includes('léky ze zprávy zapište v PéčeDoma')) chyby.push('rozbor zprávy: stará věta, že se léky nepřebírají'); }
 await p.waitForTimeout(300); await foto(p, 'c-rozbor-zpravy');
 await p.click('#modal [data-close]'); await p.waitForTimeout(200);
 await p.click('#dk_odebrat'); await p.fill('#dk_n', '');

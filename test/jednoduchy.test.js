@@ -116,3 +116,16 @@ test('původ údajů plánu (0.11.123): ze zprávy / ručně / z PéčeDoma podl
   assert.equal(zdrojVerze({ typ: 'ZALOZENI' }, 'pecedoma').zdroj, 'zalozeni-pecedoma');
   assert.equal(zdrojVerze({ typ: 'ZMENA', podepsal: 'MUDr. B' }).zdroj, 'rucne');
 });
+
+test('seznam léčiv SÚKL (0.11.124): stejná data jako Průkaz pacienta, hledání a lék podle textu zprávy; audit léku ze zprávy', async () => {
+  const { seznamSukl, lekText } = await import('../src/sukl.js');
+  const s = seznamSukl();
+  assert.ok(s.pocet > 5000, 'kopie seznamu SÚKL v data/sukl-leky.json');
+  assert.ok(s.hledej('palex', 5).every((p) => /^PALEXIA/.test(p.nazev)));
+  assert.ok(s.hledej('novalg', 5).some((p) => /^NOVALGIN/.test(p.nazev)));
+  assert.deepEqual(s.hledej('x'), []);
+  assert.match(lekText(s.najdiVTextu('Pregabalin Accord 150mg-0-150mg')), /^PREGABALIN ACCORD 150/);
+  const { RE_AUDIT_LEKU } = await import('../src/routes/central.js');
+  assert.deepEqual('potvrzen lék Palexia SR 150-0-50 · ze zprávy „Dekurz.pdf“'.match(RE_AUDIT_LEKU).slice(1), ['potvrzen', 'Palexia SR 150-0-50', 'Dekurz.pdf']);
+  assert.deepEqual('přidán SOS lék Morphin 10 mg s.c.'.match(RE_AUDIT_LEKU).slice(1), ['přidán', 'Morphin 10 mg s.c.', undefined]);
+});

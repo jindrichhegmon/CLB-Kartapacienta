@@ -290,15 +290,45 @@
       ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${e(l.nazev)}</b>${l.davka ? ' – ' + e(l.davka) : ''}${l.instr ? `<div class="lbl">${e(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${e(l.popis)}</div>` : ''}${KP.puvodHTML(l.puvod)}</td>
         <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${e(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${e(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted lkskup-p">žádné</div>'}</section>`; }).join('');
   };
-  KP.lekOkno = (l, ulozit) => {
+  /* 0.11.124: našeptávač léků ze seznamu SÚKL (stejná databáze jako Průkaz pacienta) u pole názvu; hledat(q) → Promise<{leky:[{kod,text,forma}]}> */
+  KP.suklNaseptavac = (input, hledat, hint, onVyber = () => {}) => {
+    if (!input || !hledat) return;
+    const e = KP.esc, box = document.createElement('div'); box.className = 'dg-nab'; box.hidden = true;
+    const obal = document.createElement('div'); obal.className = 'dg-hledat'; obal.style.marginTop = '0';
+    input.parentNode.insertBefore(obal, input); obal.appendChild(input); obal.appendChild(box);
+    input.setAttribute('autocomplete', 'off');
+    let cas = null, posledni = '', v = [];
+    input.addEventListener('input', () => {
+      clearTimeout(cas);
+      if (hint) hint.textContent = '';
+      cas = setTimeout(async () => {
+        const q = input.value.trim(); if (q === posledni) return; posledni = q;
+        if (q.length < 2) { box.hidden = true; return; }
+        try { v = (await hledat(q)).leky || []; } catch { v = []; }
+        if (input.value.trim() !== q) return;
+        box.innerHTML = v.map((p, i) => `<button type="button" data-i="${i}"><b>${e(p.text)}</b><span class="lbl" style="display:block">${e(p.forma || '')}${p.kod ? ' · SÚKL ' + e(p.kod) : ''}</span></button>`).join('') || '<div class="muted">Ve seznamu SÚKL nic – název můžete napsat vlastní.</div>';
+        box.hidden = false;
+      }, 200);
+    });
+    box.addEventListener('mousedown', (ev) => ev.preventDefault());
+    box.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-i]'); if (!b) return;
+      const p = v[Number(b.dataset.i)]; box.hidden = true; input.value = posledni = p.text;
+      if (hint) hint.textContent = `✓ v seznamu SÚKL (kód ${p.kod})${p.forma ? ' · ' + p.forma : ''}`;
+      onVyber(p);
+    });
+    input.addEventListener('blur', () => setTimeout(() => { box.hidden = true; }, 150));
+  };
+  KP.lekOkno = (l, ulozit, { hledatLek = null } = {}) => {
     const e = KP.esc, $ = (id) => document.getElementById(id);
     KP.modal(`<h2>${l ? 'Upravit lék' : 'Přidat lék'}</h2><div class="form">
       <div class="field"><label>Typ</label><select id="lk_t">${Object.entries(KP.TYP_LEKU).map(([k, n]) => `<option value="${k}" ${l ? (l.typ === k ? 'selected' : '') : (k === 'PRAVIDELNA' ? 'selected' : '')}>${n}</option>`).join('')}</select></div>
-      <div class="field"><label>Název léku *</label><input id="lk_n" value="${e(l ? l.nazev : '')}" placeholder="např. Morphin 10 mg"></div>
+      <div class="field"><label>Název léku *</label><input id="lk_n" value="${e(l ? l.nazev : '')}" placeholder="${hledatLek ? 'začněte psát název – nabídne se ze seznamu SÚKL' : 'např. Morphin 10 mg'}">${hledatLek ? '<span class="hint" id="lk_sukl"></span>' : ''}</div>
       <div class="field"><label>Dávkování</label><input id="lk_d" value="${e(l ? l.davka : '')}" placeholder="např. 1-0-1, nebo 10 mg s.c."></div>
       <div class="field"><label>Instrukce (u SOS léku: kdy podat, nejvýš jak často)</label><input id="lk_i" value="${e(l ? l.instr : '')}" placeholder="např. při bolesti nebo dušnosti, nejvýš po 4 h"></div>
       <div class="field"><label>Popis pro pacienta (volitelně)</label><input id="lk_p" value="${e(l ? l.popis : '')}"></div>
       <div class="quick"><button class="btn primary ulozit" id="lk_save">Uložit</button><button class="btn" data-close>Zrušit</button></div></div>`, () => {
+      KP.suklNaseptavac($('lk_n'), hledatLek, $('lk_sukl'));
       $('lk_save').onclick = async () => {
         const b = { id: l ? l.id : undefined, nazev_puv: l ? l.nazev : '', typ: $('lk_t').value, nazev: $('lk_n').value.trim(), davka: $('lk_d').value.trim(), instr: $('lk_i').value.trim(), popis: $('lk_p').value.trim() };
         if (!b.nazev) return KP.toast('Vyplňte název léku');
