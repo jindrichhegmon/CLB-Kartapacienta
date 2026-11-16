@@ -371,7 +371,7 @@ V záložce **Detail pacienta** (dříve Údaje) jsou identifikační údaje pac
 
 Zprávu pacienta (např. z **Medistaru** uloženou jako PDF) můžete předat pacientovi do aplikace Průkaz pacienta:
 
-1. U pacienta otevřete záložku **Dokumenty** a soubor **přetáhněte myší na seznam dokumentů** (nebo ho vyberte ve formuláři Vložit dokument). Vyplní se název podle souboru a dnešní datum, PDF se nastaví jako *lékařská zpráva*.
+1. U pacienta otevřete záložku **Dokumenty** a soubor **přetáhněte myší na seznam dokumentů**, nebo ve formuláři Vložit dokument klikněte na **Vybrat soubor z počítače…** a vyberte ho ve složce. Vybraný soubor se ukáže v zeleném rámečku (název, typ, velikost; **Vybrat jiný** / **Odebrat**). Vyplní se název podle souboru a dnešní datum, PDF se nastaví jako *lékařská zpráva*.
 2. Nechte zaškrtnuté **Předat pacientovi do Průkazu pacienta** (u zprávy je zaškrtnuté samo) a klikněte **Vložit**. Předat jde PDF, JPEG nebo PNG do 8 MB.
 3. Pacient s propojeným Průkazem uvidí „Lékař aktualizoval vaše údaje“, tlačítkem **Načíst z Karty pacienta** si zprávu stáhne a Průkaz z ní nabídne diagnózy a léky ke kontrole.
 

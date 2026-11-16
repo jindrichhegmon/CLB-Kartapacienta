@@ -919,7 +919,10 @@ function tabDok(d) {
     ${muze ? `<div class="panel" style="align-self:start" id="dok_form"><div class="panel-h"><h2>Vložit dokument</h2></div><div class="form" style="padding:14px">
       <div class="frow"><div class="field"><label>Typ</label><select id="dk_t"><option value="DVP">dříve vyslovené přání</option><option value="ZPRAVA">lékařská zpráva</option><option value="SOUHLAS">informace pacientovi</option><option value="JINY">jiný</option></select></div><div class="field"><label>Název</label><input id="dk_n"></div></div>
       <div class="frow"><div class="field"><label>Datum dokumentu</label><input type="date" id="dk_d"></div><div class="field"><label>Pracoviště, které ho vydalo</label><input id="dk_pr" placeholder="např. Nemocnice Zlín, interna"></div></div>
-      <div class="field"><label>Kde je originál</label><input id="dk_k"></div><div class="field"><label>Soubor (PDF / foto, max. 8 MB)</label><input type="file" id="dk_f" accept="application/pdf,image/*"><span class="hint">Soubor můžete i přetáhnout myší na seznam dokumentů.</span></div>
+      <div class="field"><label>Kde je originál</label><input id="dk_k"></div><div class="field"><label>Soubor (PDF / foto, max. 8 MB)</label>
+        <label class="soubor-vyber" id="dk_zona" for="dk_f"><span class="sv-ik">📄</span><span><b>Vybrat soubor z počítače…</b><span class="hint" style="display:block">nebo ho sem přetáhněte myší (i na seznam dokumentů) · PDF, JPEG, PNG</span></span></label>
+        <input type="file" id="dk_f" accept="application/pdf,image/*" class="skryty-soubor">
+        <div id="dk_vybrano" hidden></div></div>
       <label class="row" style="gap:8px"><input type="checkbox" id="dk_pp"> <span><b>Předat pacientovi do Průkazu pacienta</b><span class="hint" style="display:block">PDF, JPEG nebo PNG – pacient si ho stáhne tlačítkem Načíst z Karty pacienta.</span></span></label>
       <button class="btn primary ulozit" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
 }
@@ -1072,21 +1075,40 @@ function bindTab() {
     const vychozi = () => { if (!$('dk_pp').dataset.zmeneno) $('dk_pp').checked = $('dk_t').value === 'ZPRAVA'; };
     $('dk_t').addEventListener('change', vychozi); $('dk_pp').addEventListener('change', () => { $('dk_pp').dataset.zmeneno = '1'; }); vychozi();
   }
-  const zona = $('dok_seznam');
-  if (zona && $('dk_f')) {
+  // 0.11.119: soubor klasickým výběrem (tlačítko → dialog se složkami) i přetažením – oba vyplní formulář stejně a vybraný soubor je výrazně vidět
+  const velikostTxt = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' kB');
+  const ukazVybrany = () => {
+    const f = $('dk_f') && $('dk_f').files[0], el = $('dk_vybrano'); if (!el) return;
+    if (!f) { el.hidden = true; el.innerHTML = ''; $('dk_zona').hidden = false; return; }
+    const pro = MIME_PRO_PACIENTA.includes(f.type);
+    el.hidden = false; $('dk_zona').hidden = true;
+    el.innerHTML = `<div class="soubor-vybrano"><span class="sv-ik">${f.type === 'application/pdf' ? '📄' : f.type.startsWith('image/') ? '🖼' : '📎'}</span><div style="flex:1;min-width:0"><b class="sv-nazev">${esc(f.name)}</b>
+      <div class="lbl">${esc(f.type === 'application/pdf' ? 'PDF' : f.type || 'soubor')} · ${velikostTxt(f.size)}${pro ? '' : ' · <span style="color:var(--crit)">tento typ nejde předat pacientovi</span>'}</div></div>
+      <label class="btn sm" for="dk_f">Vybrat jiný</label><button class="btn sm" type="button" id="dk_odebrat">Odebrat</button></div>`;
+    $('dk_odebrat').onclick = () => { $('dk_f').value = ''; ukazVybrany(); };
+  };
+  const pripravSoubor = (f, { zvyrazni = false } = {}) => {
+    if (!f) return ukazVybrany();
+    if (f.size > 8 * 1024 * 1024) { $('dk_f').value = ''; ukazVybrany(); return toast('Soubor je větší než 8 MB'); }
+    if (!$('dk_n').value.trim()) $('dk_n').value = f.name.replace(/\.[^.]+$/, '');
+    if (!$('dk_d').value) $('dk_d').value = new Date().toLocaleDateString('sv-SE');
+    if (f.type === 'application/pdf' && $('dk_t').value === 'DVP') { $('dk_t').value = 'ZPRAVA'; $('dk_t').dispatchEvent(new Event('change')); }
+    if ($('dk_pp') && !MIME_PRO_PACIENTA.includes(f.type)) { $('dk_pp').checked = false; $('dk_pp').dataset.zmeneno = '1'; }
+    ukazVybrany();
+    if (zvyrazni) { const fm = $('dok_form'); if (fm) { fm.classList.add('dok-zvyrazni'); fm.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setTimeout(() => fm.classList.remove('dok-zvyrazni'), 1600); } $('dk_n').focus(); toast('Soubor připraven – zkontrolujte údaje a klikněte Vložit'); }
+  };
+  if ($('dk_f')) $('dk_f').addEventListener('change', () => pripravSoubor($('dk_f').files[0]));
+  for (const zona of [$('dok_seznam'), $('dk_zona')].filter(Boolean)) {
+    if (!$('dk_f')) break;
     const nad = (e) => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); zona.classList.add('dok-drop'); } };
     zona.addEventListener('dragenter', nad); zona.addEventListener('dragover', nad);
     zona.addEventListener('dragleave', (e) => { if (!zona.contains(e.relatedTarget)) zona.classList.remove('dok-drop'); });
     zona.addEventListener('drop', (e) => {
       e.preventDefault(); zona.classList.remove('dok-drop');
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return;
-      if (f.size > 8 * 1024 * 1024) return toast('Soubor je větší než 8 MB');
       const dt = new DataTransfer(); dt.items.add(f); $('dk_f').files = dt.files;
-      $('dk_n').value = f.name.replace(/\.[^.]+$/, ''); $('dk_d').value = new Date().toLocaleDateString('sv-SE');
-      if (f.type === 'application/pdf' && $('dk_t').value === 'DVP') { $('dk_t').value = 'ZPRAVA'; $('dk_t').dispatchEvent(new Event('change')); }
-      if ($('dk_pp') && !MIME_PRO_PACIENTA.includes(f.type)) { $('dk_pp').checked = false; $('dk_pp').dataset.zmeneno = '1'; }
-      const fm = $('dok_form'); if (fm) { fm.classList.add('dok-zvyrazni'); fm.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setTimeout(() => fm.classList.remove('dok-zvyrazni'), 1600); }
-      $('dk_n').focus(); toast('Soubor připraven – zkontrolujte údaje a klikněte Vložit');
+      $('dk_n').value = ''; $('dk_d').value = '';
+      pripravSoubor(f, { zvyrazni: zona.id === 'dok_seznam' });
     });
   }
   document.querySelectorAll('[data-dokpp]').forEach((b) => (b.onclick = async () => {

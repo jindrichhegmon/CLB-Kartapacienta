@@ -853,7 +853,13 @@ await p.evaluate(() => { const f = new File(['%PDF-1.4 zprava'], 'Zprava Medista
 await p.waitForTimeout(300);
 if ((await p.inputValue('#dk_n')) !== 'Zprava Medistar 16-11' || (await p.inputValue('#dk_t')) !== 'ZPRAVA' || !(await p.isChecked('#dk_pp'))) chyby.push('dokumenty: přetažené PDF nevyplnilo formulář jako Zprávu s Předat pacientovi');
 if (!(await p.textContent('#dok_seznam')).includes('v Průkazu od')) chyby.push('dokumenty: u předaného dokumentu chybí „v Průkazu od“');
+if (!(await p.isVisible('#dk_vybrano')) || !(await p.textContent('#dk_vybrano')).includes('Zprava Medistar 16-11.pdf')) chyby.push('dokumenty: vybraný soubor není výrazně vidět');
 await foto(p, 'c-dokument-pro-pacienta');
+// 0.11.119: klasický výběr souboru (dialog se složkami)
+await p.click('#dk_odebrat'); await p.fill('#dk_n', '');
+if (!(await p.isVisible('#dk_zona'))) chyby.push('dokumenty: po odebrání chybí tlačítko Vybrat soubor z počítače');
+await p.setInputFiles('#dk_f', { name: 'Ambulantni zprava.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 x') }); await p.waitForTimeout(200);
+if ((await p.inputValue('#dk_n')) !== 'Ambulantni zprava' || !(await p.textContent('#dk_vybrano')).includes('Ambulantni zprava.pdf')) chyby.push('dokumenty: výběr souboru z počítače nevyplnil název nebo neukázal soubor');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#n_ok');
 if (await p.isVisible('#n_g') || await p.isVisible('#n_tk') || await p.isVisible('#n_rc')) chyby.push('jednoduchý režim: Nový pacient ukazuje garanta, telefon s kartou nebo RČ');
 await klik(p, '#roleSel'); await p.waitForSelector('[data-role="admin"]'); await klik(p, '[data-role="admin"]'); await p.waitForFunction(() => !(document.querySelector('#roleSel') || { textContent: 'přepnuto' }).textContent.includes('přepnuto'), null, { timeout: 8000 }).catch(() => {}); await p.waitForSelector('#d_agenda');
