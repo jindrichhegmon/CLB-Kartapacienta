@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
-import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleNahledu, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
+import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleNahledu, stavPredani, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
@@ -319,6 +319,9 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
       Baterie AS baterie, VerzeAplikace AS verzeAplikace, DelkaFronty AS fronta, VerzePlanuVZarizeni AS verzePlanu, ParovaciKod AS kod, CONVERT(char(16), ParovaciPlatnost, 120) AS kodPlatnost, Telefon AS telefon, Rezim AS rezim, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno,
       NahrazenoZarizenim AS nahrazeno, CONVERT(char(16), Nahrazeno, 120) AS nahrazenoKdy
     FROM dbo.A_KP_Zarizeni WHERE PacientID = @p ORDER BY ZarizeniID DESC`, { p: id });
+  // 0.11.114: u propojených Průkazů pacienta, zda mají aktuální údaje (změna od posledního předání / výzva k obnovení)
+  const prukazy = zarizeni.filter((z) => z.rezim === 'PACIENT' && z.stav === 'SPAROVANO');
+  if (prukazy.length) { const st = await stavPredani(q, id, prukazy.map((z) => z.id)); for (const z of prukazy) z.predaniStav = st[z.id]; }
   const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, Role AS role, PoskytovatelID AS poskytovatelId, CONVERT(char(10), Vytvoreno, 23) AS vytvoreno, CASE WHEN PinSifrovany IS NULL THEN 0 ELSE 1 END AS zobrazitelny FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1 ORDER BY PinID`, { p: id });
   const lide = await q.all(`SELECT po.PacientOsobaID AS id, o.OsobaID AS osobaId, o.Jmeno AS jmeno, o.Role AS role, o.Tym AS tym, o.PoskytovatelID AS poskytovatelId, ps.Nazev AS poskytovatel,
       CONVERT(char(10), po.Od, 23) AS od, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, po.TymLidiID AS tymId
@@ -756,6 +759,25 @@ central.get('/telefon/prukazy', sUzivatelem(async (q, s, req) => {
   const { tel, rows } = await prukazyNaTelefonu(q, s, req.query.telefon);
   const pac = (r) => ({ id: r.PacientID, zarizeniId: r.ZarizeniID, kod: r.Kod, jmeno: `${r.Prijmeni} ${r.Jmeno}`.trim(), vymena: !!(r.op.garant || r.op.lekar), deaktivace: !!(r.op.garant || s.role.includes('admin')) });
   return { telefon: hezkyTel(tel), pacienti: rows.filter((r) => !r.NahrazenoZarizenim).map(pac), nahrazene: rows.filter((r) => r.NahrazenoZarizenim).map(pac) };
+}));
+/* 0.11.114: výzva k obnovení údajů v Průkazu pacienta – Průkaz ji uvidí (GET /api/d/stav) a nabídne „Načíst z Karty pacienta“;
+   volitelně SMS na číslo telefonu. Údaje do telefonu neodcházejí, stáhne si je pacient sám. */
+central.post('/pacient/:id/obnovit', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('Obnovení v Průkazu posílá garant nebo lékař v týmu (v jednoduchém režimu kdokoli z týmu, kdo zapisuje)', 403);
+  if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+  const zid = cislo((req.body || {}).zarizeniId);
+  const z = await q.one(`SELECT ZarizeniID, Telefon, Stav, Rezim FROM dbo.A_KP_Zarizeni WHERE ZarizeniID = @z AND PacientID = @p`, { z: zid, p: id });
+  if (!z || z.Rezim !== 'PACIENT' || z.Stav !== 'SPAROVANO') throw chyba('Telefon s propojeným Průkazem pacienta nenalezen', 404);
+  omez('obnovit:' + zid, 20, 3600e3);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: VYZVA_OBNOVIT, detail: hezkyTel(z.Telefon), ip: s.ip });
+  let sms = null;
+  if (req.body.sms) {
+    try { await posliSms(z.Telefon, 'Průkaz pacienta: lékař aktualizoval vaše údaje. Otevřete Průkaz pacienta a klepněte na Načíst z Karty pacienta.'); sms = { ok: true };
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'výzva k obnovení poslána SMS', detail: hezkyTel(z.Telefon), ip: s.ip });
+    } catch (e) { sms = { ok: false, chyba: e.message }; }
+  }
+  return { ok: true, sms, telefon: hezkyTel(z.Telefon) };
 }));
 central.post('/telefon/vymena', sUzivatelem(async (q, s, req) => {
   const { tel, rows } = await prukazyNaTelefonu(q, s, req.body.telefon);

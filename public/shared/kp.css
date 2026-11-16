@@ -73,6 +73,7 @@ html.vramu .hlp-top{padding-top:10px}
 .plist .chev{color:var(--muted);flex:none}
 /* buttons */
 .jednoduchy .jen-plny{display:none!important}
+.chip.zalom{white-space:normal;height:auto;min-height:22px;line-height:1.3;padding-top:2px;padding-bottom:2px;max-width:100%}
 .historie-predani{border-top:1px solid var(--line)}
 .historie-predani>summary{cursor:pointer;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none;font-size:14px}
 .historie-predani>summary::-webkit-details-marker{display:none}
@@ -86,7 +87,7 @@ html.vramu .hlp-top{padding-top:10px}
 .obsah-predani>summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:13px}
 .obsah-predani .kv{margin:6px 0 2px;font-size:13px}
 /* 0.11.113: okna (modal) nepřetékají – dlouhý odkaz nebo text se zalomí místo rozšíření okna */
-.modal .box{grid-template-columns:minmax(0,1fr)}
+.modal .box>*{min-width:0}
 .modal .box .banner,.modal .box .lbl,.modal .box p{overflow-wrap:anywhere}
 .cislo-tel{border:2px solid var(--accent);background:var(--accent-soft);border-radius:14px;padding:10px 14px;margin:8px 0 10px;text-align:center}
 .cislo-tel .lbl{margin:0}

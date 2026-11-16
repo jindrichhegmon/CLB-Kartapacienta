@@ -335,6 +335,10 @@ Pacient i jeho blízcí si údaje od lékaře zkopírují do vlastního telefonu
 - Po propojení si pacient **sám, na svůj pokyn** zkopíruje diagnózy, léky, alergie, kontakty a plán – zkontroluje je a uloží. Nic se nesynchronizuje samo a **z Průkazu se do Karty nic neposílá**. Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí.
 - **Přehled**: panel ukazuje každý telefon – komu patří, číslo, stav (**čeká** s platností kódu; **propojeno** s časem posledního načtení; **ukončeno**). U čekajícího **Poslat znovu** a **Zrušit**, u propojeného **Ukončit přístup** (další načtení z Karty už nepůjde; co si pacient zkopíroval, je jeho).
 - Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
+- **Obnovit v Průkazu** (od 0.11.114): u propojeného telefonu je vidět, zda má pacient v Průkazu **aktuální údaje**, nebo zda se údaje v Kartě od posledního předání **změnily** (nová verze plánu, léky, kontakty…). Tlačítko **Obnovit v Průkazu** pošle pacientovi výzvu – Průkaz pacienta mu ukáže upozornění a tlačítkem **Načíst z Karty pacienta** si stáhne aktuální stav; volitelně i SMS. Údaje neodcházejí samy, stáhne si je pacient. Výzva i načtení se zapíšou do historie předání.
+
+![Obnovit údaje v Průkazu pacienta](/napoveda/img/c-obnovit-prukaz.png)
+
 - **Historie předání** (od 0.11.112): pod seznamem telefonů je rozbalovací řádek **Historie předání** – klepnutím se rozbalí tabulka všeho, co se s předáním dělo: kdy byl vydán kód (QR, 6místné číslo), odeslána SMS, kdy pacient Průkaz propojil a **pokaždé, když si údaje do Průkazu načetl** (s verzí plánu), i ukončení přístupu. Kdo to udělal a pro který telefon. U propojení a každého načtení je řádek **Co bylo předáno** – klepnutím se ukáže přesně to, co odešlo do Průkazu: verze plánu, cíl péče, limitace a DVP, diagnózy, alergie, léky (SOS, opioidy, paliativní terapie – z PéčeDoma, nebo z plánu), kontakty, tým a garant (od 0.11.113; u dřívějších předání dovozeno z verze plánu platné v tu chvíli). Historie je jen pro doplňování – nejde upravit ani smazat.
 
 ![Historie předání do Průkazu pacienta](/napoveda/img/c-historie-predani.png)

@@ -117,7 +117,7 @@ const detail = {
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
   kontakty, kontaktyVychozi, tym, garance,
   pecedoma: { klientId: 'a1b2c3d4-0000-4000-8000-000000000001', portalKlientId: 12, odkaz: pdNast.odkaz, nastaveno: true, autoSync: true, sync: pdSync },
-  zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT', vytvoreno: cas(-5, '10:58') },
+  zarizeni: [{ id: 9, predaniStav: { posledniPredani: cas(-2, '11:03'), zmena: true, vyzva: false, vyzvaOd: null, aktualizace: true }, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT', vytvoreno: cas(-5, '10:58') },
     { id: 11, stitek: 'dcera Jana', stav: 'CEKA', sparovano: null, sync: null, baterie: null, verzeAplikace: null, fronta: 0, verzePlanu: null, kod: 'Q7X2M4PL', kodPlatnost: cas(2, '09:15'), telefon: '+420777000321', rezim: 'PACIENT', vytvoreno: cas(-1, '09:15') },
     { id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123', rezim: 'ZAPUJCENY' }],
   // 0.11.112: historie předání do Průkazu pacienta (z logu přístupů)
@@ -186,6 +186,7 @@ app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta
 app.post('/api/c/login', j({ session: 'ukazka' }));
 let mockJednoduchy = false;   // 0.11.111: jednoduchý režim (přepíná /__mock/jednoduchy)
 app.post('/api/c/role-nahled', j({ ok: true }));
+app.post('/api/c/pacient/:id/obnovit', j((req) => ({ ok: true, sms: req.body.sms ? { ok: true } : null, telefon: '+420 604 000 777' })));
 app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
 app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; const role = chce ? [chce] : ['admin', 'lekar']; return { roleMoznosti: ['admin', 'lekar', 'sestra', 'ctenar'], jednoduchyAktivni: mockJednoduchy && !role.includes('admin'), ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role, roleVlastni: ['admin', 'lekar'], roleNahled: chce || null, musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }; }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
@@ -830,6 +831,10 @@ if (!(await p.textContent('.historie-predani')).includes('Pacient načetl údaje
 await klik(p, '.historie-predani .obsah-predani summary'); await p.waitForTimeout(200);
 if (!(await p.textContent('.historie-predani .obsah-predani')).includes('MST Continus')) chyby.push('historie předání: Co bylo předáno neukazuje léky');
 await foto(p, 'c-historie-predani');
+if (!(await p.textContent('#tabbody')).includes('od posledního předání')) chyby.push('předání: u propojeného Průkazu chybí, že se údaje od posledního předání změnily');
+await klik(p, '[data-pobnovit="9"]'); await p.waitForSelector('#ob_ok'); await p.waitForTimeout(200);
+await foto(p, 'c-obnovit-prukaz');
+await klik(p, '#ob_ok'); await p.waitForTimeout(500);
 if (await p.$('#parovat') || await p.$('#pin_ok')) chyby.push('jednoduchý režim: záložka Předání do Průkazu ukazuje zapůjčený telefon nebo PINy');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#n_ok');
 if (await p.isVisible('#n_g') || await p.isVisible('#n_tk') || await p.isVisible('#n_rc')) chyby.push('jednoduchý režim: Nový pacient ukazuje garanta, telefon s kartou nebo RČ');
@@ -879,7 +884,7 @@ for (const t of await p.$$eval('.tabs [data-t]', (x) => x.map((b) => b.dataset.t
 await p.click('.tabs [data-t="telefon"]'); await p.waitForTimeout(300);
 await mobOkno('#parovat', '#pr_sms', 'okno Spárovat telefon');
 await mobOkno('#vymenaTel', '#vt_qr', 'okno Výměna telefonu');
-if (await p.$('#vymenaTel')) { await p.click('#vymenaTel'); await p.waitForSelector('#vt_qr'); await p.click('#vt_qr'); await p.waitForSelector('#vt_stav'); await mob('okno QR výměny'); await p.click('#vt_zrusit'); await p.waitForTimeout(200); }
+if (await p.$('#vymenaTel')) { await p.click('#vymenaTel'); await p.waitForSelector('#vt_qr'); await p.click('#vt_qr'); await p.waitForSelector('#vt_stav'); await mob('okno QR výměny'); if (await p.evaluate(() => { const b = document.querySelector('#vt_zrusit'); b.scrollIntoView({ block: 'center' }); const r = b.getBoundingClientRect(); return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) !== b; })) chyby.push('okno QR výměny (mobil): tlačítko Zrušit výměnu je zakryté'); await p.$eval('#vt_zrusit', (b) => b.click()); await p.waitForTimeout(200); }   // okno se průběžně překresluje (stav výměny) – Playwright by čekal na klid
 await p.click('.tabs [data-t="leky"]'); await p.waitForTimeout(300); await mobOkno('#lk_novy', '#lk_save', 'okno Přidat lék');
 await p.click('.tabs [data-t="plan"]'); await p.waitForTimeout(300);
 if (await p.$('[data-np]')) { await p.click('[data-np]'); await p.waitForSelector('#np_frame'); await p.waitForTimeout(800); await mob('živý náhled karty'); await p.click('#np_zav'); }

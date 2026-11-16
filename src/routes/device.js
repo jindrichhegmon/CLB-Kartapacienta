@@ -20,7 +20,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
-import { audit, zapisDenik, balikProZarizeni, zapisPredani } from '../kp.js';
+import { audit, zapisDenik, balikProZarizeni, zapisPredani, stavPredani } from '../kp.js';
 import { priradTymyTelefonu, srovnejTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
 import { najdiCislo } from '../prenos.js';
@@ -283,6 +283,20 @@ device.post('/cislo', h(async (req) => {
   const cil = najdiCislo(c, tel);
   if (!cil) throw chyba('Číslo neplatí – zkontrolujte ho i číslo telefonu (číslo platí jen pro telefon, pro který ho centrála vydala), případně si v centrální aplikaci otevřete okno znovu', 404);
   return cil;
+}));
+
+/* 0.11.114: Průkaz pacienta se zeptá, zda jsou v Kartě novější údaje (změna od posledního předání nebo výzva z centrály).
+   Vrací jen příznaky – údaje si pacient stáhne až na svůj pokyn přes /sync. */
+device.get('/stav', h(async (req) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('stav:' + zid, 120, 3600e3);
+  return vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    if (z.Rezim !== 'PACIENT') throw chyba('Stav předání je jen pro Průkaz pacienta', 403);
+    if (z.Stav !== 'SPAROVANO') return { aktivni: false, aktualizace: false };
+    const st = (await stavPredani(q, z.PacientID, [zid]))[zid];
+    return { aktivni: true, aktualizace: st.aktualizace, zmena: st.zmena, vyzva: st.vyzva, vyzvaOd: st.vyzvaOd, posledniPredani: st.posledniPredani };
+  });
 }));
 
 device.post('/sdilet', h(async (req) => {

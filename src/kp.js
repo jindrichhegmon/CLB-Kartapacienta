@@ -179,6 +179,24 @@ export function obsahPredani(b) {
     garant: { poskytovatel: g.poskytovatel || null, lekar: g.lekar || null, telefon24: g.telefon24 || null },
   };
 }
+/* 0.11.114: má Průkaz pacienta aktuální údaje? – současný snímek proti poslednímu předání do daného telefonu (A_KP_Predani)
+   a výzva k obnovení z centrály (log přístupů) novější než poslední předání. Vrací jen příznaky, žádná zdravotní data. */
+export const VYZVA_OBNOVIT = 'výzva k obnovení údajů';
+export async function stavPredani(q, pacientId, zarizeniIds, balik = null) {
+  const out = {};
+  if (!zarizeniIds.length) return out;
+  // popisy diagnóz se neporovnávají – načítají se z PéčeDoma a při jeho výpadku by vypadaly jako změna
+  const bezPopisu = (o) => { try { const x = typeof o === 'string' ? JSON.parse(o) : { ...o }; delete x.dgPopisy; return JSON.stringify(x); } catch { return ''; } };
+  const ted = bezPopisu(obsahPredani(balik || await balikProZarizeni(q, pacientId, { rezim: 'PACIENT' })));
+  for (const zid of zarizeniIds) {
+    const s = await q.one(`SELECT TOP 1 Obsah AS obsah, CONVERT(char(19), Cas, 120) AS cas FROM dbo.A_KP_Predani WHERE PacientID = @p AND ZarizeniID = @z ORDER BY PredaniID DESC`, { p: pacientId, z: zid });
+    const v = await q.one(`SELECT TOP 1 CONVERT(char(19), Cas, 120) AS cas FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND ZarizeniID = @z AND Akce = @a ORDER BY AuditID DESC`, { p: pacientId, z: zid, a: VYZVA_OBNOVIT });
+    const zmena = s ? bezPopisu(s.obsah) !== ted : null;   // null = předáno před 0.11.113, nedá se porovnat
+    const vyzva = !!(v && (!s || v.cas > s.cas));
+    out[zid] = { posledniPredani: s ? s.cas.slice(0, 16) : null, zmena, vyzva, vyzvaOd: vyzva ? v.cas.slice(0, 16) : null, aktualizace: zmena === true || vyzva };
+  }
+  return out;
+}
 export async function zapisPredani(q, { pacientId, zarizeniId, akce, balik }) {
   const o = obsahPredani(balik);
   await q.exec(`INSERT INTO dbo.A_KP_Predani (PacientID, ZarizeniID, Akce, VerzePlanu, Obsah) VALUES (@p, @z, @a, @v, @o)`,

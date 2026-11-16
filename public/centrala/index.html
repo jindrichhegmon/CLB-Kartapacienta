@@ -777,7 +777,33 @@ const PREDANI_NAZ = {
   'telefon spárován znovu stejným kódem': 'Průkaz propojen znovu – údaje předány',
   'údaje načteny do Průkazu pacienta': 'Pacient načetl údaje do Průkazu',
   'přístup pacienta ukončen': 'Přístup ukončen',
+  'výzva k obnovení údajů': 'Výzva k obnovení údajů v Průkazu',
+  'výzva k obnovení poslána SMS': 'Výzva k obnovení poslána SMS',
 };
+/* 0.11.114: stav údajů v propojeném Průkazu pacienta + tlačítko Obnovit v Průkazu */
+function stavPrukazuHTML(z) {
+  const st = z.predaniStav;
+  if (!st) return '';
+  if (st.vyzva) return `<div style="margin-top:4px"><span class="chip zalom warn">výzva k obnovení poslána ${esc(fmtDT(st.vyzvaOd))} – pacient zatím nenačetl</span></div>`;
+  if (st.zmena === true) return `<div style="margin-top:4px"><span class="chip zalom warn">údaje v Kartě se od posledního předání (${esc(fmtDT(st.posledniPredani))}) změnily</span></div>`;
+  if (st.zmena === false) return `<div style="margin-top:4px"><span class="chip zalom ok">v Průkazu jsou aktuální údaje</span></div>`;
+  return '<div style="margin-top:4px"><span class="chip zalom">stav nejde porovnat (předáno před 0.11.113) – doporučujeme obnovit</span></div>';
+}
+function obnovitOkno(zid) {
+  const z = (S.pac.zarizeni || []).find((x) => x.id === zid) || {};
+  modal(`<h2>Obnovit údaje v Průkazu pacienta</h2>
+    <p class="muted" style="margin:0">Pacient${z.telefon ? ' s telefonem <b>' + esc(z.telefon) + '</b>' : ''} uvidí v Průkazu pacienta upozornění, že lékař aktualizoval údaje, a tlačítkem <b>Načíst z Karty pacienta</b> si stáhne aktuální stav (diagnózy, léky, alergie, kontakty a plán). Údaje neodcházejí samy – stáhne si je pacient. Výzva i každé načtení se zapíše do historie předání.</p>
+    ${S.pac.smsDostupne ? '<label class="row" style="gap:8px"><input type="checkbox" id="ob_sms" checked> Poslat pacientovi i SMS („lékař aktualizoval vaše údaje…“)</label>' : '<div class="note">SMS teď nejde odeslat – pacient upozornění uvidí po otevření Průkazu.</div>'}
+    <div class="quick"><button class="btn primary" id="ob_ok">Poslat výzvu k obnovení</button><button class="btn" data-close>Zpět</button></div>`, () => {
+    $('ob_ok').onclick = async () => {
+      $('ob_ok').disabled = true;
+      try { const r = await C(`/pacient/${S.pacId}/obnovit`, { method: 'POST', body: { zarizeniId: zid, sms: !!($('ob_sms') && $('ob_sms').checked) } });
+        closeModal(); toast(r.sms && !r.sms.ok ? `Výzva uložena, SMS se nepodařilo poslat: ${r.sms.chyba}` : `Výzva k obnovení poslána${r.sms && r.sms.ok ? ' i SMS na ' + r.telefon : ''}`);
+        await nactiDetail(); kresliDetail();
+      } catch (e) { $('ob_ok').disabled = false; toast(e.message); }
+    };
+  });
+}
 /* co bylo předáno (snímek z A_KP_Predani, u starších předání dovozeno z verze plánu) */
 function obsahPredaniHTML(o) {
   if (!o) return '';
@@ -809,9 +835,9 @@ function historiePredaniHTML(d) {
 }
 /* panel vlastních telefonů pacienta (Průkaz pacienta) – plná Karta i jednoduchý režim */
 function predaniPanel(d, vlastni) {
-  return `<div class="panel"><div class="panel-h"><h2>Průkaz pacienta v telefonu pacienta</h2><span class="chip vio">${vlastni.filter((z) => z.stav === 'SPAROVANO').length} propojeno</span></div><div class="tblwrap"><table class="tbl"><tbody>${vlastni.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon pacienta')}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `propojeno ${esc(fmtDT(z.sparovano))} · naposledy načteno ${esc(fmtDT(z.sync))}${z.verzeAplikace ? ' · ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? `čeká na propojení${z.kodPlatnost ? ', kód platí do ' + esc(fmtDT(z.kodPlatnost)) : ''}` : 'ukončeno'}</div></td>
+  return `<div class="panel"><div class="panel-h"><h2>Průkaz pacienta v telefonu pacienta</h2><span class="chip vio">${vlastni.filter((z) => z.stav === 'SPAROVANO').length} propojeno</span></div><div class="tblwrap"><table class="tbl"><tbody>${vlastni.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon pacienta')}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `propojeno ${esc(fmtDT(z.sparovano))} · naposledy načteno ${esc(fmtDT(z.sync))}${z.verzeAplikace ? ' · ' + esc(z.verzeAplikace) : ''}${stavPrukazuHTML(z)}` : z.stav === 'CEKA' ? `čeká na propojení${z.kodPlatnost ? ', kód platí do ' + esc(fmtDT(z.kodPlatnost)) : ''}` : 'ukončeno'}</div></td>
         <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${z.stav === 'SPAROVANO' ? 'propojeno' : z.stav === 'CEKA' ? 'čeká' : 'ukončeno'}</span></td>
-        <td style="white-space:nowrap;text-align:right">${(d.op.garant || d.op.lekar) && z.stav === 'CEKA' ? `<button class="btn sm" data-pznovu="${z.id}" title="Znovu poslat SMS nebo ukázat QR kód a číslo">Poslat znovu</button> <button class="btn sm" data-pzrusit="${z.id}">Zrušit</button>` : ''}${d.op.garant && z.stav === 'SPAROVANO' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient zatím Průkaz pacienta s Kartou nepropojil.</td></tr>'}</tbody></table></div>
+        <td style="white-space:nowrap;text-align:right">${(d.op.garant || d.op.lekar) && z.stav === 'CEKA' ? `<button class="btn sm" data-pznovu="${z.id}" title="Znovu poslat SMS nebo ukázat QR kód a číslo">Poslat znovu</button> <button class="btn sm" data-pzrusit="${z.id}">Zrušit</button>` : ''}${(d.op.garant || d.op.lekar) && z.stav === 'SPAROVANO' && d.pacient.stav === 'AKTIVNI' ? `<button class="btn sm ${z.predaniStav && z.predaniStav.aktualizace ? 'primary' : ''}" data-pobnovit="${z.id}" title="Pacient v Průkazu uvidí, že jsou nové údaje, a načte si je">Obnovit v Průkazu</button> ` : ''}${d.op.garant && z.stav === 'SPAROVANO' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient zatím Průkaz pacienta s Kartou nepropojil.</td></tr>'}</tbody></table></div>
     ${(d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? `<div style="padding:12px 14px"><button class="btn primary" id="pacientovi">${vlastni.length ? 'Předat do dalšího telefonu' : 'Předat pacientovi do Průkazu'}</button></div>` : ''}
     ${historiePredaniHTML(d)}
     <div class="rolehelp">Pacient nebo jeho blízcí mají v telefonu aplikaci <b>Průkaz pacienta</b>. Po propojení si z Karty jednorázově zkopírují, co lékař zapsal (diagnózy, léky, alergie, kontakty, plán) – na jejich pokyn, nic se nesynchronizuje samo a z Průkazu se do Karty nic neposílá. Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a ZZS se do něj nedostane.</div></div>`;
@@ -945,6 +971,7 @@ function bindTab() {
   on('vymenaTel', () => { const z = d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon && x.nahrazeno) || d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon); if (z) vymenaTelefonuOkno(z.telefon); });
   on('pacientovi', () => pacientoviOkno());
   on('predatPrukaz', () => pacientoviOkno());
+  document.querySelectorAll('[data-pobnovit]').forEach((b) => (b.onclick = () => obnovitOkno(Number(b.dataset.pobnovit))));
   document.querySelectorAll('[data-pukoncit]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Ukončit přístup pacienta', 'Data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie – smazat ji nelze. Vlastní záznamy pacienta zůstanou v jeho telefonu.', 'Ukončit přístup', true)) akce('/zarizeni', { zarizeniId: Number(b.dataset.pukoncit), akce: 'zablokovat' }, 'Přístup ukončen'); }));
   if ($('linkaPanel')) linkaNacti();
   on('parovatSms', () => parovat(true));

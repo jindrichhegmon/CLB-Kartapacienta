@@ -59,3 +59,19 @@ test('předání do Průkazu (0.11.113): snímek obsahuje plán, diagnózy, aler
   assert.equal(pd.leky.zdroj, 'PéčeDoma'); assert.deepEqual(pd.leky.sos, ['Oxycodon']);
   assert.equal(obsahPredani({ kontakty: [], tym: [] }).plan, null, 'bez plánu');
 });
+
+test('obnovení v Průkazu (0.11.114): změna od posledního předání a výzva z centrály', async () => {
+  const { stavPredani, obsahPredani } = await import('../src/kp.js');
+  const plan = { verze: 2, data: { cil: 'symptom', dg: 'C50', alergie: 'penicilin', sos: ['Morphin'] } };
+  const b = { plan, dgPopisy: { C50: 'X' }, kontakty: [], tym: [], garant: {} };
+  const qq = (snimek, vyzva) => ({ one: async (sql) => (sql.includes('A_KP_Predani') ? snimek : sql.includes('A_KP_AuditLog') ? vyzva : null) });
+  const stejny = { obsah: JSON.stringify({ ...obsahPredani(b), dgPopisy: {} }), cas: '2026-11-16 10:00:00' };
+  assert.deepEqual((await stavPredani(qq(stejny, null), 1, [5], b))[5], { posledniPredani: '2026-11-16 10:00', zmena: false, vyzva: false, vyzvaOd: null, aktualizace: false }, 'jiné popisy diagnóz nejsou změna');
+  const zmeneny = await stavPredani(qq(stejny, null), 1, [5], { ...b, plan: { verze: 3, data: { ...plan.data, alergie: 'žádné' } } });
+  assert.equal(zmeneny[5].zmena, true); assert.equal(zmeneny[5].aktualizace, true);
+  const vyzva = await stavPredani(qq(stejny, { cas: '2026-11-16 11:00:00' }), 1, [5], b);
+  assert.equal(vyzva[5].vyzva, true); assert.equal(vyzva[5].aktualizace, true);
+  const stara = await stavPredani(qq(stejny, { cas: '2026-11-16 09:00:00' }), 1, [5], b);
+  assert.equal(stara[5].vyzva, false, 'výzva před posledním načtením už neplatí');
+  assert.equal((await stavPredani(qq(null, null), 1, [5], b))[5].zmena, null, 'předáno před 0.11.113 – nejde porovnat');
+});
