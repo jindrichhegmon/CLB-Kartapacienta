@@ -356,9 +356,28 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
   // 0.11.112: historie předání do Průkazu pacienta – vše z logu přístupů, co se týká vlastních telefonů pacienta (vydání kódu, SMS,
   // propojení, načtení údajů, ukončení); log je jen pro doplňování, takže historie nejde upravit ani smazat
-  const predani = await q.all(`SELECT TOP 100 CONVERT(char(16), a.Cas, 120) AS cas, a.Kdo AS kdo, a.Akce AS akce, a.Detail AS detail, z.Telefon AS telefon, z.Stitek AS stitek
+  const predani = await q.all(`SELECT TOP 100 CONVERT(char(16), a.Cas, 120) AS cas, CONVERT(char(19), a.Cas, 120) AS casS, a.ZarizeniID AS zarizeniId, a.Kdo AS kdo, a.Akce AS akce, a.Detail AS detail, z.Telefon AS telefon, z.Stitek AS stitek
     FROM dbo.A_KP_AuditLog a JOIN dbo.A_KP_Zarizeni z ON z.ZarizeniID = a.ZarizeniID
     WHERE a.PacientID = @p AND z.PacientID = @p AND z.Rezim = 'PACIENT' ORDER BY a.AuditID DESC`, { p: id });
+  // 0.11.113: u propojení a načtení i to, CO bylo předáno – snímek z A_KP_Predani (od 0.11.113); u starších předání dovozeno
+  // z verze plánu platné v tu chvíli (verze plánu se nemění), kontakty a léky z PéčeDoma tehdy doložit nejde
+  const predaneUdaje = predani.filter((x) => /^telefon spárován|^údaje načteny/.test(x.akce));
+  if (predaneUdaje.length) {
+    const snimky = await q.all(`SELECT TOP 200 PredaniID AS id, CONVERT(char(19), Cas, 120) AS casS, ZarizeniID AS zarizeniId, Obsah AS obsah FROM dbo.A_KP_Predani WHERE PacientID = @p ORDER BY PredaniID DESC`, { p: id });
+    const verzePlanu = await q.all(`SELECT Verze AS verze, Data AS data, CONVERT(char(19), Vytvoreno, 120) AS vytvoreno, CONVERT(char(10), PlatnostDo, 23) AS platnostDo, PodepsalJmeno AS podepsal FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze`, { p: id });
+    const t = (x) => new Date(x.replace(' ', 'T')).getTime();
+    const pouzite = new Set();
+    for (const x of predaneUdaje) {
+      const sn = snimky.find((y) => !pouzite.has(y.id) && y.zarizeniId === x.zarizeniId && Math.abs(t(y.casS) - t(x.casS)) <= 15000);
+      if (sn) { pouzite.add(sn.id); try { x.obsah = JSON.parse(sn.obsah); } catch { /* poškozený snímek přeskočit */ } continue; }
+      const v = [...verzePlanu].reverse().find((y) => t(y.vytvoreno) <= t(x.casS) + 1000);
+      if (v) { let d = {}; try { d = JSON.parse(v.data); } catch { /* */ }
+        x.obsah = { dovozeno: true, plan: { verze: v.verze, platnostDo: v.platnostDo, podepsal: v.podepsal, cil: d.cil || null, kpr: d.kpr || null, limity: d.limity || [], dvp: !!(d.doklad && d.doklad.dvp), dvpDatum: (d.doklad && d.doklad.datum) || '', dvpOriginal: (d.doklad && d.doklad.original) || '' },
+          dg: d.dg || '', alergie: d.alergie || '', funkce: d.funkce || '', leky: { zdroj: 'plán péče', sos: d.sos || [], opioidy: d.opioidy || [], medikace: d.medikace || [] } };
+      }
+    }
+  }
+  for (const x of predani) { delete x.casS; delete x.zarizeniId; }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení průkazu', ip: s.ip });
   const pdNast = await nastaveniPd(q);
   const pecedoma = { klientId: pacient.pdKlientId, portalKlientId: pacient.pdPortalKlientId, odkaz: pdNast.odkaz, nastaveno: pdNast.nastaveno, autoSync: pdNast.sync, sync: pacient.pdKlientId ? await stavSync(q, id) : null };

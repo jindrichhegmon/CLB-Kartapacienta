@@ -78,6 +78,16 @@ html.vramu .hlp-top{padding-top:10px}
 .historie-predani>summary::-webkit-details-marker{display:none}
 .historie-predani>summary::before{content:'▸';color:var(--accent);font-size:14px;transition:transform .15s}
 .historie-predani[open]>summary::before{transform:rotate(90deg)}
+.historie-predani td{vertical-align:top}
+.historie-predani tr.obsah-radek td{border-top:0;padding-top:0;background:var(--surface-2)}
+.obsah-predani{margin:4px 0 6px}
+.obsah-predani .kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:4px 12px}
+@media (max-width:640px){.obsah-predani .kv{grid-template-columns:minmax(0,1fr)}}
+.obsah-predani>summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:13px}
+.obsah-predani .kv{margin:6px 0 2px;font-size:13px}
+/* 0.11.113: okna (modal) nepřetékají – dlouhý odkaz nebo text se zalomí místo rozšíření okna */
+.modal .box{grid-template-columns:minmax(0,1fr)}
+.modal .box .banner,.modal .box .lbl,.modal .box p{overflow-wrap:anywhere}
 .cislo-tel{border:2px solid var(--accent);background:var(--accent-soft);border-radius:14px;padding:10px 14px;margin:8px 0 10px;text-align:center}
 .cislo-tel .lbl{margin:0}
 .cislo-tel .cislo{font:800 34px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;white-space:nowrap;color:var(--accent-ink);margin:2px 0}

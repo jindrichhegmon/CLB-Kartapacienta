@@ -765,8 +765,8 @@ async function linkaNacti() {
 /* 0.11.111: jednoduchý režim – záložka Předání do Průkazu: jen vlastní telefony pacienta (Průkaz pacienta), bez zapůjčeného telefonu a PINů */
 function tabPredani(d) {
   const vlastni = d.zarizeni.filter((z) => z.stav !== 'VRACENO' && z.rezim === 'PACIENT');
-  return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">${predaniPanel(d, vlastni)}</div>
-    <div style="display:grid;gap:12px;align-content:start"><div class="note"><b>Jak předat údaje pacientovi:</b> pacient si do svého telefonu nainstaluje <b>Průkaz pacienta</b> (${esc(S.prukazAdresa || '')}/prukaz/). Tady klikněte na <b>Předat pacientovi do Průkazu</b>, zadejte jeho mobil a buď mu pošlete SMS, nebo mu v ordinaci ukažte QR kód či řekněte <b>6místné číslo</b>. Pacient v Průkazu klepne na <b>Propojit s Kartou pacienta</b> a zadá číslo – nabídnou se mu diagnózy, léky, alergie, kontakty a plán ke zkopírování. Data pak má jen ve svém telefonu, do Karty se nic nevrací.</div></div></div>`;
+  return `<div style="display:grid;gap:12px;align-content:start;max-width:1100px">${predaniPanel(d, vlastni)}
+    <div><div class="note"><b>Jak předat údaje pacientovi:</b> pacient si do svého telefonu nainstaluje <b>Průkaz pacienta</b> (${esc(S.prukazAdresa || '')}/prukaz/). Tady klikněte na <b>Předat pacientovi do Průkazu</b>, zadejte jeho mobil a buď mu pošlete SMS, nebo mu v ordinaci ukažte QR kód či řekněte <b>6místné číslo</b>. Pacient v Průkazu klepne na <b>Propojit s Kartou pacienta</b> a zadá číslo – nabídnou se mu diagnózy, léky, alergie, kontakty a plán ke zkopírování. Data pak má jen ve svém telefonu, do Karty se nic nevrací.</div></div></div>`;
 }
 /* 0.11.112: historie předání do Průkazu pacienta – na rozklik; z logu přístupů (jen pro doplňování) */
 const PREDANI_NAZ = {
@@ -778,12 +778,33 @@ const PREDANI_NAZ = {
   'údaje načteny do Průkazu pacienta': 'Pacient načetl údaje do Průkazu',
   'přístup pacienta ukončen': 'Přístup ukončen',
 };
+/* co bylo předáno (snímek z A_KP_Predani, u starších předání dovozeno z verze plánu) */
+function obsahPredaniHTML(o) {
+  if (!o) return '';
+  const p = o.plan, sk = { rozhoduje: 'rozhoduje za pacienta', informovat: 'informovat', pecuje: 'pečuje' };
+  const seznam = (a) => (a && a.length ? a.map(esc).join('<br>') : '<span class="muted">—</span>');
+  const radky = [
+    ['Plán péče', p ? `verze ${esc(p.verze)}${p.podepsal ? ' · ' + esc(p.podepsal) : ''}${p.platnostDo ? ' · platnost do ' + esc(fmtD(p.platnostDo)) : ''}` : '<span class="muted">bez plánu</span>'],
+    ...(p ? [['Cíl péče', esc(CILE[p.cil] || p.cil || '—')], ['Limitace', p.kpr === 'neuvedeno' ? 'KPR neuvedeno (bez DVP)' : esc((p.limity || []).join(', ') || 'žádné')],
+      ['DVP', p.dvp ? `ano${p.dvpDatum ? ' z ' + esc(fmtD(p.dvpDatum)) : ''}${p.dvpOriginal ? ' · originál: ' + esc(p.dvpOriginal) : ''}` : 'ne']] : []),
+    ['Diagnózy', `${esc(o.dg || '—').replace(/\n/g, '<br>')}${Object.keys(o.dgPopisy || {}).length ? `<div class="lbl">${Object.entries(o.dgPopisy).map(([k, v]) => `${esc(k)} – ${esc(v)}`).join('<br>')}</div>` : ''}`],
+    ['Alergie', esc(o.alergie || '—')],
+    ...(o.funkce ? [['Funkční stav', esc(o.funkce)]] : []),
+    ['SOS léky', seznam(o.leky && o.leky.sos)], ['Opioidy', seznam(o.leky && o.leky.opioidy)], ['Paliativní terapie', seznam(o.leky && o.leky.medikace)],
+    ...(o.kontakty ? [['Kontakty', o.kontakty.length ? o.kontakty.map((k) => `${esc(k.jmeno)}${k.tel ? ' · ' + esc(k.tel) : ''}${k.skupina ? ` <span class="lbl" style="display:inline">(${esc(sk[k.skupina] || k.skupina)})</span>` : ''}`).join('<br>') : '<span class="muted">—</span>']] : []),
+    ...(o.tym ? [['Tým', o.tym.length ? o.tym.map((x) => `${esc(x.nazev)}${x.tel ? ' · ' + esc(x.tel) : ''}`).join('<br>') : '<span class="muted">—</span>']] : []),
+    ...(o.garant && (o.garant.poskytovatel || o.garant.lekar) ? [['Garant', `${esc(o.garant.poskytovatel || '')}${o.garant.lekar ? ' · ' + esc(o.garant.lekar) : ''}${o.garant.telefon24 ? ' · ' + esc(o.garant.telefon24) : ''}`]] : []),
+  ];
+  return `<details class="obsah-predani"><summary>Co bylo předáno${o.leky ? ` <span class="lbl" style="display:inline">· léky z ${esc(o.leky.zdroj)}</span>` : ''}</summary>
+    ${o.dovozeno ? '<div class="note" style="margin:6px 0">Předáno před verzí 0.11.113 – údaje jsou z verze plánu platné v tu chvíli (verze plánu se nemění). Kontakty a tým tehdy zaznamenané nejsou.</div>' : ''}
+    <dl class="kv">${radky.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></details>`;
+}
 function historiePredaniHTML(d) {
   const h = (d.predani || []).filter((x) => x.akce !== 'synchronizace zápisů');
   const nacteni = h.filter((x) => /spárován|načteny/.test(x.akce)).length;
   return `<details class="historie-predani"><summary><b>Historie předání</b> <span class="chip">${h.length}</span>${nacteni ? ` <span class="chip ok">${nacteni}× předáno</span>` : ''}${h[0] ? ` <span class="muted" style="font-size:12.5px">naposledy ${esc(fmtDT(h[0].cas))}</span>` : ''}</summary>
     ${h.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Kdy</th><th>Co</th><th>Telefon</th><th>Kdo</th></tr></thead><tbody>${h.map((x) => `<tr><td class="mono" style="white-space:nowrap;font-size:12.5px">${esc(fmtDT(x.cas))}</td>
-      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail ? `<div class="lbl">${esc(x.detail)}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>`).join('')}</tbody></table></div>`
+      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail ? `<div class="lbl">${esc(x.detail)}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>${x.obsah ? `<tr class="obsah-radek"><td colspan="4">${obsahPredaniHTML(x.obsah)}</td></tr>` : ''}`).join('')}</tbody></table></div>`
       : '<div class="muted" style="padding:8px 14px 12px">Zatím nic nepředáno.</div>'}</details>`;
 }
 /* panel vlastních telefonů pacienta (Průkaz pacienta) – plná Karta i jednoduchý režim */

@@ -121,8 +121,8 @@ const detail = {
     { id: 11, stitek: 'dcera Jana', stav: 'CEKA', sparovano: null, sync: null, baterie: null, verzeAplikace: null, fronta: 0, verzePlanu: null, kod: 'Q7X2M4PL', kodPlatnost: cas(2, '09:15'), telefon: '+420777000321', rezim: 'PACIENT', vytvoreno: cas(-1, '09:15') },
     { id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123', rezim: 'ZAPUJCENY' }],
   // 0.11.112: historie předání do Průkazu pacienta (z logu přístupů)
-  predani: [{ cas: cas(0, '09:12'), kdo: 'Průkaz pacienta', akce: 'údaje načteny do Průkazu pacienta', detail: 'plán verze 3', telefon: '+420604000777', stitek: 'telefon pacienta' },
-    { cas: cas(-2, '11:03'), kdo: 'telefon pacienta', akce: 'telefon spárován', detail: '+420 604 000 777', telefon: '+420604000777', stitek: 'telefon pacienta' },
+  predani: [{ cas: cas(0, '09:12'), kdo: 'Průkaz pacienta', akce: 'údaje načteny do Průkazu pacienta', detail: 'plán verze 3', telefon: '+420604000777', stitek: 'telefon pacienta', obsah: { plan: { verze: 3, platnostDo: den(70), podepsal: 'MUDr. Petra Ukázková', cil: 'symptom', kpr: 'dvp', limity: ['KPR', 'Umělá plicní ventilace'], dvp: true, dvpDatum: den(-40), dvpOriginal: 'u dcery' }, dg: 'C50 karcinom prsu s metastázami do kostí a jater', dgPopisy: { C50: 'Zhoubný novotvar prsu' }, alergie: 'penicilin', leky: { zdroj: 'PéčeDoma', sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Dexamethason 4 mg – 1-0-0'] }, kontakty: [{ jmeno: 'Jana Zkušební (dcera)', tel: '+420 777 000 321', skupina: 'rozhoduje' }], tym: [{ nazev: 'Hospic Ukázka', tel: '+420 577 000 999' }], garant: { poskytovatel: 'Hospic Ukázka', lekar: 'MUDr. Jan Vzorový, Ph.D.', telefon24: '+420 577 000 999' } } },
+    { cas: cas(-2, '11:03'), kdo: 'telefon pacienta', akce: 'telefon spárován', detail: '+420 604 000 777', telefon: '+420604000777', stitek: 'telefon pacienta', obsah: { dovozeno: true, plan: { verze: 3, cil: 'symptom', kpr: 'dvp', limity: ['KPR'], dvp: true }, dg: 'C50 karcinom prsu', alergie: 'penicilin', leky: { zdroj: 'plán péče', sos: ['Morphin 10 mg s.c.'], opioidy: [], medikace: [] } } },
     { cas: cas(-2, '11:01'), kdo: 'MUDr. Petra Ukázková', akce: 'odkaz pro vlastní telefon poslán SMS', detail: '+420 604 000 777', telefon: '+420604000777', stitek: 'telefon pacienta' },
     { cas: cas(-2, '11:00'), kdo: 'MUDr. Petra Ukázková', akce: 'kód pro vlastní telefon pacienta vydán', detail: '+420 604 000 777 · telefon pacienta', telefon: '+420604000777', stitek: 'telefon pacienta' }],
   odPacienta: [{ id: 1, cas: cas(-1, '19:30'), polozky: [
@@ -255,7 +255,7 @@ app.get('/api/d/pecedoma/zpravy', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/d/pecedoma/zprava', j(chatOdpoved('OD_PACIENTA')));
 app.post('/api/c/pacient/:id/parovat', j({ zarizeniId: 8, kod: 'TYJRRRQH', cislo: '482615', tenant: TENANT, platnost: new Date(Date.now() + 15 * 60e3).toISOString(), odkaz: `https://kartapacienta.example/karta/#p=${TENANT}.TYJRRRQH.T420777000123`, telefonKarty: '+420 777 000 123', smsDostupne: true, smsDuvod: '', sms: null }));
 app.post('/api/c/pacient/:id/zarizeni', j({ ok: true }));
-app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', cislo: '730194', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://kartapacienta.example/pacient/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', 'https://kartapacienta.example/pacient/#p=…') } : null })));
+app.post('/api/c/pacient/:id/pacientovi', j((req) => ({ zarizeniId: 10, kod: 'MPK4R7ZD', cislo: '730194', tenant: TENANT, platnost: new Date(Date.now() + 72 * 3600e3).toISOString(), odkaz: `https://dialogusprukaz.example/prukaz/#p=${TENANT}.MPK4R7ZD.T420604000777`, telefon: '+420 604 000 777', smsDostupne: true, smsDuvod: '', sms: req.body.sms ? { ok: true, text: String(req.body.text || '').replace('{odkaz}', `https://dialogusprukaz.example/prukaz/#p=${TENANT}.MPK4R7ZD.T420604000777`).replace('{cislo}', '730 194') } : null })));
 app.get('/api/c/uzivatele', j({ uzivatele }));
 app.get('/api/c/tym-lidi/telefony', j(() => ({ telefony: [   // 0.11.85: telefony s kartou v okně týmu
   { telefon: '+420722916951', hezky: '+420 722 916 951', pacienti: [{ id: 1, jmeno: 'Zkušební Marie', kod: 'P-0007', rok: 1941 }, { id: 2, jmeno: 'Příkladný Josef', kod: 'P-0008', rok: 1938 }, ...['Vzorová Anna', 'Ukázková Jana', 'Testovací Karel', 'Příkladná Eva', 'Zkušební Jiří', 'Modelová Věra', 'Vzorný Pavel', 'Ukázkový Jan', 'Pokusná Ludmila', 'Smyšlená Olga', 'Ukázková Marta', 'Vzorová Alena', 'Pokusný Milan', 'Testovací Hana', 'Modelový Petr', 'Zkušební Věra', 'Příkladný Karel'].map((jm, i) => ({ id: 10 + i, jmeno: jm, kod: 'P-00' + (10 + i), rok: 1930 + i * 2 }))], skrytych: 1, vybran: true },
@@ -814,11 +814,21 @@ if (zalozkyJed !== 'karta,dg,plan,leky,kontakty,telefon,udaje') chyby.push('jedn
 if (!(await p.$('#predatPrukaz')) || await p.$('[data-np]') || await p.$('#vidZahajit') || await p.$$eval('#tabbody .panel-h h2', (h) => h.some((x) => /^(PéčeDoma|Telefon u pacienta)$/.test(x.textContent.trim())))) chyby.push('jednoduchý režim: na Krizové kartě chybí Předat do Průkazu, nebo zůstal náhled telefonu, videohovor, panel PéčeDoma či zapůjčený telefon');
 await p.waitForTimeout(300); await foto(p, 'c-jednoduchy-karta');
 await klik(p, '#predatPrukaz'); await p.waitForSelector('#pz_t');
+await p.fill('#pz_t', '+420 604 000 777'); await klik(p, '#pz_sms'); await p.waitForSelector('#pz_hot');
+if (await p.$eval('#modal .box', (b) => b.scrollWidth > b.clientWidth + 1)) chyby.push('předání: okno se SMS přetéká do strany (dlouhý odkaz)');
+await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(200);
+if (await p.$eval('#modal .box', (b) => b.scrollWidth > b.clientWidth + 1)) chyby.push('předání: okno se SMS přetéká na mobilu');
+await foto(p, 'c-predani-sms'); await p.setViewportSize({ width: 1200, height: 760 });
+await p.click('#pz_hot'); await p.waitForTimeout(400);
+await klik(p, '.tabs [data-t="karta"]'); await p.waitForSelector('#predatPrukaz');
+await klik(p, '#predatPrukaz'); await p.waitForSelector('#pz_t');
 if (!(await p.textContent('#modal')).includes('Průkaz pacienta')) chyby.push('jednoduchý režim: okno předání nemluví o Průkazu pacienta');
 await p.click('#modal [data-close]');
 await klik(p, '.tabs [data-t="telefon"]'); await p.waitForSelector('#pacientovi');
 await klik(p, '.historie-predani summary'); await p.waitForTimeout(200);
 if (!(await p.textContent('.historie-predani')).includes('Pacient načetl údaje do Průkazu')) chyby.push('historie předání: chybí záznam o načtení údajů');
+await klik(p, '.historie-predani .obsah-predani summary'); await p.waitForTimeout(200);
+if (!(await p.textContent('.historie-predani .obsah-predani')).includes('MST Continus')) chyby.push('historie předání: Co bylo předáno neukazuje léky');
 await foto(p, 'c-historie-predani');
 if (await p.$('#parovat') || await p.$('#pin_ok')) chyby.push('jednoduchý režim: záložka Předání do Průkazu ukazuje zapůjčený telefon nebo PINy');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#n_ok');

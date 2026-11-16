@@ -47,3 +47,15 @@ test('přepnutí role správce (0.11.112): jen na stejná nebo nižší práva; 
   const spravce = await opravneni(db(['GARANT']), uz(['admin', 'lekar'], false), 1);
   assert.equal(spravce.garant && spravce.lekar, true);
 });
+
+test('předání do Průkazu (0.11.113): snímek obsahuje plán, diagnózy, alergie, léky, kontakty a tým; léky z PéčeDoma mají přednost', async () => {
+  const { obsahPredani } = await import('../src/kp.js');
+  const plan = { verze: 4, platnostDo: '2027-01-01', podepsal: 'MUDr. A', data: { cil: 'symptom', kpr: 'dvp', limity: ['KPR'], doklad: { dvp: true, datum: '2026-10-01', original: 'u dcery' }, dg: 'C50', alergie: 'penicilin', sos: ['Morphin'], opioidy: [], medikace: [] } };
+  const b = { plan, dgPopisy: { C50: 'Zhoubný novotvar prsu' }, kontakty: [{ jmeno: 'Jana', tel: '+420777', skupina: 'rozhoduje', id: 9 }], tym: [{ nazev: 'Hospic', tel: '+420577' }], garant: { poskytovatel: 'Hospic', lekar: 'MUDr. B', telefon24: '+420577' }, pecedoma: null };
+  const o = obsahPredani(b);
+  assert.equal(o.plan.verze, 4); assert.equal(o.plan.dvp, true); assert.deepEqual(o.leky.sos, ['Morphin']); assert.equal(o.leky.zdroj, 'plán péče');
+  assert.deepEqual(o.kontakty, [{ jmeno: 'Jana', tel: '+420777', skupina: 'rozhoduje' }], 'jen jméno, telefon a skupina');
+  const pd = obsahPredani({ ...b, pecedoma: { propojeno: true, aktualizovano: '2026-11-16', sos: ['Oxycodon'], opioidy: [], medikace: [] } });
+  assert.equal(pd.leky.zdroj, 'PéčeDoma'); assert.deepEqual(pd.leky.sos, ['Oxycodon']);
+  assert.equal(obsahPredani({ kontakty: [], tym: [] }).plan, null, 'bez plánu');
+});

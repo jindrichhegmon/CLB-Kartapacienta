@@ -20,7 +20,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
-import { audit, zapisDenik, balikProZarizeni } from '../kp.js';
+import { audit, zapisDenik, balikProZarizeni, zapisPredani } from '../kp.js';
 import { priradTymyTelefonu, srovnejTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
 import { najdiCislo } from '../prenos.js';
@@ -107,6 +107,7 @@ device.post('/parovat', h(async (req) => {
     // 0.11.85: týmy zatržené u tohoto telefonu (Lidé a týmy → tým → Telefony s kartou) se přiřadí i nově spárovanému pacientovi – ještě před balíkem, ať telefon dostane jejich PINy
     if (rezim !== 'PACIENT') { await srovnejTymyTelefonu(q, z.PacientID); await priradTymyTelefonu(q, z.PacientID, telefon); }   // 0.11.89: předchozí telefon zablokován → jeho týmy odejdou
     const balik = await balikProZarizeni(q, z.PacientID, { rezim });
+    if (rezim === 'PACIENT') await zapisPredani(q, { pacientId: z.PacientID, zarizeniId: z.ZarizeniID, akce: 'PROPOJENI', balik });   // 0.11.113: co přesně odešlo do Průkazu
     // kód lékaře (TOTP) má smysl jen na zapůjčeném telefonu, který odemyká tým
     return { token: `${tenant}.${z.ZarizeniID}.${raw}`, tajemstvi: rezim === 'PACIENT' ? null : tajemstvi, zarizeniId: z.ZarizeniID, telefon: hezkyTel(telefon), rezim, balik, videoToken: videoToken(tenant, z.ZarizeniID) };
   });
@@ -168,7 +169,10 @@ device.post('/sync', h(async (req) => {
     const baterie = Number.isFinite(Number(b.baterie)) && b.baterie !== null ? Math.max(0, Math.min(100, Math.round(Number(b.baterie)))) : null;
     const balik = await balikProZarizeni(q, z.PacientID, { rezim: z.Rezim });
     // 0.11.112: každé načtení údajů do Průkazu pacienta se zapíše do historie předání (centrála → Předání do Průkazu)
-    if (z.Rezim === 'PACIENT') await audit(q, { zarizeniId: zid, kdo: 'Průkaz pacienta', pacientId: z.PacientID, akce: 'údaje načteny do Průkazu pacienta', detail: balik.plan ? `plán verze ${balik.plan.verze}` : 'bez plánu', ip: ip(req) });
+    if (z.Rezim === 'PACIENT') {
+      await audit(q, { zarizeniId: zid, kdo: 'Průkaz pacienta', pacientId: z.PacientID, akce: 'údaje načteny do Průkazu pacienta', detail: balik.plan ? `plán verze ${balik.plan.verze}` : 'bez plánu', ip: ip(req) });
+      await zapisPredani(q, { pacientId: z.PacientID, zarizeniId: zid, akce: 'NACTENI', balik });   // 0.11.113: co přesně odešlo do Průkazu
+    }
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET PosledniSync = SYSDATETIME(), Baterie = ISNULL(@b, Baterie), VerzeAplikace = @v, DelkaFronty = @f, VerzePlanuVZarizeni = @vp WHERE ZarizeniID = @z`,
       { b: baterie, v: text(b.verzeAplikace, 20) || null, f: Math.max(0, (Array.isArray(b.fronta) ? b.fronta.length : 0) - potvrzeno.length - odmitnuto.length), vp: balik.plan ? balik.plan.verze : null, z: zid });
     return { potvrzeno, odmitnuto, balik, videoToken: videoToken(tenant, zid) };
