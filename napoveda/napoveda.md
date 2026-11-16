@@ -385,6 +385,8 @@ Zprávu pacienta (např. z **Medistaru** uloženou jako PDF) můžete předat pa
 
 ![Doplnit údaje ze zprávy](/napoveda/img/c-rozbor-zpravy.png)
 
+![Léky ze zprávy do PéčeDoma](/napoveda/img/c-rozbor-leky.png)
+
 U dokumentu je štítek **pro pacienta** a po stažení **v Průkazu od …**. Předání jde u každého dokumentu se souborem zapnout (**Předat pacientovi**) i zrušit (**Zrušit předání** – co si pacient už stáhl, zůstává jeho). Starší dokumenty se pacientovi samy neposílají. Dokumenty vkládá kdokoli z týmu, kdo zapisuje (i sestra). Stažení se zapíše do historie předání (kapitola 8) i do logu přístupů.
 
 ![Zpráva předaná pacientovi do Průkazu](/napoveda/img/c-dokument-pro-pacienta.png)

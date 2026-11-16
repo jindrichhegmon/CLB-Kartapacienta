@@ -886,6 +886,8 @@ await klik(p, '[data-dokai="2"]'); await p.waitForSelector('#np_ulozit');
   if (!t.includes('nový – přidat do PéčeDoma') || !t.includes('v PéčeDoma stejně') || !t.includes('s jinou dávkou')) chyby.push('rozbor zprávy: chybí stav léku (nový / stejně / jiná dávka)');
   if (t.includes('léky ze zprávy zapište v PéčeDoma')) chyby.push('rozbor zprávy: stará věta, že se léky nepřebírají'); }
 await p.waitForTimeout(300); await foto(p, 'c-rozbor-zpravy');
+await p.evaluate(() => { const e = document.querySelector('.navrh-lek'); if (e) e.closest('.navrh-pole').scrollIntoView({ block: 'center' }); }); await p.waitForTimeout(200);
+await foto(p, 'c-rozbor-leky');
 await p.click('#modal [data-close]'); await p.waitForTimeout(200);
 await p.click('#dk_odebrat'); await p.fill('#dk_n', '');
 if (!(await p.isVisible('#dk_zona'))) chyby.push('dokumenty: po odebrání chybí tlačítko Vybrat soubor z počítače');
