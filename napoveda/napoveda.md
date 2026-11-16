@@ -777,6 +777,8 @@ Jeden soubor PDF z Medistaru stačí: Karta z něj vyčte diagnózy, léky a fun
 
 ![Schéma: zpráva z Medistaru do Karty pacienta, PéčeDoma a Průkazu pacienta](/napoveda/img/schema-zprava-medistar.svg)
 
+Karta pacienta je v centru: diagnózy a léky zapisujte **primárně v Kartě**. S PéčeDoma je vazba **obousměrná** – v PéčeDoma se vybírá, který klient Kartu dostane (Data klienta → Karta pacienta, kapitola 4), a diagnózy i léky jde zapsat i tam; propíší se do Karty. PéčeDoma slouží hlavně k registraci aktivit týmu (návštěvy, výkony, převazy). Zprávy z Medistaru ale zpracovává jen Karta – jen tam vzniká návrh ze zprávy, štítek *ověřeno zprávou* a předání do Průkazu.
+
 ### Krok 1 – Medistar: vytisknout dekurz do PDF
 
 1. Otevřete **dekurz** pacienta a zvolte **Tisk lékařské zprávy** (celý dekurz, všechny strany).
