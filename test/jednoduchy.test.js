@@ -96,3 +96,23 @@ test('dokument do Průkazu (0.11.118): jen zařízení PACIENT, propojené, a je
   assert.equal('dokumenty' in obsahPredani(b), false, 'bez dokumentů se snímek nemění (žádná falešná aktualizace)');
   assert.deepEqual(obsahPredani({ ...b, dokumenty: [{ id: 7, sha256: 'ab', nazev: 'Zpráva', typ: 'ZPRAVA', datum: '2026-11-16', velikost: 9 }] }).dokumenty, [{ id: 7, sha256: 'ab', nazev: 'Zpráva', typ: 'ZPRAVA', datum: '2026-11-16' }]);
 });
+
+test('původ údajů plánu (0.11.123): ze zprávy / ručně / z PéčeDoma podle verze, od které je údaj v plánu', async () => {
+  const { puvodPlanu, zdrojVerze } = await import('../src/kp.js');
+  const V = [
+    { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. A', vytvoreno: '2026-11-01 10:00', data: { dg: 'C50.9 Ca prsu', funkce: 'chodí', alergie: 'žádné známé', sos: ['Morfin 10 mg'], opioidy: [], medikace: [] } },
+    { verze: 2, typ: 'ZMENA', podepsal: 'Ing. J', vytvoreno: '2026-11-16 18:00', poznamka: 'Doplněno z rozboru zprávy „Dekurz.pdf“ (lokální rozbor)', data: { dg: 'C50.9 Ca prsu\nR52.1; Ischemická choroba DK', funkce: 'PPS 30 %', alergie: 'žádné známé', sos: ['Morfin 10 mg', 'Novalgin'], opioidy: ['Palexia SR 150-0-50'], medikace: [] } },
+    { verze: 3, typ: 'REVIZE', podepsal: 'MUDr. B', vytvoreno: '2026-11-17 08:00', data: { dg: 'C50.9 Ca prsu\nR52.1\nIschemická choroba DK', funkce: 'PPS 30 %', alergie: 'žádné známé', sos: ['Novalgin'], opioidy: ['Palexia SR 150-0-50'], medikace: [] } },
+    { verze: 4, typ: 'ZMENA', podepsal: 'PéčeDoma: MUDr. C', vytvoreno: '2026-11-18 09:00', data: { dg: 'C50.9 Ca prsu\nR52.1\nIschemická choroba DK\nI50.0', funkce: 'PPS 30 %', alergie: 'penicilin', sos: ['Novalgin'], opioidy: ['Palexia SR 150-0-50'], medikace: [] } },
+  ];
+  const p = puvodPlanu(V, 'zprava');
+  assert.deepEqual(p.dg.map((x) => [x.text, x.zdroj, x.verze]), [['C50.9 Ca prsu', 'zalozeni-zprava', 1], ['R52.1', 'zprava', 2], ['Ischemická choroba DK', 'zprava', 2], ['I50.0', 'pecedoma', 4]]);
+  assert.equal(p.dg[1].dokument, 'Dekurz.pdf');
+  assert.deepEqual([p.opioidy[0].zdroj, p.sos[0].zdroj, p.funkce.zdroj, p.alergie.zdroj], ['zprava', 'zprava', 'zprava', 'pecedoma']);
+  // položka, která z plánu zmizí a vrátí se, má původ od návratu; ruční úprava kódu je ručně
+  const p2 = puvodPlanu([...V, { verze: 5, typ: 'ZMENA', podepsal: 'MUDr. B', vytvoreno: '2026-11-19 09:00', data: { ...V[3].data, dg: 'C50 Ca prsu\nR52.1\nIschemická choroba DK\nI50.0', sos: ['Morfin 10 mg', 'Novalgin'] } }], 'rucne');
+  assert.equal(p2.dg[0].zdroj, 'rucne');
+  assert.equal(p2.sos[0].verze, 5);
+  assert.equal(zdrojVerze({ typ: 'ZALOZENI' }, 'pecedoma').zdroj, 'zalozeni-pecedoma');
+  assert.equal(zdrojVerze({ typ: 'ZMENA', podepsal: 'MUDr. B' }).zdroj, 'rucne');
+});

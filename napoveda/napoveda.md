@@ -128,6 +128,8 @@ Tlačítkem **Uložit** vznikne pacient s kódem `P-xxxx` a první verze plánu 
 
 Záložky detailu jdou v pořadí **Krizová karta, Diagnóza, Plán péče, Léky, Deník, …**. Záložka **Diagnóza** ukazuje diagnózy, obvyklý funkční stav a alergie. Lékař je vpravo může upravit (**Uložit** vytvoří novou verzi plánu péče s jeho podpisem).
 
+**Odkud údaj je** (od 0.11.123): pod každou diagnózou, funkčním stavem a alergiemi je štítek původu – modrý **ze zprávy „název dokumentu“** (doplněno rozborem zprávy, viz kap. 9), **z propouštěcí zprávy při založení**, zelený **zapsáno v PéčeDoma** / **z PéčeDoma při založení**, nebo šedý **zapsáno ručně**, vždy s verzí plánu, časem a kdo ho uložil. Karta to pozná z historie verzí plánu, takže platí i pro dřívější údaje. Když diagnózu ze zprávy později ručně upravíte (třeba C50.9 → C50), štítek se změní na *zapsáno ručně*.
+
 ![Detail pacienta – Diagnóza](/napoveda/img/c-dg.png)
 
 ### Léky – jedna agenda
@@ -135,6 +137,8 @@ Záložky detailu jdou v pořadí **Krizová karta, Diagnóza, Plán péče, Lé
 Záložka **Léky** je jediné místo, kde se léky vedou. U pacienta **propojeného s PéčeDoma** jsou léky jedny pro portál i Kartu: Karta je čte přímo z PéčeDoma (Data klienta → Léky) a tým je tady může i měnit – **Přidat lék**, **Upravit**, **Vyřadit** (lék se v PéčeDoma zneaktivní, historie zůstává). Totéž hned vidí sestry v PéčeDoma, krizová karta a telefon u pacienta (při nejbližší synchronizaci). U pacienta bez propojení jsou léky součástí plánu péče a mění je lékař (**Uložit** = nová verze plánu).
 
 Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (záchranné), **Opioidy** (silná analgetika podávaná pravidelně – morfin, fentanyl, buprenorfin, oxykodon…), **Paliativní terapie** (ostatní léky paliativní péče – chronická terapie se od 0.11.92 nezadává) a **Parenterálně** (injekce a infuze sestry). Na krizové kartě je dlaždice **Medikace** vždy s **opioidy** a **SOS medikací**; **paliativní terapii** ukáže jen tehdy, když je u pacienta zatržené **Na krizové kartě ukazovat i paliativní terapii** (záložka Léky nebo plán péče – uložení je nová verze plánu). Skupinu vybíráte v poli **Typ** při přidání nebo úpravě léku; opioidy jsou v krizové kartě zvlášť pod SOS léky, aby je posádka ZZS i lékař viděli na první pohled.
+
+U každého léku je také štítek původu: u propojeného pacienta **zapsáno ručně v Kartě** (kdo a kdy lék v Kartě přidal nebo naposledy upravil) nebo **zapsáno v PéčeDoma** (lék zapsaný v portálu, s datem platnosti od); u nepropojeného pacienta stejně jako u diagnóz – **ze zprávy**, **zapsáno ručně** atd.
 
 ![Léky – jedna agenda s PéčeDoma](/napoveda/img/c-leky.png)
 

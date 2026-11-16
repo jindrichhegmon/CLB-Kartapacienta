@@ -10,7 +10,7 @@ import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
-import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleNahledu, stavPredani, MIME_PRO_PACIENTA, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
+import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, puvodPlanu, roleSeznam, roleNahledu, stavPredani, MIME_PRO_PACIENTA, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
@@ -394,7 +394,14 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const video = await videoProPacienta(q, s, id);
   op.vychozi = op.aktivni && (s.role.includes('admin') || s.role.includes('lekar'));   // výchozí kontakty organizace mění správce a lékař
   const dgPopisy = await popisyDiagnoz(q, plan && plan.data && plan.data.dg);   // 0.11.92
-  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, predani, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy };
+  // 0.11.123: původ diagnóz, léků, funkčního stavu a alergií (ze zprávy / ručně / z PéčeDoma) z historie verzí plánu
+  const vsechnyVerze = await q.all(`SELECT Verze AS verze, Typ AS typ, PodepsalJmeno AS podepsal, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno, Poznamka AS poznamka, Data AS data
+    FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze`, { p: id });
+  const zal = await q.one(`SELECT TOP (1) Text AS text FROM dbo.A_KP_Denik WHERE PacientID = @p AND Typ = N'Založení' ORDER BY DenikID`, { p: id });
+  const zalozeni = /propouštěcí zprávy/i.test((zal && zal.text) || '') ? 'zprava' : /PéčeDoma/i.test((zal && zal.text) || '') ? 'pecedoma' : 'rucne';
+  let puvod = null;
+  try { puvod = puvodPlanu(vsechnyVerze.map((v) => ({ ...v, data: JSON.parse(v.data || '{}') })), zalozeni); } catch { /* starý nečitelný plán – bez původu */ }
+  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, predani, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy, puvod };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {
@@ -1050,8 +1057,18 @@ central.get('/pacient/:id/leky', sUzivatelem(async (q, s, req) => {
   const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
   if (!p || !p.pd) return { zdroj: 'plan' };
   const r = await lekyPd(await nastaveniPd(q), p.pd);
-  return { zdroj: 'pecedoma', leky: r.leky };
+  return { zdroj: 'pecedoma', leky: await puvodLekuPd(q, id, r.leky) };
 }));
+/* 0.11.123: původ léku vedeného v PéčeDoma – poslední zápis z Karty (audit „PéčeDoma: úprava léků“), jinak zapsáno v portálu PéčeDoma */
+async function puvodLekuPd(q, pacientId, leky) {
+  const a = await q.all(`SELECT Kdo AS kdo, CONVERT(char(16), Cas, 120) AS kdy, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND Akce = N'PéčeDoma: úprava léků' ORDER BY AuditID DESC`, { p: pacientId });
+  const zKarty = a.map((x) => { const m = String(x.detail || '').match(/^(přidán|upraven) (?:SOS lék|lék) (.+)$/); return m ? { ...x, akce: m[1], lek: m[2].trim().toLowerCase() } : null; }).filter(Boolean);
+  return (leky || []).map((l) => {
+    const t = `${l.nazev}${l.davka ? ' ' + l.davka : ''}`.trim().toLowerCase();
+    const z = zKarty.find((x) => x.lek === t);
+    return { ...l, puvod: z ? { zdroj: 'karta', kdo: z.kdo, kdy: z.kdy, akce: z.akce } : { zdroj: 'pecedoma', kdy: l.od || null } };
+  });
+}
 async function lekPd(q, s, req, akce) {
   const id = pid(req); const op = await opravneni(q, s, id);
   if (!op.zapis || !op.aktivni) throw chyba('Léky upravuje tým kolem pacienta u aktivního průkazu', 403);
@@ -1073,7 +1090,7 @@ async function lekPd(q, s, req, akce) {
   try { await synchronizujPacienta(q, nast, id, pd); sync = await stavSync(q, id); } catch (e) { /* léky jsou uložené v PéčeDoma, synchronizace doběhne automaticky */ }
   await zapisDenik(q, { pacientId: id, typ: 'Úprava léků', text: `Léky (PéčeDoma): ${detail}.`, autor: s.jmeno, role: 'tym', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: úprava léků', detail, ip: s.ip });
-  return { leky: r.leky, sync };
+  return { leky: await puvodLekuPd(q, id, r.leky), sync };
 }
 central.post('/pacient/:id/leky', sUzivatelem((q, s, req) => lekPd(q, s, req, 'uloz')));
 central.post('/pacient/:id/leky/smaz', sUzivatelem((q, s, req) => lekPd(q, s, req, 'smaz')));

@@ -591,9 +591,9 @@ function zzsPanelC(d) {
 function tabDg(d) {
   const p = (d.plan && d.plan.data) || {}, ro = !d.op.lekar;
   return `<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>Diagnózy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : '<span class="chip warn">bez plánu</span>'}</div><div style="padding:14px;font-size:17px;line-height:1.45;white-space:pre-wrap">${esc(p.dg || '—')}</div>${KP.dgPopisRadky(p.dg, d.dgPopisy).length ? `<div style="padding:0 14px 12px">${KP.dgPopisRadky(p.dg, d.dgPopisy).map((r) => `<div class="dgpopis"><b>${esc(r.kod)}</b> – ${esc(r.popis)}</div>`).join('')}<div class="lbl">popis z číselníku diagnóz</div></div>` : ''}</div>
-      <div class="panel"><div class="panel-h"><h2>Funkční stav</h2></div><div style="padding:14px;white-space:pre-wrap">${esc(p.funkce || '—')}</div></div>
-      <div class="panel"><div class="panel-h"><h2>Alergie</h2></div><div style="padding:14px">${esc(p.alergie || '—')}</div></div>
+      <div class="panel"><div class="panel-h"><h2>Diagnózy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : '<span class="chip warn">bez plánu</span>'}</div>${d.puvod && d.puvod.dg && d.puvod.dg.length ? `<div class="dg-radky">${d.puvod.dg.map((x) => `<div class="dg-radek"><div class="dg-t">${esc(x.text)}</div>${KP.puvodHTML(x)}</div>`).join('')}</div>` : `<div style="padding:14px;font-size:17px;line-height:1.45;white-space:pre-wrap">${esc(p.dg || '—')}</div>`}${KP.dgPopisRadky(p.dg, d.dgPopisy).length ? `<div style="padding:0 14px 12px">${KP.dgPopisRadky(p.dg, d.dgPopisy).map((r) => `<div class="dgpopis"><b>${esc(r.kod)}</b> – ${esc(r.popis)}</div>`).join('')}<div class="lbl">popis z číselníku diagnóz</div></div>` : ''}</div>
+      <div class="panel"><div class="panel-h"><h2>Funkční stav</h2></div><div style="padding:14px;white-space:pre-wrap">${esc(p.funkce || '—')}${KP.puvodHTML(d.puvod && d.puvod.funkce)}</div></div>
+      <div class="panel"><div class="panel-h"><h2>Alergie</h2></div><div style="padding:14px">${esc(p.alergie || '—')}${KP.puvodHTML(d.puvod && d.puvod.alergie)}</div></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">
@@ -625,9 +625,9 @@ function tabLeky(d) {
   }
   const ro = !d.op.lekar;
   return `<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>Opioidy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : ''}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.opioidy || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">žádné</li>'}</ul></div>
-      <div class="panel"><div class="panel-h"><h2>SOS medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
-      <div class="panel"><div class="panel-h"><h2>Paliativní terapie</h2><span class="chip ${p.terapieNaKarte ? 'ok' : ''}">${p.terapieNaKarte ? 'na kartě' : 'jen v Lécích'}</span></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>Opioidy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : ''}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.opioidy || []).map((x, i) => `<li>${esc(x)}${KP.puvodHTML(d.puvod && d.puvod.opioidy && d.puvod.opioidy[i])}</li>`).join('') || '<li class="muted">žádné</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>SOS medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((x, i) => `<li>${esc(x)}${KP.puvodHTML(d.puvod && d.puvod.sos && d.puvod.sos[i])}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>Paliativní terapie</h2><span class="chip ${p.terapieNaKarte ? 'ok' : ''}">${p.terapieNaKarte ? 'na kartě' : 'jen v Lécích'}</span></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((x, i) => `<li>${esc(x)}${KP.puvodHTML(d.puvod && d.puvod.medikace && d.puvod.medikace[i])}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit léky</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">

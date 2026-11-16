@@ -112,6 +112,14 @@ const pdKlienti = [
 ];
 const detail = {
   pacient, plan, dgPopisy: { C50: 'Zhoubný novotvar prsu', I509: 'Selhání srdce NS', C509: 'ZN - prs NS' },
+  // 0.11.123: původ údajů (server ho počítá z historie verzí plánu)
+  puvod: {
+    dg: [{ text: 'C50 karcinom prsu s metastázami do kostí a jater', verze: 1, kdy: cas(-21, '09:10'), kdo: 'MUDr. Petra Ukázková', zdroj: 'zalozeni-zprava', dokument: null },
+      { text: 'I50.9 chronické srdeční selhání', verze: 3, kdy: cas(-7, '10:24'), kdo: 'MUDr. Petra Ukázková', zdroj: 'zprava', dokument: 'Dekurz z Medistaru.pdf' }],
+    funkce: { text: planData.funkce, verze: 3, kdy: cas(-7, '10:24'), kdo: 'MUDr. Petra Ukázková', zdroj: 'zprava', dokument: 'Dekurz z Medistaru.pdf' },
+    alergie: { text: 'penicilin', verze: 1, kdy: cas(-21, '09:10'), kdo: 'MUDr. Petra Ukázková', zdroj: 'rucne', dokument: null },
+    opioidy: [], sos: [], medikace: [],
+  },
   verze: [{ verze: 3, typ: 'ZMENA', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-7, '10:24'), platnostDo: den(70), poznamka: 'úprava SOS medikace' },
     { verze: 2, typ: 'REVIZE', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-14, '11:00'), platnostDo: den(60), poznamka: null },
     { verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. Petra Ukázková', vytvoreno: cas(-21, '09:10'), platnostDo: den(60), poznamka: null }],
@@ -218,9 +226,9 @@ app.post('/api/c/pacient/:id/kontakt', j((req) => { const b = req.body || {}; co
   kontakty.sort((a, c) => (a.poradi - c.poradi) || (a.id - c.id)); return {}; }));
 // léky – jedna agenda (PéčeDoma)
 let pdLeky = [
-  { id: '1', typ: 'ZACHRANNA', nazev: 'Morphin', davka: '10 mg s.c.', instr: 'při bolesti nebo dušnosti, nejvýš po 4 h', popis: '' },
-  { id: '2', typ: 'ZACHRANNA', nazev: 'Midazolam', davka: '5 mg s.c.', instr: 'při neklidu', popis: '' },
-  { id: '3', typ: 'OPIOID', nazev: 'MST Continus', davka: '30 mg 1-0-1', instr: '', popis: 'tableta proti bolesti ráno a večer' },
+  { id: '1', typ: 'ZACHRANNA', nazev: 'Morphin', davka: '10 mg s.c.', instr: 'při bolesti nebo dušnosti, nejvýš po 4 h', popis: '', puvod: { zdroj: 'karta', kdo: 'MUDr. Petra Ukázková', kdy: cas(-7, '10:30'), akce: 'přidán' } },
+  { id: '2', typ: 'ZACHRANNA', nazev: 'Midazolam', davka: '5 mg s.c.', instr: 'při neklidu', popis: '', puvod: { zdroj: 'pecedoma', kdy: den(-20) } },
+  { id: '3', typ: 'OPIOID', nazev: 'MST Continus', davka: '30 mg 1-0-1', instr: '', popis: 'tableta proti bolesti ráno a večer', puvod: { zdroj: 'pecedoma', kdy: den(-20) } },
   { id: '4', typ: 'PRAVIDELNA', nazev: 'Furosemid', davka: '40 mg 1-0-0', instr: '', popis: '' },
   { id: '5', typ: 'PRAVIDELNA', nazev: 'Lactulosa', davka: '15 ml 1-0-1', instr: '', popis: '' },
 ];

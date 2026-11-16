@@ -247,6 +247,49 @@ export function normalizujPlan(d = {}) {
   };
 }
 
+/**
+ * 0.11.123: původ údajů plánu – u každé diagnózy, léku, funkčního stavu a alergií, odkud se vzaly. Počítá se z historie verzí
+ * (verze jsou jen pro doplňování), takže platí i zpětně: položka „vznikla“ ve verzi, od které je v plánu bez přerušení.
+ * verze = vzestupně [{ verze, typ, podepsal, vytvoreno, poznamka, data }], zalozeni = 'zprava' | 'pecedoma' | 'rucne' (jak vznikl průkaz).
+ * Vrací { dg:[polozka], opioidy:[…], sos:[…], medikace:[…], funkce: polozka|null, alergie: polozka|null },
+ * polozka = { text, verze, kdy, kdo, zdroj: 'zprava'|'zalozeni-zprava'|'zalozeni-pecedoma'|'zalozeni'|'pecedoma'|'rucne', dokument }.
+ */
+export const DG_RADKY = (dg) => String(dg || '').split(/\n|;\s*/).map((x) => x.trim()).filter(Boolean);
+const klicDg = (x) => { const k = String(x).toUpperCase().match(/^[A-TV-Z]\d{2}(?:\.?\d{1,2})?/); return k ? 'K:' + k[0].replace('.', '') : 'T:' + String(x).toLowerCase().replace(/\s+/g, ' ').replace(/[.,;]$/, ''); };
+const klicText = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
+export function zdrojVerze(v, zalozeni = 'rucne') {
+  const poz = String(v.poznamka || '');
+  const z = poz.match(/^Doplněno z rozboru zprávy „(.+?)“/);
+  if (z) return { zdroj: 'zprava', dokument: z[1] };
+  if (v.typ === 'ZALOZENI') return { zdroj: zalozeni === 'zprava' ? 'zalozeni-zprava' : zalozeni === 'pecedoma' ? 'zalozeni-pecedoma' : 'zalozeni', dokument: null };
+  if (/^PéčeDoma:/.test(String(v.podepsal || ''))) return { zdroj: 'pecedoma', dokument: null };
+  return { zdroj: 'rucne', dokument: null };
+}
+export function puvodPlanu(verze = [], zalozeni = 'rucne') {
+  const POLE = { dg: (d) => DG_RADKY(d.dg), opioidy: (d) => d.opioidy || [], sos: (d) => d.sos || [], medikace: (d) => d.medikace || [],
+    funkce: (d) => (String(d.funkce || '').trim() ? [String(d.funkce).trim()] : []), alergie: (d) => (String(d.alergie || '').trim() ? [String(d.alergie).trim()] : []) };
+  const puvod = {};   // pole → Map(klíč → původ)
+  let posledni = {};
+  for (const v of verze) {
+    const d = v.data || {};
+    const info = { verze: v.verze, kdy: v.vytvoreno, kdo: v.podepsal, ...zdrojVerze(v, zalozeni) };
+    for (const [pole, fn] of Object.entries(POLE)) {
+      const klic = pole === 'dg' ? klicDg : klicText;
+      const dosud = puvod[pole] || new Map(), nove = new Map();
+      for (const t of fn(d)) { const k = klic(t); nove.set(k, dosud.get(k) || info); }
+      puvod[pole] = nove;
+    }
+    posledni = d;
+  }
+  const ven = {};
+  for (const [pole, fn] of Object.entries(POLE)) {
+    const klic = pole === 'dg' ? klicDg : klicText;
+    const r = fn(posledni).map((t) => ({ text: t, ...((puvod[pole] && puvod[pole].get(klic(t))) || {}) }));
+    ven[pole] = pole === 'funkce' || pole === 'alergie' ? r[0] || null : r;
+  }
+  return ven;
+}
+
 /** 0.11.111: kdo verzi plánu uložil – v jednoduchém režimu ji smí uložit i sestra, u jména je pak „(sestra)“ */
 export const kdoPlan = (s) => (s.role && !s.role.includes('lekar') && s.role.includes('sestra') ? `${s.jmeno} (sestra)` : s.jmeno);
 export async function ulozPlan(q, { pacientId, data, platnostDo, s, typ = 'ZMENA', poznamka = null }) {

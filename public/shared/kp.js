@@ -272,12 +272,22 @@
   /* Léky z PéčeDoma – seznam s tlačítky a okno pro přidání / úpravu (centrála i telefon lékaře) */
   KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'paliativní terapie', PARENTERALNI: 'parenterálně' };
   KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Paliativní terapie', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
+  /* 0.11.123: původ údaje – ze zprávy (rozbor), ručně, z PéčeDoma, při založení; s verzí plánu, časem a kdo zapsal */
+  KP.PUVOD_NAZ = { zprava: 'ze zprávy', 'zalozeni-zprava': 'z propouštěcí zprávy při založení', 'zalozeni-pecedoma': 'z PéčeDoma při založení', zalozeni: 'zapsáno při založení',
+    pecedoma: 'zapsáno v PéčeDoma', rucne: 'zapsáno ručně', karta: 'zapsáno ručně v Kartě' };
+  KP.puvodHTML = (u) => {
+    if (!u || !u.zdroj) return '';
+    const e = KP.esc, tr = /zprava/.test(u.zdroj) ? 'zprava' : /pecedoma/.test(u.zdroj) ? 'pd' : 'rucne';
+    const kdy = u.kdy ? (String(u.kdy).length > 10 ? KP.fmtDT(u.kdy) : (u.zdroj === 'pecedoma' ? 'od ' : '') + KP.fmtD(u.kdy)) : '';
+    const dalsi = [u.verze ? 'plán v' + u.verze : '', kdy, u.kdo || ''].filter(Boolean).map(e).join(' · ');
+    return `<div class="puvod ${tr}"><span class="puvod-z">${e(KP.PUVOD_NAZ[u.zdroj] || u.zdroj)}${u.dokument ? ` „${e(u.dokument)}“` : ''}</span>${dalsi ? ` <span class="puvod-d">${dalsi}</span>` : ''}</div>`;
+  };
   KP.lekyRadky = (leky, muze) => {
     const e = KP.esc, sk = KP.SKUPINY_LEKU;
     // každá skupina jako samostatný barevně odlišený blok (od 0.9.5): barevný pruh vlevo, podbarvené záhlaví, počet léků
     return sk.map(([t, n, c]) => { const r = (leky || []).filter((l) => l.typ === t); return `<section class="lkskup ${c}${r.length ? '' : ' prazdna'}">
       <div class="lkskup-h"><span>${n}</span><span class="chip ${c}">${r.length}</span></div>
-      ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${e(l.nazev)}</b>${l.davka ? ' – ' + e(l.davka) : ''}${l.instr ? `<div class="lbl">${e(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${e(l.popis)}</div>` : ''}</td>
+      ${r.length ? `<table class="tbl"><tbody>${r.map((l) => `<tr><td><b>${e(l.nazev)}</b>${l.davka ? ' – ' + e(l.davka) : ''}${l.instr ? `<div class="lbl">${e(l.instr)}</div>` : ''}${l.popis ? `<div class="lbl">pro pacienta: ${e(l.popis)}</div>` : ''}${KP.puvodHTML(l.puvod)}</td>
         <td style="white-space:nowrap;text-align:right">${muze ? `<button class="btn sm" data-lk-edit="${e(l.id)}">Upravit</button> <button class="btn sm" data-lk-del="${e(l.id)}">Vyřadit</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="muted lkskup-p">žádné</div>'}</section>`; }).join('');
   };
   KP.lekOkno = (l, ulozit) => {
