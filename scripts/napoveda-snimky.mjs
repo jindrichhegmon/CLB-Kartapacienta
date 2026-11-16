@@ -886,7 +886,10 @@ await klik(p, '[data-dokai="2"]'); await p.waitForSelector('#np_ulozit');
   if (!t.includes('nový – přidat do PéčeDoma') || !t.includes('v PéčeDoma stejně') || !t.includes('s jinou dávkou')) chyby.push('rozbor zprávy: chybí stav léku (nový / stejně / jiná dávka)');
   if (t.includes('léky ze zprávy zapište v PéčeDoma')) chyby.push('rozbor zprávy: stará věta, že se léky nepřebírají'); }
 await p.waitForTimeout(300); await foto(p, 'c-rozbor-zpravy');
-await p.evaluate(() => { const e = document.querySelector('.navrh-lek'); if (e) e.closest('.navrh-pole').scrollIntoView({ block: 'center' }); }); await p.waitForTimeout(200);
+// sekce léků: posunout okno (posouvá se jeho vnitřek, ne stránka) tak, aby byla nahoře
+await p.evaluate(() => { const e = document.querySelector('.navrh-lek'); if (!e) return; const cil = e.closest('.navrh-pole');
+  for (let x = cil.parentElement; x; x = x.parentElement) { const st = getComputedStyle(x); if (/(auto|scroll)/.test(st.overflowY) && x.scrollHeight > x.clientHeight) { x.scrollTop += cil.getBoundingClientRect().top - x.getBoundingClientRect().top - 16; break; } } });
+await p.waitForTimeout(200);
 await foto(p, 'c-rozbor-leky');
 await p.click('#modal [data-close]'); await p.waitForTimeout(200);
 await p.click('#dk_odebrat'); await p.fill('#dk_n', '');
