@@ -82,6 +82,13 @@ tr.vybito>td{background:var(--crit-soft)}
 tr.vybito>td:first-child{box-shadow:inset 4px 0 0 var(--crit)}
 tr.vybito{outline:2px solid var(--crit);outline-offset:-2px}
 /* 0.11.118: přetažení dokumentu na seznam dokumentů pacienta */
+/* 0.11.120: návrh doplnění údajů z rozboru zprávy */
+.navrh-seznam{display:grid;gap:10px}
+.navrh-pole{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:6px}
+.navrh-mrizka{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:10px}
+.navrh-nyni{font-size:13px;white-space:normal;color:var(--muted)}
+.navrh-pole textarea{min-height:44px;height:auto;font-size:13px}
+@media (max-width:640px){.navrh-mrizka{grid-template-columns:minmax(0,1fr)}}
 .skryty-soubor{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .soubor-vyber{display:flex;align-items:center;gap:12px;border:2px dashed var(--accent);background:var(--accent-soft);color:var(--accent-ink);border-radius:12px;padding:14px 16px;cursor:pointer;font-size:14.5px}
 .soubor-vyber:hover,.soubor-vyber.dok-drop{background:var(--surface);border-style:solid}

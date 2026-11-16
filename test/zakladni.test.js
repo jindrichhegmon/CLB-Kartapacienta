@@ -155,3 +155,15 @@ test('videohovor: název místnosti a odkaz do Jitsi', async () => {
   config.video.server = '';
   assert.equal(odkazDoHovoru(m, 'a'), null);
 });
+
+test('zpráva v PDF (0.11.120): text z PDF a lokální rozbor formátu Medistaru (Dg.: na řádku, léky oddělené čárkou, SOS)', async () => {
+  const { textZPdf } = await import('../src/pdftext.js');
+  const t = await textZPdf(fs.readFileSync(new URL('./zprava-medistar-ukazka.pdf', import.meta.url)));   // smyšlená zpráva
+  assert.match(t, /Dg\.: C50\.9 Zhoubný novotvar prsu, I50\.0/);
+  const r = lokalniRozbor(t);
+  assert.equal(r.dg, 'C50.9 Zhoubný novotvar prsu; I50.0 Městnavé srdeční selhání', 'diagnózy i s kódy MKN');
+  assert.equal(r.alergie, 'penicilin');
+  assert.deepEqual(r.medikace, ['Furosemid 40 mg 1-0-0', 'MST Continus 30 mg 1-0-1']);
+  assert.deepEqual(r.sos, ['Při bolesti Morphin 10 mg s.c.']);
+  assert.ok(!r.medikace.some((x) => /MUDr/.test(x)), 'podpis lékaře není lék');
+});

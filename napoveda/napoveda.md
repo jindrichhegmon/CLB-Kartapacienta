@@ -375,6 +375,10 @@ Zprávu pacienta (např. z **Medistaru** uloženou jako PDF) můžete předat pa
 2. Nechte zaškrtnuté **Předat pacientovi do Průkazu pacienta** (u zprávy je zaškrtnuté samo) a klikněte **Vložit**. Předat jde PDF, JPEG nebo PNG do 8 MB.
 3. Pacient s propojeným Průkazem uvidí „Lékař aktualizoval vaše údaje“, tlačítkem **Načíst z Karty pacienta** si zprávu stáhne a Průkaz z ní nabídne diagnózy a léky ke kontrole.
 
+**Rozbor zprávy a doplnění údajů** (od 0.11.120): u PDF s textem (např. z Medistaru) nechte zaškrtnuté **Rozebrat zprávu (AI) a doplnit údaje pacienta** (u zprávy je zaškrtnuté samo), nebo u uloženého dokumentu klikněte **Rozebrat (AI)**. Karta přečte text z PDF, odstraní z něj identitu pacienta (jméno, rodné číslo, datum narození, adresu, telefony, jména blízkých) a nechá ho rozebrat AI (bez zapnuté AI na serveru jen lokálním rozborem). Ukáže **Doplnit údaje ze zprávy**: u diagnóz, alergií, funkčního stavu a léků vidíte, co je v Kartě teď a co bude po doplnění – nové diagnózy (podle kódu MKN) a léky se přidají k dosavadním, text jde upravit a každou část zaškrtnout nebo vynechat. **Uložit jako novou verzi plánu** (lékař, v jednoduchém režimu i sestra) – předchozí verze zůstává v historii a pacientovi se v Průkazu ukáže, že jsou nové údaje. U pacienta propojeného s PéčeDoma se léky vedou v PéčeDoma a z rozboru se do plánu nepřebírají. Sken nebo fotku rozebrat nejde (nemá textovou vrstvu).
+
+![Doplnit údaje ze zprávy](/napoveda/img/c-rozbor-zpravy.png)
+
 U dokumentu je štítek **pro pacienta** a po stažení **v Průkazu od …**. Předání jde u každého dokumentu se souborem zapnout (**Předat pacientovi**) i zrušit (**Zrušit předání** – co si pacient už stáhl, zůstává jeho). Starší dokumenty se pacientovi samy neposílají. Dokumenty vkládá kdokoli z týmu, kdo zapisuje (i sestra). Stažení se zapíše do historie předání (kapitola 8) i do logu přístupů.
 
 ![Zpráva předaná pacientovi do Průkazu](/napoveda/img/c-dokument-pro-pacienta.png)

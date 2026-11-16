@@ -53,16 +53,23 @@ export function lokalniRozbor(t) {
     const i = lines.findIndex((l) => nazvy.some((n) => l.toLowerCase().startsWith(n)));
     if (i < 0) return [];
     const out = [];
-    for (let j = i + 1; j < lines.length; j++) { if (!lines[j]) break; if (/^[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][^:]{2,40}:/.test(lines[j])) break; out.push(lines[j]); }
+    // 0.11.120: text hned za nadpisem na stejném řádku („Dg.: C50.9 …, I50.0 …“ – zprávy z Medistaru)
+    const zaNadpisem = lines[i].includes(':') ? lines[i].replace(/^[^:]*:\s*/, '').trim() : '';
+    if (zaNadpisem) out.push(zaNadpisem);
+    for (let j = i + 1; j < lines.length; j++) { if (!lines[j]) break; if (/^[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][^:]{2,40}:/.test(lines[j]) || /^(MUDr|MDDr|Mgr|Bc|PhDr|prim\.)\b/i.test(lines[j])) break; out.push(lines[j]); }
     return out;
   };
   const a = { chybi: [], citace: {} };
   const pb = t.match(/Propuštěn[ao]? do:\s*([^\n]+)/i); a.pobyt = pb ? pb[1].trim() : '';
-  a.dg = sekce(['diagnózy', 'diagnozy', 'dg.']).map((l) => l.replace(/^[A-Z]\d{2}(\.\d)?\s*/, '')).join('; ');
+  // diagnózy i s kódem MKN (Karta k nim doplní popisy z číselníku); víc diagnóz na řádku oddělených čárkou před kódem
+  a.dg = sekce(['diagnózy', 'diagnozy', 'diagnóza', 'dg.', 'dg:']).flatMap((l) => l.split(/[,;]\s*(?=[A-TV-Z]\d{2})/)).map((l) => l.trim()).filter(Boolean).join('; ');
   const al = t.match(/Alergie:\s*([^\n]+)/i); a.alergie = al ? al[1].trim() : '';
-  a.medikace = sekce(['medikace při propuštění', 'medikace', 'terapie']);
+  // léky: víc na řádku oddělených čárkou před názvem; řádky „při bolesti / v případě / SOS …“ jsou SOS medikace
+  const leky = sekce(['medikace při propuštění', 'medikace', 'terapie', 'chronická medikace']).flatMap((l) => l.split(/,\s*(?=[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž]+\s)/)).map((l) => l.trim()).filter(Boolean);
+  const jeSos = (l) => /^(při\s|v případě|dle potřeby|SOS\b)/i.test(l);
+  a.medikace = leky.filter((l) => !jeSos(l));
   const sos = t.match(/SOS medikace:\s*([^\n]+)/i);
-  a.sos = sos ? sos[1].split(/,\s*(?=[a-záčďéěíňóřšťúůýž]+\s\d)/i).map((s) => s.trim()) : [];
+  a.sos = [...(sos ? sos[1].split(/,\s*(?=[a-záčďéěíňóřšťúůýž]+\s\d)/i).map((x) => x.trim()) : []), ...leky.filter(jeSos), ...lines.filter((l) => /^(při bolesti|při dušnosti|při neklidu|při zvracení)\b/i.test(l) && !leky.includes(l))];
   const fs = t.match(/Funkční stav:\s*([^\n]+)/i); a.funkce = fs ? fs[1].trim() : '';
   const cilS = (t.match(/[^.\n]*(nepřeje|resuscit|ventilátor|cíl[eů]? péče|paliativ|symptomatick)[^.\n]*\./i) || [''])[0];
   a.citace.cil = cilS.trim();

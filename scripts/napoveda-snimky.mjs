@@ -188,6 +188,9 @@ let mockJednoduchy = false;   // 0.11.111: jednoduchý režim (přepíná /__moc
 app.post('/api/c/role-nahled', j({ ok: true }));
 app.post('/api/c/pacient/:id/dokument', j({ id: 3 }));
 app.post('/api/c/pacient/:id/dokument/:did/pro-pacienta', j({ ok: true }));
+app.post('/api/c/pacient/:id/dokument/:did/rozbor', j({ blokovano: false, zdroj: 'ai', pocetNahrad: 4, dokument: { id: 2, nazev: 'Propouštěcí zpráva – interna' },
+  anonymniText: 'Ambulantní zpráva\nPacientka: [JMENO_1], nar. [DATUM_1]\nDg.: C50.9 Zhoubný novotvar prsu, I50.0 Městnavé srdeční selhání\nAlergie: penicilin\nMedikace: Furosemid 40 mg 1-0-0\nPři dušnosti Morphin 5 mg s.c.',
+  vysledek: { dg: 'C50.9 Zhoubný novotvar prsu; I50.0 Městnavé srdeční selhání; E11.9 Diabetes mellitus 2. typu bez komplikací', alergie: 'penicilin', funkce: 'PPS 40 % – většinu dne na lůžku', sos: ['Morphin 5 mg s.c. – při dušnosti'], opioidy: [], medikace: ['Furosemid 40 mg 1-0-0'], kontakty: [], chybi: ['Ve zprávě není určena osoba pro zástupné rozhodování.'] } }));
 app.post('/api/c/pacient/:id/obnovit', j((req) => ({ ok: true, sms: req.body.sms ? { ok: true } : null, telefon: '+420 604 000 777' })));
 app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
 app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; const role = chce ? [chce] : ['admin', 'lekar']; return { roleMoznosti: ['admin', 'lekar', 'sestra', 'ctenar'], jednoduchyAktivni: mockJednoduchy && !role.includes('admin'), ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role, roleVlastni: ['admin', 'lekar'], roleNahled: chce || null, musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }; }));
@@ -856,6 +859,11 @@ if (!(await p.textContent('#dok_seznam')).includes('v Průkazu od')) chyby.push(
 if (!(await p.isVisible('#dk_vybrano')) || !(await p.textContent('#dk_vybrano')).includes('Zprava Medistar 16-11.pdf')) chyby.push('dokumenty: vybraný soubor není výrazně vidět');
 await foto(p, 'c-dokument-pro-pacienta');
 // 0.11.119: klasický výběr souboru (dialog se složkami)
+// 0.11.120: rozbor zprávy (AI) – návrh doplnění údajů ke kontrole
+await klik(p, '[data-dokai="2"]'); await p.waitForSelector('#np_ulozit');
+{ const dgN = await p.inputValue('[data-np-t="dg"]'); if (!dgN.includes('E11.9') || dgN.includes('C50.9') || dgN.includes('I50.0')) chyby.push('rozbor zprávy: návrh má přidat jen novou skupinu diagnóz (E11), ne C50.9 / I50.0, které už v Kartě jsou: ' + dgN); }
+await p.waitForTimeout(300); await foto(p, 'c-rozbor-zpravy');
+await p.click('#modal [data-close]'); await p.waitForTimeout(200);
 await p.click('#dk_odebrat'); await p.fill('#dk_n', '');
 if (!(await p.isVisible('#dk_zona'))) chyby.push('dokumenty: po odebrání chybí tlačítko Vybrat soubor z počítače');
 await p.setInputFiles('#dk_f', { name: 'Ambulantni zprava.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 x') }); await p.waitForTimeout(200);

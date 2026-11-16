@@ -910,12 +910,71 @@ function udajeForm(p, pref) {
 }
 const ctiUdaje = (pref) => ({ jmeno: $(`${pref}_j`).value, prijmeni: $(`${pref}_p`).value, rc: $(`${pref}_rc`).value, datumNarozeni: $(`${pref}_dn`).value, rok: $(`${pref}_r`).value, pohlavi: $(`${pref}_po`).value, pojistovna: $(`${pref}_poj`).value, pobyt: $(`${pref}_pb`).value, adresa: $(`${pref}_a`).value, telefonKarty: $(`${pref}_tk`).value, email: $(`${pref}_em`) ? $(`${pref}_em`).value : '' });
 const MIME_PRO_PACIENTA = ['application/pdf', 'image/jpeg', 'image/png'];
+/* 0.11.120: rozbor zprávy uložené u pacienta – AI (přes anonymizaci) navrhne diagnózy, alergie, léky a funkční stav;
+   uživatel je zkontroluje / upraví a uloží jako novou verzi plánu (Plán péče = nová verze, nikdy UPDATE) */
+async function rozborDokumentu(did) {
+  const dok = (S.pac.dokumenty || []).find((x) => x.id === did) || { nazev: 'zpráva' };
+  modal(`<h2>Rozbor zprávy</h2><div class="note">Čtu text z PDF „${esc(dok.nazev)}“, anonymizuji ho a rozebírám… (do AI nejde jméno, rodné číslo, adresa ani telefony)</div>`);
+  let r;
+  try { r = await C(`/pacient/${S.pacId}/dokument/${did}/rozbor`, { method: 'POST', body: {} }); } catch (e) { closeModal(); return toast(e.message); }
+  if (r.blokovano) return modal(`<h2>Rozbor nebyl odeslán</h2><p>${esc(r.duvod)}</p><div class="anon">${esc(r.anonymniText || '')}</div><div class="quick"><button class="btn" data-close>Rozumím</button></div>`);
+  navrhZRozboru(r, dok);
+}
+function navrhZRozboru(r, dok) {
+  const d = S.pac, p = (d.plan && d.plan.data) || {}, v = r.vysledek || {};
+  const pd = d.pecedoma && d.pecedoma.klientId;
+  const sezn = (a) => (Array.isArray(a) ? a : String(a || '').split('\n')).map((x) => String(x).trim()).filter(Boolean);
+  // diagnózy: k dosavadním přidá nové (podle kódu MKN nebo textu); léky: nové řádky k dosavadním
+  const dgNyni = String(p.dg || '').trim(), dgNove = String(v.dg || '').split(/;\s*|\n/).map((x) => x.trim()).filter(Boolean)
+    .filter((x) => { const k = (x.match(/^[A-TV-Z]\d{2}/i) || [''])[0].toUpperCase(); return k ? !new RegExp(`\\b${k}`).test(dgNyni.toUpperCase()) : !dgNyni.toLowerCase().includes(x.toLowerCase()); });   // stejná skupina MKN (C50 / C50.9) = už je
+  const slouc = (stare, nove) => { const s = sezn(stare); const lc = s.map((x) => x.toLowerCase()); return [...s, ...sezn(nove).filter((x) => !lc.some((y) => y.includes(x.toLowerCase().split(/\s+/)[0])))]; };
+  const pole = [
+    ['dg', 'Diagnózy', dgNyni, [dgNyni, ...dgNove].filter(Boolean).join('\n'), dgNove.length > 0, false],
+    ['alergie', 'Alergie', String(p.alergie || ''), v.alergie || '', !!v.alergie && String(v.alergie).toLowerCase() !== String(p.alergie || '').toLowerCase(), false],
+    ['funkce', 'Funkční stav', String(p.funkce || ''), v.funkce || '', !!v.funkce && v.funkce !== p.funkce, false],
+    ['sos', 'SOS medikace', sezn(p.sos).join('\n'), slouc(p.sos, v.sos).join('\n'), sezn(v.sos).length > 0 && !pd, true],
+    ['opioidy', 'Opioidy', sezn(p.opioidy).join('\n'), slouc(p.opioidy, v.opioidy).join('\n'), sezn(v.opioidy).length > 0 && !pd, true],
+    ['medikace', 'Paliativní terapie / léky', sezn(p.medikace).join('\n'), slouc(p.medikace, v.medikace).join('\n'), sezn(v.medikace).length > 0 && !pd, true],
+  ];
+  const muze = d.op.lekar;
+  const radek = ([k, n, nyni, navrh, zapnout, lek]) => `<div class="navrh-pole"><label class="row" style="gap:8px;font-weight:700"><input type="checkbox" data-np-k="${k}" ${zapnout && muze ? 'checked' : ''} ${muze ? '' : 'disabled'}> ${n}${lek && pd ? ' <span class="chip warn">léky se vedou v PéčeDoma</span>' : ''}</label>
+      <div class="navrh-mrizka"><div><div class="lbl">teď v Kartě</div><div class="navrh-nyni">${nyni ? esc(nyni).replace(/\n/g, '<br>') : '<span class="muted">—</span>'}</div></div>
+      <div><div class="lbl">po doplnění ze zprávy (upravte, co je potřeba)</div><textarea data-np-t="${k}" ${muze ? '' : 'readonly'} rows="${Math.min(10, Math.max(2, String(navrh).split('\n').length + 1))}">${esc(navrh)}</textarea></div></div></div>`;
+  const kont = (v.kontakty || []).filter((k) => k.tel && !(d.kontakty || []).some((x) => String(x.tel || '').replace(/\D/g, '').slice(-9) === String(k.tel).replace(/\D/g, '').slice(-9)));
+  modal(`<h2>Doplnit údaje ze zprávy</h2>
+    <p class="muted" style="margin:0">„${esc(r.dokument ? r.dokument.nazev : dok.nazev)}“ · ${r.zdroj === 'ai' ? 'rozbor AI' : 'lokální rozbor (AI na serveru není zapnutá)'} · ${r.pocetNahrad || 0} údajů anonymizováno. Zkontrolujte návrh – zaškrtnuté se uloží jako <b>nová verze plánu péče</b> (předchozí zůstává v historii).${pd ? ' Pacient je propojený s PéčeDoma – léky ze zprávy zapište v PéčeDoma, do plánu se nepřevezmou.' : ''}</p>
+    ${(v.chybi || []).length ? `<details><summary class="muted" style="cursor:pointer;font-size:13px">Upozornění z rozboru (${v.chybi.length})</summary><ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+    <div class="navrh-seznam">${pole.map(radek).join('')}</div>
+    ${kont.length ? `<div class="navrh-pole"><b>Nové kontakty ze zprávy</b>${kont.map((k, i) => `<label class="row" style="gap:8px"><input type="checkbox" data-np-kont="${i}" ${muze ? '' : 'disabled'}> ${esc(k.jmeno)} · ${esc(k.tel)}</label>`).join('')}</div>` : ''}
+    <details><summary class="muted" style="cursor:pointer;font-size:13px">Co přesně odešlo k rozboru (anonymizovaný text)</summary><div class="anon" style="margin-top:6px">${esc(r.anonymniText || '')}</div></details>
+    <div class="quick">${muze ? '<button class="btn primary ulozit" id="np_ulozit">Uložit jako novou verzi plánu</button>' : '<span class="muted">Uložit do plánu může lékař (v jednoduchém režimu i sestra).</span>'}<button class="btn" data-close>Zavřít</button></div>`, (m) => {
+    const box = m && m.querySelector('.box'); if (box) box.classList.add('wide');   // dva sloupce (teď / po doplnění) potřebují šířku
+    if (!$('np_ulozit')) return;
+    $('np_ulozit').onclick = async () => {
+      const data = { ...p };
+      let zmen = 0;
+      document.querySelectorAll('[data-np-k]').forEach((c) => {
+        if (!c.checked) return; const k = c.dataset.npK, t = document.querySelector(`[data-np-t="${k}"]`).value;
+        data[k] = ['sos', 'opioidy', 'medikace'].includes(k) ? sezn(t) : t.trim().replace(/\n+/g, k === 'dg' ? '\n' : ' '); zmen++;
+      });
+      const noveKont = [...document.querySelectorAll('[data-np-kont]:checked')].map((c) => kont[Number(c.dataset.npKont)]);
+      if (!zmen && !noveKont.length) return toast('Nic není zaškrtnuté');
+      $('np_ulozit').disabled = true;
+      try {
+        if (zmen) await C(`/pacient/${S.pacId}/plan`, { method: 'POST', body: { typ: 'ZMENA', data, platnostDo: d.plan ? d.plan.platnostDo : '', poznamka: `Doplněno z rozboru zprávy „${(r.dokument && r.dokument.nazev) || dok.nazev}“ (${r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'})` } });
+        for (const k of noveKont) await C(`/pacient/${S.pacId}/kontakt`, { method: 'POST', body: { jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: 'ze zprávy' } });
+        closeModal(); toast(zmen ? 'Uloženo jako nová verze plánu – Průkaz pacienta nabídne aktualizaci' : 'Kontakty přidány');
+        await nactiDetail(); kresliDetail();
+      } catch (e) { $('np_ulozit').disabled = false; toast(e.message); }
+    };
+  });
+}
 const smiDokumenty = (d) => d.op.lekar || d.op.garant || d.op.zapis;
 function tabDok(d) {
   const muze = smiDokumenty(d) && d.pacient.stav === 'AKTIVNI';
   return `<div class="grid2"><div class="panel" id="dok_seznam"><div class="panel-h"><h2>Dokumenty</h2>${muze ? '<span class="muted" style="font-size:12.5px">PDF ze zprávy (např. z Medistaru) sem můžete přetáhnout myší</span>' : ''}</div><div class="tblwrap"><table class="tbl"><tbody>${d.dokumenty.map((x) => `<tr><td><b>${esc(x.nazev)}</b><div class="lbl">${esc(x.typ)}${x.datum ? ' ze dne ' + esc(fmtD(x.datum)) : ''}${x.pracoviste ? ' · ' + esc(x.pracoviste) : ''} · vloženo ${esc(fmtDT(x.vytvoreno))}${x.kdeOriginal ? ' · originál: ' + esc(x.kdeOriginal) : ''}</div>
         ${x.proPacienta ? `<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap"><span class="chip vio">pro pacienta</span>${x.vPrukazu ? `<span class="chip ok">v Průkazu od ${esc(fmtDT(x.vPrukazu))}</span>` : '<span class="chip">pacient zatím nestáhl</span>'}</div>` : ''}</td>
-      <td style="white-space:nowrap;text-align:right">${x.velikost ? `<button class="btn sm" data-dok="${x.id}">Otevřít</button>` : '<span class="chip">bez souboru</span>'}${muze && x.velikost && MIME_PRO_PACIENTA.includes(x.mime) ? ` <button class="btn sm ${x.proPacienta ? '' : 'primary'}" data-dokpp="${x.id}" data-zap="${x.proPacienta ? '0' : '1'}" title="${x.proPacienta ? 'Pacient ho přestane mít k dispozici v Průkazu (co si už stáhl, zůstává jeho)' : 'Pacient si ho stáhne do Průkazu pacienta (Načíst z Karty pacienta)'}">${x.proPacienta ? 'Zrušit předání' : 'Předat pacientovi'}</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Žádné dokumenty.</td></tr>'}</tbody></table></div></div>
+      <td style="white-space:nowrap;text-align:right">${x.velikost ? `<button class="btn sm" data-dok="${x.id}">Otevřít</button>` : '<span class="chip">bez souboru</span>'}${muze && x.velikost && x.mime === 'application/pdf' ? ` <button class="btn sm" data-dokai="${x.id}" title="Text zprávy se anonymizuje a rozebere; diagnózy, alergie a léky uvidíte ke kontrole">Rozebrat (AI)</button>` : ''}${muze && x.velikost && MIME_PRO_PACIENTA.includes(x.mime) ? ` <button class="btn sm ${x.proPacienta ? '' : 'primary'}" data-dokpp="${x.id}" data-zap="${x.proPacienta ? '0' : '1'}" title="${x.proPacienta ? 'Pacient ho přestane mít k dispozici v Průkazu (co si už stáhl, zůstává jeho)' : 'Pacient si ho stáhne do Průkazu pacienta (Načíst z Karty pacienta)'}">${x.proPacienta ? 'Zrušit předání' : 'Předat pacientovi'}</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Žádné dokumenty.</td></tr>'}</tbody></table></div></div>
     ${muze ? `<div class="panel" style="align-self:start" id="dok_form"><div class="panel-h"><h2>Vložit dokument</h2></div><div class="form" style="padding:14px">
       <div class="frow"><div class="field"><label>Typ</label><select id="dk_t"><option value="DVP">dříve vyslovené přání</option><option value="ZPRAVA">lékařská zpráva</option><option value="SOUHLAS">informace pacientovi</option><option value="JINY">jiný</option></select></div><div class="field"><label>Název</label><input id="dk_n"></div></div>
       <div class="frow"><div class="field"><label>Datum dokumentu</label><input type="date" id="dk_d"></div><div class="field"><label>Pracoviště, které ho vydalo</label><input id="dk_pr" placeholder="např. Nemocnice Zlín, interna"></div></div>
@@ -923,6 +982,7 @@ function tabDok(d) {
         <label class="soubor-vyber" id="dk_zona" for="dk_f"><span class="sv-ik">📄</span><span><b>Vybrat soubor z počítače…</b><span class="hint" style="display:block">nebo ho sem přetáhněte myší (i na seznam dokumentů) · PDF, JPEG, PNG</span></span></label>
         <input type="file" id="dk_f" accept="application/pdf,image/*" class="skryty-soubor">
         <div id="dk_vybrano" hidden></div></div>
+      <label class="row" style="gap:8px"><input type="checkbox" id="dk_ai"> <span><b>Rozebrat zprávu (AI) a doplnit údaje pacienta</b><span class="hint" style="display:block">Jen PDF s textem (např. z Medistaru). Diagnózy, alergie a léky se ukážou ke kontrole a uloží se jako nová verze plánu – do AI jde text bez identity pacienta.</span></span></label>
       <label class="row" style="gap:8px"><input type="checkbox" id="dk_pp"> <span><b>Předat pacientovi do Průkazu pacienta</b><span class="hint" style="display:block">PDF, JPEG nebo PNG – pacient si ho stáhne tlačítkem Načíst z Karty pacienta.</span></span></label>
       <button class="btn primary ulozit" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
 }
@@ -1068,7 +1128,13 @@ function bindTab() {
     let data = null; if (f) { if (f.size > 8 * 1024 * 1024) return toast('Soubor je větší než 8 MB'); data = await new Promise((res) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result).split(',')[1]); rd.readAsDataURL(f); }); }
     const pp = !!($('dk_pp') && $('dk_pp').checked);
     if (pp && (!f || !MIME_PRO_PACIENTA.includes(f.type))) return toast('Pacientovi do Průkazu jde předat jen soubor PDF, JPEG nebo PNG – přiložte ho, nebo zrušte zaškrtnutí');
-    akce('/dokument', { typ: $('dk_t').value, nazev: $('dk_n').value || (f && f.name) || 'dokument', kdeOriginal: $('dk_k').value, datum: $('dk_d').value, pracoviste: $('dk_pr').value, mime: f && f.type, data, proPacienta: pp }, pp ? 'Dokument vložen a předán pacientovi do Průkazu' : 'Dokument vložen');
+    const rozebrat = !!($('dk_ai') && $('dk_ai').checked && f && f.type === 'application/pdf');
+    let r;
+    try { r = await C(`/pacient/${S.pacId}/dokument`, { method: 'POST', body: { typ: $('dk_t').value, nazev: $('dk_n').value || (f && f.name) || 'dokument', kdeOriginal: $('dk_k').value, datum: $('dk_d').value, pracoviste: $('dk_pr').value, mime: f && f.type, data, proPacienta: pp } }); }
+    catch (e) { return toast(e.message); }
+    toast(pp ? 'Dokument vložen a předán pacientovi do Průkazu' : 'Dokument vložen');
+    await nactiDetail(); kresliDetail();
+    if (rozebrat && r && r.id) rozborDokumentu(r.id);
   });
   // 0.11.118: předat pacientovi – u Zprávy výchozí zaškrtnuté (dokud ho uživatel sám nezmění), přetažení souboru, zapnutí / vypnutí předání
   if ($('dk_t') && $('dk_pp')) {
@@ -1110,6 +1176,11 @@ function bindTab() {
       $('dk_n').value = ''; $('dk_d').value = '';
       pripravSoubor(f, { zvyrazni: zona.id === 'dok_seznam' });
     });
+  }
+  document.querySelectorAll('[data-dokai]').forEach((b) => (b.onclick = () => rozborDokumentu(Number(b.dataset.dokai))));
+  if ($('dk_t') && $('dk_ai')) {   // u zprávy v PDF výchozí zaškrtnuté (dokud ho uživatel sám nezmění)
+    const vychoziAi = () => { if (!$('dk_ai').dataset.zmeneno) { const f = $('dk_f').files[0]; $('dk_ai').checked = $('dk_t').value === 'ZPRAVA' && (!f || f.type === 'application/pdf'); } };
+    $('dk_t').addEventListener('change', vychoziAi); $('dk_f').addEventListener('change', vychoziAi); $('dk_ai').addEventListener('change', () => { $('dk_ai').dataset.zmeneno = '1'; }); vychoziAi();
   }
   document.querySelectorAll('[data-dokpp]').forEach((b) => (b.onclick = async () => {
     const zap = b.dataset.zap === '1';

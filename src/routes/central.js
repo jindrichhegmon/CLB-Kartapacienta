@@ -5,6 +5,7 @@
  */
 import { Router } from 'express';
 import { createHash } from 'node:crypto';
+import { textZPdf } from '../pdftext.js';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
@@ -1170,18 +1171,39 @@ central.post('/ai/rozbor', sUzivatelem(async (q, s, req) => {
   const pa = req.body.znamo || {};
   const znamo = { jmeno: text(pa.jmeno, 80), prijmeni: text(pa.prijmeni, 80), rc: text(pa.rc, 11), datumNarozeni: pa.datumNarozeni, adresa: text(pa.adresa, 300), telefony: [], osoby: [] };
   const pacId = cislo(req.body.pacientId);
-  if (pacId) {
-    await opravneni(q, s, pacId);
-    const p = await q.one(`SELECT Jmeno, Prijmeni, RodneCislo, CONVERT(char(10), DatumNarozeni, 23) AS DN, Adresa FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacId });
-    Object.assign(znamo, { jmeno: p.Jmeno, prijmeni: p.Prijmeni, rc: p.RodneCislo, datumNarozeni: p.DN, adresa: p.Adresa });
-    const k = await q.all(`SELECT Jmeno, Telefon FROM dbo.A_KP_Kontakt WHERE PacientID = @p`, { p: pacId });
-    znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = k.map((x) => x.Telefon);
-  }
-  const r = await rozborZpravy(t, znamo);
-  await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, N'rozbor zprávy', @d, @n, @b, @m, @v)`,
-    { u: s.uzivatelId, d: t.length, n: r.pocetNahrad || 0, b: !!r.blokovano, m: r.model || null, v: r.blokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
-  return r;
+  if (pacId) { await opravneni(q, s, pacId); await znamoPacienta(q, pacId, znamo); }
+  return rozborALog(q, s, t, znamo);
 }, { lekar: true }));
+/* identifikátory pacienta pro anonymizaci (jméno, RČ, datum narození, adresa, kontakty) – do AI nejdou */
+async function znamoPacienta(q, pacId, znamo) {
+  const p = await q.one(`SELECT Jmeno, Prijmeni, RodneCislo, CONVERT(char(10), DatumNarozeni, 23) AS DN, Adresa FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacId });
+  Object.assign(znamo, { jmeno: p.Jmeno, prijmeni: p.Prijmeni, rc: p.RodneCislo, datumNarozeni: p.DN, adresa: p.Adresa });
+  const k = await q.all(`SELECT Jmeno, Telefon FROM dbo.A_KP_Kontakt WHERE PacientID = @p`, { p: pacId });
+  znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = k.map((x) => x.Telefon);
+  return znamo;
+}
+async function rozborALog(q, s, t, znamo, ucel = 'rozbor zprávy') {
+  const r = await rozborZpravy(t, znamo);
+  await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, @uc, @d, @n, @b, @m, @v)`,
+    { u: s.uzivatelId, uc: ucel, d: t.length, n: r.pocetNahrad || 0, b: !!r.blokovano, m: r.model || null, v: r.blokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
+  return r;
+}
+/* 0.11.120: rozbor zprávy uložené u pacienta (PDF s textovou vrstvou, např. z Medistaru) – text z PDF → anonymizace → AI (nebo lokální rozbor)
+   → návrh diagnóz, alergií, léků a funkčního stavu. Nic se neukládá: centrála ukáže návrh ke kontrole a lékař / sestra ho uloží jako novou verzi plánu. */
+central.post('/pacient/:id/dokument/:did/rozbor', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant && !op.zapis) throw chyba('Rozbor zprávy dělá tým kolem pacienta', 403);
+  omez('rozbor:' + s.uzivatelId, 40, 3600e3);
+  const d = await q.one(`SELECT DokumentID, Nazev, MimeType, Obsah FROM dbo.A_KP_Dokument WHERE DokumentID = @d AND PacientID = @p`, { d: cislo(req.params.did), p: id });
+  if (!d || !d.Obsah) throw chyba('Dokument nemá přiložený soubor', 404);
+  if (d.MimeType !== 'application/pdf') throw chyba('Rozebrat jde jen zprávu v PDF s textem (u fotky nebo skenu opište text v průvodci Nový pacient)');
+  let t = '';
+  try { t = await textZPdf(d.Obsah); } catch (e) { throw chyba('PDF se nepodařilo přečíst: ' + String(e.message || e).slice(0, 120)); }
+  if (t.replace(/\s/g, '').length < 40) throw chyba('PDF neobsahuje text (je to sken nebo fotka) – rozebrat ho nejde; údaje doplňte ručně');
+  const r = await rozborALog(q, s, t.slice(0, 60000), await znamoPacienta(q, id, { telefony: [], osoby: [] }), 'rozbor dokumentu');
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu (AI)', detail: `${d.Nazev} · ${r.blokovano ? 'zablokováno anonymizací' : r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
+  return { ...r, dokument: { id: d.DokumentID, nazev: d.Nazev } };
+}));
 
 /* ---------------- lidé a týmy pracovišť (zapíší se jednou, k pacientovi se přiřazují) ---------------- */
 // správce organizace spravuje lidi všech pracovišť, ostatní (kromě „jen čtení“) lidi svého pracoviště – i partner, např. domov
