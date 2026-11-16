@@ -770,3 +770,45 @@ Jednoduchý režim platí pro lékaře, sestry a jen čtení – **správce má 
 - **Sestra smí totéž co lékař**: založit pacienta, zapsat diagnózy, léky, alergie, plán péče a kontakty a předat pacientovi do Průkazu. Plán zůstává verzovaný – u verze, kterou uložila sestra, je jméno s „(sestra)“. Uživatel s rolí *jen čtení* dál jen čte.
 - **Předání do Průkazu**: tlačítko **Předat pacientovi do Průkazu** na Krizové kartě i v záložce Předání do Průkazu – SMS, QR kód nebo 6místné číslo (kapitola 8).
 
+
+## 22. Zpráva z Medistaru – nejsnadnější cesta do Karty, PéčeDoma a Průkazu
+
+Jeden soubor PDF z Medistaru stačí: Karta z něj vyčte diagnózy, léky a funkční stav, po vaší kontrole je zapíše do plánu péče, léky do PéčeDoma a zprávu i údaje předá pacientovi do Průkazu pacienta.
+
+![Schéma: zpráva z Medistaru do Karty pacienta, PéčeDoma a Průkazu pacienta](/napoveda/img/schema-zprava-medistar.svg)
+
+### Krok 1 – Medistar: vytisknout dekurz do PDF
+
+1. Otevřete **dekurz** pacienta a zvolte **Tisk lékařské zprávy** (celý dekurz, všechny strany).
+2. Jako tiskárnu vyberte **Microsoft Print to PDF** (nebo *Uložit jako PDF*) a soubor uložte, např. `Dekurz_Novak.pdf` na Plochu.
+
+PDF z *Microsoft Print to PDF* je jen obrázek textu – to nevadí, Karta text rozpozná sama (asi 3–4 s na stranu). Sken nebo fotka zprávy (JPG, PNG) funguje stejně.
+
+### Krok 2 – Karta pacienta: vložit a potvrdit
+
+1. V centrále otevřete pacienta → záložka **Dokumenty**.
+2. **Přetáhněte PDF myší** do seznamu dokumentů (nebo **Vybrat soubor z počítače**). Typ se nastaví na **Zpráva** a jsou zaškrtnuté obě volby – **Rozebrat zprávu (AI) a doplnit údaje pacienta** i **Předat pacientovi do Průkazu pacienta**.
+3. Klikněte **Vložit**. Karta zprávu přečte (10–15 s, ukazuje *Čtu zprávu…*). K rozboru jde jen text bez jména, rodného čísla, adresy a telefonů (kapitola 17).
+4. Otevře se okno **Doplnit údaje ze zprávy**. **Diagnózy, alergie, funkční stav**: vlevo, co je v Kartě teď, vpravo po doplnění ze zprávy; nové diagnózy se přidají k dosavadním.
+   **Léky**: u pacienta propojeného s PéčeDoma část **Léky do PéčeDoma**: *nový* (přidá se), *v PéčeDoma stejně* (jen se označí *ověřeno zprávou*), *v jiné skupině* (např. opioid zapsaný jako paliativní terapie – přesune se), *s jinou dávkou* (přepíše se jen po zaškrtnutí). U nepropojeného pacienta se léky doplní do plánu péče.
+5. **Zkontrolujte čísla a dávky** (u textu rozpoznaného z obrázku zvlášť pečlivě – ve zprávě z Medistaru bývají léky dvakrát, v Medikaci a v Chronické terapii; Karta bere Chronickou terapii) a klikněte **Uložit**.
+
+Ukládá lékař z týmu; v jednoduchém režimu (kapitola 21) i sestra. Léky do PéčeDoma může zapsat i sestra z týmu.
+
+Už vloženou zprávu jde rozebrat kdykoli znovu: **Dokumenty → Rozebrat (AI)** nebo **Léky → Ověřit podle zprávy → Rozebrat „…“**.
+
+### Krok 3 – kam se údaje dostanou
+
+| Kam | Co tam bude | Jak to poznáte |
+|---|---|---|
+| **Karta pacienta** | diagnózy, funkční stav, alergie jako **nová verze plánu péče**; krizová karta a zapůjčený telefon u pacienta při nejbližší synchronizaci | v záložce Diagnóza štítek **ze zprávy „název dokumentu“** (kapitola 5) |
+| **PéčeDoma** | léky v **Data klienta → Léky** – nové přidané, skupina opravená, shodné ověřené | v Kartě u léku **ověřeno zprávou** nebo **ze zprávy**; v PéčeDoma *Historie změn léků* – zapsáno Kartou pacienta |
+| **Průkaz pacienta** | zpráva v PDF a aktuální údaje (plán, léky, kontakty) | pacient v Průkazu klepne **Načíst z Karty pacienta**; tým ho může vyzvat tlačítkem **Obnovit** (SMS) v záložce Telefon a PINy – v jednoduchém režimu Předání do Průkazu (kapitola 8). U zprávy v Dokumentech je pak *v Průkazu od …* |
+
+### Co se samo nestane
+
+- **Lék, který ve zprávě není, se z PéčeDoma nevyřadí** – vyřaďte ho ručně tlačítkem **Vyřadit** v záložce Léky.
+- **Průkaz si údaje nestáhne sám** – pacient je načte, až klepne *Načíst z Karty pacienta* (nebo po výzvě Obnovit).
+- **Cíl péče a limitace** (KPR, hospitalizace) se ze zprávy nepřebírají – stanovuje je lékař v záložce Plán péče.
+
+Když rozbor nevyjde, zůstane okno **Rozbor zprávy se nepovedl** s popisem chyby a tlačítkem **Zkusit znovu**; zpráva zůstává uložená v Dokumentech.
