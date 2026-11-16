@@ -390,9 +390,9 @@ const pretekani = async (p, jmeno) => {
     if (w !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(100); }
   }
 };
-const foto = async (p, jmeno, { cela = false, vyska = null } = {}) => {
+const foto = async (p, jmeno, { cela = false, vyska = null, posun = false } = {}) => {
   await p.evaluate(() => { const t = document.getElementById('toast'); if (t) t.hidden = true; });   // hlášky z předchozích kroků do snímků nepatří
-  await p.evaluate(() => { scrollTo(0, 0); document.querySelectorAll('.box').forEach((b) => (b.scrollTop = 0)); });
+  if (!posun) await p.evaluate(() => { scrollTo(0, 0); document.querySelectorAll('.box').forEach((b) => (b.scrollTop = 0)); });   // posun: true = snímek níže posunutého okna
   await p.waitForTimeout(350);
   const spatne = await p.evaluate(() => {
     const cek = document.querySelector('.app.wide') ? 38 : 42;
@@ -890,7 +890,7 @@ await p.waitForTimeout(300); await foto(p, 'c-rozbor-zpravy');
 await p.evaluate(() => { const e = document.querySelector('.navrh-lek'); if (!e) return; const cil = e.closest('.navrh-pole');
   for (let x = cil.parentElement; x; x = x.parentElement) { const st = getComputedStyle(x); if (/(auto|scroll)/.test(st.overflowY) && x.scrollHeight > x.clientHeight) { x.scrollTop += cil.getBoundingClientRect().top - x.getBoundingClientRect().top - 16; break; } } });
 await p.waitForTimeout(200);
-await foto(p, 'c-rozbor-leky');
+await foto(p, 'c-rozbor-leky', { posun: true });
 await p.click('#modal [data-close]'); await p.waitForTimeout(200);
 await p.click('#dk_odebrat'); await p.fill('#dk_n', '');
 if (!(await p.isVisible('#dk_zona'))) chyby.push('dokumenty: po odebrání chybí tlačítko Vybrat soubor z počítače');
