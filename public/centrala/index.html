@@ -648,7 +648,7 @@ async function nactiLeky(d) {
 /* 0.11.125: ověřit léky podle zprávy – rozbor uloženého dokumentu (PDF, sken, fotka); shodné léky dostanou štítek „ověřeno zprávou“ */
 function overitLekyHTML(d) {
   if (!d.op.zapis || !d.op.aktivni) return '';
-  const dok = (d.dokumenty || []).filter((x) => x.velikost && MIME_PRO_PACIENTA.includes(x.mime)).slice(0, 6);
+  const dok = (d.dokumenty || []).filter((x) => x.velikost && MIME_PRO_PACIENTA.includes(x.mime) && x.typ !== 'DVP').slice(0, 6);   // DVP léky neobsahuje
   return `<div class="panel"><div class="panel-h"><h2>Ověřit podle zprávy</h2></div><div style="padding:12px 14px;display:grid;gap:8px">
     <div class="muted" style="font-size:13.5px">Karta zprávu přečte a porovná léky s PéčeDoma: shodné označí <b>ověřeno zprávou</b>, nové a změněné nabídne k zápisu.</div>
     ${dok.length ? dok.map((x) => `<button class="btn sm" type="button" data-dokai="${x.id}" style="justify-content:flex-start;text-align:left">Rozebrat „${esc(x.nazev)}“${x.datum ? ' · ' + esc(fmtD(x.datum)) : ''}</button>`).join('') : '<div class="lbl">Zatím žádná zpráva – nahrajte ji v záložce Dokumenty.</div>'}</div></div>`;
