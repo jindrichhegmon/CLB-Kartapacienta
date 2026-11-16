@@ -1256,11 +1256,17 @@ central.post('/pacient/:id/dokument/:did/rozbor', sUzivatelem(async (q, s, req) 
   if (!d || !d.Obsah) throw chyba('Dokument nemá přiložený soubor', 404);
   if (!['application/pdf', 'image/jpeg', 'image/png'].includes(d.MimeType)) throw chyba('Rozebrat jde zprávu v PDF nebo fotku zprávy (JPG, PNG)');
   let z;
-  try { z = await textZeZpravy(d.Obsah, d.MimeType); } catch (e) { throw chyba('Zprávu se nepodařilo přečíst: ' + String(e.message || e).slice(0, 120)); }
+  const t0 = Date.now();
+  try { z = await textZeZpravy(d.Obsah, d.MimeType); } catch (e) {
+    // 0.11.126: chyba čtení do auditu (a do logu serveru) – jinak po ní nezůstala žádná stopa
+    console.error('rozbor dokumentu', d.DokumentID, e);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu – chyba', detail: `${d.Nazev} · ${String(e.message || e).slice(0, 300)}`, ip: s.ip });
+    throw chyba('Zprávu se nepodařilo přečíst: ' + String(e.message || e).slice(0, 160));
+  }
   const t = z.text;
   if (t.replace(/\s/g, '').length < 40) throw chyba(z.ocr ? 'Ve zprávě se nepodařilo rozpoznat text (nečitelný sken nebo fotka) – údaje doplňte ručně' : 'Zpráva neobsahuje text – údaje doplňte ručně');
   const r = await rozborALog(q, s, t.slice(0, 60000), await znamoPacienta(q, id, { telefony: [], osoby: [] }), 'rozbor dokumentu');
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu (AI)', detail: `${d.Nazev} · ${z.ocr ? `text rozpoznán z obrázku (OCR, ${z.stran} str.) · ` : ''}${r.blokovano ? 'zablokováno anonymizací' : r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu (AI)', detail: `${d.Nazev} · ${z.ocr ? `text rozpoznán z obrázku (OCR, ${z.stran} str., ${Math.round((Date.now() - t0) / 1000)} s) · ` : ''}${r.blokovano ? 'zablokováno anonymizací' : r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
   return { ...r, ocr: z.ocr, stran: z.stran || null, dokument: { id: d.DokumentID, nazev: d.Nazev } };
 }));
 

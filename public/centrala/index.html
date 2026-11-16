@@ -935,7 +935,12 @@ async function rozborDokumentu(did) {
   const dok = (S.pac.dokumenty || []).find((x) => x.id === did) || { nazev: 'zpráva' };
   modal(`<h2>Rozbor zprávy</h2>${nacitamHTML(`Čtu zprávu „${dok.nazev}“…`)}<p class="muted" style="margin:0">Text se anonymizuje a rozebere – do AI nejde jméno, rodné číslo, adresa ani telefony. Když zpráva nemá textovou vrstvu (tisk přes „Microsoft Print to PDF“, sken, fotka), server text nejdřív rozpozná z obrázku; to trvá asi 3–4 s na stranu.</p>`);
   let r;
-  try { r = await C(`/pacient/${S.pacId}/dokument/${did}/rozbor`, { method: 'POST', body: {} }); } catch (e) { closeModal(); return toast(e.message); }
+  try { r = await C(`/pacient/${S.pacId}/dokument/${did}/rozbor`, { method: 'POST', body: {} }); }
+  catch (e) {   // 0.11.126: chyba zůstane v okně (hláška dole zmizela dřív, než si ji člověk přečetl)
+    return modal(`<h2>Rozbor zprávy se nepovedl</h2><div class="banner crit">${esc(e.message || String(e))}</div>
+      <p class="muted">Zpráva „${esc(dok.nazev)}“ zůstává uložená v Dokumentech. Zkuste rozbor znovu; když se chyba opakuje, pošlete správci text výše (je zapsaný i v logu přístupů).</p>
+      <div class="quick"><button class="btn primary" id="rz_znovu">Zkusit znovu</button><button class="btn" data-close>Zavřít</button></div>`, () => { $('rz_znovu').onclick = () => rozborDokumentu(did); });
+  }
   if (r.blokovano) return modal(`<h2>Rozbor nebyl odeslán</h2><p>${esc(r.duvod)}</p><div class="anon">${esc(r.anonymniText || '')}</div><div class="quick"><button class="btn" data-close>Rozumím</button></div>`);
   if (S.pac.pecedoma && S.pac.pecedoma.klientId) { try { S.leky = (await C('/pacient/' + S.pacId + '/leky')).leky || []; } catch { S.leky = S.leky || []; } }
   navrhZRozboru(r, dok);

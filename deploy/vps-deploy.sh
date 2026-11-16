@@ -76,11 +76,11 @@ if [ -f "\$J" ] && ! grep -q '^KARTA_PARTNER_KLIC=' "\$J"; then
 fi
 chown -R jhnapps:jhnapps $DIR
 su - jhnapps -c "cd $DIR && npm install --omit=dev --no-audit --no-fund 2>&1 | tail -1 && npm run migrate 2>&1 | tail -4"
-if su - jhnapps -c "pm2 describe clb-kartapacienta" >/dev/null 2>&1; then
-  su - jhnapps -c "pm2 restart clb-kartapacienta --update-env"
-else
-  su - jhnapps -c "cd $DIR && pm2 start deploy/ecosystem.config.cjs && pm2 save"
-fi
+# 0.11.126: kontrola čtení zpráv z obrázku (OCR) přímo na serveru + volná paměť
+su - jhnapps -c "cd $DIR && timeout 120 node scripts/ocr-kontrola.mjs" || echo "OCR: kontrola neprošla – rozbor naskenovaných zpráv nemusí fungovat (pošlete tento výpis)"
+free -m | awk 'NR==2{print "Paměť serveru: celkem " \$2 " MB, volno " \$7 " MB"}'
+# nastavení z ecosystem.config.cjs (např. limit paměti) se při pouhém restartu nepřenačte – proces se založí znovu
+su - jhnapps -c "pm2 delete clb-kartapacienta >/dev/null 2>&1; cd $DIR && pm2 start deploy/ecosystem.config.cjs >/dev/null && pm2 save >/dev/null && echo 'pm2: clb-kartapacienta spuštěn znovu (limit paměti 1G)'"
 if ! grep -q "$DOMENA" /etc/caddy/Caddyfile; then
   printf '\n$DOMENA {\n\tencode gzip\n\trequest_body {\n\t\tmax_size 12MB\n\t}\n\treverse_proxy 127.0.0.1:$PORT\n}\n' >> /etc/caddy/Caddyfile
   systemctl reload caddy
