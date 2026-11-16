@@ -732,6 +732,8 @@ Pro malou ordinaci nebo ambulanci, která Kartu pacienta používá jen k **př�
 
 Jednoduchý režim platí pro lékaře, sestry a jen čtení – **správce má vždy plnou Kartu**. Jak ji vidí ostatní, vyzkouší přepnutím role v hlavičce (kapitola 2, Přepnout roli).
 
+**Náhled v telefonu** (karta tak, jak ji vidí telefon – zamčená i po odemknutí) zůstává pro všechny role i v jednoduchém režimu.
+
 **Co se skryje:** Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma, ve Správě Pracoviště, Telefony a Log přístupů. **Skrývá se jen obrazovka** – data ani oprávnění se nemažou a log přístupů se zapisuje dál. Po vypnutí režimu je vidět plná Karta se všemi dříve zapsanými údaji.
 
 ![Pacient v jednoduchém režimu – Krizová karta s tlačítkem Předat pacientovi do Průkazu](/napoveda/img/c-jednoduchy-karta.png)

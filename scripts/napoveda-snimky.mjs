@@ -812,7 +812,7 @@ if (await p.$('.nav button[data-v="lide"]') || await p.$('.nav button[data-v="sp
 await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozkyJed = await p.$$eval('.tabs [data-t]', (b) => b.map((x) => x.dataset.t).join(','));
 if (zalozkyJed !== 'karta,dg,plan,leky,kontakty,telefon,udaje') chyby.push('jednoduchý režim: záložky pacienta ' + zalozkyJed);
-if (!(await p.$('#predatPrukaz')) || await p.$('[data-np]') || await p.$('#vidZahajit') || await p.$$eval('#tabbody .panel-h h2', (h) => h.some((x) => /^(PéčeDoma|Telefon u pacienta)$/.test(x.textContent.trim())))) chyby.push('jednoduchý režim: na Krizové kartě chybí Předat do Průkazu, nebo zůstal náhled telefonu, videohovor, panel PéčeDoma či zapůjčený telefon');
+if (!(await p.$('#predatPrukaz')) || !(await p.$('[data-np]')) || await p.$('#vidZahajit') || await p.$$eval('#tabbody .panel-h h2', (h) => h.some((x) => /^(PéčeDoma|Telefon u pacienta)$/.test(x.textContent.trim())))) chyby.push('jednoduchý režim: na Krizové kartě chybí Předat do Průkazu nebo Náhled v telefonu, nebo zůstal videohovor, panel PéčeDoma či zapůjčený telefon');
 await p.waitForTimeout(300); await foto(p, 'c-jednoduchy-karta');
 await klik(p, '#predatPrukaz'); await p.waitForSelector('#pz_t');
 await p.fill('#pz_t', '+420 604 000 777'); await klik(p, '#pz_sms'); await p.waitForSelector('#pz_hot');
