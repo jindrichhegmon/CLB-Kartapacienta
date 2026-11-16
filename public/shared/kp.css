@@ -81,6 +81,9 @@ html.vramu .hlp-top{padding-top:10px}
 tr.vybito>td{background:var(--crit-soft)}
 tr.vybito>td:first-child{box-shadow:inset 4px 0 0 var(--crit)}
 tr.vybito{outline:2px solid var(--crit);outline-offset:-2px}
+/* 0.11.118: přetažení dokumentu na seznam dokumentů pacienta */
+#dok_seznam.dok-drop{outline:3px dashed var(--accent);outline-offset:-3px;background:var(--accent-soft)}
+#dok_form.dok-zvyrazni{outline:3px solid var(--accent);outline-offset:-3px;transition:outline-color .3s}
 .chip.zalom{white-space:normal;height:auto;min-height:22px;line-height:1.3;padding-top:2px;padding-bottom:2px;max-width:100%}
 .historie-predani{border-top:1px solid var(--line)}
 .historie-predani>summary{cursor:pointer;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none;font-size:14px}

@@ -53,12 +53,13 @@ app.use((req, res, next) => {
 const PRUKAZ_CESTY = new Set(['/api/d/parovat', '/api/d/parovaci-info', '/api/d/cislo', '/api/d/stav', '/api/d/sync', '/api/d/sdilet', '/api/napoveda', '/api/napoveda/dotaz']);
 app.use((req, res, next) => {
   const o = req.headers.origin;
-  if (!o || !PRUKAZ_CESTY.has(req.path.replace(/\/$/, '')) || !config.prukazOriginy.includes(o)) return next();
+  if (!o || !(PRUKAZ_CESTY.has(req.path.replace(/\/$/, '')) || /^\/api\/d\/dokument\/\d+$/.test(req.path)) || !config.prukazOriginy.includes(o)) return next();
   res.setHeader('Access-Control-Allow-Origin', o);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Max-Age', '600');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Sha256');   // 0.11.118: Průkaz ověří otisk staženého dokumentu
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });

@@ -20,7 +20,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, bearer, text } from '../http.js';
 import { nahodny, sha256, zasifruj } from '../crypto.js';
-import { audit, zapisDenik, balikProZarizeni, zapisPredani, stavPredani } from '../kp.js';
+import { audit, zapisDenik, balikProZarizeni, zapisPredani, stavPredani, dokumentProZarizeni } from '../kp.js';
 import { priradTymyTelefonu, srovnejTymyTelefonu } from './central.js';
 import { normTel, hezkyTel } from '../telefon.js';
 import { najdiCislo } from '../prenos.js';
@@ -297,6 +297,24 @@ device.get('/stav', h(async (req) => {
     const st = (await stavPredani(q, z.PacientID, [zid]))[zid];
     return { aktivni: true, aktualizace: st.aktualizace, zmena: st.zmena, vyzva: st.vyzva, vyzvaOd: st.vyzvaOd, posledniPredani: st.posledniPredani };
   });
+}));
+
+/* 0.11.118: stažení dokumentu předaného pacientovi do Průkazu pacienta – obsah souboru jen tady, s platným tokenem zařízení.
+   Cizí, nepředaný nebo neexistující dokument → 404 (ne 403). Hlavička X-Sha256 = otisk obsahu (Průkaz ho ověří). */
+device.get('/dokument/:id', h(async (req, res) => {
+  const { tenant, zid, raw } = tokenZarizeni(req);
+  omez('dokument:' + zid, 120, 3600e3);
+  const d = await vTenantu(tenant, async (q) => {
+    const z = await overZarizeni(q, zid, raw);
+    const dok = await dokumentProZarizeni(q, z, req.params.id);
+    if (!dok) throw chyba('Dokument nenalezen', 404);
+    await audit(q, { zarizeniId: zid, kdo: 'Průkaz pacienta', pacientId: z.PacientID, akce: 'dokument stažen do Průkazu pacienta', detail: `${dok.nazev} (dokument č. ${dok.id})`, ip: ip(req) });
+    return dok;
+  });
+  res.setHeader('Content-Type', d.mime || 'application/octet-stream');
+  if (d.sha256) res.setHeader('X-Sha256', String(d.sha256).trim().toLowerCase());
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(d.obsah);
 }));
 
 device.post('/sdilet', h(async (req) => {

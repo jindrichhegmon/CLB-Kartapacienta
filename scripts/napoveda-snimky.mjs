@@ -130,7 +130,7 @@ const detail = {
     { druh: 'LEKY', nazev: 'Léky, které užívám', obsah: 'MST Continus 30 mg – ráno a večer · aktualizováno ' + den(-1).split('-').reverse().map(Number).join('. ') + '\nFurosemid 40 mg – jen ob den (otoky menší)', puvod: 'údaj pacienta', aktualizovano: cas(-1, '19:25') }] }],
   piny: [{ id: 1, jmeno: 'Jana Zkušební (dcera)', role: 'RODINA', vytvoreno: den(-21), zobrazitelny: 1 }], lide: prirazeni, tymyLidi, get tymyNabidka() { return tymyNabidka(); },
   denik: [...denik].reverse(), dokumenty: [{ id: 1, typ: 'DVP', nazev: 'Dříve vyslovené přání', kdeOriginal: 'u dcery', mime: 'application/pdf', velikost: 120000, vytvoreno: cas(-21, '09:20'), datum: den(-40), pracoviste: 'Hospic Ukázka' },
-    { id: 2, typ: 'ZPRAVA', nazev: 'Propouštěcí zpráva – interna', kdeOriginal: '', mime: 'application/pdf', velikost: 230000, vytvoreno: cas(-22, '15:00'), datum: den(-23), pracoviste: 'Krajská nemocnice – interna' }],
+    { id: 2, typ: 'ZPRAVA', nazev: 'Propouštěcí zpráva – interna', kdeOriginal: '', mime: 'application/pdf', velikost: 230000, vytvoreno: cas(-22, '15:00'), datum: den(-23), pracoviste: 'Krajská nemocnice – interna', proPacienta: true, vPrukazu: cas(-1, '18:40') }],
   pristupy: [{ cas: cas(0, '08:15'), kdo: 'MUDr. Petra Ukázková', akce: 'zobrazení průkazu', detail: null }, { cas: cas(-2, '02:41'), kdo: 'telefon', akce: 'synchronizace', detail: '1 zápis' }],
   op: { vidi: true, aktivni: true, lekar: true, garant: true, zapis: true, vychozi: true, prijmoutGaranci: false, navrhGaranceId: null }, smsDostupne: true,
 };
@@ -186,6 +186,8 @@ app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta
 app.post('/api/c/login', j({ session: 'ukazka' }));
 let mockJednoduchy = false;   // 0.11.111: jednoduchý režim (přepíná /__mock/jednoduchy)
 app.post('/api/c/role-nahled', j({ ok: true }));
+app.post('/api/c/pacient/:id/dokument', j({ id: 3 }));
+app.post('/api/c/pacient/:id/dokument/:did/pro-pacienta', j({ ok: true }));
 app.post('/api/c/pacient/:id/obnovit', j((req) => ({ ok: true, sms: req.body.sms ? { ok: true } : null, telefon: '+420 604 000 777' })));
 app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
 app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; const role = chce ? [chce] : ['admin', 'lekar']; return { roleMoznosti: ['admin', 'lekar', 'sestra', 'ctenar'], jednoduchyAktivni: mockJednoduchy && !role.includes('admin'), ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role, roleVlastni: ['admin', 'lekar'], roleNahled: chce || null, musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }; }));
@@ -812,7 +814,7 @@ if (!(await p.textContent('#roleSel')).includes('přepnuto')) chyby.push('přepn
 if (await p.$('.nav button[data-v="lide"]') || await p.$('.nav button[data-v="sprava"]')) chyby.push('jednoduchý režim (lékař): v nabídce zůstaly Lidé a týmy nebo Správa');
 await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozkyJed = await p.$$eval('.tabs [data-t]', (b) => b.map((x) => x.dataset.t).join(','));
-if (zalozkyJed !== 'karta,dg,plan,leky,kontakty,telefon,udaje') chyby.push('jednoduchý režim: záložky pacienta ' + zalozkyJed);
+if (zalozkyJed !== 'karta,dg,plan,leky,kontakty,telefon,dok,udaje') chyby.push('jednoduchý režim: záložky pacienta ' + zalozkyJed);
 if (!(await p.$('#predatPrukaz')) || !(await p.$('[data-np]')) || await p.$('#vidZahajit') || await p.$$eval('#tabbody .panel-h h2', (h) => h.some((x) => /^(PéčeDoma|Telefon u pacienta)$/.test(x.textContent.trim())))) chyby.push('jednoduchý režim: na Krizové kartě chybí Předat do Průkazu nebo Náhled v telefonu, nebo zůstal videohovor, panel PéčeDoma či zapůjčený telefon');
 await p.waitForTimeout(300); await foto(p, 'c-jednoduchy-karta');
 await klik(p, '#predatPrukaz'); await p.waitForSelector('#pz_t');
@@ -845,6 +847,13 @@ await klik(p, '[data-pobnovit="9"]'); await p.waitForSelector('#ob_ok'); await p
 await foto(p, 'c-obnovit-prukaz');
 await klik(p, '#ob_ok'); await p.waitForTimeout(500);
 if (await p.$('#parovat') || await p.$('#pin_ok')) chyby.push('jednoduchý režim: záložka Předání do Průkazu ukazuje zapůjčený telefon nebo PINy');
+// 0.11.118: zpráva z Medistaru – přetažení PDF na Dokumenty, předání pacientovi do Průkazu
+await klik(p, '.tabs [data-t="dok"]'); await p.waitForSelector('#dok_seznam');
+await p.evaluate(() => { const f = new File(['%PDF-1.4 zprava'], 'Zprava Medistar 16-11.pdf', { type: 'application/pdf' }); const dt = new DataTransfer(); dt.items.add(f); const z = document.getElementById('dok_seznam'); z.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true })); z.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); });
+await p.waitForTimeout(300);
+if ((await p.inputValue('#dk_n')) !== 'Zprava Medistar 16-11' || (await p.inputValue('#dk_t')) !== 'ZPRAVA' || !(await p.isChecked('#dk_pp'))) chyby.push('dokumenty: přetažené PDF nevyplnilo formulář jako Zprávu s Předat pacientovi');
+if (!(await p.textContent('#dok_seznam')).includes('v Průkazu od')) chyby.push('dokumenty: u předaného dokumentu chybí „v Průkazu od“');
+await foto(p, 'c-dokument-pro-pacienta');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#n_ok');
 if (await p.isVisible('#n_g') || await p.isVisible('#n_tk') || await p.isVisible('#n_rc')) chyby.push('jednoduchý režim: Nový pacient ukazuje garanta, telefon s kartou nebo RČ');
 await klik(p, '#roleSel'); await p.waitForSelector('[data-role="admin"]'); await klik(p, '[data-role="admin"]'); await p.waitForFunction(() => !(document.querySelector('#roleSel') || { textContent: 'přepnuto' }).textContent.includes('přepnuto'), null, { timeout: 8000 }).catch(() => {}); await p.waitForSelector('#d_agenda');

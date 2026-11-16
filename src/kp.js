@@ -129,6 +129,8 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
   const denik = pacientuv ? [] : await q.all(`SELECT TOP 100 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role,
       CONVERT(char(16), CasZapisu, 120) AS cas, Overeno AS overeno FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: pacientId });
   const dgPopisy = await popisyDiagnoz(q, plan && plan.data && plan.data.dg);   // 0.11.92: popisy kódů diagnóz (číselník CLB1)
+  // 0.11.118: dokumenty předané pacientovi do Průkazu – jen metadata a otisk, obsah jen přes GET /api/d/dokument/:id
+  const dokumenty = pacientuv ? await dokumentyProPrukaz(q, pacientId, g ? g.Poskytovatel : null) : undefined;
   return {
     dgPopisy,
     pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni, rok: p.RokNarozeni || (p.DatumNarozeni ? Number(p.DatumNarozeni.slice(0, 4)) : null), pohlavi: p.Pohlavi, pobyt: p.Pobyt, stav: p.Stav },
@@ -138,6 +140,7 @@ export async function balikProZarizeni(q, pacientId, { rezim = 'ZAPUJCENY' } = {
     // zůstává v centrále – pacient dostává plán, kontakty a tým, tedy to, co mu lékař zpřístupnil
     kontakty, tym, piny: pacientuv ? [] : piny, denik: denik.reverse(), odPacienta, lide: clenove,
     rezim,
+    ...(dokumenty ? { dokumenty } : {}),
     pecedoma: pd || chat ? { sos: pd ? pd.sos : [], opioidy: pd ? pd.opioidy : [], medikace: pd ? pd.medikace : [], pristiNavsteva: pd ? pd.pristiNavsteva : null, pristiKdo: pd ? pd.pristiKdo : null, pristiPozn: pd ? pd.pristiPozn : null, aktualizovano: pd ? pd.aktualizovano : null, chat, propojeno: !!p.PdKlientID } : null,
     serverCas: new Date().toISOString(),
   };
@@ -165,6 +168,22 @@ export function normalizujDoklad(k = {}) {
 /** Normalizace dat plánu z formuláře / AI. */
 /* 0.11.113: co přesně Karta předala do Průkazu pacienta – snímek z balíku pro telefon pacienta (A_KP_Predani, Historie předání).
    Léky stejně jako KP.leky: u pacienta propojeného s PéčeDoma (s načtenými léky) z PéčeDoma, jinak z plánu. */
+/* 0.11.118: dokumenty pro Průkaz pacienta – předané (ProPacienta), s přiloženým souborem, nejnovější první, nejvýš 50 */
+export const MIME_PRO_PACIENTA = ['application/pdf', 'image/jpeg', 'image/png'];
+export async function dokumentyProPrukaz(q, pacientId, garantNazev = null) {
+  return (await q.all(`SELECT TOP 50 DokumentID AS id, Nazev AS nazev, Typ AS typ, CONVERT(char(10), ISNULL(DatumDokumentu, CAST(Vytvoreno AS date)), 23) AS datum,
+      Pracoviste AS pracoviste, MimeType AS mime, Velikost AS velikost, Sha256 AS sha256
+    FROM dbo.A_KP_Dokument WHERE PacientID = @p AND ProPacienta = 1 AND Obsah IS NOT NULL ORDER BY DokumentID DESC`, { p: pacientId }))
+    .map((d) => ({ ...d, pracoviste: d.pracoviste || garantNazev || null, sha256: d.sha256 ? String(d.sha256).trim().toLowerCase() : null }));
+}
+/* 0.11.118: stažení dokumentu do Průkazu – zařízení PACIENT ve stavu SPAROVANO a jen dokument JEHO pacienta s ProPacienta = 1,
+   ověřeno v jednom dotazu (DokumentID + PacientID + ProPacienta); jinak null (route vrací 404, ať nejde zkoušet, co existuje) */
+export async function dokumentProZarizeni(q, z, dokumentId) {
+  const did = Number(dokumentId);
+  if (!z || z.Rezim !== 'PACIENT' || z.Stav !== 'SPAROVANO' || !Number.isInteger(did) || did <= 0) return null;
+  return q.one(`SELECT DokumentID AS id, Nazev AS nazev, MimeType AS mime, Obsah AS obsah, Sha256 AS sha256 FROM dbo.A_KP_Dokument
+    WHERE DokumentID = @d AND PacientID = @p AND ProPacienta = 1 AND Obsah IS NOT NULL`, { d: did, p: z.PacientID });
+}
 export function obsahPredani(b) {
   const p = (b.plan && b.plan.data) || {}, pd = b.pecedoma, g = b.garant || {};
   const zPd = !!(pd && pd.propojeno && pd.aktualizovano);
@@ -177,6 +196,8 @@ export function obsahPredani(b) {
     kontakty: (b.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina })),
     tym: (b.tym || []).map((t) => ({ nazev: t.nazev, tel: t.tel })),
     garant: { poskytovatel: g.poskytovatel || null, lekar: g.lekar || null, telefon24: g.telefon24 || null },
+    // 0.11.118: nový nebo nově předaný dokument přepne aktualizaci v Průkazu (klíč jen když nějaký je – starší snímky se nemění)
+    ...((b.dokumenty || []).length ? { dokumenty: b.dokumenty.map((d) => ({ id: d.id, sha256: d.sha256, nazev: d.nazev, typ: d.typ, datum: d.datum })) } : {}),
   };
 }
 /* 0.11.114: má Průkaz pacienta aktuální údaje? – současný snímek proti poslednímu předání do daného telefonu (A_KP_Predani)

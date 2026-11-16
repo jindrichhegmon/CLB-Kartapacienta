@@ -4,11 +4,12 @@
  * Všechny dotazy jsou pevně na serveru a běží v kontextu tenanta (RLS); prohlížeč žádné SQL neposílá.
  */
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
-import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleNahledu, stavPredani, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
+import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleNahledu, stavPredani, MIME_PRO_PACIENTA, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
@@ -353,8 +354,11 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const denik = await q.all(`SELECT TOP 300 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role, CONVERT(char(16), CasZapisu, 120) AS cas,
       CONVERT(char(16), CasPrijeti, 120) AS prijato, Overeno AS overeno, ZarizeniID AS zarizeni FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: id });
   const dokumenty = await q.all(`SELECT DokumentID AS id, Typ AS typ, Nazev AS nazev, KdeOriginal AS kdeOriginal, MimeType AS mime, Velikost AS velikost, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno,
-      CONVERT(char(10), DatumDokumentu, 23) AS datum, Pracoviste AS pracoviste
+      CONVERT(char(10), DatumDokumentu, 23) AS datum, Pracoviste AS pracoviste, ProPacienta AS proPacienta
     FROM dbo.A_KP_Dokument WHERE PacientID = @p ORDER BY DokumentID DESC`, { p: id });
+  // 0.11.118: kdy si pacient dokument naposledy stáhl do Průkazu (log přístupů, detail „… (dokument č. N)“)
+  const stazeno = await q.all(`SELECT Detail AS detail, CONVERT(char(16), MAX(Cas), 120) AS cas FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND Akce = N'dokument stažen do Průkazu pacienta' GROUP BY Detail`, { p: id });
+  for (const x of dokumenty) { x.proPacienta = !!x.proPacienta; const st = stazeno.filter((a) => new RegExp(`\\(dokument č\\. ${x.id}\\)$`).test(a.detail || '')).map((a) => a.cas).sort().pop(); x.vPrukazu = st || null; }
   // co pacient sám poslal z vlastního telefonu (údaje pacienta – odděleně od záznamů týmu)
   const odPacienta = (await q.all(`SELECT TOP 30 SdileniID AS id, CONVERT(char(16), Vytvoreno, 120) AS cas, Polozky AS polozky FROM dbo.A_KP_Sdileni WHERE PacientID = @p ORDER BY SdileniID DESC`, { p: id }))
     .map((x) => ({ ...x, polozky: (() => { try { return JSON.parse(x.polozky); } catch { return []; } })() }));
@@ -1098,15 +1102,35 @@ central.post('/pacient/:id/pecedoma/sync', sUzivatelem(async (q, s, req) => {
 /* ---------------- dokumenty ---------------- */
 central.post('/pacient/:id/dokument', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
-  if (!op.lekar && !op.garant) throw chyba('Dokumenty vkládá lékař', 403);
+  // 0.11.118: dokumenty vkládá kdokoli z týmu, kdo zapisuje (sestra uloží zprávu z Medistaru); dřív jen lékař / garant
+  if (!op.lekar && !op.garant && !op.zapis) throw chyba('Dokumenty vkládá tým kolem pacienta', 403);
   const b = req.body || {};
   const data = b.data ? Buffer.from(String(b.data), 'base64') : null;
   if (data && data.length > 8 * 1024 * 1024) throw chyba('Soubor je větší než 8 MB');
   const typ = ['DVP', 'ZPRAVA', 'SOUHLAS', 'JINY'].includes(b.typ) ? b.typ : 'JINY';
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(b.datum || '') ? b.datum : null;
-  await q.exec(`INSERT INTO dbo.A_KP_Dokument (PacientID, Typ, Nazev, KdeOriginal, MimeType, Obsah, Velikost, VlozilUzivatelID, DatumDokumentu, Pracoviste) VALUES (@p, @t, @n, @k, @m, @o, @v, @u, @d, @pr)`,
-    { p: id, t: typ, n: text(b.nazev, 200) || 'dokument', k: text(b.kdeOriginal, 200) || null, m: text(b.mime, 80) || null, o: data, v: data ? data.length : null, u: s.uzivatelId, d: datum, pr: text(b.pracoviste, 200) || null });
+  const mime = text(b.mime, 80) || null;
+  const pro = !!b.proPacienta;
+  if (pro && (!data || !MIME_PRO_PACIENTA.includes(mime))) throw chyba('Pacientovi do Průkazu jde předat jen soubor PDF, JPEG nebo PNG (do 8 MB)');
+  const r = await q.one(`INSERT INTO dbo.A_KP_Dokument (PacientID, Typ, Nazev, KdeOriginal, MimeType, Obsah, Velikost, VlozilUzivatelID, DatumDokumentu, Pracoviste, ProPacienta, Sha256)
+    OUTPUT inserted.DokumentID VALUES (@p, @t, @n, @k, @m, @o, @v, @u, @d, @pr, @pp, @sha)`,
+    { p: id, t: typ, n: text(b.nazev, 200) || 'dokument', k: text(b.kdeOriginal, 200) || null, m: mime, o: data, v: data ? data.length : null, u: s.uzivatelId, d: datum, pr: text(b.pracoviste, 200) || null,
+      pp: pro, sha: data ? createHash('sha256').update(data).digest('hex') : null });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'vložen dokument', detail: text(b.nazev, 200), ip: s.ip });
+  if (pro) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'dokument předán pacientovi', detail: `${text(b.nazev, 200) || 'dokument'} (dokument č. ${r.DokumentID})`, ip: s.ip });
+  return { id: r.DokumentID };
+}));
+/* 0.11.118: předání dokumentu pacientovi do Průkazu zapnout / vypnout (PDF, JPEG, PNG do 8 MB) */
+central.post('/pacient/:id/dokument/:did/pro-pacienta', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant && !op.zapis) throw chyba('Předání dokumentu mění tým kolem pacienta', 403);
+  const d = await q.one(`SELECT DokumentID, Nazev, MimeType, Velikost, ProPacienta FROM dbo.A_KP_Dokument WHERE DokumentID = @d AND PacientID = @p`, { d: cislo(req.params.did), p: id });
+  if (!d) throw chyba('Dokument nenalezen', 404);
+  const zap = !!(req.body || {}).zapnout;
+  if (zap && (!d.Velikost || !MIME_PRO_PACIENTA.includes(d.MimeType) || d.Velikost > 8 * 1024 * 1024)) throw chyba('Pacientovi do Průkazu jde předat jen soubor PDF, JPEG nebo PNG do 8 MB');
+  await q.exec(`UPDATE dbo.A_KP_Dokument SET ProPacienta = @z, Sha256 = CASE WHEN @z = 1 AND Sha256 IS NULL AND Obsah IS NOT NULL THEN LOWER(CONVERT(char(64), HASHBYTES('SHA2_256', Obsah), 2)) ELSE Sha256 END
+    WHERE DokumentID = @d AND PacientID = @p`, { z: zap, d: d.DokumentID, p: id });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: zap ? 'dokument předán pacientovi' : 'předání dokumentu zrušeno', detail: `${d.Nazev} (dokument č. ${d.DokumentID})`, ip: s.ip });
 }));
 
 central.get('/pacient/:id/dokument/:did', sUzivatelem(async (q, s, req, res) => {

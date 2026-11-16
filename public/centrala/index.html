@@ -419,7 +419,7 @@ function kresliDetail() {
   const d = S.pac, p = d.pacient, op = d.op;
   const g = d.garance.find((x) => x.stav === 'PLATNA');
   const navrh = d.garance.find((x) => x.stav === 'NAVRZENO');
-  const tabs = S.jednoduchy ? [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['kontakty', 'Důležité kontakty'], ['telefon', 'Předání do Průkazu'], ['udaje', 'Detail pacienta']] : [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Detail pacienta'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
+  const tabs = S.jednoduchy ? [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['kontakty', 'Důležité kontakty'], ['telefon', 'Předání do Průkazu'], ['dok', 'Dokumenty'], ['udaje', 'Detail pacienta']] : [['karta', 'Krizová karta'], ['dg', 'Diagnóza'], ['plan', 'Plán péče'], ['leky', 'Léky'], ['denik', `Deník (${d.denik.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ)).length})`], ['kontakty', 'Důležité kontakty'], ['tym', 'Tým a garance'], ['telefon', 'Telefon a PINy'], ['udaje', 'Detail pacienta'], ['dok', 'Dokumenty'], ...(d.pristupy.length ? [['pristupy', 'Přístupy']] : [])];
   const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: S.jednoduchy ? tabPredani : tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
@@ -782,6 +782,7 @@ const PREDANI_NAZ = {
   'údaje načteny do Průkazu pacienta': 'Pacient načetl údaje do Průkazu',
   'přístup pacienta ukončen': 'Přístup ukončen',
   'výzva k obnovení údajů': 'Výzva k obnovení údajů v Průkazu',
+  'dokument stažen do Průkazu pacienta': 'Pacient stáhl dokument do Průkazu',
   'výzva k obnovení poslána SMS': 'Výzva k obnovení poslána SMS',
 };
 /* 0.11.114: stav údajů v propojeném Průkazu pacienta + tlačítko Obnovit v Průkazu */
@@ -823,6 +824,7 @@ function obsahPredaniHTML(o) {
     ['SOS léky', seznam(o.leky && o.leky.sos)], ['Opioidy', seznam(o.leky && o.leky.opioidy)], ['Paliativní terapie', seznam(o.leky && o.leky.medikace)],
     ...(o.kontakty ? [['Kontakty', o.kontakty.length ? o.kontakty.map((k) => `${esc(k.jmeno)}${k.tel ? ' · ' + esc(k.tel) : ''}${k.skupina ? ` <span class="lbl" style="display:inline">(${esc(sk[k.skupina] || k.skupina)})</span>` : ''}`).join('<br>') : '<span class="muted">—</span>']] : []),
     ...(o.tym ? [['Tým', o.tym.length ? o.tym.map((x) => `${esc(x.nazev)}${x.tel ? ' · ' + esc(x.tel) : ''}`).join('<br>') : '<span class="muted">—</span>']] : []),
+    ...(o.dokumenty && o.dokumenty.length ? [['Dokumenty', o.dokumenty.map((x) => `${esc(x.nazev || 'dokument')}${x.datum ? ' · ' + esc(fmtD(x.datum)) : ''}`).join('<br>')]] : []),
     ...(o.garant && (o.garant.poskytovatel || o.garant.lekar) ? [['Garant', `${esc(o.garant.poskytovatel || '')}${o.garant.lekar ? ' · ' + esc(o.garant.lekar) : ''}${o.garant.telefon24 ? ' · ' + esc(o.garant.telefon24) : ''}`]] : []),
   ];
   return `<details class="obsah-predani"><summary>Co bylo předáno${o.leky ? ` <span class="lbl" style="display:inline">· léky z ${esc(o.leky.zdroj)}</span>` : ''}</summary>
@@ -837,7 +839,7 @@ function historiePredaniHTML(d) {
   return `<details class="historie-predani"${S.hledat && S.hledat.predani ? ' open' : ''}><summary><b>Historie předání</b> <span class="chip">${h.length}</span>${nacteni ? ` <span class="chip ok">${nacteni}× předáno</span>` : ''}${h[0] ? ` <span class="muted" style="font-size:12.5px">naposledy ${esc(fmtDT(h[0].cas))}</span>` : ''}</summary>
     ${h.length ? `<div class="row" style="padding:2px 14px 10px">${hledatHTML('predani', 'Hledat v historii – datum, telefon, kdo, diagnóza, lék, kontakt…')}</div>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Kdy</th><th>Co</th><th>Telefon</th><th>Kdo</th></tr></thead>${h.map((x) => `<tbody class="hp" data-hl="${esc(doplnek(x))}"><tr><td class="mono" style="white-space:nowrap;font-size:12.5px">${esc(fmtDT(x.cas))}</td>
-      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail ? `<div class="lbl">${esc(x.detail)}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>${x.obsah ? `<tr class="obsah-radek"><td colspan="4">${obsahPredaniHTML(x.obsah)}</td></tr>` : ''}</tbody>`).join('')}</table></div>
+      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail || (x.obsah && x.obsah.dokumenty) ? `<div class="lbl">${esc(x.detail || '')}${x.obsah && x.obsah.dokumenty && x.obsah.dokumenty.length ? `${x.detail ? ' · ' : ''}${x.obsah.dokumenty.length} ${x.obsah.dokumenty.length === 1 ? 'dokument' : x.obsah.dokumenty.length < 5 ? 'dokumenty' : 'dokumentů'}` : ''}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>${x.obsah ? `<tr class="obsah-radek"><td colspan="4">${obsahPredaniHTML(x.obsah)}</td></tr>` : ''}</tbody>`).join('')}</table></div>
     <div class="muted hp-nic" hidden style="padding:8px 14px 12px">Nic neodpovídá hledání.</div>`
       : '<div class="muted" style="padding:8px 14px 12px">Zatím nic nepředáno.</div>'}</details>`;
 }
@@ -907,12 +909,18 @@ function udajeForm(p, pref) {
     <div class="field"><label>E-mail pacienta</label><input id="${pref}_em" type="email" value="${esc(p.email || '')}" placeholder="např. marie@example.cz"><span class="hint">Informativní údaj, do telefonu u lůžka se neposílá.</span></div></div>`;
 }
 const ctiUdaje = (pref) => ({ jmeno: $(`${pref}_j`).value, prijmeni: $(`${pref}_p`).value, rc: $(`${pref}_rc`).value, datumNarozeni: $(`${pref}_dn`).value, rok: $(`${pref}_r`).value, pohlavi: $(`${pref}_po`).value, pojistovna: $(`${pref}_poj`).value, pobyt: $(`${pref}_pb`).value, adresa: $(`${pref}_a`).value, telefonKarty: $(`${pref}_tk`).value, email: $(`${pref}_em`) ? $(`${pref}_em`).value : '' });
+const MIME_PRO_PACIENTA = ['application/pdf', 'image/jpeg', 'image/png'];
+const smiDokumenty = (d) => d.op.lekar || d.op.garant || d.op.zapis;
 function tabDok(d) {
-  return `<div class="grid2"><div class="panel"><div class="panel-h"><h2>Dokumenty</h2></div><div class="tblwrap"><table class="tbl"><tbody>${d.dokumenty.map((x) => `<tr><td><b>${esc(x.nazev)}</b><div class="lbl">${esc(x.typ)}${x.datum ? ' ze dne ' + esc(fmtD(x.datum)) : ''}${x.pracoviste ? ' · ' + esc(x.pracoviste) : ''} · vloženo ${esc(fmtDT(x.vytvoreno))}${x.kdeOriginal ? ' · originál: ' + esc(x.kdeOriginal) : ''}</div></td><td>${x.velikost ? `<button class="btn sm" data-dok="${x.id}">Otevřít</button>` : '<span class="chip">bez souboru</span>'}</td></tr>`).join('') || '<tr><td class="muted">Žádné dokumenty.</td></tr>'}</tbody></table></div></div>
-    ${d.op.lekar || d.op.garant ? `<div class="panel" style="align-self:start"><div class="panel-h"><h2>Vložit dokument</h2></div><div class="form" style="padding:14px">
+  const muze = smiDokumenty(d) && d.pacient.stav === 'AKTIVNI';
+  return `<div class="grid2"><div class="panel" id="dok_seznam"><div class="panel-h"><h2>Dokumenty</h2>${muze ? '<span class="muted" style="font-size:12.5px">PDF ze zprávy (např. z Medistaru) sem můžete přetáhnout myší</span>' : ''}</div><div class="tblwrap"><table class="tbl"><tbody>${d.dokumenty.map((x) => `<tr><td><b>${esc(x.nazev)}</b><div class="lbl">${esc(x.typ)}${x.datum ? ' ze dne ' + esc(fmtD(x.datum)) : ''}${x.pracoviste ? ' · ' + esc(x.pracoviste) : ''} · vloženo ${esc(fmtDT(x.vytvoreno))}${x.kdeOriginal ? ' · originál: ' + esc(x.kdeOriginal) : ''}</div>
+        ${x.proPacienta ? `<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap"><span class="chip vio">pro pacienta</span>${x.vPrukazu ? `<span class="chip ok">v Průkazu od ${esc(fmtDT(x.vPrukazu))}</span>` : '<span class="chip">pacient zatím nestáhl</span>'}</div>` : ''}</td>
+      <td style="white-space:nowrap;text-align:right">${x.velikost ? `<button class="btn sm" data-dok="${x.id}">Otevřít</button>` : '<span class="chip">bez souboru</span>'}${muze && x.velikost && MIME_PRO_PACIENTA.includes(x.mime) ? ` <button class="btn sm ${x.proPacienta ? '' : 'primary'}" data-dokpp="${x.id}" data-zap="${x.proPacienta ? '0' : '1'}" title="${x.proPacienta ? 'Pacient ho přestane mít k dispozici v Průkazu (co si už stáhl, zůstává jeho)' : 'Pacient si ho stáhne do Průkazu pacienta (Načíst z Karty pacienta)'}">${x.proPacienta ? 'Zrušit předání' : 'Předat pacientovi'}</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Žádné dokumenty.</td></tr>'}</tbody></table></div></div>
+    ${muze ? `<div class="panel" style="align-self:start" id="dok_form"><div class="panel-h"><h2>Vložit dokument</h2></div><div class="form" style="padding:14px">
       <div class="frow"><div class="field"><label>Typ</label><select id="dk_t"><option value="DVP">dříve vyslovené přání</option><option value="ZPRAVA">lékařská zpráva</option><option value="SOUHLAS">informace pacientovi</option><option value="JINY">jiný</option></select></div><div class="field"><label>Název</label><input id="dk_n"></div></div>
       <div class="frow"><div class="field"><label>Datum dokumentu</label><input type="date" id="dk_d"></div><div class="field"><label>Pracoviště, které ho vydalo</label><input id="dk_pr" placeholder="např. Nemocnice Zlín, interna"></div></div>
-      <div class="field"><label>Kde je originál</label><input id="dk_k"></div><div class="field"><label>Soubor (PDF / foto, max. 8 MB)</label><input type="file" id="dk_f" accept="application/pdf,image/*"></div>
+      <div class="field"><label>Kde je originál</label><input id="dk_k"></div><div class="field"><label>Soubor (PDF / foto, max. 8 MB)</label><input type="file" id="dk_f" accept="application/pdf,image/*"><span class="hint">Soubor můžete i přetáhnout myší na seznam dokumentů.</span></div>
+      <label class="row" style="gap:8px"><input type="checkbox" id="dk_pp"> <span><b>Předat pacientovi do Průkazu pacienta</b><span class="hint" style="display:block">PDF, JPEG nebo PNG – pacient si ho stáhne tlačítkem Načíst z Karty pacienta.</span></span></label>
       <button class="btn primary ulozit" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
 }
 function tabPristupy(d) {
@@ -1055,8 +1063,37 @@ function bindTab() {
   on('dk_ok', async () => {
     const f = $('dk_f').files[0];
     let data = null; if (f) { if (f.size > 8 * 1024 * 1024) return toast('Soubor je větší než 8 MB'); data = await new Promise((res) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result).split(',')[1]); rd.readAsDataURL(f); }); }
-    akce('/dokument', { typ: $('dk_t').value, nazev: $('dk_n').value || (f && f.name) || 'dokument', kdeOriginal: $('dk_k').value, datum: $('dk_d').value, pracoviste: $('dk_pr').value, mime: f && f.type, data }, 'Dokument vložen');
+    const pp = !!($('dk_pp') && $('dk_pp').checked);
+    if (pp && (!f || !MIME_PRO_PACIENTA.includes(f.type))) return toast('Pacientovi do Průkazu jde předat jen soubor PDF, JPEG nebo PNG – přiložte ho, nebo zrušte zaškrtnutí');
+    akce('/dokument', { typ: $('dk_t').value, nazev: $('dk_n').value || (f && f.name) || 'dokument', kdeOriginal: $('dk_k').value, datum: $('dk_d').value, pracoviste: $('dk_pr').value, mime: f && f.type, data, proPacienta: pp }, pp ? 'Dokument vložen a předán pacientovi do Průkazu' : 'Dokument vložen');
   });
+  // 0.11.118: předat pacientovi – u Zprávy výchozí zaškrtnuté (dokud ho uživatel sám nezmění), přetažení souboru, zapnutí / vypnutí předání
+  if ($('dk_t') && $('dk_pp')) {
+    const vychozi = () => { if (!$('dk_pp').dataset.zmeneno) $('dk_pp').checked = $('dk_t').value === 'ZPRAVA'; };
+    $('dk_t').addEventListener('change', vychozi); $('dk_pp').addEventListener('change', () => { $('dk_pp').dataset.zmeneno = '1'; }); vychozi();
+  }
+  const zona = $('dok_seznam');
+  if (zona && $('dk_f')) {
+    const nad = (e) => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); zona.classList.add('dok-drop'); } };
+    zona.addEventListener('dragenter', nad); zona.addEventListener('dragover', nad);
+    zona.addEventListener('dragleave', (e) => { if (!zona.contains(e.relatedTarget)) zona.classList.remove('dok-drop'); });
+    zona.addEventListener('drop', (e) => {
+      e.preventDefault(); zona.classList.remove('dok-drop');
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return;
+      if (f.size > 8 * 1024 * 1024) return toast('Soubor je větší než 8 MB');
+      const dt = new DataTransfer(); dt.items.add(f); $('dk_f').files = dt.files;
+      $('dk_n').value = f.name.replace(/\.[^.]+$/, ''); $('dk_d').value = new Date().toLocaleDateString('sv-SE');
+      if (f.type === 'application/pdf' && $('dk_t').value === 'DVP') { $('dk_t').value = 'ZPRAVA'; $('dk_t').dispatchEvent(new Event('change')); }
+      if ($('dk_pp') && !MIME_PRO_PACIENTA.includes(f.type)) { $('dk_pp').checked = false; $('dk_pp').dataset.zmeneno = '1'; }
+      const fm = $('dok_form'); if (fm) { fm.classList.add('dok-zvyrazni'); fm.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setTimeout(() => fm.classList.remove('dok-zvyrazni'), 1600); }
+      $('dk_n').focus(); toast('Soubor připraven – zkontrolujte údaje a klikněte Vložit');
+    });
+  }
+  document.querySelectorAll('[data-dokpp]').forEach((b) => (b.onclick = async () => {
+    const zap = b.dataset.zap === '1';
+    if (!zap && !(await KP.confirm('Zrušit předání dokumentu', 'Pacient si dokument už nebude moci stáhnout do Průkazu. Co si stáhl dřív, zůstává v jeho telefonu.', 'Zrušit předání'))) return;
+    akce(`/dokument/${b.dataset.dokpp}/pro-pacienta`, { zapnout: zap }, zap ? 'Dokument předán pacientovi do Průkazu' : 'Předání dokumentu zrušeno');
+  }));
 }
 
 /* vlastní telefon pacienta – kód jen pro jeho číslo; SMS s odkazem, nebo QR kód v ordinaci */
@@ -2204,7 +2241,7 @@ async function spravaNast() {
     <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
     <div class="panel" style="max-width:560px"><div class="panel-h"><h2>Jednoduchý režim</h2><span class="chip ${S.rezimOrg ? 'ok' : ''}">${S.rezimOrg ? 'zapnuto' : 'vypnuto'}</span></div><div class="form" style="padding:14px">
       <label class="lbl" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="ns_jed" ${S.rezimOrg ? 'checked' : ''}> Jednoduchý režim – jen příprava údajů pro Průkaz pacienta</label>
-      <div class="muted" style="font-size:13px">Pro malou ordinaci nebo ambulanci: zůstanou Pacienti, Nový pacient, u pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, Předání do Průkazu a Detail pacienta. Skryje se Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma a ve Správě Pracoviště, Telefony a Log. Garantem nového pacienta je vždy vaše pracoviště a <b>sestra smí totéž co lékař</b> (založit pacienta, zapsat plán, předat do Průkazu). Přepnutí nic nemaže – po vypnutí je vidět plná Karta se všemi údaji. <b>Správce má vždy plnou Kartu</b>; jak ji vidí lékař nebo sestra, vyzkoušíte tlačítkem role v hlavičce (Přepnout roli).</div>
+      <div class="muted" style="font-size:13px">Pro malou ordinaci nebo ambulanci: zůstanou Pacienti, Nový pacient, u pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, Předání do Průkazu, Dokumenty (zprávy pro pacienta) a Detail pacienta. Skryje se Lidé a týmy, Deník, Tým a garance, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma a ve Správě Pracoviště, Telefony a Log. Garantem nového pacienta je vždy vaše pracoviště a <b>sestra smí totéž co lékař</b> (založit pacienta, zapsat plán, předat do Průkazu). Přepnutí nic nemaže – po vypnutí je vidět plná Karta se všemi údaji. <b>Správce má vždy plnou Kartu</b>; jak ji vidí lékař nebo sestra, vyzkoušíte tlačítkem role v hlavičce (Přepnout roli).</div>
       <button class="btn ulozit" id="ns_jed_ok">Uložit režim</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
     <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Detail pacienta) – otevře PéčeDoma, kde je klient.</span></div>

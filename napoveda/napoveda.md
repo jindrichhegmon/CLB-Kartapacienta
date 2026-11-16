@@ -366,6 +366,18 @@ V záložce **Detail pacienta** (dříve Údaje) jsou identifikační údaje pac
 - **Přístupy** (garant a správce): kdo a kdy průkaz zobrazil nebo měnil.
 - **Uzavřít průkaz** (garant): vyberete důvod (úmrtí, předání mimo síť, hospitalizace, na přání pacienta, jiný). Telefon se při příštím připojení vymaže a PINy přestanou platit. Předtím si pořiďte **výpis do dokumentace**.
 
+
+### Zprávy pro pacienta do Průkazu (od 0.11.118)
+
+Zprávu pacienta (např. z **Medistaru** uloženou jako PDF) můžete předat pacientovi do aplikace Průkaz pacienta:
+
+1. U pacienta otevřete záložku **Dokumenty** a soubor **přetáhněte myší na seznam dokumentů** (nebo ho vyberte ve formuláři Vložit dokument). Vyplní se název podle souboru a dnešní datum, PDF se nastaví jako *lékařská zpráva*.
+2. Nechte zaškrtnuté **Předat pacientovi do Průkazu pacienta** (u zprávy je zaškrtnuté samo) a klikněte **Vložit**. Předat jde PDF, JPEG nebo PNG do 8 MB.
+3. Pacient s propojeným Průkazem uvidí „Lékař aktualizoval vaše údaje“, tlačítkem **Načíst z Karty pacienta** si zprávu stáhne a Průkaz z ní nabídne diagnózy a léky ke kontrole.
+
+U dokumentu je štítek **pro pacienta** a po stažení **v Průkazu od …**. Předání jde u každého dokumentu se souborem zapnout (**Předat pacientovi**) i zrušit (**Zrušit předání** – co si pacient už stáhl, zůstává jeho). Starší dokumenty se pacientovi samy neposílají. Dokumenty vkládá kdokoli z týmu, kdo zapisuje (i sestra). Stažení se zapíše do historie předání (kapitola 8) i do logu přístupů.
+
+![Zpráva předaná pacientovi do Průkazu](/napoveda/img/c-dokument-pro-pacienta.png)
 ## 10. Role na kartě – kdo co vidí a zapisuje
 
 Role jsou stejné jako v ukázkové verzi. Každý po odemknutí karty vidí nahoře, kdo je přihlášený a co jeho role smí, a nabídnou se mu jen jeho typy zápisů.
@@ -730,13 +742,13 @@ Pro malou ordinaci nebo ambulanci, která Kartu pacienta používá jen k **př�
 
 ![Nastavení – jednoduchý režim](/napoveda/img/c-jednoduchy-nastaveni.png)
 
-**Co zůstane:** Pacienti, Nový pacient, Můj účet, Správa organizace (jen správce: Uživatelé a Nastavení). U pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, **Předání do Průkazu** a Detail pacienta.
+**Co zůstane:** Pacienti, Nový pacient, Můj účet, Správa organizace (jen správce: Uživatelé a Nastavení). U pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, **Předání do Průkazu**, **Dokumenty** (zprávy pro pacienta, od 0.11.118) a Detail pacienta.
 
 Jednoduchý režim platí pro lékaře, sestry a jen čtení – **správce má vždy plnou Kartu**. Jak ji vidí ostatní, vyzkouší přepnutím role v hlavičce (kapitola 2, Přepnout roli).
 
 **Náhled v telefonu** (karta tak, jak ji vidí telefon – zamčená i po odemknutí) zůstává pro všechny role i v jednoduchém režimu.
 
-**Co se skryje:** Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma, ve Správě Pracoviště, Telefony a Log přístupů. **Skrývá se jen obrazovka** – data ani oprávnění se nemažou a log přístupů se zapisuje dál. Po vypnutí režimu je vidět plná Karta se všemi dříve zapsanými údaji.
+**Co se skryje:** Lidé a týmy, Deník, Tým a garance, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma, ve Správě Pracoviště, Telefony a Log přístupů. **Skrývá se jen obrazovka** – data ani oprávnění se nemažou a log přístupů se zapisuje dál. Po vypnutí režimu je vidět plná Karta se všemi dříve zapsanými údaji.
 
 ![Pacient v jednoduchém režimu – Krizová karta s tlačítkem Předat pacientovi do Průkazu](/napoveda/img/c-jednoduchy-karta.png)
 

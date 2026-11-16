@@ -75,3 +75,24 @@ test('obnovení v Průkazu (0.11.114): změna od posledního předání a výzva
   assert.equal(stara[5].vyzva, false, 'výzva před posledním načtením už neplatí');
   assert.equal((await stavPredani(qq(null, null), 1, [5], b))[5].zmena, null, 'předáno před 0.11.113 – nejde porovnat');
 });
+
+test('dokument do Průkazu (0.11.118): jen zařízení PACIENT, propojené, a jen předaný dokument jeho pacienta – v jednom dotazu', async () => {
+  const { dokumentProZarizeni, obsahPredani } = await import('../src/kp.js');
+  const volani = [];
+  const q = { one: async (sql, par) => { volani.push({ sql, par }); return par.d === 7 && par.p === 42 ? { id: 7, nazev: 'Zpráva', mime: 'application/pdf', obsah: Buffer.from('x'), sha256: 'ab' } : null; } };
+  const z = { ZarizeniID: 5, PacientID: 42, Rezim: 'PACIENT', Stav: 'SPAROVANO' };
+  assert.equal((await dokumentProZarizeni(q, z, '7')).id, 7, 'vlastní předaný dokument');
+  const sql = volani[0].sql;
+  assert.match(sql, /DokumentID = @d AND PacientID = @p AND ProPacienta = 1 AND Obsah IS NOT NULL/, 'vlastnictví i předání v jednom dotazu');
+  assert.equal(volani[0].par.p, 42, 'pacient se bere ze zařízení, ne z požadavku');
+  assert.equal(await dokumentProZarizeni(q, z, '8'), null, 'cizí / nepředaný dokument → null (404)');
+  assert.equal(await dokumentProZarizeni(q, { ...z, PacientID: 43 }, '7'), null, 'dokument jiného pacienta → null');
+  const pred = volani.length;
+  assert.equal(await dokumentProZarizeni(q, { ...z, Rezim: 'ZAPUJCENY' }, '7'), null, 'zapůjčený telefon dokumenty nestahuje');
+  assert.equal(await dokumentProZarizeni(q, { ...z, Stav: 'ZABLOKOVANO' }, '7'), null, 'ukončený přístup');
+  assert.equal(await dokumentProZarizeni(q, z, 'abc'), null, 'neplatné číslo');
+  assert.equal(volani.length, pred, 'bez oprávněného zařízení se do databáze vůbec nesahá');
+  const b = { plan: null, kontakty: [], tym: [], garant: {} };
+  assert.equal('dokumenty' in obsahPredani(b), false, 'bez dokumentů se snímek nemění (žádná falešná aktualizace)');
+  assert.deepEqual(obsahPredani({ ...b, dokumenty: [{ id: 7, sha256: 'ab', nazev: 'Zpráva', typ: 'ZPRAVA', datum: '2026-11-16', velikost: 9 }] }).dokumenty, [{ id: 7, sha256: 'ab', nazev: 'Zpráva', typ: 'ZPRAVA', datum: '2026-11-16' }]);
+});
