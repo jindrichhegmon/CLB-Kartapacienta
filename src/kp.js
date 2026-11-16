@@ -24,6 +24,8 @@ export function roleOsoby(v, typPracoviste = '') {
   if (/sestr|pecovat|pecuj|casemanager|nurse|hospic|zdravot/.test(t)) return domov ? 'SESTRA' : 'HOSPIC';
   return null;
 }
+/** 0.11.112: role, na které se smí správce přepnout (jen stejná nebo nižší práva): správce = všechny jeho role, lékař jen když lékařem je */
+export const roleNahledu = (vlastni) => (vlastni.includes('admin') ? ['admin', ...(vlastni.includes('lekar') ? ['lekar'] : []), 'sestra', 'ctenar'] : []);
 export const roleSeznam = (v) => String(v || '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => ROLE_UZIVATELE.includes(x));
 
 export async function audit(q, { uzivatelId = null, zarizeniId = null, kdo = null, pacientId = null, akce, detail = null, ip = null }) {

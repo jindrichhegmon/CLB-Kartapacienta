@@ -47,7 +47,11 @@ Role uživatelů:
 | lékař | zakládá pacienty, mění plán péče (je-li jeho pracoviště garant nebo lékař v týmu), vydává kód lékaře |
 | sestra | zapisuje do deníku, upravuje kontakty |
 | jen čtení | jen se dívá |
-| správce | spravuje pracoviště, uživatele a nastavení organizace; vidí všechny pacienty |
+| správce | spravuje pracoviště, uživatele a nastavení organizace; vidí všechny pacienty; **jednoduchý režim se ho netýká** – má vždy plnou Kartu |
+
+**Přepnout roli** (od 0.11.112, jen správce): klepněte v hlavičce na své role (např. *správce, lékař ▾*) a vyberte, v jaké roli chcete pracovat – **Lékař** (jen je-li správce lékařem), **Sestra** nebo **Jen čtení**. Centrála pak ukáže a server pustí přesně to, co tato role (u organizace v jednoduchém režimu i jednoduchou Kartu), v hlavičce je *· přepnuto*. Zpět tlačítkem **Správce (moje role)**. Přepnout jde jen na stejná nebo nižší práva, platí jen v tomto okně prohlížeče a zapíše se do logu přístupů.
+
+![Přepnout roli](/napoveda/img/c-prepnout-roli.png)
 
 ## 3. Přehled pacientů
 
@@ -331,6 +335,10 @@ Pacient i jeho blízcí si údaje od lékaře zkopírují do vlastního telefonu
 - Po propojení si pacient **sám, na svůj pokyn** zkopíruje diagnózy, léky, alergie, kontakty a plán – zkontroluje je a uloží. Nic se nesynchronizuje samo a **z Průkazu se do Karty nic neposílá**. Deník týmu, PINy ani kód lékaře do jeho telefonu nechodí.
 - **Přehled**: panel ukazuje každý telefon – komu patří, číslo, stav (**čeká** s platností kódu; **propojeno** s časem posledního načtení; **ukončeno**). U čekajícího **Poslat znovu** a **Zrušit**, u propojeného **Ukončit přístup** (další načtení z Karty už nepůjde; co si pacient zkopíroval, je jeho).
 - Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a záchranka se do něj nedostane.
+- **Historie předání** (od 0.11.112): pod seznamem telefonů je rozbalovací řádek **Historie předání** – klepnutím se rozbalí tabulka všeho, co se s předáním dělo: kdy byl vydán kód (QR, 6místné číslo), odeslána SMS, kdy pacient Průkaz propojil a **pokaždé, když si údaje do Průkazu načetl** (s verzí plánu), i ukončení přístupu. Kdo to udělal a pro který telefon. Historie je z logu přístupů – nejde upravit ani smazat.
+
+![Historie předání do Průkazu pacienta](/napoveda/img/c-historie-predani.png)
+
 - Dřívější aplikace **Můj průkaz** (`/pacient/`) je od 0.11.111 zrušená; její odkaz otevře stránku s odkazem na Průkaz pacienta.
 
 ## 9. Detail pacienta, dokumenty a uzavření průkazu
@@ -713,6 +721,8 @@ Pro malou ordinaci nebo ambulanci, která Kartu pacienta používá jen k **př�
 ![Nastavení – jednoduchý režim](/napoveda/img/c-jednoduchy-nastaveni.png)
 
 **Co zůstane:** Pacienti, Nový pacient, Můj účet, Správa organizace (jen správce: Uživatelé a Nastavení). U pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, **Předání do Průkazu** a Detail pacienta.
+
+Jednoduchý režim platí pro lékaře, sestry a jen čtení – **správce má vždy plnou Kartu**. Jak ji vidí ostatní, vyzkouší přepnutím role v hlavičce (kapitola 2, Přepnout roli).
 
 **Co se skryje:** Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma, ve Správě Pracoviště, Telefony a Log přístupů. **Skrývá se jen obrazovka** – data ani oprávnění se nemažou a log přístupů se zapisuje dál. Po vypnutí režimu je vidět plná Karta se všemi dříve zapsanými údaji.
 

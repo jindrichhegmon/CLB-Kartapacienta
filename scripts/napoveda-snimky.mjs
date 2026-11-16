@@ -120,6 +120,11 @@ const detail = {
   zarizeni: [{ id: 9, stitek: 'telefon pacienta', stav: 'SPAROVANO', sparovano: cas(-5, '11:02'), sync: cas(0, '07:40'), baterie: null, verzeAplikace: 'pacient-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420604000777', rezim: 'PACIENT', vytvoreno: cas(-5, '10:58') },
     { id: 11, stitek: 'dcera Jana', stav: 'CEKA', sparovano: null, sync: null, baterie: null, verzeAplikace: null, fronta: 0, verzePlanu: null, kod: 'Q7X2M4PL', kodPlatnost: cas(2, '09:15'), telefon: '+420777000321', rezim: 'PACIENT', vytvoreno: cas(-1, '09:15') },
     { id: 7, stitek: null, stav: 'SPAROVANO', sparovano: cas(-21, '09:32'), sync: cas(0, '08:12'), baterie: 76, verzeAplikace: 'karta-0.5.0', fronta: 0, verzePlanu: 3, kod: null, kodPlatnost: null, telefon: '+420777000123', rezim: 'ZAPUJCENY' }],
+  // 0.11.112: historie předání do Průkazu pacienta (z logu přístupů)
+  predani: [{ cas: cas(0, '09:12'), kdo: 'Průkaz pacienta', akce: 'údaje načteny do Průkazu pacienta', detail: 'plán verze 3', telefon: '+420604000777', stitek: 'telefon pacienta' },
+    { cas: cas(-2, '11:03'), kdo: 'telefon pacienta', akce: 'telefon spárován', detail: '+420 604 000 777', telefon: '+420604000777', stitek: 'telefon pacienta' },
+    { cas: cas(-2, '11:01'), kdo: 'MUDr. Petra Ukázková', akce: 'odkaz pro vlastní telefon poslán SMS', detail: '+420 604 000 777', telefon: '+420604000777', stitek: 'telefon pacienta' },
+    { cas: cas(-2, '11:00'), kdo: 'MUDr. Petra Ukázková', akce: 'kód pro vlastní telefon pacienta vydán', detail: '+420 604 000 777 · telefon pacienta', telefon: '+420604000777', stitek: 'telefon pacienta' }],
   odPacienta: [{ id: 1, cas: cas(-1, '19:30'), polozky: [
     { druh: 'PRANI', nazev: 'Moje hodnoty a přání', obsah: 'Co je pro mě důležité: zůstat doma s dcerou a vnoučaty, nemít bolesti.\nČeho se obávám: dušení a převozu do nemocnice v noci.\nCo chci, aby lékaři zohlednili: raději úleva než léčba za každou cenu.', puvod: 'údaj pacienta – jak si pamatuji rozhovor se zdravotníkem (MUDr. Ukázková, ' + den(-30).split('-').reverse().map(Number).join('. ') + ')', aktualizovano: cas(-1, '19:20') },
     { druh: 'LEKY', nazev: 'Léky, které užívám', obsah: 'MST Continus 30 mg – ráno a večer · aktualizováno ' + den(-1).split('-').reverse().map(Number).join('. ') + '\nFurosemid 40 mg – jen ob den (otoky menší)', puvod: 'údaj pacienta', aktualizovano: cas(-1, '19:25') }] }],
@@ -180,8 +185,9 @@ app.get('/api/napoveda', j({ text: fs.readFileSync(path.join(KOREN, 'napoveda', 
 app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta v záložce Telefon a PINy:\n\n1. Zkontrolujte, že je u pacienta vyplněný Telefon s kartou (záložka Údaje).\n2. Klikněte na Poslat odkaz SMS na +420… – nebo na Spárovat telefon a na telefonu naskenujte QR kód tlačítkem Načíst QR kód fotoaparátem.\n3. Telefon zadá své číslo; jiné číslo server odmítne.\n\nKód platí 15 minut a jen jednou.\n\nKapitola: 8. Telefon a PINy\nKapitola: 13. Karta na telefonu – instalace a spárování' }));
 app.post('/api/c/login', j({ session: 'ukazka' }));
 let mockJednoduchy = false;   // 0.11.111: jednoduchý režim (přepíná /__mock/jednoduchy)
+app.post('/api/c/role-nahled', j({ ok: true }));
 app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
-app.get('/api/c/ja', j(() => ({ ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role: ['admin', 'lekar'], musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast })));
+app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; const role = chce ? [chce] : ['admin', 'lekar']; return { roleMoznosti: ['admin', 'lekar', 'sestra', 'ctenar'], jednoduchyAktivni: mockJednoduchy && !role.includes('admin'), ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role, roleVlastni: ['admin', 'lekar'], roleNahled: chce || null, musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }; }));
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
 app.get('/api/c/diagnozy', j((req) => ({ diagnozy: [{ kod: 'C509', popis: 'ZN - prs NS' }, { kod: 'C50', popis: 'Zhoubný novotvar prsu' }, { kod: 'C341', popis: 'ZN - horní lalok průdušky nebo plíce' }].filter((d) => (d.kod + ' ' + d.popis).toLowerCase().includes(String(req.query.q || '').toLowerCase().slice(0, 4)) || String(req.query.q || '').length > 3) })));
@@ -796,7 +802,12 @@ p = await stranka({ session: 'ukazka' });
 await p.goto(`${URL}/centrala/`); await p.waitForSelector('#d_agenda');
 await p.evaluate(() => fetch('/__mock/jednoduchy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: true }) }));
 await p.reload(); await p.waitForSelector('#d_agenda');
-if (await p.$('.nav button[data-v="lide"]')) chyby.push('jednoduchý režim: v nabídce zůstaly Lidé a týmy');
+if (!(await p.$('.nav button[data-v="lide"]'))) chyby.push('jednoduchý režim: správce má mít vždy plnou Kartu (chybí Lidé a týmy)');
+await klik(p, '#roleSel'); await p.waitForSelector('[data-role="sestra"]');
+await p.waitForTimeout(300); await foto(p, 'c-prepnout-roli');
+await klik(p, '[data-role="lekar"]'); await p.waitForFunction(() => (document.querySelector('#roleSel') || {}).textContent && document.querySelector('#roleSel').textContent.includes('přepnuto'), null, { timeout: 8000 }).catch(() => {}); await p.waitForSelector('#d_agenda');
+if (!(await p.textContent('#roleSel')).includes('přepnuto')) chyby.push('přepnutí role: hlavička neukazuje přepnutou roli');
+if (await p.$('.nav button[data-v="lide"]') || await p.$('.nav button[data-v="sprava"]')) chyby.push('jednoduchý režim (lékař): v nabídce zůstaly Lidé a týmy nebo Správa');
 await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozkyJed = await p.$$eval('.tabs [data-t]', (b) => b.map((x) => x.dataset.t).join(','));
 if (zalozkyJed !== 'karta,dg,plan,leky,kontakty,telefon,udaje') chyby.push('jednoduchý režim: záložky pacienta ' + zalozkyJed);
@@ -806,12 +817,16 @@ await klik(p, '#predatPrukaz'); await p.waitForSelector('#pz_t');
 if (!(await p.textContent('#modal')).includes('Průkaz pacienta')) chyby.push('jednoduchý režim: okno předání nemluví o Průkazu pacienta');
 await p.click('#modal [data-close]');
 await klik(p, '.tabs [data-t="telefon"]'); await p.waitForSelector('#pacientovi');
+await klik(p, '.historie-predani summary'); await p.waitForTimeout(200);
+if (!(await p.textContent('.historie-predani')).includes('Pacient načetl údaje do Průkazu')) chyby.push('historie předání: chybí záznam o načtení údajů');
+await foto(p, 'c-historie-predani');
 if (await p.$('#parovat') || await p.$('#pin_ok')) chyby.push('jednoduchý režim: záložka Předání do Průkazu ukazuje zapůjčený telefon nebo PINy');
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#n_ok');
 if (await p.isVisible('#n_g') || await p.isVisible('#n_tk') || await p.isVisible('#n_rc')) chyby.push('jednoduchý režim: Nový pacient ukazuje garanta, telefon s kartou nebo RČ');
+await klik(p, '#roleSel'); await p.waitForSelector('[data-role="admin"]'); await klik(p, '[data-role="admin"]'); await p.waitForFunction(() => !(document.querySelector('#roleSel') || { textContent: 'přepnuto' }).textContent.includes('přepnuto'), null, { timeout: 8000 }).catch(() => {}); await p.waitForSelector('#d_agenda');
 await klik(p, '.nav button[data-v="sprava"]'); await p.waitForSelector('[data-st]');
 const spravaJed = await p.$$eval('[data-st]', (b) => b.map((x) => x.dataset.st).join(','));
-if (spravaJed !== 'uziv,nast') chyby.push('jednoduchý režim: Správa organizace ' + spravaJed);
+if (spravaJed !== 'posk,uziv,zar,audit,nast') chyby.push('jednoduchý režim: správce má mít celou Správu organizace, má ' + spravaJed);
 await klik(p, '[data-st="nast"]'); await p.waitForSelector('#ns_jed');
 await p.waitForTimeout(300); await foto(p, 'c-jednoduchy-nastaveni');
 await p.evaluate(() => fetch('/__mock/jednoduchy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: false }) }));

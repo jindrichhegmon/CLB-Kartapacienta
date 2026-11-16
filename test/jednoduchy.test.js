@@ -38,3 +38,12 @@ test('verze plánu uložená sestrou nese „(sestra)“', () => {
   assert.equal(kdoPlan({ role: ['lekar', 'admin'], jmeno: 'MUDr. Petr Ukázka' }), 'MUDr. Petr Ukázka');
   assert.equal(kdoPlan({ role: ['admin'], jmeno: 'Správce' }), 'Správce');
 });
+
+test('přepnutí role správce (0.11.112): jen na stejná nebo nižší práva; jednoduchý režim se správce netýká', async () => {
+  const { roleNahledu } = await import('../src/kp.js');
+  assert.deepEqual(roleNahledu(['admin', 'lekar']), ['admin', 'lekar', 'sestra', 'ctenar']);
+  assert.deepEqual(roleNahledu(['admin']), ['admin', 'sestra', 'ctenar'], 'správce bez lékaře se lékařem nestane');
+  assert.deepEqual(roleNahledu(['lekar']), [], 'přepínat smí jen správce');
+  const spravce = await opravneni(db(['GARANT']), uz(['admin', 'lekar'], false), 1);
+  assert.equal(spravce.garant && spravce.lekar, true);
+});

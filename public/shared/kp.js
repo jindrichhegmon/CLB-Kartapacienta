@@ -84,9 +84,9 @@
   });
 
   /** JSON API s Bearer session. */
-  KP.api = async (path, { method = 'GET', body, token, typ = 'Bearer' } = {}) => {
+  KP.api = async (path, { method = 'GET', body, token, typ = 'Bearer', hlavicky = null } = {}) => {
     const r = await fetch(path, {
-      method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `${typ} ${token}` } : {}) },
+      method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `${typ} ${token}` } : {}), ...(hlavicky || {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     let d = {}; try { d = await r.json(); } catch { d = { ok: false, chyba: `Server odpověděl ${r.status}` }; }

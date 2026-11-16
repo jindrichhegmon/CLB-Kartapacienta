@@ -40,13 +40,14 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
   .top .topmeta{font-size:12px;color:rgba(255,255,255,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .top .rolebox{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
   .top .rolebox .uziv{background:rgba(255,255,255,.18);color:#fff;border-radius:6px;padding:0 9px;height:34px;display:inline-flex;align-items:center;font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+  .top .rolebox button.rolesel{border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
   .top .rolebox .rolesel{background:var(--surface);color:var(--fg);border-radius:6px;padding:0 10px;height:34px;display:inline-flex;align-items:center;font-size:12.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis}
   .top .rolebox .btn{background:var(--surface);color:var(--accent-ink);border-color:var(--surface);font-weight:700}
   @media (max-width:1200px){.top .live,.top .topmeta{display:none}.top .madefor{max-width:240px}.top .rolebox .uziv{max-width:170px}}
   @media (max-width:900px){.top .madefor{display:none}}
   /* 0.11.46: centrála na mobilu – kompaktní hlavička, záložky ve dvou řadách, záhlaví panelů a akce se zalamují */
   @media (max-width:640px){
-    .top .ver,.top .rolebox .rolesel{display:none}
+    .top .ver,.top .rolebox span.rolesel{display:none}
     .top .logo{font-size:16px}
     .top .rolebox{gap:5px;flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%}
     .nav button{height:32px;padding:0 10px;font-size:12px}
@@ -120,7 +121,9 @@ function bindHledani(klic, radky) {
   };
   el.oninput = filtruj; filtruj();
 }
-const C = (p, o = {}) => api('/api/c' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { odhlas(); } throw e; });
+/* 0.11.112: správce může pracovat v jiné roli (Přepnout roli v hlavičce) – volba je jen v této záložce prohlížeče */
+const roleNahled = () => { try { return sessionStorage.getItem('kp_role_nahled') || ''; } catch { return ''; } };
+const C = (p, o = {}) => api('/api/c' + p, { ...o, token: S.session, hlavicky: roleNahled() ? { 'x-kp-role': roleNahled() } : null }).catch((e) => { if (e.status === 401) { odhlas(); } throw e; });
 const jeLekar = () => S.ja && S.ja.role.includes('lekar');
 const jeAdmin = () => S.ja && S.ja.role.includes('admin');
 /* 0.11.111: jednoduchý režim organizace (Správa → Nastavení) – v něm zakládá pacienty a zapisuje plán i sestra */
@@ -135,7 +138,7 @@ KP.napoveda.nastav({ aplikace: 'centrala', fab: true, auth: () => ({ token: S.se
   kapitola: () => (!S.session ? 2 : ({ pacienti: 3, novy: 4, detail: TAB_KAP[S.tab] || 5, lide: 11, sprava: 12, ucet: 2 }[S.view] || 3)),
   obrazovka: () => (!S.session ? 'Přihlášení' : S.view === 'detail' ? 'Detail pacienta, záložka ' + (TAB_NAZ[S.tab] || '') : ({ pacienti: 'Pacienti', novy: 'Nový pacient', lide: 'Lidé a týmy', sprava: 'Správa organizace' + (S.sTab ? ' – ' + S.sTab : ''), ucet: 'Můj účet' }[S.view] || S.view)) });
 
-function odhlas() { S.session = ''; S.ja = null; sessionStorage.removeItem('kp_session'); render(); }
+function odhlas() { try { sessionStorage.removeItem('kp_role_nahled'); } catch { /* */ } S.session = ''; S.ja = null; sessionStorage.removeItem('kp_session'); render(); }
 
 /* ================= hlavička ================= */
 function hlavicka() {
@@ -146,8 +149,25 @@ function hlavicka() {
     <span class="ver" title="Verze aplikace">v ${esc(S.verze || '')}</span>
     <span class="live">ON-LINE · centrální aplikace</span>
     <div class="topmeta noprint">garant a tým kolem pacienta</div>
-    <div class="rolebox noprint"><span class="uziv" title="${esc(S.ja.poskytovatel)}">👤 ${esc(S.ja.jmeno)}</span><span class="rolesel" title="${esc(S.ja.poskytovatel)}">${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</span>${KP.tlacitkaHlavicky()}<button class="btn sm" id="odhl">Odhlásit</button></div>`;
+    <div class="rolebox noprint"><span class="uziv" title="${esc(S.ja.poskytovatel)}">👤 ${esc(S.ja.jmeno)}</span>${(S.roleMoznosti || []).length ? `<button type="button" class="rolesel" id="roleSel" title="Přepnout roli – vyzkoušejte, co vidí lékař, sestra nebo jen čtení">${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}${S.ja.roleNahled ? ' · přepnuto' : ''} ▾</button>` : `<span class="rolesel" title="${esc(S.ja.poskytovatel)}">${S.ja.role.map((r) => ROLE_NAZ[r]).join(', ')}</span>`}${KP.tlacitkaHlavicky()}<button class="btn sm" id="odhl">Odhlásit</button></div>`;
   $('odhl').onclick = odhlas;
+  if ($('roleSel')) $('roleSel').onclick = prepnoutRoliOkno;
+}
+/* 0.11.112: správce si přepne roli – uvidí a smí jen to, co lékař / sestra / jen čtení (v jednoduchém režimu i jednoduchou Kartu); zpět „Správce“ */
+function prepnoutRoliOkno() {
+  const ted = roleNahled() || 'admin';
+  const popis = { admin: `vaše role: ${(S.ja.roleVlastni || []).map((r) => ROLE_NAZ[r]).join(', ')} – plná Karta${S.rezimOrg ? ' (jednoduchý režim se správce netýká)' : ''}`, lekar: 'lékař bez správy organizace', sestra: S.rezimOrg ? 'sestra – v jednoduchém režimu smí totéž co lékař' : 'sestra – zapisuje, plán mění jen lékař', ctenar: 'jen čtení – nic nezapisuje' };
+  modal(`<h2>Přepnout roli</h2><p class="muted" style="margin:0">Vyzkoušejte, co vidí a smí ostatní uživatelé${S.rezimOrg ? ' – organizace má zapnutý <b>jednoduchý režim</b>, lékař a sestra ho uvidí' : ''}. Platí jen v tomto okně prohlížeče, server pustí jen práva zvolené role a přepnutí se zapíše do logu přístupů.</p>
+    <div style="display:grid;gap:8px">${(S.roleMoznosti || []).map((r) => `<button class="btn ${r === ted ? 'primary' : ''}" data-role="${r}" style="height:auto;min-height:48px;padding:8px 14px;justify-content:flex-start;text-align:left;white-space:normal;flex-direction:column;align-items:flex-start;gap:2px"><b>${r === 'admin' ? 'Správce (moje role)' : esc(ROLE_NAZ[r].charAt(0).toUpperCase() + ROLE_NAZ[r].slice(1))}</b><span style="font-weight:400;font-size:12.5px;opacity:.85">${esc(popis[r])}</span></button>`).join('')}</div>
+    <div class="quick"><button class="btn" data-close>Zavřít</button></div>`, (m) => {
+    m.querySelectorAll('[data-role]').forEach((b) => (b.onclick = async () => {
+      const r = b.dataset.role;
+      try { await api('/api/c/role-nahled', { method: 'POST', token: S.session, body: { role: r } }); } catch (e) { return toast(e.message); }
+      try { if (r === 'admin') sessionStorage.removeItem('kp_role_nahled'); else sessionStorage.setItem('kp_role_nahled', r); } catch { /* */ }
+      closeModal(); S.ja = null; S.view = 'pacienti'; S.pacView = 'dash'; render(); window.scrollTo(0, 0);
+      toast(r === 'admin' ? 'Zpět ve svých rolích' : `Pracujete jako: ${ROLE_NAZ[r]}`);
+    }));
+  });
 }
 function nav() {
   // 0.11.52: ikony agend (emotikona je značka, kp-ikony.js ji vykreslí jako SVG – stejně jako v PéčeDoma)
@@ -172,7 +192,7 @@ new MutationObserver(() => oznacTabulky()).observe(document.documentElement, { c
 async function render() {
   if (!S.session) return renderLogin();
   if (!S.ja) {
-    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.smsPacientVychozi = d.smsPacientVychozi || ''; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; S.prukazAdresa = d.prukazAdresa || ''; S.jednoduchy = !!(d.nastaveni && d.nastaveni.jednoduchy); document.documentElement.classList.toggle('jednoduchy', S.jednoduchy); } catch (e) { return; }
+    try { const d = await C('/ja'); S.ja = d.ja; S.nazevSite = d.nazevSite; S.smsPacientVychozi = d.smsPacientVychozi || ''; S.verze = d.verze; S.ai = d.ai; S.interval = d.nastaveni.intervalRevize; S.verejna = d.verejnaAdresa; S.pecedoma = d.pecedoma || {}; S.prukazAdresa = d.prukazAdresa || ''; S.rezimOrg = !!(d.nastaveni && d.nastaveni.jednoduchy); S.jednoduchy = !!d.jednoduchyAktivni; S.roleMoznosti = d.roleMoznosti || []; document.documentElement.classList.toggle('jednoduchy', S.jednoduchy); } catch (e) { return; }
     try { S.posk = (await C('/poskytovatele')).poskytovatele; } catch { S.posk = []; }
   }
   hlavicka();
@@ -748,12 +768,31 @@ function tabPredani(d) {
   return `<div class="grid2"><div style="display:grid;gap:12px;align-content:start">${predaniPanel(d, vlastni)}</div>
     <div style="display:grid;gap:12px;align-content:start"><div class="note"><b>Jak předat údaje pacientovi:</b> pacient si do svého telefonu nainstaluje <b>Průkaz pacienta</b> (${esc(S.prukazAdresa || '')}/prukaz/). Tady klikněte na <b>Předat pacientovi do Průkazu</b>, zadejte jeho mobil a buď mu pošlete SMS, nebo mu v ordinaci ukažte QR kód či řekněte <b>6místné číslo</b>. Pacient v Průkazu klepne na <b>Propojit s Kartou pacienta</b> a zadá číslo – nabídnou se mu diagnózy, léky, alergie, kontakty a plán ke zkopírování. Data pak má jen ve svém telefonu, do Karty se nic nevrací.</div></div></div>`;
 }
+/* 0.11.112: historie předání do Průkazu pacienta – na rozklik; z logu přístupů (jen pro doplňování) */
+const PREDANI_NAZ = {
+  'kód pro vlastní telefon pacienta vydán': 'Předání připraveno – kód, QR a 6místné číslo',
+  'kód pro vlastní telefon zobrazen znovu': 'Kód, QR a číslo zobrazeny znovu',
+  'odkaz pro vlastní telefon poslán SMS': 'SMS s odkazem a číslem odeslána',
+  'telefon spárován': 'Průkaz propojen – údaje předány',
+  'telefon spárován znovu stejným kódem': 'Průkaz propojen znovu – údaje předány',
+  'údaje načteny do Průkazu pacienta': 'Pacient načetl údaje do Průkazu',
+  'přístup pacienta ukončen': 'Přístup ukončen',
+};
+function historiePredaniHTML(d) {
+  const h = (d.predani || []).filter((x) => x.akce !== 'synchronizace zápisů');
+  const nacteni = h.filter((x) => /spárován|načteny/.test(x.akce)).length;
+  return `<details class="historie-predani"><summary><b>Historie předání</b> <span class="chip">${h.length}</span>${nacteni ? ` <span class="chip ok">${nacteni}× předáno</span>` : ''}${h[0] ? ` <span class="muted" style="font-size:12.5px">naposledy ${esc(fmtDT(h[0].cas))}</span>` : ''}</summary>
+    ${h.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Kdy</th><th>Co</th><th>Telefon</th><th>Kdo</th></tr></thead><tbody>${h.map((x) => `<tr><td class="mono" style="white-space:nowrap;font-size:12.5px">${esc(fmtDT(x.cas))}</td>
+      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail ? `<div class="lbl">${esc(x.detail)}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="muted" style="padding:8px 14px 12px">Zatím nic nepředáno.</div>'}</details>`;
+}
 /* panel vlastních telefonů pacienta (Průkaz pacienta) – plná Karta i jednoduchý režim */
 function predaniPanel(d, vlastni) {
   return `<div class="panel"><div class="panel-h"><h2>Průkaz pacienta v telefonu pacienta</h2><span class="chip vio">${vlastni.filter((z) => z.stav === 'SPAROVANO').length} propojeno</span></div><div class="tblwrap"><table class="tbl"><tbody>${vlastni.map((z) => `<tr><td><b>${esc(z.stitek || 'telefon pacienta')}</b>${z.telefon ? ` <span class="mono">${esc(z.telefon)}</span>` : ''}<div class="lbl">${z.stav === 'SPAROVANO' ? `propojeno ${esc(fmtDT(z.sparovano))} · naposledy načteno ${esc(fmtDT(z.sync))}${z.verzeAplikace ? ' · ' + esc(z.verzeAplikace) : ''}` : z.stav === 'CEKA' ? `čeká na propojení${z.kodPlatnost ? ', kód platí do ' + esc(fmtDT(z.kodPlatnost)) : ''}` : 'ukončeno'}</div></td>
         <td><span class="chip ${z.stav === 'SPAROVANO' ? 'ok' : z.stav === 'CEKA' ? 'warn' : 'crit'}">${z.stav === 'SPAROVANO' ? 'propojeno' : z.stav === 'CEKA' ? 'čeká' : 'ukončeno'}</span></td>
         <td style="white-space:nowrap;text-align:right">${(d.op.garant || d.op.lekar) && z.stav === 'CEKA' ? `<button class="btn sm" data-pznovu="${z.id}" title="Znovu poslat SMS nebo ukázat QR kód a číslo">Poslat znovu</button> <button class="btn sm" data-pzrusit="${z.id}">Zrušit</button>` : ''}${d.op.garant && z.stav === 'SPAROVANO' ? `<button class="btn sm" data-pukoncit="${z.id}">Ukončit přístup</button>` : ''}${d.op.garant && z.stav === 'ZABLOKOVANO' ? `<button class="btn sm" data-zvrat="${z.id}">Odebrat</button>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Pacient zatím Průkaz pacienta s Kartou nepropojil.</td></tr>'}</tbody></table></div>
     ${(d.op.garant || d.op.lekar) && d.pacient.stav === 'AKTIVNI' ? `<div style="padding:12px 14px"><button class="btn primary" id="pacientovi">${vlastni.length ? 'Předat do dalšího telefonu' : 'Předat pacientovi do Průkazu'}</button></div>` : ''}
+    ${historiePredaniHTML(d)}
     <div class="rolehelp">Pacient nebo jeho blízcí mají v telefonu aplikaci <b>Průkaz pacienta</b>. Po propojení si z Karty jednorázově zkopírují, co lékař zapsal (diagnózy, léky, alergie, kontakty, plán) – na jejich pokyn, nic se nesynchronizuje samo a z Průkazu se do Karty nic neposílá. Zapůjčený telefon pro krizi to nenahrazuje: vlastní telefon je zamčený a ZZS se do něj nedostane.</div></div>`;
 }
 function tabTelefon(d) {
@@ -934,7 +973,7 @@ function bindTab() {
     $('uz_v').onclick = vypis; $('uz_ok').onclick = () => { const du = $('uz_d').value; closeModal(); akce('/uzavrit', { duvod: du }, 'Průkaz uzavřen'); };
   }));
   document.querySelectorAll('[data-dok]').forEach((b) => (b.onclick = async () => {
-    const r = await fetch(`/api/c/pacient/${S.pacId}/dokument/${b.dataset.dok}`, { headers: { authorization: 'Bearer ' + S.session } });
+    const r = await fetch(`/api/c/pacient/${S.pacId}/dokument/${b.dataset.dok}`, { headers: { authorization: 'Bearer ' + S.session, ...(roleNahled() ? { 'x-kp-role': roleNahled() } : {}) } });
     if (!r.ok) return toast('Dokument se nepodařilo otevřít');
     window.open(URL.createObjectURL(await r.blob()), '_blank');
   }));
@@ -2088,9 +2127,9 @@ async function spravaNast() {
     <div class="field"><label>Výchozí interval revize plánu (měsíce)</label><input id="ns_i" type="number" min="1" max="12" value="${esc(S.interval || 3)}"></div>
     <div class="field"><label>Odkaz pro přihlášení uživatelů</label><div class="secret" style="font-size:13px;letter-spacing:0">${esc(location.origin)}/centrala/?t=${esc(S.tenant)}</div></div>
     <button class="btn primary ulozit" id="ns_ok">Uložit</button></div></div>
-    <div class="panel" style="max-width:560px"><div class="panel-h"><h2>Jednoduchý režim</h2><span class="chip ${S.jednoduchy ? 'ok' : ''}">${S.jednoduchy ? 'zapnuto' : 'vypnuto'}</span></div><div class="form" style="padding:14px">
-      <label class="lbl" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="ns_jed" ${S.jednoduchy ? 'checked' : ''}> Jednoduchý režim – jen příprava údajů pro Průkaz pacienta</label>
-      <div class="muted" style="font-size:13px">Pro malou ordinaci nebo ambulanci: zůstanou Pacienti, Nový pacient, u pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, Předání do Průkazu a Detail pacienta. Skryje se Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma a ve Správě Pracoviště, Telefony a Log. Garantem nového pacienta je vždy vaše pracoviště a <b>sestra smí totéž co lékař</b> (založit pacienta, zapsat plán, předat do Průkazu). Přepnutí nic nemaže – po vypnutí je vidět plná Karta se všemi údaji.</div>
+    <div class="panel" style="max-width:560px"><div class="panel-h"><h2>Jednoduchý režim</h2><span class="chip ${S.rezimOrg ? 'ok' : ''}">${S.rezimOrg ? 'zapnuto' : 'vypnuto'}</span></div><div class="form" style="padding:14px">
+      <label class="lbl" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="ns_jed" ${S.rezimOrg ? 'checked' : ''}> Jednoduchý režim – jen příprava údajů pro Průkaz pacienta</label>
+      <div class="muted" style="font-size:13px">Pro malou ordinaci nebo ambulanci: zůstanou Pacienti, Nový pacient, u pacienta Krizová karta, Diagnóza, Plán péče, Léky, Důležité kontakty, Předání do Průkazu a Detail pacienta. Skryje se Lidé a týmy, Deník, Tým a garance, Dokumenty, Přístupy, zapůjčené telefony a PINy, videohovor, propojení s PéčeDoma a ve Správě Pracoviště, Telefony a Log. Garantem nového pacienta je vždy vaše pracoviště a <b>sestra smí totéž co lékař</b> (založit pacienta, zapsat plán, předat do Průkazu). Přepnutí nic nemaže – po vypnutí je vidět plná Karta se všemi údaji. <b>Správce má vždy plnou Kartu</b>; jak ji vidí lékař nebo sestra, vyzkoušíte tlačítkem role v hlavičce (Přepnout roli).</div>
       <button class="btn ulozit" id="ns_jed_ok">Uložit režim</button></div></div>
     ${(() => { const pd = S.pecedoma || {}; return `<div class="panel" style="max-width:560px"><div class="panel-h"><h2>Propojení s PéčeDoma</h2>${pd.nastaveno ? '<span class="chip ok">nastaveno</span>' : '<span class="chip warn">nenastaveno</span>'}</div><div class="form" style="padding:14px">
     <div class="field"><label>Odkaz na portál PéčeDoma vaší organizace</label><input id="pd_o" value="${esc(pd.odkaz || '')}" placeholder="https://web-pecedoma.netlify.app/?iv=…&data=…&tag=…"><span class="hint">Ukazuje se u pacienta (záložka Detail pacienta) – otevře PéčeDoma, kde je klient.</span></div>
@@ -2103,8 +2142,8 @@ async function spravaNast() {
     <div class="note">Co se přebírá z PéčeDoma: při založení pacienta údaje, diagnózy, léky, funkční stav a kontakty (výběr klienta v průvodci Nový pacient); u propojeného pacienta pak průběžně <b>aktivní léky</b> a <b>nejbližší plánovaná návštěva</b> (kalendář FK). Plán péče se tím nemění – léky lékař převezme do nové verze plánu v záložce Plán péče.</div></div></div>`; })()}`;
   $('ns_jed_ok').onclick = async () => {
     const zap = $('ns_jed').checked;
-    if (zap === S.jednoduchy) return toast('Beze změny');
-    try { await C('/nastaveni', { method: 'POST', body: { jednoduchy: zap } }); S.jednoduchy = zap; document.documentElement.classList.toggle('jednoduchy', zap); toast(zap ? 'Jednoduchý režim zapnut – ostatní uživatelé ho uvidí po novém načtení' : 'Jednoduchý režim vypnut – plná Karta'); renderSprava(); }
+    if (zap === S.rezimOrg) return toast('Beze změny');
+    try { await C('/nastaveni', { method: 'POST', body: { jednoduchy: zap } }); S.rezimOrg = zap; toast(zap ? 'Jednoduchý režim zapnut – lékaři a sestry ho uvidí po novém načtení; vy jako správce máte plnou Kartu (vyzkoušejte Přepnout roli)' : 'Jednoduchý režim vypnut – plná Karta'); renderSprava(); }
     catch (e) { toast(e.message); }
   };
   $('ns_ok').onclick = async () => { try { await C('/nastaveni', { method: 'POST', body: { nazevSite: $('ns_n').value, intervalRevize: $('ns_i').value } }); S.nazevSite = $('ns_n').value; S.interval = Number($('ns_i').value); hlavicka(); toast('Uloženo'); } catch (e) { toast(e.message); } };

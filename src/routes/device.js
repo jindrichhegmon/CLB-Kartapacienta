@@ -167,6 +167,8 @@ device.post('/sync', h(async (req) => {
     if (zhorseni.length) await predejZhorseniPd(q, z.PacientID, zhorseni, { audit: (qq, a) => audit(qq, { ...a, zarizeniId: zid }), ip: ip(req) });
     const baterie = Number.isFinite(Number(b.baterie)) && b.baterie !== null ? Math.max(0, Math.min(100, Math.round(Number(b.baterie)))) : null;
     const balik = await balikProZarizeni(q, z.PacientID, { rezim: z.Rezim });
+    // 0.11.112: každé načtení údajů do Průkazu pacienta se zapíše do historie předání (centrála → Předání do Průkazu)
+    if (z.Rezim === 'PACIENT') await audit(q, { zarizeniId: zid, kdo: 'Průkaz pacienta', pacientId: z.PacientID, akce: 'údaje načteny do Průkazu pacienta', detail: balik.plan ? `plán verze ${balik.plan.verze}` : 'bez plánu', ip: ip(req) });
     await q.exec(`UPDATE dbo.A_KP_Zarizeni SET PosledniSync = SYSDATETIME(), Baterie = ISNULL(@b, Baterie), VerzeAplikace = @v, DelkaFronty = @f, VerzePlanuVZarizeni = @vp WHERE ZarizeniID = @z`,
       { b: baterie, v: text(b.verzeAplikace, 20) || null, f: Math.max(0, (Array.isArray(b.fronta) ? b.fronta.length : 0) - potvrzeno.length - odmitnuto.length), vp: balik.plan ? balik.plan.verze : null, z: zid });
     return { potvrzeno, odmitnuto, balik, videoToken: videoToken(tenant, zid) };

@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
-import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
+import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, roleNahledu, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
@@ -32,7 +32,12 @@ function sUzivatelem(fn, { admin = false, lekar = false } = {}) {
       if (!u || !u.Aktivni) throw chyba('Účet není aktivní', 401);
       const nast = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('KP_AKTIVNI', 'REZIM_JEDNODUCHY')`)).map((x) => [x.Klic, x.Hodnota]));
       if (nast.KP_AKTIVNI !== '1') throw chyba('Karta pacienta je pro tuto organizaci vypnutá', 403);
-      const s = { jednoduchy: nast.REZIM_JEDNODUCHY === '1', tenant: ses.tenant, uzivatelId: u.UzivatelID, jmeno: u.Jmeno, login: u.Login, role: roleSeznam(u.Role), poskytovatelId: u.PoskytovatelID,
+      // 0.11.112: správce si smí přepnout roli (hlavička X-KP-Role) – jen na stejná nebo nižší práva; jednoduchý režim se správce netýká
+      const roleVlastni = roleSeznam(u.Role);
+      const chce = String(req.headers['x-kp-role'] || '').toLowerCase().trim();
+      const role = chce && chce !== 'admin' && roleNahledu(roleVlastni).includes(chce) ? [chce] : roleVlastni;
+      const s = { jednoduchy: nast.REZIM_JEDNODUCHY === '1' && !role.includes('admin'), rezimJednoduchy: nast.REZIM_JEDNODUCHY === '1', roleVlastni, roleNahled: role === roleVlastni ? null : chce,
+        tenant: ses.tenant, uzivatelId: u.UzivatelID, jmeno: u.Jmeno, login: u.Login, role, poskytovatelId: u.PoskytovatelID,
         poskytovatel: u.Poskytovatel, typPoskytovatele: u.TypPoskytovatele, smiBytGarant: !!u.SmiBytGarant, telefon: u.Telefon, musiZmenitHeslo: !!u.MusiZmenitHeslo, ip: ip(req) };
       if (admin && !s.role.includes('admin')) throw chyba('Tuto akci smí jen správce organizace', 403);
       // 0.11.111: v jednoduchém režimu smí „lékařské“ akce (založit pacienta…) každý, kdo zapisuje – lékař i sestra
@@ -94,11 +99,18 @@ central.get('/ja', sUzivatelem(async (q, s) => {
   const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni`);
   const nast = Object.fromEntries(n.map((x) => [x.Klic, x.Hodnota]));
   const pd = await nastaveniPd(q);
-  return { ja: s, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, prukazAdresa: config.prukazAdresa, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3), jednoduchy: nast.REZIM_JEDNODUCHY === '1' },
+  return { ja: s, roleMoznosti: roleNahledu(s.roleVlastni), jednoduchyAktivni: s.jednoduchy, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, prukazAdresa: config.prukazAdresa, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3), jednoduchy: nast.REZIM_JEDNODUCHY === '1' },
     // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
     pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, portal: pd.portal, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
 
+/* 0.11.112: správce přepnul roli v centrále (jen zápis do logu – samotné přepnutí nese každé volání v hlavičce X-KP-Role) */
+central.post('/role-nahled', sUzivatelem(async (q, s, req) => {
+  if (!s.roleVlastni.includes('admin')) throw chyba('Roli přepíná jen správce organizace', 403);
+  const r = String((req.body || {}).role || 'admin').toLowerCase();
+  if (!roleNahledu(s.roleVlastni).includes(r)) throw chyba('Na tuto roli se přepnout nejde');
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: r === 'admin' ? 'správce se vrátil ke svým rolím' : 'správce přepnul roli', detail: r, ip: s.ip });
+}));
 central.post('/heslo', sUzivatelem(async (q, s, req) => {
   const u = await q.one(`SELECT HesloHash FROM dbo.A_KP_Uzivatel WHERE UzivatelID = @u`, { u: s.uzivatelId });
   if (!overHeslo(req.body.stare, u.HesloHash)) throw chyba('Současné heslo nesouhlasí', 400);
@@ -342,13 +354,18 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const odPacienta = (await q.all(`SELECT TOP 30 SdileniID AS id, CONVERT(char(16), Vytvoreno, 120) AS cas, Polozky AS polozky FROM dbo.A_KP_Sdileni WHERE PacientID = @p ORDER BY SdileniID DESC`, { p: id }))
     .map((x) => ({ ...x, polozky: (() => { try { return JSON.parse(x.polozky); } catch { return []; } })() }));
   const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
+  // 0.11.112: historie předání do Průkazu pacienta – vše z logu přístupů, co se týká vlastních telefonů pacienta (vydání kódu, SMS,
+  // propojení, načtení údajů, ukončení); log je jen pro doplňování, takže historie nejde upravit ani smazat
+  const predani = await q.all(`SELECT TOP 100 CONVERT(char(16), a.Cas, 120) AS cas, a.Kdo AS kdo, a.Akce AS akce, a.Detail AS detail, z.Telefon AS telefon, z.Stitek AS stitek
+    FROM dbo.A_KP_AuditLog a JOIN dbo.A_KP_Zarizeni z ON z.ZarizeniID = a.ZarizeniID
+    WHERE a.PacientID = @p AND z.PacientID = @p AND z.Rezim = 'PACIENT' ORDER BY a.AuditID DESC`, { p: id });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení průkazu', ip: s.ip });
   const pdNast = await nastaveniPd(q);
   const pecedoma = { klientId: pacient.pdKlientId, portalKlientId: pacient.pdPortalKlientId, odkaz: pdNast.odkaz, nastaveno: pdNast.nastaveno, autoSync: pdNast.sync, sync: pacient.pdKlientId ? await stavSync(q, id) : null };
   const video = await videoProPacienta(q, s, id);
   op.vychozi = op.aktivni && (s.role.includes('admin') || s.role.includes('lekar'));   // výchozí kontakty organizace mění správce a lékař
   const dgPopisy = await popisyDiagnoz(q, plan && plan.data && plan.data.dg);   // 0.11.92
-  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy };
+  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, predani, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {

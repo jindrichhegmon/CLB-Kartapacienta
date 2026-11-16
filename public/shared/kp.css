@@ -73,6 +73,11 @@ html.vramu .hlp-top{padding-top:10px}
 .plist .chev{color:var(--muted);flex:none}
 /* buttons */
 .jednoduchy .jen-plny{display:none!important}
+.historie-predani{border-top:1px solid var(--line)}
+.historie-predani>summary{cursor:pointer;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none;font-size:14px}
+.historie-predani>summary::-webkit-details-marker{display:none}
+.historie-predani>summary::before{content:'▸';color:var(--accent);font-size:14px;transition:transform .15s}
+.historie-predani[open]>summary::before{transform:rotate(90deg)}
 .cislo-tel{border:2px solid var(--accent);background:var(--accent-soft);border-radius:14px;padding:10px 14px;margin:8px 0 10px;text-align:center}
 .cislo-tel .lbl{margin:0}
 .cislo-tel .cislo{font:800 34px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;white-space:nowrap;color:var(--accent-ink);margin:2px 0}
