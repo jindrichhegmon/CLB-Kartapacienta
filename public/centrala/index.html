@@ -1056,12 +1056,43 @@ function tabDok(d) {
       <label class="row" style="gap:8px"><input type="checkbox" id="dk_pp"> <span><b>Předat pacientovi do Průkazu pacienta</b><span class="hint" style="display:block">PDF, JPEG nebo PNG – pacient si ho stáhne tlačítkem Načíst z Karty pacienta.</span></span></label>
       <button class="btn primary ulozit" id="dk_ok">Vložit</button></div></div>` : ''}</div>`;
 }
+/* 0.11.128: deník přístupů – hledání v celém logu pacienta, skrytí pouhých zobrazení, Načíst starší (po 100) */
+function pristupyStav(d) {
+  if (!S.pris || S.pris.pacId !== d.pacient.id) S.pris = { pacId: d.pacient.id, radky: d.pristupy, q: '', bez: false, dalsi: d.pristupy.length >= 80, celkem: null, od: null, nacita: false };
+  return S.pris;
+}
+const radkyPristupu = (r) => r.map((a) => `<tr><td class="mono" style="font-size:12px;white-space:nowrap">${esc(fmtDT(a.cas))}</td><td>${esc(a.kdo || '')}</td><td>${esc(a.akce)}${a.detail ? `<div class="lbl">${esc(a.detail)}</div>` : ''}</td></tr>`).join('') || '<tr><td class="muted">Nic nenalezeno.</td></tr>';
+const pocetPristupu = (st) => `zobrazeno ${st.radky.length}${st.celkem != null ? ` z ${st.celkem}` : st.dalsi ? '+' : ''}${st.od ? ` · od ${fmtD(st.od)}` : ''}`;
 function tabPristupy(d) {
-  return `<div class="panel"><div class="panel-h"><h2>Deník přístupů</h2><span class="chip">posledních ${d.pristupy.length}</span></div><div class="tblwrap"><table class="tbl"><tbody>${d.pristupy.map((a) => `<tr><td class="mono" style="font-size:12px;white-space:nowrap">${esc(fmtDT(a.cas))}</td><td>${esc(a.kdo || '')}</td><td>${esc(a.akce)}${a.detail ? `<div class="lbl">${esc(a.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const st = pristupyStav(d);
+  return `<div class="panel"><div class="panel-h"><h2>Deník přístupů</h2><span class="chip" id="pr_pocet">${esc(pocetPristupu(st))}</span></div>
+    <div class="pr-filtr"><input id="pr_q" type="search" placeholder="Hledat v celém logu – jméno, akce, lék, datum (např. 16. 11.)…" value="${esc(st.q)}" autocomplete="off">
+      <label class="row" style="gap:8px;white-space:nowrap"><input type="checkbox" id="pr_bez" ${st.bez ? 'checked' : ''}> Skrýt pouhá zobrazení</label></div>
+    <div class="tblwrap"><table class="tbl"><tbody id="pr_radky">${radkyPristupu(st.radky)}</tbody></table></div>
+    <div class="quick" style="padding:12px 14px"><button class="btn" id="pr_dalsi" ${st.dalsi ? '' : 'hidden'}>Načíst starší (dalších 100)</button><span class="muted" id="pr_konec" style="font-size:13px" ${st.dalsi ? 'hidden' : ''}>Starší záznamy už nejsou.</span></div></div>`;
+}
+async function nactiPristupy(d, { pridat = false } = {}) {
+  const st = pristupyStav(d); if (st.nacita) return; st.nacita = true;
+  const pred = pridat && st.radky.length ? st.radky[st.radky.length - 1].id : '';
+  if ($('pr_dalsi')) $('pr_dalsi').disabled = true;
+  try {
+    const qs = new URLSearchParams({ q: st.q, bezZobrazeni: st.bez ? '1' : '0', pred: pred || '', n: '100' });
+    const r = await C(`/pacient/${d.pacient.id}/pristupy?${qs}`);
+    st.radky = pridat ? [...st.radky, ...r.pristupy] : r.pristupy; st.dalsi = r.dalsi; st.celkem = r.celkem; st.od = r.od;
+    if ($('pr_radky')) { $('pr_radky').innerHTML = radkyPristupu(st.radky); $('pr_pocet').textContent = pocetPristupu(st); $('pr_dalsi').hidden = !st.dalsi; $('pr_konec').hidden = st.dalsi; }
+  } catch (e) { toast(e.message); }
+  finally { st.nacita = false; if ($('pr_dalsi')) $('pr_dalsi').disabled = false; }
 }
 
 function bindTab() {
   const d = S.pac;
+  if ($('pr_radky')) {   // 0.11.128: deník přístupů
+    const st = pristupyStav(d); let cas = null;
+    $('pr_q').oninput = () => { clearTimeout(cas); cas = setTimeout(() => { st.q = $('pr_q').value.trim(); nactiPristupy(d); }, 300); };
+    $('pr_bez').onchange = () => { st.bez = $('pr_bez').checked; nactiPristupy(d); };
+    $('pr_dalsi').onclick = () => nactiPristupy(d, { pridat: true });
+    if (st.celkem == null) nactiPristupy(d);   // počet a „od“ hned po otevření
+  }
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('pd_chat', () => chatPd(d));
   if ($('pd_chat')) nactiNahledChatu(d);

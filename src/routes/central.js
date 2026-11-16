@@ -369,7 +369,7 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   // co pacient sám poslal z vlastního telefonu (údaje pacienta – odděleně od záznamů týmu)
   const odPacienta = (await q.all(`SELECT TOP 30 SdileniID AS id, CONVERT(char(16), Vytvoreno, 120) AS cas, Polozky AS polozky FROM dbo.A_KP_Sdileni WHERE PacientID = @p ORDER BY SdileniID DESC`, { p: id }))
     .map((x) => ({ ...x, polozky: (() => { try { return JSON.parse(x.polozky); } catch { return []; } })() }));
-  const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
+  const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 AuditID AS id, CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
   // 0.11.112: historie předání do Průkazu pacienta – vše z logu přístupů, co se týká vlastních telefonů pacienta (vydání kódu, SMS,
   // propojení, načtení údajů, ukončení); log je jen pro doplňování, takže historie nejde upravit ani smazat
   const predani = await q.all(`SELECT TOP 100 CONVERT(char(16), a.Cas, 120) AS cas, CONVERT(char(19), a.Cas, 120) AS casS, a.ZarizeniID AS zarizeniId, a.Kdo AS kdo, a.Akce AS akce, a.Detail AS detail, z.Telefon AS telefon, z.Stitek AS stitek
@@ -408,6 +408,30 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   let puvod = null;
   try { puvod = puvodPlanu(vsechnyVerze.map((v) => ({ ...v, data: JSON.parse(v.data || '{}') })), zalozeni); } catch { /* starý nečitelný plán – bez původu */ }
   return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, predani, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy, puvod };
+}));
+
+/* 0.11.128: deník přístupů po stránkách (Načíst starší), hledání v celém logu pacienta a skrytí pouhých zobrazení – jen garant a správce */
+export const AKCE_ZOBRAZENI = ['zobrazení průkazu', 'PéčeDoma: chat zobrazen'];
+export const likeVzor = (t) => '%' + String(t || '').replace(/[[%_]/g, (c) => `[${c}]`) + '%';
+/** české datum v hledání („16. 11.“, „16.11.2026“) → tvar uložený v logu (2026-11-16 / -11-16) */
+export function hledatDatum(t) {
+  const m = String(t || '').trim().match(/^(\d{1,2})\.\s*(\d{1,2})\.(?:\s*(\d{4}))?$/);
+  if (!m) return t;
+  const dd = m[1].padStart(2, '0'), mm = m[2].padStart(2, '0');
+  return m[3] ? `${m[3]}-${mm}-${dd}` : `-${mm}-${dd}`;
+}
+central.get('/pacient/:id/pristupy', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !s.role.includes('admin')) throw chyba('Deník přístupů vidí garant a správce', 403);
+  const pred = cislo(req.query.pred) || null, hledat = text(req.query.q, 100).trim(), bez = req.query.bezZobrazeni === '1' ? 1 : 0;
+  const n = Math.min(Math.max(cislo(req.query.n) || 100, 10), 500);
+  const kde = `PacientID = @p AND (@q = N'' OR Kdo LIKE @ql OR Akce LIKE @ql OR Detail LIKE @ql OR CONVERT(char(16), Cas, 120) LIKE @ql)
+    AND (@bz = 0 OR Akce NOT IN (${AKCE_ZOBRAZENI.map((_, i) => '@z' + i).join(', ')}))`;
+  const par = { p: id, q: hledat, ql: likeVzor(hledatDatum(hledat)), bz: bez, ...Object.fromEntries(AKCE_ZOBRAZENI.map((a, i) => ['z' + i, a])) };
+  const radky = await q.all(`SELECT TOP (${n + 1}) AuditID AS id, CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail
+    FROM dbo.A_KP_AuditLog WHERE ${kde} AND (@pred IS NULL OR AuditID < @pred) ORDER BY AuditID DESC`, { ...par, pred });
+  const c = await q.one(`SELECT COUNT(*) AS n, CONVERT(char(10), MIN(Cas), 23) AS od FROM dbo.A_KP_AuditLog WHERE ${kde}`, par);
+  return { pristupy: radky.slice(0, n), dalsi: radky.length > n, celkem: c ? c.n : 0, od: c ? c.od : null };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {

@@ -146,3 +146,11 @@ test('lék v PéčeDoma (0.11.125): zapsáno ručně + ověřeno zprávou, ze zp
   assert.deepEqual([l[2].puvod.zdroj, l[2].puvod.dokument, l[2].puvod.overeno], ['zprava', 'Dekurz.pdf', undefined]);
   assert.deepEqual([l[3].puvod.zdroj, l[3].puvod.overeno], ['pecedoma', undefined]);
 });
+
+test('deník přístupů (0.11.128): hledání bez zástupných znaků SQL a podle českého data', async () => {
+  const { likeVzor, hledatDatum } = await import('../src/routes/central.js');
+  assert.equal(likeVzor('50%_[x]'), '%50[%][_][[]x]%');
+  assert.equal(hledatDatum('16. 11.'), '-11-16');
+  assert.equal(hledatDatum('6.1.2026'), '2026-01-06');
+  assert.equal(hledatDatum('Palexia'), 'Palexia');
+});

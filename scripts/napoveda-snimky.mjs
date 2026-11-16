@@ -203,6 +203,13 @@ app.post('/api/c/pacient/:id/dokument/:did/rozbor', j({ blokovano: false, zdroj:
 const suklUkazka = [['0094114', 'PARALEN', '500MG', 'tableta'], ['0107760', 'PARACETAMOL ACCORD', '500MG', 'tableta'], ['0158279', 'MST CONTINUS', '30MG', 'tableta s řízeným uvolňováním'], ['0098219', 'MORPHIN BIOTIKA', '10MG/ML', 'injekční roztok']];
 app.get('/api/c/sukl', j((req) => ({ verze: 'DLP-ukazka', leky: suklUkazka.filter(([, n]) => n.toLowerCase().startsWith(String(req.query.q || '').toLowerCase().slice(0, 4))).map(([kod, nazev, sila, forma]) => ({ kod, nazev, sila, forma, text: nazev + ' ' + sila })) })));
 app.post('/api/c/pacient/:id/leky/ze-zpravy', j((req) => { for (const x of (req.body || {}).polozky || []) { if (x.akce === 'potvrdit') continue; if (x.id) pdLeky = pdLeky.map((l) => (l.id === String(x.id) ? { ...l, ...x, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: x.typ, nazev: x.nazev, davka: x.davka || '', instr: x.instr || '', popis: '' }); } return { leky: pdLeky, zmen: ((req.body || {}).polozky || []).length }; }));
+// 0.11.128: deník přístupů po stránkách, hledání a skrytí zobrazení (smyšlené záznamy)
+const prisUkazka = Array.from({ length: 230 }, (_, i) => { const t = new Date(Date.now() - i * 47 * 60e3); const c = new Date(t.getTime() - t.getTimezoneOffset() * 60e3).toISOString().slice(0, 16).replace('T', ' ');
+  return i % 3 ? { id: 1000 - i, cas: c, kdo: ['MUDr. Petra Ukázková', 'Lucie Příkladná', 'telefon'][i % 3], akce: 'zobrazení průkazu', detail: null }
+    : { id: 1000 - i, cas: c, kdo: 'MUDr. Petra Ukázková', akce: 'PéčeDoma: úprava léků', detail: `potvrzen lék ${['Furosemid 40 mg 1-0-0', 'MST Continus 30 mg 1-0-1', 'Lactulosa 15 ml 1-0-1'][i % 9 / 3 | 0]} · ze zprávy „Dekurz z Medistaru.pdf“` }; });
+app.get('/api/c/pacient/:id/pristupy', j((req) => { const q = String(req.query.q || '').toLowerCase(), pred = Number(req.query.pred) || Infinity, n = Number(req.query.n) || 100;
+  const vse = prisUkazka.filter((a) => (!q || [a.kdo, a.akce, a.detail, a.cas].join(' ').toLowerCase().includes(q)) && (req.query.bezZobrazeni !== '1' || a.akce !== 'zobrazení průkazu'));
+  const r = vse.filter((a) => a.id < pred); return { pristupy: r.slice(0, n), dalsi: r.length > n, celkem: vse.length, od: vse.length ? vse[vse.length - 1].cas.slice(0, 10) : null }; }));
 app.post('/api/c/pacient/:id/obnovit', j((req) => ({ ok: true, sms: req.body.sms ? { ok: true } : null, telefon: '+420 604 000 777' })));
 app.post('/__mock/jednoduchy', (req, res) => { mockJednoduchy = !!(req.body && req.body.zap); res.json({ ok: true }); });
 app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; const role = chce ? [chce] : ['admin', 'lekar']; return { roleMoznosti: ['admin', 'lekar', 'sestra', 'ctenar'], jednoduchyAktivni: mockJednoduchy && !role.includes('admin'), ja: { jmeno: 'MUDr. Petra Ukázková', login: 'petra.ukazkova', poskytovatel: 'Hospic Ukázka', poskytovatelId: 1, role, roleVlastni: ['admin', 'lekar'], roleNahled: chce || null, musiZmenitHeslo: false }, smsPacientVychozi: 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.', nazevSite: 'Paliativní síť Ukázkového kraje', nastaveni: { intervalRevize: 3, jednoduchy: mockJednoduchy }, prukazAdresa: 'https://dialogusprukaz.example', verejnaAdresa: 'https://kartapacienta.example', verze: VERZE, ai: true, pecedoma: pdNast }; }));
@@ -519,6 +526,14 @@ await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam tabl
 { const t = await p.textContent('#work');   // 0.11.125: ověřeno zprávou a rozbor zprávy přímo ze záložky Léky
   if (!t.includes('ověřeno zprávou')) chyby.push('léky: chybí štítek „ověřeno zprávou“');
   if (!t.includes('Ověřit podle zprávy') || !(await p.$('#work [data-dokai]'))) chyby.push('léky: chybí Ověřit podle zprávy s rozborem dokumentu'); }
+{ // 0.11.128: deník přístupů – Načíst starší, hledání, skrýt zobrazení
+  await klik(p, '.tabs [data-t="pristupy"]'); await p.waitForSelector('#pr_radky');
+  await p.waitForFunction(() => /z 230/.test(document.getElementById('pr_pocet').textContent), null, { timeout: 3000 }).catch(() => chyby.push('přístupy: chybí celkový počet „z 230“'));
+  await p.click('#pr_dalsi'); await p.waitForFunction(() => document.querySelectorAll('#pr_radky tr').length > 100, null, { timeout: 3000 }).catch(() => chyby.push('přístupy: Načíst starší nepřidalo řádky'));
+  await p.check('#pr_bez'); await p.waitForFunction(() => !document.getElementById('pr_radky').textContent.includes('zobrazení průkazu'), null, { timeout: 3000 }).catch(() => chyby.push('přístupy: Skrýt pouhá zobrazení nefunguje'));
+  await p.fill('#pr_q', 'MST'); await p.waitForFunction(() => /z 2\d\b/.test(document.getElementById('pr_pocet').textContent), null, { timeout: 3000 }).catch(() => chyby.push('přístupy: hledání nezúžilo výsledky'));
+  await p.waitForTimeout(200); await foto(p, 'c-pristupy', { vyska: 900 });
+  await p.fill('#pr_q', ''); await p.uncheck('#pr_bez'); await p.waitForTimeout(500); }
 await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.selectOption('#lk_t', 'ZACHRANNA'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce');
 // 0.11.124: našeptávač ze seznamu SÚKL (jako Průkaz pacienta)
 await p.focus('#lk_n'); await p.type('#lk_n', 'Para', { delay: 30 });

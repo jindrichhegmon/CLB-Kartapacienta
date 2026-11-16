@@ -371,7 +371,10 @@ V záložce **Detail pacienta** (dříve Údaje) jsou identifikační údaje pac
 - **Dokumenty**: dříve vyslovené přání, lékařské zprávy, informace pacientovi a jiné (PDF nebo foto do 8 MB). U každého **datum dokumentu**, **pracoviště, které ho vydalo**, a kde je originál – aby byl vždy znát původ. Vkládá garant nebo lékař, klik na dokument ho otevře.
 
 ![Dokumenty s datem a pracovištěm](/napoveda/img/c-dokumenty.png)
-- **Přístupy** (garant a správce): kdo a kdy průkaz zobrazil nebo měnil.
+- **Přístupy** (garant a správce): kdo a kdy průkaz zobrazil nebo měnil. Nahoře je počet záznamů a od kdy log sahá; **Načíst starší** přidá dalších 100, pole **Hledat v celém logu** prohledá všechny záznamy pacienta (jméno, akce, lék, datum – např. *16. 11.* nebo *2026-11-16*) a **Skrýt pouhá zobrazení** schová řádky *zobrazení průkazu* a *chat zobrazen*, aby byly vidět změny.
+
+![Deník přístupů – hledání a Načíst starší](/napoveda/img/c-pristupy.png)
+
 - **Uzavřít průkaz** (garant): vyberete důvod (úmrtí, předání mimo síť, hospitalizace, na přání pacienta, jiný). Telefon se při příštím připojení vymaže a PINy přestanou platit. Předtím si pořiďte **výpis do dokumentace**.
 
 
