@@ -341,6 +341,10 @@ Pacient i jeho blízcí si údaje od lékaře zkopírují do vlastního telefonu
 
 - **Historie předání** (od 0.11.112): pod seznamem telefonů je rozbalovací řádek **Historie předání** – klepnutím se rozbalí tabulka všeho, co se s předáním dělo: kdy byl vydán kód (QR, 6místné číslo), odeslána SMS, kdy pacient Průkaz propojil a **pokaždé, když si údaje do Průkazu načetl** (s verzí plánu), i ukončení přístupu. Kdo to udělal a pro který telefon. U propojení a každého načtení je řádek **Co bylo předáno** – klepnutím se ukáže přesně to, co odešlo do Průkazu: verze plánu, cíl péče, limitace a DVP, diagnózy, alergie, léky (SOS, opioidy, paliativní terapie – z PéčeDoma, nebo z plánu), kontakty, tým a garant (od 0.11.113; u dřívějších předání dovozeno z verze plánu platné v tu chvíli). Historie je jen pro doplňování – nejde upravit ani smazat.
 
+  **Hledání v historii** (od 0.11.115): pole nad tabulkou hledá ve všem – datum (např. *16.11.2026*), telefon, kdo, co se stalo, i v tom, **co bylo předáno** (diagnóza, lék, alergie, kontakt). Víc slov = musí platit všechna, na diakritice a velkých písmenech nezáleží. Když slovo najde jen v obsahu předání, ten se u nalezeného řádku sám rozbalí.
+
+![Hledání v historii předání](/napoveda/img/c-historie-hledani.png)
+
 ![Historie předání do Průkazu pacienta](/napoveda/img/c-historie-predani.png)
 
 - Dřívější aplikace **Můj průkaz** (`/pacient/`) je od 0.11.111 zrušená; její odkaz otevře stránku s odkazem na Průkaz pacienta.

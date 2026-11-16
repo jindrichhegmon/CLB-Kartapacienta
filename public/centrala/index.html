@@ -110,7 +110,7 @@ S.hledat = {};
 /* pacient v domově seniorů (0.11.16): podle pracoviště typu DOMOV v týmu kolem pacienta, jinak podle textu pobytu */
 const vDomove = (p, tym) => { const t = (tym || []).find((x) => x.typ === 'DOMOV'); if (t) return t.nazev; if (p && p.domov) return p.domov; return /domov|dps\b|senior|pobytov|ldn\b/i.test(String((p && p.pobyt) || '')) ? '' : null; };
 const domovChip = (nazev) => nazev === null ? '' : `<span class="chip dom" title="Pacient je v domově seniorů / pobytové službě">🏠 domov seniorů${nazev ? ' · ' + esc(nazev) : ''}</span>`;
-const hledatHTML = (klic, placeholder = 'Hledat…') => `<input class="hledat" id="hl_${klic}" value="${esc(S.hledat[klic] || '')}" placeholder="${esc(placeholder)}" autocomplete="off"><span class="hledat-pocet" id="hlp_${klic}"></span>`;
+const hledatHTML = (klic, placeholder = 'Hledat…') => `<input class="hledat" id="hl_${klic}" value="${esc((S.hledat || {})[klic] || '')}" placeholder="${esc(placeholder)}" autocomplete="off"><span class="hledat-pocet" id="hlp_${klic}"></span>`;
 function bindHledani(klic, radky) {
   const el = $('hl_' + klic); if (!el) return;
   const filtruj = () => {
@@ -828,10 +828,32 @@ function obsahPredaniHTML(o) {
 function historiePredaniHTML(d) {
   const h = (d.predani || []).filter((x) => x.akce !== 'synchronizace zápisů');
   const nacteni = h.filter((x) => /spárován|načteny/.test(x.akce)).length;
-  return `<details class="historie-predani"><summary><b>Historie předání</b> <span class="chip">${h.length}</span>${nacteni ? ` <span class="chip ok">${nacteni}× předáno</span>` : ''}${h[0] ? ` <span class="muted" style="font-size:12.5px">naposledy ${esc(fmtDT(h[0].cas))}</span>` : ''}</summary>
-    ${h.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Kdy</th><th>Co</th><th>Telefon</th><th>Kdo</th></tr></thead><tbody>${h.map((x) => `<tr><td class="mono" style="white-space:nowrap;font-size:12.5px">${esc(fmtDT(x.cas))}</td>
-      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail ? `<div class="lbl">${esc(x.detail)}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>${x.obsah ? `<tr class="obsah-radek"><td colspan="4">${obsahPredaniHTML(x.obsah)}</td></tr>` : ''}`).join('')}</tbody></table></div>`
+  // 0.11.115: každé předání je vlastní <tbody> (řádek + Co bylo předáno) – fulltext hledá i v obsahu; data-hl = datum i bez mezer, číslo telefonu bez +420
+  const doplnek = (x) => { const c = String(x.cas || ''); const dmy = c.length >= 10 ? `${Number(c.slice(8, 10))}.${Number(c.slice(5, 7))}.${c.slice(0, 4)}` : ''; return `${c} ${dmy} ${String(x.telefon || '').replace(/^\+420/, '')} ${x.akce}`; };
+  return `<details class="historie-predani"${S.hledat && S.hledat.predani ? ' open' : ''}><summary><b>Historie předání</b> <span class="chip">${h.length}</span>${nacteni ? ` <span class="chip ok">${nacteni}× předáno</span>` : ''}${h[0] ? ` <span class="muted" style="font-size:12.5px">naposledy ${esc(fmtDT(h[0].cas))}</span>` : ''}</summary>
+    ${h.length ? `<div class="row" style="padding:2px 14px 10px">${hledatHTML('predani', 'Hledat v historii – datum, telefon, kdo, diagnóza, lék, kontakt…')}</div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Kdy</th><th>Co</th><th>Telefon</th><th>Kdo</th></tr></thead>${h.map((x) => `<tbody class="hp" data-hl="${esc(doplnek(x))}"><tr><td class="mono" style="white-space:nowrap;font-size:12.5px">${esc(fmtDT(x.cas))}</td>
+      <td><b>${esc(PREDANI_NAZ[x.akce] || x.akce)}</b>${x.detail ? `<div class="lbl">${esc(x.detail)}</div>` : ''}</td><td>${esc(x.stitek || '')}${x.telefon ? `<div class="lbl mono">${esc(x.telefon)}</div>` : ''}</td><td>${esc(x.kdo || '')}</td></tr>${x.obsah ? `<tr class="obsah-radek"><td colspan="4">${obsahPredaniHTML(x.obsah)}</td></tr>` : ''}</tbody>`).join('')}</table></div>
+    <div class="muted hp-nic" hidden style="padding:8px 14px 12px">Nic neodpovídá hledání.</div>`
       : '<div class="muted" style="padding:8px 14px 12px">Zatím nic nepředáno.</div>'}</details>`;
+}
+/* 0.11.115: fulltext v historii předání – všechna slova (bez ohledu na diakritiku a velikost); shoda jen v obsahu rozbalí Co bylo předáno */
+function bindHledaniPredani() {
+  const el = $('hl_predani'); if (!el) return;
+  const filtruj = () => {
+    const slova = bezDia(el.value).split(/\s+/).filter(Boolean); S.hledat.predani = el.value;
+    let vidim = 0, celkem = 0;
+    document.querySelectorAll('.historie-predani tbody.hp').forEach((tb) => {
+      celkem++;
+      const ok = slova.every((w) => bezDia(tb.textContent + ' ' + (tb.dataset.hl || '')).includes(w));
+      tb.hidden = !ok; if (ok) vidim++;
+      const det = tb.querySelector('.obsah-predani');
+      if (det && ok && slova.length) det.open = !slova.every((w) => bezDia(tb.rows[0].textContent + ' ' + (tb.dataset.hl || '')).includes(w));
+    });
+    const p = $('hlp_predani'); if (p) p.textContent = slova.length ? `${vidim} z ${celkem}` : '';
+    const nic = document.querySelector('.historie-predani .hp-nic'); if (nic) nic.hidden = !(slova.length && !vidim);
+  };
+  el.oninput = filtruj; filtruj();
 }
 /* panel vlastních telefonů pacienta (Průkaz pacienta) – plná Karta i jednoduchý režim */
 function predaniPanel(d, vlastni) {
@@ -971,6 +993,7 @@ function bindTab() {
   on('vymenaTel', () => { const z = d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon && x.nahrazeno) || d.zarizeni.find((x) => x.stav === 'SPAROVANO' && x.rezim !== 'PACIENT' && x.telefon); if (z) vymenaTelefonuOkno(z.telefon); });
   on('pacientovi', () => pacientoviOkno());
   on('predatPrukaz', () => pacientoviOkno());
+  bindHledaniPredani();
   document.querySelectorAll('[data-pobnovit]').forEach((b) => (b.onclick = () => obnovitOkno(Number(b.dataset.pobnovit))));
   document.querySelectorAll('[data-pukoncit]').forEach((b) => (b.onclick = async () => { if (await KP.confirm('Ukončit přístup pacienta', 'Data od lékaře se v telefonu pacienta přestanou aktualizovat. Co už pacient má, je jeho kopie – smazat ji nelze. Vlastní záznamy pacienta zůstanou v jeho telefonu.', 'Ukončit přístup', true)) akce('/zarizeni', { zarizeniId: Number(b.dataset.pukoncit), akce: 'zablokovat' }, 'Přístup ukončen'); }));
   if ($('linkaPanel')) linkaNacti();

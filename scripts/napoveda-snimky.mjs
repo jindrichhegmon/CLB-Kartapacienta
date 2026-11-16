@@ -831,6 +831,14 @@ if (!(await p.textContent('.historie-predani')).includes('Pacient načetl údaje
 await klik(p, '.historie-predani .obsah-predani summary'); await p.waitForTimeout(200);
 if (!(await p.textContent('.historie-predani .obsah-predani')).includes('MST Continus')) chyby.push('historie předání: Co bylo předáno neukazuje léky');
 await foto(p, 'c-historie-predani');
+// 0.11.115: fulltext v historii předání – i v obsahu předání (lék), bez diakritiky
+await p.fill('#hl_predani', 'mst continus'); await p.waitForTimeout(200);
+const hpVidet = await p.$$eval('.historie-predani tbody.hp', (t) => t.filter((x) => !x.hidden).length);
+if (hpVidet !== 1 || !(await p.$eval('.historie-predani tbody.hp:not([hidden]) .obsah-predani', (d) => d.open))) chyby.push('historie předání: hledání léku nenašlo právě jedno předání s rozbaleným obsahem (' + hpVidet + ')');
+await p.fill('#hl_predani', 'ukazkova sms'); await p.waitForTimeout(200);
+if ((await p.$$eval('.historie-predani tbody.hp', (t) => t.filter((x) => !x.hidden).length)) !== 1) chyby.push('historie předání: hledání „ukazkova sms“ nenašlo odeslání SMS');
+await foto(p, 'c-historie-hledani');
+await p.fill('#hl_predani', ''); await p.waitForTimeout(100);
 if (!(await p.textContent('#tabbody')).includes('od posledního předání')) chyby.push('předání: u propojeného Průkazu chybí, že se údaje od posledního předání změnily');
 await klik(p, '[data-pobnovit="9"]'); await p.waitForSelector('#ob_ok'); await p.waitForTimeout(200);
 await foto(p, 'c-obnovit-prukaz');
