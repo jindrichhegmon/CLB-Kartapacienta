@@ -533,7 +533,8 @@ await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam tabl
   await p.check('#pr_bez'); await p.waitForFunction(() => !document.getElementById('pr_radky').textContent.includes('zobrazení průkazu'), null, { timeout: 3000 }).catch(() => chyby.push('přístupy: Skrýt pouhá zobrazení nefunguje'));
   await p.fill('#pr_q', 'MST'); await p.waitForFunction(() => /z 2\d\b/.test(document.getElementById('pr_pocet').textContent), null, { timeout: 3000 }).catch(() => chyby.push('přístupy: hledání nezúžilo výsledky'));
   await p.waitForTimeout(200); await foto(p, 'c-pristupy', { vyska: 900 });
-  await p.fill('#pr_q', ''); await p.uncheck('#pr_bez'); await p.waitForTimeout(500); }
+  await p.fill('#pr_q', ''); await p.uncheck('#pr_bez'); await p.waitForTimeout(500);
+  await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); }
 await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.selectOption('#lk_t', 'ZACHRANNA'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce');
 // 0.11.124: našeptávač ze seznamu SÚKL (jako Průkaz pacienta)
 await p.focus('#lk_n'); await p.type('#lk_n', 'Para', { delay: 30 });
