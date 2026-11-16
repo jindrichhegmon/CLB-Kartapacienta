@@ -13,9 +13,12 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "@tesseract.js-data/ces": "^1.0.0",
     "dotenv": "^16.6.1",
     "express": "^4.22.3",
     "mssql": "^11.0.2",
-    "pdfjs-dist": "^4.10.38"
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^7.0.0"
   }
 }

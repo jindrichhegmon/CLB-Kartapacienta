@@ -43,7 +43,7 @@ const VZORY = [
   // telefon (CZ/SK, s předvolbou i bez)
   { typ: 'TELEFON', re: /(?:(?:\+|00)?42[01][\s-]?)?(?<!\d)[1-9]\d{2}[\s-]?\d{3}[\s-]?\d{3}(?!\d)/g },
   // datum 9. 10. 2026, 9.10.26, 2026-10-09
-  { typ: 'DATUM', re: /(?<!\d)(?:\d{1,2}\.\s?\d{1,2}\.\s?(?:\d{4}|\d{2})|\d{4}-\d{2}-\d{2})(?!\d)/g },
+  { typ: 'DATUM', re: /(?<!\d)(?:\d{1,2}\.\s?\d{1,2}\.\s?(?:\d{4}|\d{2})|\d{4}-\d{2}-\d{2}|\d{1,2}-\d{1,2}-\d{4})(?!\d)/g },   // 0.11.122: i 02-11-2026 (Medistar „Datum a čas“)
   // IČP / IČO (8 číslic)
   { typ: 'ICP', re: /(?<!\d)\d{8}(?!\d)/g },
   // PSČ + obec (nahrazuje se jen ve spojení „PSČ Obec“, ne čísla dávek)
@@ -53,11 +53,12 @@ const VZORY = [
 ];
 
 // titul + jméno lékaře / osoby
-const RE_TITUL = new RegExp(`\\b((?:MUDr|MDDr|Bc|Mgr|PhDr|Ing|prim|doc|prof|as)\\.\\s*|[Ss]estr[ayou]\\s+)((?:[${VELKE}][${MALE}]+\\s?){1,2})`, 'g');
+// 0.11.122: jméno jen v rámci řádku ([ \\t]) – jinak „…bez sestry⏎Diagnóza: …“ udělalo z nadpisu jméno (Medistar: pole pod sebou)
+const RE_TITUL = new RegExp(`\\b((?:MUDr|MDDr|Bc|Mgr|PhDr|Ing|prim|doc|prof|as)\\.\\s*|[Ss]estr[ayou][ \\t]+)((?:[${VELKE}][${MALE}]+[ \\t]?){1,2})`, 'g');
 // příbuzný + jméno
-const RE_PRIBUZNY = new RegExp(`(?<![\\p{L}])((?:[Ss]yn[aeiu]?|[Dd]cer[aeyou]|[Mm]anžel(?:ka|ky|ce|ovi)?|[Vv]nu(?:k|čka)|[Bb]ratr|[Oo]patrovní(?:k|ce)|[Ss]nacha|[Zz]eť|[Dd]ruh|[Dd]ružka|[Pp]artner(?:ka)?|[Tt]chán|[Tt]chyně|[Ss]ynovec|[Nn]eteř)\\s+)((?:[${VELKE}][${MALE}]+\\s?){1,2})`, 'gu');
+const RE_PRIBUZNY = new RegExp(`(?<![\\p{L}])((?:[Ss]yn[aeiu]?|[Dd]cer[aeyou]|[Mm]anžel(?:ka|ky|ce|ovi)?|[Vv]nu(?:k|čka)|[Bb]ratr|[Oo]patrovní(?:k|ce)|[Ss]nacha|[Zz]eť|[Dd]ruh|[Dd]ružka|[Pp]artner(?:ka)?|[Tt]chán|[Tt]chyně|[Ss]ynovec|[Nn]eteř)[ \\t]+)((?:[${VELKE}][${MALE}]+[ \\t]?){1,2})`, 'gu');
 // „Pacient: Jan NOVÁK, nar. 1944“ / „Pacientka …“
-const RE_PACIENT = new RegExp(`(Pacient(?:ka)?\\s*:?\\s*)((?:[${VELKE}][${VELKE}${MALE}]+\\s?){1,3})`, 'g');
+const RE_PACIENT = new RegExp(`(Pacient(?:ka)?[ \\t]*:?[ \\t]*)((?:[${VELKE}][${VELKE}${MALE}]+[ \\t]?){1,3})`, 'g');
 // rok narození
 const RE_NAR = /(nar\.|narozen[aá]?|r\.\s?nar\.)\s*(\d{4})/gi;
 

@@ -15,6 +15,7 @@ Vrať POUZE JSON bez komentáře v tomto tvaru:
 {"dg":"diagnózy jednou větou, oddělené středníkem",
  "alergie":"…nebo 'žádné známé'",
  "medikace":["lék dávka schéma", …],
+ "opioidy":["opioid dávka schéma (pravidelně podávaný)", …],
  "sos":["lék dávka cesta indikace", …],
  "funkce":"obvyklý funkční stav",
  "pobyt":"kam byl propuštěn",
@@ -47,31 +48,69 @@ async function zavolejClaude(text) {
 }
 
 /** Lokální heuristika (bez sítě) – stejný tvar výstupu jako AI. */
+const VELKE = 'A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ';
+const prvniSlovo = (x) => String(x).toLowerCase().replace(/^[-–•*\s]+/, '').split(/[\s.,]+/)[0];
+const prazdne = (x) => /^(sine|ne|není|nejsou|žádn[áéý]|0|-+|—)\.?$/i.test(String(x).trim());
+/** bez opakování podle prvního slova (název léku); ponechá poslední výskyt (terapie na konci zprávy je novější) */
+const bezOpakovani = (a) => a.filter((x, i) => !a.slice(i + 1).some((y) => prvniSlovo(y) === prvniSlovo(x)));
 export function lokalniRozbor(t) {
   const lines = t.split('\n').map((l) => l.trim());
-  const sekce = (nazvy) => {
-    const i = lines.findIndex((l) => nazvy.some((n) => l.toLowerCase().startsWith(n)));
-    if (i < 0) return [];
+  const jeNadpis = (l) => new RegExp(`^[${VELKE}][^:]{2,40}:`).test(l) || /^(MUDr|MDDr|Mgr|Bc|PhDr|Ing|prim\.)\b/i.test(l) || /^-{2,}/.test(l);
+  // jenKody: za textem na řádku nadpisu („Dg.: R52.1“) pokračují jen další řádky s kódem MKN, ne volný text zprávy
+  const sekceOd = (i, { jenKody = false } = {}) => {
     const out = [];
     // 0.11.120: text hned za nadpisem na stejném řádku („Dg.: C50.9 …, I50.0 …“ – zprávy z Medistaru)
     const zaNadpisem = lines[i].includes(':') ? lines[i].replace(/^[^:]*:\s*/, '').trim() : '';
     if (zaNadpisem) out.push(zaNadpisem);
-    for (let j = i + 1; j < lines.length; j++) { if (!lines[j]) break; if (/^[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][^:]{2,40}:/.test(lines[j]) || /^(MUDr|MDDr|Mgr|Bc|PhDr|prim\.)\b/i.test(lines[j])) break; out.push(lines[j]); }
+    for (let j = i + 1; j < lines.length; j++) {
+      if (!lines[j] || jeNadpis(lines[j])) break;
+      if (jenKody && zaNadpisem && !/^[A-TV-Z]\d{2}/.test(lines[j])) break;
+      out.push(lines[j]);
+    }
     return out;
+  };
+  const zacina = (l, nazvy) => nazvy.some((n) => l.toLowerCase().startsWith(n));
+  const sekce = (nazvy) => { const i = lines.findIndex((l) => zacina(l, nazvy)); return i < 0 ? [] : sekceOd(i); };
+  const vsechnySekce = (nazvy, o) => lines.flatMap((l, i) => (zacina(l, nazvy) ? sekceOd(i, o) : []));
+  // hodnota pole „Název: hodnota“ i uprostřed řádku (Medistar dává víc polí na řádek: „Pohyblivost: … Aktivita: …“)
+  const pole = (nazev) => {
+    const m = t.match(new RegExp(`(?:^|[\\s,;])${nazev}\\s*:[ \\t]*([^\\n]*)`, 'i'));
+    if (!m) return '';
+    return m[1].split(new RegExp(`\\s+(?=[${VELKE}][a-záčďéěíňóřšťúůýž -]{2,30}:)`))[0].trim().replace(/[.,;]$/, '');
   };
   const a = { chybi: [], citace: {} };
   const pb = t.match(/Propuštěn[ao]? do:\s*([^\n]+)/i); a.pobyt = pb ? pb[1].trim() : '';
-  // diagnózy i s kódem MKN (Karta k nim doplní popisy z číselníku); víc diagnóz na řádku oddělených čárkou před kódem
-  a.dg = sekce(['diagnózy', 'diagnozy', 'diagnóza', 'dg.', 'dg:']).flatMap((l) => l.split(/[,;]\s*(?=[A-TV-Z]\d{2})/)).map((l) => l.trim()).filter(Boolean).join('; ');
+  // diagnózy i s kódem MKN (Karta k nim doplní popisy z číselníku); víc diagnóz na řádku oddělených čárkou před kódem;
+  // ze všech míst zprávy (Medistar: „Dg.: R52.1“ nahoře a „Diagnóza: …“ slovy v Základních informacích)
+  const dgVse = vsechnySekce(['diagnózy', 'diagnozy', 'diagnóza', 'dg.', 'dg:'], { jenKody: true })
+    .flatMap((l) => l.split(/[,;]\s*(?=[A-TV-Z]\d{2})/)).map((l) => l.trim().replace(/\.$/, '')).filter((l) => l && !prazdne(l));
+  a.dg = dgVse.filter((x, i) => dgVse.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).join('; ');
   const al = t.match(/Alergie:\s*([^\n]+)/i); a.alergie = al ? al[1].trim() : '';
-  // léky: víc na řádku oddělených čárkou před názvem; řádky „při bolesti / v případě / SOS …“ jsou SOS medikace
-  const leky = sekce(['medikace při propuštění', 'medikace', 'terapie', 'chronická medikace']).flatMap((l) => l.split(/,\s*(?=[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž]+\s)/)).map((l) => l.trim()).filter(Boolean);
+  // léky: víc na řádku oddělených čárkou před názvem; řádky „při bolesti / v případě / SOS …“ jsou SOS medikace;
+  // 0.11.122: Medistar dekurz – přednost má „Chronická terapie“ (Ter.: na konci zprávy), seznamy s pomlčkami
+  const zdrojLeku = lines.some((l) => zacina(l, ['chronická terapie'])) ? sekce(['chronická terapie']) : sekce(['medikace při propuštění', 'medikace', 'terapie', 'chronická medikace']);
+  const leky = zdrojLeku.flatMap((l) => l.split(new RegExp(`,\\s*(?=[${VELKE}][A-Za-z${VELKE}áčďéěíňóřšťúůýž]+\\s)`))).map((l) => l.replace(/^[-–•*]\s*/, '').trim()).filter((l) => l && !prazdne(l));
   const jeSos = (l) => /^(při\s|v případě|dle potřeby|SOS\b)/i.test(l);
-  a.medikace = leky.filter((l) => !jeSos(l));
-  const sos = t.match(/SOS medikace:\s*([^\n]+)/i);
-  a.sos = [...(sos ? sos[1].split(/,\s*(?=[a-záčďéěíňóřšťúůýž]+\s\d)/i).map((x) => x.trim()) : []), ...leky.filter(jeSos), ...lines.filter((l) => /^(při bolesti|při dušnosti|při neklidu|při zvracení)\b/i.test(l) && !leky.includes(l))];
+  // opioidy: „Opioidy: …“ (Základní informace) a „Analgetická terapie: …“ (Ter.:)
+  a.opioidy = bezOpakovani([...t.matchAll(/^[ \t]*(?:Opioidy|Analgetická terapie|Analgetika)[ \t]*:[ \t]*([^\n]*)/gim)].map((m) => m[1].trim()).filter((x) => x && !prazdne(x)));
+  a.medikace = bezOpakovani(leky.filter((l) => !jeSos(l))).filter((l) => !a.opioidy.some((o) => prvniSlovo(o) === prvniSlovo(l)));
+  // SOS medikace: na stejném řádku, nebo (Medistar „SOS Medikace:“ bez textu) na řádku pod ním
+  const sosRadky = lines.flatMap((l, i) => {
+    const m = l.match(/^[S5][O0][S5]\s*medikace\s*:\s*(.*)$/i);   // OCR čte „SOS“ i jako „SO5“ / „505“
+    if (!m) return [];
+    const v = m[1].trim() || (lines[i + 1] && !jeNadpis(lines[i + 1]) ? lines[i + 1] : '');
+    return v && !prazdne(v) ? v.split(/,\s*(?=[a-záčďéěíňóřšťúůýž]+\s\d)/i).map((x) => x.trim()) : [];
+  });
+  a.sos = bezOpakovani([...sosRadky, ...leky.filter(jeSos), ...lines.filter((l) => /^(při bolesti|při dušnosti|při neklidu|při zvracení)\b/i.test(l) && !leky.includes(l))]);
   const fs = t.match(/Funkční stav:\s*([^\n]+)/i); a.funkce = fs ? fs[1].trim() : '';
-  const cilS = (t.match(/[^.\n]*(nepřeje|resuscit|ventilátor|cíl[eů]? péče|paliativ|symptomatick)[^.\n]*\./i) || [''])[0];
+  if (!a.funkce) {   // Medistar: PPS a pole z hodnocení (Pohyblivost, Soběstačnost, Co pacient zvládne)
+    const pps = (t.match(/PPS[\s\-–—]*Hodnocení\s*:\s*(\d{1,3})/i) || [])[1];   // „-- PPS --“ (OCR i „—-“)
+    const male = (x) => x.charAt(0).toLowerCase() + x.slice(1);
+    a.funkce = [pps ? `PPS ${pps} %` : '', ...[['Pohyblivost', 'pohyblivost'], ['Soběstačnost', 'soběstačnost'], ['Co pacient zvládne', 'zvládne']]
+      .map(([n, k]) => { const v = pole(n); return v ? `${k}: ${male(v)}` : ''; })].filter(Boolean).join('; ');
+  }
+  // citace cíle péče – ne z hlavičky zařízení („Centrum … paliativní medicínu s.r.o.“)
+  const cilS = (lines.filter((l) => !/IČO|s\.r\.o\.|o\.p\.s\.|příspěvková/i.test(l)).join('\n').match(/[^.\n]*(nepřeje|resuscit|ventilátor|cíl[eů]? péče|paliativ|symptomatick)[^.\n]*\./i) || [''])[0];
   a.citace.cil = cilS.trim();
   a.limity = [];
   if (/resuscit|KPR|DNR/i.test(t)) a.limity.push('KPR');
@@ -79,9 +118,12 @@ export function lokalniRozbor(t) {
   if (/hospitalizaci jen|bez hospitalizac|další hospitalizac/i.test(t)) a.limity.push('Hospitalizace');
   a.cil = /symptomatick|komfort|paliativní péč/i.test(t) ? 'symptom' : (a.limity.length ? 'limited' : 'full');
   const dvp = /dříve vyslovené přání/i.test(t) && !/nebylo sepsáno|není sepsáno/i.test(t);
-  a.doklad = { dvp, datum: '', zprava: (t.split('\n')[0] || '').trim() };
+  const typ = pole('Typ vyšetření');
+  a.doklad = { dvp, datum: '', zprava: typ ? `Medistar – ${typ}` : (t.split('\n')[0] || '').trim() };
   a.kontakty = [...t.matchAll(/(syn|dcera|manžel(?:ka)?|opatrovník)\s+(\[OSOBA_\d+\]|[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][^,\n]+?),\s*tel\.?\s*(\[TELEFON_\d+\]|[\d ]{9,})/gi)]
     .map((m) => ({ jmeno: `${m[2].trim()}, ${m[1].toLowerCase()}`, tel: m[3].trim(), skupina: /opatrovník/i.test(m[1]) ? 'ROZHODUJE' : 'INFORMOVAT' }));
+  const pecujici = pole('Jméno a příjmení pečující osoby') || pole('Pečující osoba');
+  if (pecujici && !/\d{3}|TELEFON/.test(pecujici) && !a.kontakty.length) a.chybi.push(`Pečující osoba (${pecujici}) je ve zprávě bez jména a telefonu – doplňte ji v Kontaktech.`);
   if (!dvp) a.chybi.push('Dříve vyslovené přání není sepsáno. Bez něj je limitace pro ZZS jen informací; doporučeno sepsat s úředně ověřeným podpisem.');
   if (!/opatrovník|určená osoba|zástupn/i.test(t)) a.chybi.push('Ve zprávě není určena osoba pro zástupné rozhodování.');
   if (!a.funkce) a.chybi.push('Chybí popis obvyklého funkčního stavu.');

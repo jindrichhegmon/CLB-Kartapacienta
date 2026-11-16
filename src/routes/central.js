@@ -5,7 +5,7 @@
  */
 import { Router } from 'express';
 import { createHash } from 'node:crypto';
-import { textZPdf } from '../pdftext.js';
+import { textZeZpravy } from '../pdftext.js';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
@@ -1189,6 +1189,7 @@ async function rozborALog(q, s, t, znamo, ucel = 'rozbor zprávy') {
   return r;
 }
 /* 0.11.120: rozbor zprávy uložené u pacienta (PDF s textovou vrstvou, např. z Medistaru) – text z PDF → anonymizace → AI (nebo lokální rozbor)
+   0.11.122: PDF bez textu (Medistar přes „Microsoft Print to PDF“, sken) a fotka JPG/PNG → rozpoznání textu (OCR) přímo na serveru
    → návrh diagnóz, alergií, léků a funkčního stavu. Nic se neukládá: centrála ukáže návrh ke kontrole a lékař / sestra ho uloží jako novou verzi plánu. */
 central.post('/pacient/:id/dokument/:did/rozbor', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
@@ -1196,13 +1197,14 @@ central.post('/pacient/:id/dokument/:did/rozbor', sUzivatelem(async (q, s, req) 
   omez('rozbor:' + s.uzivatelId, 40, 3600e3);
   const d = await q.one(`SELECT DokumentID, Nazev, MimeType, Obsah FROM dbo.A_KP_Dokument WHERE DokumentID = @d AND PacientID = @p`, { d: cislo(req.params.did), p: id });
   if (!d || !d.Obsah) throw chyba('Dokument nemá přiložený soubor', 404);
-  if (d.MimeType !== 'application/pdf') throw chyba('Rozebrat jde jen zprávu v PDF s textem (u fotky nebo skenu opište text v průvodci Nový pacient)');
-  let t = '';
-  try { t = await textZPdf(d.Obsah); } catch (e) { throw chyba('PDF se nepodařilo přečíst: ' + String(e.message || e).slice(0, 120)); }
-  if (t.replace(/\s/g, '').length < 40) throw chyba('PDF neobsahuje text (je to sken nebo fotka) – rozebrat ho nejde; údaje doplňte ručně');
+  if (!['application/pdf', 'image/jpeg', 'image/png'].includes(d.MimeType)) throw chyba('Rozebrat jde zprávu v PDF nebo fotku zprávy (JPG, PNG)');
+  let z;
+  try { z = await textZeZpravy(d.Obsah, d.MimeType); } catch (e) { throw chyba('Zprávu se nepodařilo přečíst: ' + String(e.message || e).slice(0, 120)); }
+  const t = z.text;
+  if (t.replace(/\s/g, '').length < 40) throw chyba(z.ocr ? 'Ve zprávě se nepodařilo rozpoznat text (nečitelný sken nebo fotka) – údaje doplňte ručně' : 'Zpráva neobsahuje text – údaje doplňte ručně');
   const r = await rozborALog(q, s, t.slice(0, 60000), await znamoPacienta(q, id, { telefony: [], osoby: [] }), 'rozbor dokumentu');
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu (AI)', detail: `${d.Nazev} · ${r.blokovano ? 'zablokováno anonymizací' : r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
-  return { ...r, dokument: { id: d.DokumentID, nazev: d.Nazev } };
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu (AI)', detail: `${d.Nazev} · ${z.ocr ? `text rozpoznán z obrázku (OCR, ${z.stran} str.) · ` : ''}${r.blokovano ? 'zablokováno anonymizací' : r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
+  return { ...r, ocr: z.ocr, stran: z.stran || null, dokument: { id: d.DokumentID, nazev: d.Nazev } };
 }));
 
 /* ---------------- lidé a týmy pracovišť (zapíší se jednou, k pacientovi se přiřazují) ---------------- */

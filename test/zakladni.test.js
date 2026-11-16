@@ -167,3 +167,37 @@ test('zpráva v PDF (0.11.120): text z PDF a lokální rozbor formátu Medistaru
   assert.deepEqual(r.sos, ['Při bolesti Morphin 10 mg s.c.']);
   assert.ok(!r.medikace.some((x) => /MUDr/.test(x)), 'podpis lékaře není lék');
 });
+
+test('Medistar dekurz (0.11.122): diagnózy, opioidy, chronická terapie, SOS a funkční stav; anonymizace nebere nadpisy jako jména', async () => {
+  const { anonymizuj } = await import('../src/anonym.js');
+  const { slozStranky } = await import('../src/pdftext.js');
+  const surovy = fs.readFileSync(new URL('./zprava-medistar-dekurz.txt', import.meta.url), 'utf8');   // smyšlený dekurz
+  const t = slozStranky(surovy.split(/^\d\n/m));
+  assert.equal((t.match(/IČO: 12345678/g) || []).length, 1, 'hlavička zařízení na další straně vynechána');
+  const a = anonymizuj(t, { jmeno: 'Jan', prijmeni: 'Testovací', rc: '450101/123' });
+  assert.match(a.text, /\nDiagnóza: Chronická/, '„…bez sestry⏎Diagnóza:“ není jméno');
+  assert.match(a.text, /\nZodpovědný lékař:/, '„Dcera⏎Zodpovědný“ není jméno');
+  assert.doesNotMatch(a.text, /02-11-2026|Testovací|450101/);
+  const r = lokalniRozbor(a.text);
+  assert.equal(r.dg, 'R52.1; Chronická obstrukční plicní nemoc, srdeční selhání');
+  assert.deepEqual(r.opioidy, ['Oxycontin 20 mg 1-0-1']);
+  assert.deepEqual(r.medikace, ['Furosemid 40 mg 1-0-0', 'Berodual inh. 2-2-2'], 'chronická terapie, bez opioidu a bez opakování');
+  assert.deepEqual(r.sos, ['Novalgin tbl. při bolesti 3-4 x denně']);
+  assert.equal(r.funkce, 'PPS 40 %; pohyblivost: převážně na lůžku; soběstačnost: nutná pomoc s většinou činností');
+  assert.equal(r.citace.cil, 'Probíhá zajištění komplexní paliativní péče MDT.');
+  assert.ok(r.chybi.some((x) => /Pečující osoba \(Dcera\)/.test(x)));
+});
+
+test('PDF bez textové vrstvy (Microsoft Print to PDF, sken): text se rozpozná OCR přímo na serveru', { timeout: 120000 }, async () => {
+  const { textZeZpravy, ukonciOcr } = await import('../src/pdftext.js');
+  let z;
+  try { z = await textZeZpravy(fs.readFileSync(new URL('./zprava-medistar-bez-textu.pdf', import.meta.url)), 'application/pdf'); }   // smyšlený dekurz jako obrázek
+  finally { await ukonciOcr(); }
+  assert.equal(z.ocr, true);
+  assert.equal(z.stran, 2);
+  const r = lokalniRozbor(z.text);
+  assert.match(r.dg, /R52\.1/);
+  assert.deepEqual(r.opioidy, ['Oxycontin 20 mg 1-0-1']);
+  assert.ok(r.medikace.some((x) => /^Furosemid 40 mg/.test(x)));
+  assert.ok(r.sos.some((x) => /^Novalgin/.test(x)));
+});
