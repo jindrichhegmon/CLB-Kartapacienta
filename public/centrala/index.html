@@ -131,6 +131,15 @@ const smiZakladat = () => jeLekar() || (S.jednoduchy && !!S.ja && S.ja.role.some
 /* 0.11.117: baterie telefonu s kartou – pod 15 % výrazně červeně orámovaná (vybitý telefon), pod 20 % oranžově */
 const BATERIE_VYBITA = 15;
 const baterieHTML = (b, popis = '') => (b == null ? '' : b < BATERIE_VYBITA ? `<span class="baterie-vybita" title="Vybitý telefon u pacienta – připojte nabíječku">🔋 ${b} %${popis ? ' ' + popis : ''}</span>` : b < 20 ? `<span class="chip warn">🔋 ${b} %</span>` : `<span class="muted" style="font-size:12px">${b} %</span>`);
+/* 0.11.121: výrazné načítání – kolečko, text a běžící pruh; po 4 s „Ještě chvilku…“, po 15 s rada při pomalém připojení */
+const nacitamHTML = (text = 'Načítám…') => `<div class="nacitam" role="status" aria-live="polite"><span class="nac-kolo" aria-hidden="true"></span><div class="nac-t"><b>${esc(text)}</b><span class="nac-pod">Chvilku strpení, data se načítají ze serveru.</span></div><div class="nac-pruh" aria-hidden="true"><i></i></div></div>`;
+let nacCas1 = null, nacCas2 = null;
+new MutationObserver(() => {
+  clearTimeout(nacCas1); clearTimeout(nacCas2);
+  if (!document.querySelector('.nacitam')) return;
+  nacCas1 = setTimeout(() => document.querySelectorAll('.nacitam .nac-pod').forEach((e) => { e.textContent = 'Ještě chvilku…'; }), 4000);
+  nacCas2 = setTimeout(() => document.querySelectorAll('.nacitam .nac-pod').forEach((e) => { e.textContent = 'Trvá to déle než obvykle – zkontrolujte připojení; když se nic nezmění, načtěte stránku znovu.'; }), 15000);
+}).observe(document.documentElement, { childList: true, subtree: true });
 const ROLE_NAZ = { admin: 'správce', lekar: 'lékař', sestra: 'sestra', ctenar: 'jen čtení' };
 const TYM_NAZ = { GARANT: 'garant', PECE: 'péče', LEKAR: 'lékař', HOST: 'host (čtení)' };
 
@@ -249,7 +258,7 @@ const MISTA_SEZ = [['', 'Vše'], ['doma', '🏠 Doma'], ['ds', '🏢 DS'], ['hos
    Data z /api/c/prehled (stejná jako agenda) – nic navíc z databáze. Dlaždice (stav = ikona + text, barva jen doplňuje),
    sloupcové přehledy jednou barvou (délka = počet; popisek a číslo vždy textem), klik vede do agendy s filtrem. ---- */
 async function renderDashboard() {
-  $('work').innerHTML = `${nav()}<div class="note">Načítám přehled…</div>`; bindNav();
+  $('work').innerHTML = `${nav()}${nacitamHTML('Načítám přehled pacientů…')}`; bindNav();
   let d; try { d = await C('/prehled?stav=AKTIVNI'); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
   const P = d.pacienti, n = P.length, ted = Date.now();
   const cas = (x) => (x ? new Date(String(x).replace(' ', 'T')).getTime() : 0);
@@ -318,7 +327,7 @@ async function renderDashboard() {
 }
 async function renderPacienti(dCache) {
   if (!dCache && S.pacView !== 'agenda') return renderDashboard();   // 0.11.90: Pacienti začínají přehledem
-  if (!dCache) { $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav(); }
+  if (!dCache) { $('work').innerHTML = `${nav()}${nacitamHTML('Načítám agendu pacientů…')}`; bindNav(); }
   let d = dCache; if (!d) try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
   const vsichni = d.pacienti; if (S.misto === undefined) { try { S.misto = localStorage.getItem('kp_misto') || ''; } catch { S.misto = ''; } }
   const pocty = {}; vsichni.forEach((p) => { const k = mistoKat(mistoPac(p)); pocty[k] = (pocty[k] || 0) + 1; });
@@ -363,7 +372,7 @@ function otevri(id, tab) { if (S.pacId !== id) zavriNahled(); S.view = 'detail';
 /* ================= detail pacienta ================= */
 async function nactiDetail() { const d = await C('/pacient/' + S.pacId); d.denikAsc = [...d.denik].reverse(); S.pac = d; return d; }
 async function renderDetail() {
-  $('work').innerHTML = `${nav()}<div class="note">Načítám průkaz…</div>`; bindNav();
+  $('work').innerHTML = `${nav()}${nacitamHTML('Načítám průkaz pacienta…')}`; bindNav();
   let d; try { d = await nactiDetail(); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
   kresliDetail();
 }
@@ -1667,7 +1676,7 @@ const tymNazev = (t) => t;   // od 0.10.0 se tým jmenuje tak, jak je založený
 const seskup = (pole, klic) => pole.reduce((m, x) => { const k = klic(x); (m.get(k) || m.set(k, []).get(k)).push(x); return m; }, new Map());
 
 async function renderLide() {
-  $('work').innerHTML = `${nav()}<div class="note">Načítám…</div>`; bindNav();
+  $('work').innerHTML = `${nav()}${nacitamHTML('Načítám…')}`; bindNav();
   let d; try { d = await C('/lide'); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
   S.lide = d.lide; S.tymy = d.tymy || []; S.clenstvi = d.clenstvi || []; S.smsLide = d.smsDostupne;
   const spravuji = S.posk.filter((p) => p.aktivni && smiLidi(p.id));
@@ -2265,7 +2274,7 @@ function lidePanel(d) {
 async function renderSprava() {
   const tabs = S.jednoduchy ? [['uziv', 'Uživatelé'], ['nast', 'Nastavení']] : [['posk', 'Pracoviště'], ['uziv', 'Uživatelé'], ['zar', 'Telefony'], ['audit', 'Log přístupů a AI'], ['nast', 'Nastavení']];   // 0.11.111
   if (!tabs.some(([k]) => k === S.sTab)) S.sTab = tabs[0][0];
-  $('work').innerHTML = `${nav()}<div class="tabs">${tabs.map(([k, n]) => `<button data-st="${k}" class="${S.sTab === k ? 'on' : ''}">${n}</button>`).join('')}</div><div id="sbody"><div class="note">Načítám…</div></div>`;
+  $('work').innerHTML = `${nav()}<div class="tabs">${tabs.map(([k, n]) => `<button data-st="${k}" class="${S.sTab === k ? 'on' : ''}">${n}</button>`).join('')}</div><div id="sbody">${nacitamHTML('Načítám správu organizace…')}</div>`;
   bindNav();
   document.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { S.sTab = b.dataset.st; renderSprava(); }));
   try { await ({ posk: spravaPosk, uziv: spravaUziv, zar: spravaZar, audit: spravaAudit, nast: spravaNast }[S.sTab])(); } catch (e) { $('sbody').innerHTML = `<div class="banner crit">${esc(e.message)}</div>`; }

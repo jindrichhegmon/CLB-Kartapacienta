@@ -285,6 +285,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .prog .st.ok{border-color:var(--ok);background:var(--ok)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.prog .st.run{animation:none}}
+/* 0.11.121: výrazné načítání (centrála, Karta v PéčeDoma) */
+.nacitam{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px 16px;margin:14px 0;padding:18px 20px 0;border:2px solid var(--accent);background:var(--accent-soft);border-radius:14px;overflow:hidden;box-shadow:0 4px 18px var(--stin)}
+.nacitam .nac-kolo{width:34px;height:34px;border-radius:50%;border:4px solid color-mix(in srgb,var(--accent) 22%,transparent);border-top-color:var(--accent);animation:nac-toc .8s linear infinite}
+.nacitam .nac-t{display:grid;gap:2px}
+.nacitam .nac-t b{font-size:17px;color:var(--accent-ink)}
+.nacitam .nac-pod{font-size:13px;color:var(--muted)}
+.nacitam .nac-pruh{grid-column:1/-1;height:4px;margin:12px -20px 0;background:color-mix(in srgb,var(--accent) 15%,transparent);position:relative;overflow:hidden}
+.nacitam .nac-pruh i{position:absolute;inset:0 auto 0 0;width:35%;background:var(--accent);border-radius:2px;animation:nac-pruh 1.3s ease-in-out infinite}
+@keyframes nac-toc{to{transform:rotate(360deg)}}
+@keyframes nac-pruh{0%{left:-35%}100%{left:100%}}
+@media (prefers-reduced-motion:reduce){.nacitam .nac-kolo,.nacitam .nac-pruh i{animation-duration:3s}}
 .ex{display:grid;gap:8px}
 .ex .item{display:grid;gap:4px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
 .ex .k{font-size:12px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center}

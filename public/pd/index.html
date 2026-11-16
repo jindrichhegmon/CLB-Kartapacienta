@@ -20,7 +20,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
 <body>
 <div class="app wide">
   <div class="pdhead" id="top"><img src="/icons/icon.svg" width="34" height="34" style="border-radius:9px" alt=""><div><h1 id="titul">Karta pacienta</h1><div class="meta" id="meta">otevřeno z PéčeDoma</div></div></div>
-  <main class="content pd" id="work"><div class="note">Načítám kartu…</div></main>
+  <main class="content pd" id="work"><div class="nacitam" role="status" aria-live="polite"><span class="nac-kolo" aria-hidden="true"></span><div class="nac-t"><b>Načítám kartu pacienta…</b><span class="nac-pod">Chvilku strpení, data se načítají ze serveru.</span></div><div class="nac-pruh" aria-hidden="true"><i></i></div></div></main>
 </div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
