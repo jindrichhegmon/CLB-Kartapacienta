@@ -1068,13 +1068,19 @@ central.get('/pacient/:id/leky', sUzivatelem(async (q, s, req) => {
 /* 0.11.123: původ léku vedeného v PéčeDoma – poslední zápis z Karty (audit „PéčeDoma: úprava léků“), jinak zapsáno v portálu PéčeDoma.
    0.11.124: zápis z rozboru zprávy má v auditu „· ze zprávy „dokument““ → štítek ze zprávy (i potvrzení léku, který už v PéčeDoma byl) */
 export const RE_AUDIT_LEKU = /^(přidán|upraven|potvrzen) (?:SOS lék|lék) (.+?)(?: · ze zprávy „(.+)“)?$/;
-async function puvodLekuPd(q, pacientId, leky) {
+export async function puvodLekuPd(q, pacientId, leky) {
   const a = await q.all(`SELECT Kdo AS kdo, CONVERT(char(16), Cas, 120) AS kdy, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND Akce = N'PéčeDoma: úprava léků' ORDER BY AuditID DESC`, { p: pacientId });
   const zKarty = a.map((x) => { const m = String(x.detail || '').match(RE_AUDIT_LEKU); return m ? { ...x, akce: m[1], lek: m[2].trim().toLowerCase(), dokument: m[3] || null } : null; }).filter(Boolean);
+  // 0.11.125: původ = kdo lék zapsal (ručně v Kartě / ze zprávy / v PéčeDoma); ověření zprávou zvlášť – lék zapsaný ručně
+  // a později potvrzený rozborem zprávy má štítek „zapsáno ručně“ i „ověřeno zprávou „dokument““
   return (leky || []).map((l) => {
     const t = `${l.nazev}${l.davka ? ' ' + l.davka : ''}`.trim().toLowerCase();
-    const z = zKarty.find((x) => x.lek === t);
-    return { ...l, puvod: z ? { zdroj: z.dokument ? 'zprava' : 'karta', dokument: z.dokument, kdo: z.kdo, kdy: z.kdy, akce: z.akce } : { zdroj: 'pecedoma', kdy: l.od || null } };
+    const shody = zKarty.filter((x) => x.lek === t);   // od nejnovějšího
+    const rucne = shody.find((x) => !x.dokument), zpr = shody.find((x) => x.dokument), zZpravy = shody.find((x) => x.dokument && x.akce !== 'potvrzen');
+    const z = rucne || zZpravy;   // stejný text zapsaný ručně = zapsal člověk (rozbor ho jen potvrdil nebo přesunul do skupiny); jinak ze zprávy
+    const puvod = z ? { zdroj: z.dokument ? 'zprava' : 'karta', dokument: z.dokument, kdo: z.kdo, kdy: z.kdy, akce: z.akce } : { zdroj: 'pecedoma', kdy: l.od || null };
+    if (zpr && puvod.zdroj !== 'zprava') puvod.overeno = { dokument: zpr.dokument, kdo: zpr.kdo, kdy: zpr.kdy };
+    return { ...l, puvod };
   });
 }
 /* 0.11.124: léky z rozboru zprávy do PéčeDoma (pacient propojený s PéčeDoma) – nové přidá, změněné upraví, shodné jen potvrdí

@@ -617,6 +617,7 @@ function tabLeky(d) {
       <div style="display:grid;gap:12px;align-content:start">
         <div class="note">Pacient je propojený s PéčeDoma, proto jsou léky jedny: totéž vidí a mění sestry v PéčeDoma (Data klienta → Léky), centrála Karty i telefon u pacienta a Můj průkaz. Změna se do telefonů dostane při nejbližší synchronizaci. Vyřazený lék se v PéčeDoma zneaktivní, historie zůstává.</div>
         ${pd.odkaz ? `<div class="quick"><a class="btn sm" href="${esc(pd.odkaz)}" target="_blank" rel="noopener">Otevřít PéčeDoma</a></div>` : ''}
+        ${overitLekyHTML(d)}
         <div class="panel"><div class="panel-h"><h2>Na krizové kartě</h2></div><div class="form" style="padding:14px">
           <div class="muted" style="font-size:13.5px">Karta ukazuje v dlaždici Medikace vždy <b>opioidy</b> a <b>SOS medikaci</b>. Ostatní léky z PéčeDoma (paliativní terapie) jen tehdy, když je to zatržené.</div>
           <label class="row" style="gap:8px"><input type="checkbox" id="lk_ter" ${p.terapieNaKarte ? 'checked' : ''} ${d.op.lekar ? '' : 'disabled'}> Ukazovat i <b>paliativní terapii</b></label>
@@ -643,6 +644,14 @@ async function nactiLeky(d) {
   const el = $('lk_seznam'); if (!el) return;
   try { const r = await C('/pacient/' + d.pacient.id + '/leky'); S.leky = r.leky || []; ukazLeky(d); }
   catch (e) { if ($('lk_seznam')) $('lk_seznam').innerHTML = `<div class="banner crit" style="margin:10px 14px">${esc(e.message)}</div>`; }
+}
+/* 0.11.125: ověřit léky podle zprávy – rozbor uloženého dokumentu (PDF, sken, fotka); shodné léky dostanou štítek „ověřeno zprávou“ */
+function overitLekyHTML(d) {
+  if (!d.op.zapis || !d.op.aktivni) return '';
+  const dok = (d.dokumenty || []).filter((x) => x.velikost && MIME_PRO_PACIENTA.includes(x.mime)).slice(0, 6);
+  return `<div class="panel"><div class="panel-h"><h2>Ověřit podle zprávy</h2></div><div style="padding:12px 14px;display:grid;gap:8px">
+    <div class="muted" style="font-size:13.5px">Karta zprávu přečte a porovná léky s PéčeDoma: shodné označí <b>ověřeno zprávou</b>, nové a změněné nabídne k zápisu.</div>
+    ${dok.length ? dok.map((x) => `<button class="btn sm" type="button" data-dokai="${x.id}" style="justify-content:flex-start;text-align:left">Rozebrat „${esc(x.nazev)}“${x.datum ? ' · ' + esc(fmtD(x.datum)) : ''}</button>`).join('') : '<div class="lbl">Zatím žádná zpráva – nahrajte ji v záložce Dokumenty.</div>'}</div></div>`;
 }
 function ukazLeky(d) {
   const el = $('lk_seznam'); if (!el) return;

@@ -142,6 +142,8 @@ Léky jsou ve čtyřech skupinách stejně jako v PéčeDoma: **SOS léky** (zá
 
 U každého léku je také štítek původu: u propojeného pacienta **zapsáno ručně v Kartě** (kdo a kdy lék v Kartě přidal nebo naposledy upravil) nebo **zapsáno v PéčeDoma** (lék zapsaný v portálu, s datem platnosti od); u nepropojeného pacienta stejně jako u diagnóz – **ze zprávy**, **zapsáno ručně** atd.
 
+**Ověřeno zprávou** (od 0.11.125): když lék, který někdo zapsal ručně nebo v PéčeDoma, potvrdí rozbor zprávy, přibude k němu zelený štítek **ověřeno zprávou „název dokumentu“** s časem a jménem toho, kdo rozbor uložil – původní štítek (kdo lék zapsal) zůstává. U propojeného pacienta je v záložce Léky vpravo panel **Ověřit podle zprávy** s tlačítkem **Rozebrat** u každé uložené zprávy (PDF, sken, fotka): otevře stejné okno jako v Dokumentech; v části *Léky do PéčeDoma* nechte zaškrtnuté řádky *v PéčeDoma stejně* a uložte.
+
 ![Léky – jedna agenda s PéčeDoma](/napoveda/img/c-leky.png)
 
 ![Přidání léku z Karty do PéčeDoma](/napoveda/img/c-leky-pridat.png)

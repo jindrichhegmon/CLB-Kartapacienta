@@ -280,7 +280,9 @@
     const e = KP.esc, tr = /zprava/.test(u.zdroj) ? 'zprava' : /pecedoma/.test(u.zdroj) ? 'pd' : 'rucne';
     const kdy = u.kdy ? (String(u.kdy).length > 10 ? KP.fmtDT(u.kdy) : (u.zdroj === 'pecedoma' ? 'od ' : '') + KP.fmtD(u.kdy)) : '';
     const dalsi = [u.verze ? 'plán v' + u.verze : '', kdy, u.kdo || ''].filter(Boolean).map(e).join(' · ');
-    return `<div class="puvod ${tr}"><span class="puvod-z">${e(KP.PUVOD_NAZ[u.zdroj] || u.zdroj)}${u.dokument ? ` „${e(u.dokument)}“` : ''}</span>${dalsi ? ` <span class="puvod-d">${dalsi}</span>` : ''}</div>`;
+    // 0.11.125: ověřeno zprávou – údaj zapsaný jinak (ručně, v PéčeDoma) potvrzený rozborem zprávy
+    const ov = u.overeno ? `<span class="puvod-ov">ověřeno zprávou${u.overeno.dokument ? ` „${e(u.overeno.dokument)}“` : ''}</span> <span class="puvod-d">${[u.overeno.kdy ? KP.fmtDT(u.overeno.kdy) : '', u.overeno.kdo || ''].filter(Boolean).map(e).join(' · ')}</span>` : '';
+    return `<div class="puvod ${tr}"><span class="puvod-z">${e(KP.PUVOD_NAZ[u.zdroj] || u.zdroj)}${u.dokument ? ` „${e(u.dokument)}“` : ''}</span>${dalsi ? ` <span class="puvod-d">${dalsi}</span>` : ''}${ov ? `<span class="puvod-zlom"></span>${ov}` : ''}</div>`;
   };
   KP.lekyRadky = (leky, muze) => {
     const e = KP.esc, sk = KP.SKUPINY_LEKU;

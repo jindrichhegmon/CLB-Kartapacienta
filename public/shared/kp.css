@@ -103,6 +103,9 @@ tr.vybito{outline:2px solid var(--crit);outline-offset:-2px}
 .puvod.zprava .puvod-z{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
 .puvod.pd .puvod-z{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
 .puvod .puvod-d{overflow-wrap:anywhere}
+.puvod .puvod-zlom{flex-basis:100%;height:0}
+.puvod .puvod-ov{display:inline-block;padding:0 7px;border-radius:999px;font-weight:700;font-size:11.5px;border:1px solid var(--ok);background:var(--ok-soft);color:var(--ok)}
+.puvod .puvod-ov::before{content:'';display:inline-block;width:7px;height:4px;border:solid currentColor;border-width:0 0 2px 2px;transform:rotate(-45deg) translateY(-2px);margin-right:5px}
 .dg-radky{display:grid;padding:6px 14px 10px}
 .dg-radek{padding:8px 0;border-bottom:1px solid var(--line)}
 .dg-radek:last-child{border-bottom:0}

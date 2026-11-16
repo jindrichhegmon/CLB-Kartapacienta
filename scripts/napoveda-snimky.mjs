@@ -233,7 +233,7 @@ let pdLeky = [
   { id: '1', typ: 'ZACHRANNA', nazev: 'Morphin', davka: '10 mg s.c.', instr: 'při bolesti nebo dušnosti, nejvýš po 4 h', popis: '', puvod: { zdroj: 'karta', kdo: 'MUDr. Petra Ukázková', kdy: cas(-7, '10:30'), akce: 'přidán' } },
   { id: '2', typ: 'ZACHRANNA', nazev: 'Midazolam', davka: '5 mg s.c.', instr: 'při neklidu', popis: '', puvod: { zdroj: 'pecedoma', kdy: den(-20) } },
   { id: '3', typ: 'OPIOID', nazev: 'MST Continus', davka: '30 mg 1-0-1', instr: '', popis: 'tableta proti bolesti ráno a večer', puvod: { zdroj: 'pecedoma', kdy: den(-20) } },
-  { id: '4', typ: 'PRAVIDELNA', nazev: 'Furosemid', davka: '40 mg 1-0-0', instr: '', popis: '' },
+  { id: '4', typ: 'PRAVIDELNA', nazev: 'Furosemid', davka: '40 mg 1-0-0', instr: '', popis: '', puvod: { zdroj: 'karta', kdo: 'Lucie Příkladná', kdy: cas(-20, '10:17'), akce: 'přidán', overeno: { dokument: 'Dekurz z Medistaru.pdf', kdo: 'MUDr. Petra Ukázková', kdy: cas(-7, '10:40') } } },
   { id: '5', typ: 'PRAVIDELNA', nazev: 'Lactulosa', davka: '15 ml 1-0-1', instr: '', popis: '' },
 ];
 app.get('/api/c/pacient/:id/leky', j({ zdroj: 'pecedoma', leky: pdLeky }));
@@ -516,6 +516,9 @@ await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); awa
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('dg', 'c-dg', { vyska: 900 });
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });
+{ const t = await p.textContent('#work');   // 0.11.125: ověřeno zprávou a rozbor zprávy přímo ze záložky Léky
+  if (!t.includes('ověřeno zprávou')) chyby.push('léky: chybí štítek „ověřeno zprávou“');
+  if (!t.includes('Ověřit podle zprávy') || !(await p.$('#work [data-dokai]'))) chyby.push('léky: chybí Ověřit podle zprávy s rozborem dokumentu'); }
 await klik(p, '#lk_novy'); await p.waitForSelector('#lk_save'); await p.selectOption('#lk_t', 'ZACHRANNA'); await p.fill('#lk_d', '1 g p.o.'); await p.fill('#lk_i', 'při horečce');
 // 0.11.124: našeptávač ze seznamu SÚKL (jako Průkaz pacienta)
 await p.focus('#lk_n'); await p.type('#lk_n', 'Para', { delay: 30 });

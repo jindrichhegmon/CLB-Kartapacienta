@@ -129,3 +129,20 @@ test('seznam léčiv SÚKL (0.11.124): stejná data jako Průkaz pacienta, hled�
   assert.deepEqual('potvrzen lék Palexia SR 150-0-50 · ze zprávy „Dekurz.pdf“'.match(RE_AUDIT_LEKU).slice(1), ['potvrzen', 'Palexia SR 150-0-50', 'Dekurz.pdf']);
   assert.deepEqual('přidán SOS lék Morphin 10 mg s.c.'.match(RE_AUDIT_LEKU).slice(1), ['přidán', 'Morphin 10 mg s.c.', undefined]);
 });
+
+test('lék v PéčeDoma (0.11.125): zapsáno ručně + ověřeno zprávou, ze zprávy, jinak zapsáno v PéčeDoma', async () => {
+  const { puvodLekuPd } = await import('../src/routes/central.js');
+  const audit = [   // od nejnovějšího jako v databázi
+    { kdo: 'Ing. J', kdy: '2026-11-16 20:30', detail: 'potvrzen lék Atoris 1x1 · ze zprávy „Dekurz.pdf“' },
+    { kdo: 'Ing. J', kdy: '2026-11-16 20:30', detail: 'upraven lék Palexia SR 150-0-50 · ze zprávy „Dekurz.pdf“' },
+    { kdo: 'Ing. J', kdy: '2026-11-16 20:30', detail: 'přidán lék Dexamethason 4 mg 1-0-0 · ze zprávy „Dekurz.pdf“' },
+    { kdo: 'Jana V', kdy: '2026-11-02 10:20', detail: 'přidán lék Palexia SR 150-0-50' },
+    { kdo: 'Jana V', kdy: '2026-11-02 10:17', detail: 'přidán lék Atoris 1x1' },
+  ];
+  const q = { all: async () => audit };
+  const l = await puvodLekuPd(q, 1, [{ nazev: 'Atoris', davka: '1x1' }, { nazev: 'Palexia SR', davka: '150-0-50' }, { nazev: 'Dexamethason', davka: '4 mg 1-0-0' }, { nazev: 'Lactulosa', davka: '', od: '2026-10-01' }]);
+  assert.deepEqual([l[0].puvod.zdroj, l[0].puvod.kdo, l[0].puvod.overeno.dokument], ['karta', 'Jana V', 'Dekurz.pdf'], 'ručně + ověřeno');
+  assert.deepEqual([l[1].puvod.zdroj, l[1].puvod.overeno && l[1].puvod.overeno.dokument], ['karta', 'Dekurz.pdf'], 'přesun skupiny ze zprávy: zapsal ručně, ověřeno zprávou');
+  assert.deepEqual([l[2].puvod.zdroj, l[2].puvod.dokument, l[2].puvod.overeno], ['zprava', 'Dekurz.pdf', undefined]);
+  assert.deepEqual([l[3].puvod.zdroj, l[3].puvod.overeno], ['pecedoma', undefined]);
+});
