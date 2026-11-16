@@ -136,13 +136,13 @@ const detail = {
 };
 const pacienti = [
   { id: 1, kod: 'P-0007', jmeno: 'Marie', prijmeni: 'Zkušební', rok: 1941, pobyt: 'doma', adresa: 'Lipová 12, Zlín', stav: 'AKTIVNI', zalozeno: cas(-21, '09:10'), verze: 3, platnostDo: den(70), cil: 'symptom', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-21, '09:10'), sync: cas(0, '08:12'), baterie: 76, telefonu: 1, telefonKarty: '+420777000123', posledniKrize: null, posledniZapis: cas(-1, '18:15') },
-  { id: 2, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12', adresa: 'Zahradní 5, Otrokovice', domov: 'Domov Pohoda', stav: 'AKTIVNI', zalozeno: cas(-50, '10:00'), verze: 2, platnostDo: den(9), cil: 'limited', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-50, '10:00'), sync: cas(0, '07:50'), baterie: 15, telefonu: 1, telefonKarty: '+420777000124', posledniKrize: 'Zhoršení stavu', posledniZapis: cas(0, '06:30') },
+  { id: 2, kod: 'P-0008', jmeno: 'Josef', prijmeni: 'Příkladný', rok: 1938, pobyt: 'Domov Pohoda, pokoj 12', adresa: 'Zahradní 5, Otrokovice', domov: 'Domov Pohoda', stav: 'AKTIVNI', zalozeno: cas(-50, '10:00'), verze: 2, platnostDo: den(9), cil: 'limited', garantId: 1, garant: 'Hospic Ukázka', garantTyp: 'HOSPIC', garantOd: cas(-50, '10:00'), sync: cas(0, '07:50'), baterie: 9, telefonu: 1, telefonKarty: '+420777000124', posledniKrize: 'Zhoršení stavu', posledniZapis: cas(0, '06:30') },
   { id: 3, kod: 'P-0009', jmeno: 'Anna', prijmeni: 'Vzorová', rok: 1950, pobyt: 'doma', adresa: 'Polní 3, Zlín', stav: 'AKTIVNI', zalozeno: cas(-3, '14:00'), verze: 1, platnostDo: den(88), cil: 'symptom', garantId: 4, garant: 'Krajská nemocnice – interna', garantTyp: 'NEMOCNICE', garantOd: cas(-3, '14:00'), sync: null, baterie: null, telefonu: 0, posledniKrize: null, posledniZapis: cas(-3, '14:00') },
 ];
 const upozorneni = [
+  { uroven: 'crit', typ: 'baterie', pacientId: 2, text: 'Příkladný Josef: vybitý telefon u pacienta – baterie 9 %, připojte nabíječku' },
   { uroven: 'crit', pacientId: 2, text: 'Příkladný Josef: probíhá zhoršení stavu' },
   { uroven: 'warn', pacientId: 2, text: 'Příkladný Josef: revize plánu do 9 dní' },
-  { uroven: 'warn', pacientId: 2, text: 'Příkladný Josef: baterie telefonu 15 %' },
   { uroven: 'info', pacientId: 3, text: 'Vzorová Anna: průkaz zatím není v žádném telefonu' },
 ];
 const uzivatele = [
@@ -415,6 +415,7 @@ await p.goto(`${URL}/centrala/`); await p.waitForSelector('#d_agenda');   // 0.1
 if ((await p.$$('[data-dtile]')).length !== 6 || (await p.$$('[data-dbar]')).length < 4) chyby.push('přehled pacientů: chybí dlaždice nebo sloupce');
 if (!(await p.textContent('[data-dtile="zhorseni"]')).includes('1')) chyby.push('přehled pacientů: dlaždice zhoršení neukazuje 1');
 await p.waitForTimeout(300); await foto(p, 'c-dashboard');
+if (!(await p.$('.dash-row.vybito')) || !(await p.$('.dash-tile.vybito'))) chyby.push('přehled: vybitý telefon (pod 15 %) není červeně orámovaný');
 await klik(p, '[data-dbar="misto"][data-dval="Doma"]'); await p.waitForSelector('tr[data-id]');
 if ((await p.$$('tr[data-id]')).length !== 2 || !(await p.$('[data-misto="doma"].primary'))) chyby.push('přehled → agenda: sloupec Doma nezapnul filtr Doma');
 // 0.11.99: hromadné nahrání pacientů do telefonu – pacienti podle filtru Kde je, jedno číslo, jeden QR kód

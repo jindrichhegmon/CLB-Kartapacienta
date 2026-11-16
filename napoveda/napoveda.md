@@ -78,6 +78,8 @@ Menu **Pacienti** ukazuje pacienty, u kterých je vaše pracoviště v týmu (sp
 - Přepínačem nahoře zobrazíte **uzavřené průkazy**.
 - Klik na pacienta otevře jeho detail se záložkami (kapitoly 5–9).
 
+
+**Vybitý telefon** (od 0.11.117): když telefon s kartou u pacienta hlásí baterii **pod 15 %**, je to naléhavé upozornění – v *Vyžaduje pozornost* nahoře, **výrazně červeně orámované** (stejně dlaždice Telefony k řešení, řádek pacienta v agendě a baterie u pacienta). Vybitý telefon by ZZS kartu neukázal – připojte nabíječku. Baterie 15–19 % je oranžová (zkontrolovat).
 ## 4. Nový pacient
 
 Menu **+ Nový pacient** (jen lékař). Průvodce má dva kroky.

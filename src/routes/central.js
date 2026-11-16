@@ -207,7 +207,9 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
     if (p.videohovor === 'TELEFON|ZVONI') upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: z telefonu u pacienta zvoní videohovor – otevřete pacienta a připojte se` });
     else if (p.videohovor && p.videohovor.endsWith('|PROBIHA')) upozorneni.push({ uroven: 'info', pacientId: p.id, text: `${jm}: probíhá videohovor` });
     if (p.telefonu > 0 && p.sync && (dnes - d(p.sync)) > 12 * 3600e3) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: telefon se nepřipojil od ${p.sync}` });
-    if (p.telefonu > 0 && p.baterie != null && p.baterie < 20) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: baterie telefonu ${p.baterie} %` });
+    // 0.11.117: vybitý telefon u pacienta (pod 15 %) je naléhavý – karta pro ZZS by zhasla; 15–19 % jen ke zkontrolování
+    if (p.telefonu > 0 && p.baterie != null && p.baterie < 15) upozorneni.push({ uroven: 'crit', typ: 'baterie', pacientId: p.id, text: `${jm}: vybitý telefon u pacienta – baterie ${p.baterie} %, připojte nabíječku` });
+    else if (p.telefonu > 0 && p.baterie != null && p.baterie < 20) upozorneni.push({ uroven: 'warn', typ: 'baterie', pacientId: p.id, text: `${jm}: baterie telefonu ${p.baterie} %` });
     if (p.telefonu === 0) upozorneni.push({ uroven: 'info', pacientId: p.id, text: `${jm}: průkaz zatím není v žádném telefonu` });
     if (p.predavaSe) {
       const hod = (dnes - d(p.predavaSe)) / 3600e3;
@@ -218,7 +220,7 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
     if (!p.garant) upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: pacient nemá garanta` });
   }
   const poradi = { crit: 0, warn: 1, info: 2 };
-  upozorneni.sort((a, b) => poradi[a.uroven] - poradi[b.uroven]);
+  upozorneni.sort((a, b) => poradi[a.uroven] - poradi[b.uroven] || (b.typ === 'baterie') - (a.typ === 'baterie'));   // mezi naléhavými vybitý telefon nahoře
   return { pacienti, upozorneni };
 }));
 

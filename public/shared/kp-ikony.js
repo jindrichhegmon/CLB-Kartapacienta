@@ -9,6 +9,7 @@
   /* symboly: název → vnitřek SVG (viewBox 0 0 24 24, fill none, stroke currentColor 2px) */
   const SYMBOLY = {
     /* 0.11.106: kód na obrazovce, místo, počítač Mac / Windows */
+    'battery': '<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M5 10v4"/>',
     'keypad': '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8v3H8z"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/>',
     'map-pin': '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
     'apple': '<path d="M12 20.9c1.5 0 2.8 1.1 4 1.1 3 0 6-8 6-12.2A4.9 4.9 0 0 0 17 5c-2.2 0-4 1.4-5 2-1-.6-2.8-2-5-2a4.9 4.9 0 0 0-5 4.8C2 14 5 22 8 22c1.3 0 2.5-1.1 4-1.1z"/><path d="M10 2c1 .5 2 2 2 5"/>',
@@ -108,7 +109,7 @@
     '🌅': 'sunrise', '📅': 'calendar', '🗓️': 'calendar', '🕘': 'clock', '🔁': 'refresh', '🔄': 'refresh',
     '⭐': ['star', '#e0a800'], '🎨': 'palette', '🏢': 'building', '🗺️': 'map', '⛶': 'maximize', '💳': 'credit-card',
     '📹': 'video', '🏠': 'home', '🏷': 'tag', '🖼': 'image', '☰': 'menu', '🪪': 'id-card',
-    '📟': 'keypad', '📍': 'map-pin', '↻': 'refresh', '🍎': 'apple', '🪟': 'windows',
+    '🔋': 'battery', '📟': 'keypad', '📍': 'map-pin', '↻': 'refresh', '🍎': 'apple', '🪟': 'windows',
     '🟢': ['dot', '#2fb86b'], '🟡': ['dot', '#f2c227'], '🟠': ['dot', '#f08c1e'], '🔴': ['dot', '#e5484d'], '🔵': ['dot', '#2e86d9'],
   };
   const klice = Object.keys(MAPA).map((k) => k.replace(/️/g, '')).sort((a, b) => b.length - a.length);
