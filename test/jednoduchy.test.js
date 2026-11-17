@@ -184,3 +184,15 @@ test('nový pacient ze zprávy (0.11.129): identita z hlavičky Medistaru, rodn�
   const p = puvodPlanu([{ verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. A', vytvoreno: '2026-11-17 09:00', data: { dg: 'R52.1', opioidy: ['Oxycontin'] } }], 'zprava', 'Dekurz 16. 11.');
   assert.deepEqual([p.dg[0].zdroj, p.dg[0].dokument, p.opioidy[0].dokument], ['zalozeni-zprava', 'Dekurz 16. 11.', 'Dekurz 16. 11.']);
 });
+
+test('Medistar dekurz, léky v řádku (0.11.129): „Ter.: Chronická medikace: lék, lék, , lék“ přes dva řádky a kód MKN čtený malým písmenem', async () => {
+  const { lokalniRozbor } = await import('../src/ai.js');
+  const r = lokalniRozbor(['Dg.: c61 Zhoubný novotvar předstojné žlázy - prostaty', 'Probíhá zajištění komplexní paliativní péče MDT.', 'Diagnóza: Ca prostaty, kardiostimulator',
+    '-- Medikace --', 'Opioidy: Sine', 'SOS Medikace:', 'Pri bolesti metamizol 35 gtt', 'Parenterální medikace: Sine', 'Závěr: stabilizovaný stav',
+    'Ter.: Chronická medikace: Lekadin 1-0-0, Betacare 10 mg 1-0-0, , Antikoag 5 mg 1-0-1', 'Glukonorm 1-0-0 , Tenzoprim neo 5 mg 1-0-0',
+    'Dop.: Rozsah ošetřovatelské péče : péče o pokožku', 'Zav.: Ca prostaty - AV blok', 'ZP: Dg.: C61 Výkony: 09521 2x'].join('\n'));   // smyšlené názvy léků
+  assert.equal(r.dg, 'C61 Zhoubný novotvar předstojné žlázy - prostaty; Ca prostaty, kardiostimulator');
+  assert.deepEqual(r.medikace, ['Lekadin 1-0-0', 'Betacare 10 mg 1-0-0', 'Antikoag 5 mg 1-0-1', 'Glukonorm 1-0-0', 'Tenzoprim neo 5 mg 1-0-0']);
+  assert.deepEqual(r.opioidy, []);
+  assert.deepEqual(r.sos, ['Pri bolesti metamizol 35 gtt']);
+});

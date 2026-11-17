@@ -55,7 +55,8 @@ const prazdne = (x) => /^(sine|ne|není|nejsou|žádn[áéý]|0|-+|—)\.?$/i.te
 /** bez opakování podle prvního slova (název léku); ponechá poslední výskyt (terapie na konci zprávy je novější) */
 const bezOpakovani = (a) => a.filter((x, i) => !a.slice(i + 1).some((y) => prvniSlovo(y) === prvniSlovo(x)));
 export function lokalniRozbor(t) {
-  const lines = t.split('\n').map((l) => l.trim());
+  // 0.11.129: Medistar píše „Ter.: Chronická medikace: lék, lék…“ – zkratka před nadpisem se vynechá, samotné „Ter.:“ je Terapie
+  const lines = t.split('\n').map((l) => l.trim()).map((l) => l.replace(new RegExp(`^Ter\\.\\s*:\\s*(?=[${VELKE}][^:]{2,40}:)`, 'i'), '').replace(/^Ter\.\s*:/i, 'Terapie:'));
   const jeNadpis = (l) => new RegExp(`^[${VELKE}][^:]{2,40}:`).test(l) || /^(MUDr|MDDr|Mgr|Bc|PhDr|Ing|prim\.)\b/i.test(l) || /^-{2,}/.test(l);
   // jenKody: za textem na řádku nadpisu („Dg.: R52.1“) pokračují jen další řádky s kódem MKN, ne volný text zprávy
   const sekceOd = (i, { jenKody = false } = {}) => {
@@ -84,13 +85,15 @@ export function lokalniRozbor(t) {
   // diagnózy i s kódem MKN (Karta k nim doplní popisy z číselníku); víc diagnóz na řádku oddělených čárkou před kódem;
   // ze všech míst zprávy (Medistar: „Dg.: R52.1“ nahoře a „Diagnóza: …“ slovy v Základních informacích)
   const dgVse = vsechnySekce(['diagnózy', 'diagnozy', 'diagnóza', 'dg.', 'dg:'], { jenKody: true })
-    .flatMap((l) => l.split(/[,;]\s*(?=[A-TV-Z]\d{2})/)).map((l) => l.trim().replace(/\.$/, '')).filter((l) => l && !prazdne(l));
+    .flatMap((l) => l.split(/[,;]\s*(?=[A-TV-Z]\d{2})/)).map((l) => l.trim().replace(/\.$/, '').replace(/^([a-tv-z])(?=\d{2}(?:\.\d)?(?:\s|$))/, (c) => c.toUpperCase()).replace(/^([A-TV-Z]\d{2}(?:\.\d{1,2})?)\s{2,}/, '$1 '))   // kód MKN velkým (OCR čte „c61“)
+    .filter((l) => l && !prazdne(l));
   a.dg = dgVse.filter((x, i) => dgVse.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).join('; ');
   const al = t.match(/Alergie:\s*([^\n]+)/i); a.alergie = al ? al[1].trim() : '';
   // léky: víc na řádku oddělených čárkou před názvem; řádky „při bolesti / v případě / SOS …“ jsou SOS medikace;
   // 0.11.122: Medistar dekurz – přednost má „Chronická terapie“ (Ter.: na konci zprávy), seznamy s pomlčkami
-  const zdrojLeku = lines.some((l) => zacina(l, ['chronická terapie'])) ? sekce(['chronická terapie']) : sekce(['medikace při propuštění', 'medikace', 'terapie', 'chronická medikace']);
-  const leky = zdrojLeku.flatMap((l) => l.split(new RegExp(`,\\s*(?=[${VELKE}][A-Za-z${VELKE}áčďéěíňóřšťúůýž]+\\s)`))).map((l) => l.replace(/^[-–•*]\s*/, '').trim()).filter((l) => l && !prazdne(l));
+  const CHRON = ['chronická terapie', 'chronická medikace'];
+  const zdrojLeku = lines.some((l) => zacina(l, CHRON)) ? sekce(CHRON) : sekce(['medikace při propuštění', 'medikace', 'terapie']);
+  const leky = zdrojLeku.flatMap((l) => l.split(new RegExp(`,\\s*(?=[${VELKE}][A-Za-z${VELKE}áčďéěíňóřšťúůýž]+\\s)`))).map((l) => l.replace(/^[-–•*,\s]+/, '').replace(/[\s,;]+$/, '').trim()).filter((l) => l && !prazdne(l));
   const jeSos = (l) => /^(při\s|v případě|dle potřeby|SOS\b)/i.test(l);
   // opioidy: „Opioidy: …“ (Základní informace) a „Analgetická terapie: …“ (Ter.:)
   a.opioidy = bezOpakovani([...t.matchAll(/^[ \t]*(?:Opioidy|Analgetická terapie|Analgetika)[ \t]*:[ \t]*([^\n]*)/gim)].map((m) => m[1].trim()).filter((x) => x && !prazdne(x)));
