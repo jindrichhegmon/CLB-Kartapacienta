@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" width="1000" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
   <title id="t">Zpráva z Medistaru do Karty pacienta, PéčeDoma a Průkazu pacienta</title>
-  <desc id="d">Tři kroky: v Medistaru vytisknout dekurz do PDF, v Kartě pacienta vložit PDF do Dokumentů a potvrdit návrh, údaje se propíší do Karty, PéčeDoma a Průkazu pacienta.</desc>
+  <desc id="d">Tři kroky: v Medistaru Dekurz, Tisk dekurzu, Uložit PDF, v Kartě pacienta vložit PDF do Dokumentů a potvrdit návrh, údaje se propíší do Karty, PéčeDoma a Průkazu pacienta.</desc>
   <defs>
     <marker id="s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
     <style>
@@ -22,22 +22,21 @@
   <text x="66" y="109" class="h">MEDISTAR</text>
   <g>
     <rect x="38" y="132" width="254" height="74" rx="10" fill="#fff" stroke="#cbd5e1"/>
-    <text x="54" y="162" class="b">Otevřít dekurz pacienta</text>
+    <text x="54" y="162" class="b">Dekurz pacienta</text>
     <text x="54" y="184" class="s">záznam z návštěvy / vyšetření</text>
     <path class="sip" d="M165 206 V236"/>
     <rect x="38" y="238" width="254" height="74" rx="10" fill="#fff" stroke="#cbd5e1"/>
-    <text x="54" y="268" class="b">Tisk lékařské zprávy</text>
+    <text x="54" y="268" class="b">Tisk dekurzu</text>
     <text x="54" y="290" class="s">celý dekurz, všechny strany</text>
     <path class="sip" d="M165 312 V342"/>
     <rect x="38" y="344" width="254" height="92" rx="10" fill="#fff" stroke="#cbd5e1"/>
-    <text x="54" y="374" class="b">Tiskárna:</text>
-    <text x="54" y="396" class="b">Microsoft Print to PDF</text>
-    <text x="54" y="418" class="s">(nebo Uložit jako PDF)</text>
+    <text x="54" y="384" class="b">Uložit PDF</text>
+    <text x="54" y="408" class="s">volba v okně tisku dekurzu</text>
     <path class="sip" d="M165 436 V466"/>
     <rect x="38" y="468" width="254" height="92" rx="10" fill="#fff" stroke="#cbd5e1"/>
-    <text x="54" y="498" class="b">Uložit soubor PDF</text>
+    <text x="54" y="498" class="b">Soubor PDF je připraven</text>
     <text x="54" y="520" class="s">např. Dekurz_Novak.pdf</text>
-    <text x="54" y="540" class="s">do Plochy nebo Stažených souborů</text>
+    <text x="54" y="540" class="s">na Ploše nebo ve Stažených souborech</text>
   </g>
   <text x="165" y="600" text-anchor="middle" class="s">Obrázkové PDF nevadí –</text>
   <text x="165" y="620" text-anchor="middle" class="s">Karta text rozpozná sama.</text>
