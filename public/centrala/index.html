@@ -1697,9 +1697,9 @@ function renderNovy() {
   const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
   if (w.krok === 1) {
     $('work').innerHTML = `${nav()}<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>Založit z lékařské zprávy</h2><span class="chip acc">PDF z Medistaru</span></div><div class="form" style="padding:14px">
-        <div class="muted" style="font-size:13.5px">Nahrajte lékařskou zprávu (dekurz z Medistaru vytištěný do PDF, sken nebo fotku). Karta z ní připraví <b>údaje pacienta, diagnózy, léky, funkční stav a kontakty</b> – ve formuláři je zkontrolujete a upravíte stejně jako při ručním zápisu. Zpráva se po založení uloží k pacientovi do Dokumentů.</div>
-        ${zonaZpravyHTML('w_zprava', 'Vybrat zprávu z počítače…', 'nebo ji sem přetáhněte myší · PDF, JPEG, PNG do 8 MB')}</div></div>
+      <div class="panel"><div class="panel-h"><h2>Založit z dekurzu nebo lékařské zprávy</h2><span class="chip acc">PDF z Medistaru</span></div><div class="form" style="padding:14px">
+        <div class="muted" style="font-size:13.5px">Nahrajte <b>dekurz z Medistaru</b> vytištěný do PDF – <b>doporučeno</b>, má v hlavičce jméno, rodné číslo, adresu a telefon. Karta z něj připraví <b>údaje pacienta, diagnózy, léky, funkční stav a kontakty</b>; ve formuláři je zkontrolujete a upravíte stejně jako při ručním zápisu. Jde i lékařská zpráva, sken nebo fotka – diagnózy a léky se načtou také, jen jméno pacienta (ve zprávě není) doplníte ručně. Soubor se po založení uloží k pacientovi do Dokumentů.</div>
+        ${zonaZpravyHTML('w_zprava', 'Vybrat dekurz nebo zprávu z počítače…', 'nebo soubor sem přetáhněte myší · PDF, JPEG, PNG do 8 MB')}</div></div>
       <div class="panel"><div class="panel-h"><h2>Načíst klienta z PéčeDoma</h2><span class="chip acc">nejrychlejší</span></div><div class="form" style="padding:14px">
         <div class="muted" style="font-size:13.5px">V portálu PéčeDoma (Data klienta → <b>Export pro Kartu pacienta</b>) uložte soubor JSON a tady ho načtěte – vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty. Cíl péče, limitace a číslo telefonu s kartou pak zkontroluje a doplní lékař.</div>
         <div class="row">${S.pecedoma && S.pecedoma.nastaveno ? '<button class="btn primary" id="w_pd">Vybrat klienty z PéčeDoma</button>' : ''}<label class="btn ${S.pecedoma && S.pecedoma.nastaveno ? '' : 'primary'}">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div>
@@ -1763,13 +1763,14 @@ function renderNovy() {
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${w.soubor ? `${(w.ai.existuje || []).length ? `<div class="banner warn">Pacient už v Kartě nejspíš je: ${w.ai.existuje.map((x) => `<button class="btn sm" type="button" data-exist="${x.id}">${esc(x.kod)} · ${esc(x.prijmeni)} ${esc(x.jmeno)}${x.rok ? ', ' + x.rok : ''}${x.stav !== 'AKTIVNI' ? ' (uzavřený)' : ''}</button>`).join(' ')} – otevřete ho a zprávu vložte v jeho záložce Dokumenty. Nový průkaz zakládejte, jen když jde o jiného člověka.</div>` : ''}
+        ${(w.ai.identita || {}).prijmeni ? '' : '<div class="banner warn" id="n_bezjmena"><b>Ve zprávě není jméno pacienta.</b> Doplňte jméno, příjmení a datum narození ručně; diagnózy a léky se načetly. Pro založení je lepší <b>dekurz</b> – má v hlavičce jméno, rodné číslo, adresu i telefon.</div>'}
         <div class="panel"><div class="panel-h"><h2>Zpráva</h2><span class="chip acc">${esc(w.soubor.mime === 'application/pdf' ? 'PDF' : 'obrázek')} · ${velikostSouboru(w.soubor.velikost)}</span></div><div class="form" style="padding:14px">
           <div class="lbl" style="overflow-wrap:anywhere">${esc(w.soubor.soubor)}${w.ai.ocr ? ` · <b>text rozpoznán z obrázku${w.ai.stran ? ` (${w.ai.stran} str.)` : ''} – zkontrolujte čísla a dávky</b>` : ''}</div>
           <label class="row" style="gap:8px"><input type="checkbox" id="n_dok_ul" ${w.soubor.ulozit ? 'checked' : ''}> <span><b>Uložit zprávu k pacientovi</b> (Dokumenty)</span></label>
           <div class="field"><label>Název dokumentu</label><input id="n_dok_n" value="${esc(w.soubor.nazev)}"></div>
           <label class="row" style="gap:8px"><input type="checkbox" id="n_dok_pp" ${w.soubor.proPacienta ? 'checked' : ''}> <span><b>Předat pacientovi do Průkazu pacienta</b></span></label>
-          ${nactenoZeZpravyHTML(w)}</div></div>` : !w.ai && !w.import ? `<div class="panel"><div class="panel-h"><h2>Máte lékařskou zprávu?</h2></div><div class="form" style="padding:14px">
-          ${zonaZpravyHTML('n_zprava', 'Načíst údaje ze zprávy…', 'PDF z Medistaru, sken nebo fotka – formulář se předvyplní a zkontrolujete ho')}</div></div>` : ''}
+          ${nactenoZeZpravyHTML(w)}</div></div>` : !w.ai && !w.import ? `<div class="panel"><div class="panel-h"><h2>Máte dekurz nebo lékařskou zprávu?</h2></div><div class="form" style="padding:14px">
+          ${zonaZpravyHTML('n_zprava', 'Načíst údaje z dekurzu nebo zprávy…', 'nejlépe dekurz z Medistaru v PDF (má jméno a rodné číslo) – formulář se předvyplní a zkontrolujete ho')}</div></div>` : ''}
       ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
         ${(v.chybi || []).length ? `<div><b style="font-size:13.5px">Chybí nebo ověřit:</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
         ${v.citace && v.citace.cil ? `<div class="ex"><div class="item"><div class="k">Cíl a limitace podle zprávy</div><div class="q">„${esc(v.citace.cil)}“</div></div></div>` : ''}

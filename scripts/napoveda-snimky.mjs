@@ -200,7 +200,7 @@ let posledniDokument = null, posledniZalozeni = null;
 app.post('/api/c/pacient', j((req) => { posledniZalozeni = req.body || null; return { id: 1, kod: 'P-0008' }; }));
 app.post('/api/c/ai/rozbor-souboru', j((req) => ({ blokovano: false, aiBlokovano: false, zdroj: 'ai', model: 'ukazka', pocetNahrad: 21, ocr: true, stran: 3, existuje: [],
   soubor: { nazev: req.body.nazev, mime: req.body.mime, velikost: 398731 },
-  identita: { jmeno: 'Josef', prijmeni: 'Příkladný', jmenoCele: 'Josef Příkladný', rc: '380512/123', datumNarozeni: '1938-05-12', rok: 1938, pohlavi: 'muž', pojistovna: '111', adresa: 'Lipová 12, 760 01 Zlín', telefon: '777000555' },
+  identita: /zprava/i.test(req.body.nazev) ? {} : { jmeno: 'Josef', prijmeni: 'Příkladný', jmenoCele: 'Josef Příkladný', rc: '380512/123', datumNarozeni: '1938-05-12', rok: 1938, pohlavi: 'muž', pojistovna: '111', adresa: 'Lipová 12, 760 01 Zlín', telefon: '777000555' },   // lékařská zpráva jméno nemá
   anonymniText: '[PACIENT] R.č.: [RC_1] ZP: 111\nTrvalá adresa: [ADRESA_1] TEL: [TELEFON_1]\nDg.: R52.1\nDiagnóza: Chronická obstrukční plicní nemoc, srdeční selhání.\nOpioidy: OXYCONTIN 20-0-20\nSOS medikace: Novalgin tbl. při bolesti',
   vysledek: { jmenoCele: 'Josef Příkladný', rok: 1938, dg: 'R52.1; Chronická obstrukční plicní nemoc, srdeční selhání', alergie: '', funkce: 'PPS 40 %; pohyblivost: převážně na lůžku; soběstačnost: nutná pomoc s většinou činností', pobyt: '',
     cil: 'symptom', limity: [], doklad: { dvp: false, datum: '', zprava: 'Medistar – 02-Kontrolní vyšetření lékařem' }, opioidy: ['Oxycontin 20 mg 1-0-1'], sos: ['Novalgin tbl. při bolesti 3-4 x denně'], medikace: ['Furosemid 40 mg 1-0-0', 'Berodual inh. 2-2-2'],
@@ -529,7 +529,14 @@ await foto(p, 'c-novy-1');
   await p.click('#n_ok'); await p.waitForSelector('.tabs [data-t="karta"]', { timeout: 8000 });
   if (!posledniZalozeni || posledniZalozeni.pacient.jmeno !== 'Josef Karel' || posledniZalozeni.zeZpravy !== 'Dekurz 16. 11.') chyby.push('nový pacient ze zprávy: úprava ve formuláři nebo název zprávy se neposlaly při založení');
   if (!posledniDokument || posledniDokument.typ !== 'ZPRAVA' || posledniDokument.nazev !== 'Dekurz 16. 11.' || !posledniDokument.proPacienta || !posledniDokument.data) chyby.push('nový pacient ze zprávy: zpráva se po založení neuložila k pacientovi');
-  await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' }); }
+  await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' });
+  // 0.11.130: lékařská zpráva bez jména – léky a diagnózy se načtou, jméno se doplní ručně (upozornění)
+  await p.setInputFiles('#w_zprava input[type=file]', { name: 'Lekarska_zprava.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 zprava') });
+  await p.waitForSelector('#n_dok_ul', { timeout: 8000 });
+  if (!(await p.$('#n_bezjmena')) || (await p.inputValue('#n_p')) !== '' || !(await p.inputValue('#f_dg')).includes('R52.1')) chyby.push('nový pacient ze zprávy bez jména: chybí upozornění, nebo se nenačetly diagnózy');
+  if (!(await p.textContent('#work')).includes('jméno a příjmení ve zprávě není')) chyby.push('nový pacient ze zprávy bez jména: v přehledu chybí „jméno a příjmení – ve zprávě není“');
+  await p.click('#n_zpet'); await p.waitForSelector('#w_json', { state: 'attached' });
+  await p.click('#w_rucne'); await p.waitForSelector('#n_zprava'); await p.click('#n_zpet'); await p.waitForSelector('#w_json', { state: 'attached' }); }
 await p.setInputFiles('#w_csvp', { name: 'pacienti.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffjmeno;prijmeni;rodne_cislo;datum_narozeni;pohlavi;pobyt;adresa;telefon_karty;cil;limity;dg;kontakt1_jmeno;kontakt1_telefon;kontakt1_skupina\nMarie;Vzorová;460512/1234;1946-05-12;žena;doma;Dlouhá 12, Zlín;+420 777 000 123;symptom;KPR | Hospitalizace;C50 karcinom prsu;Jana Vzorová, dcera;+420 777 000 321;ROZHODUJE\nJosef;Dvořák;480508/1111;;muž;Domov Pohoda, pokoj 12;Otrokovice;601 111 222;limited;KPR;CHOPN IV;Petr Dvořák, syn;602 333 444;INFORMOVAT\nKarel;Bezčísla;;;muž;doma;;;symptom;;;;;\n') });
 await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(300); await foto(p, 'c-novy-csv'); await p.evaluate(() => closeModal());
 await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]'); await p.waitForTimeout(300);
