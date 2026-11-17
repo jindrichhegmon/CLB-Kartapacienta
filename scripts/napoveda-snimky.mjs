@@ -194,7 +194,17 @@ app.post('/api/napoveda/dotaz', j({ text: 'Telefon spárujete v detailu pacienta
 app.post('/api/c/login', j({ session: 'ukazka' }));
 let mockJednoduchy = false;   // 0.11.111: jednoduchý režim (přepíná /__mock/jednoduchy)
 app.post('/api/c/role-nahled', j({ ok: true }));
-app.post('/api/c/pacient/:id/dokument', j({ id: 3 }));
+app.post('/api/c/pacient/:id/dokument', j((req) => { posledniDokument = req.body || null; return { id: 3 }; }));
+// 0.11.129: nový pacient ze zprávy v souboru – identita z hlavičky (smyšlená) a návrh z rozboru
+let posledniDokument = null, posledniZalozeni = null;
+app.post('/api/c/pacient', j((req) => { posledniZalozeni = req.body || null; return { id: 1, kod: 'P-0008' }; }));
+app.post('/api/c/ai/rozbor-souboru', j((req) => ({ blokovano: false, aiBlokovano: false, zdroj: 'ai', model: 'ukazka', pocetNahrad: 21, ocr: true, stran: 3, existuje: [],
+  soubor: { nazev: req.body.nazev, mime: req.body.mime, velikost: 398731 },
+  identita: { jmeno: 'Josef', prijmeni: 'Příkladný', jmenoCele: 'Josef Příkladný', rc: '380512/123', datumNarozeni: '1938-05-12', rok: 1938, pohlavi: 'muž', pojistovna: '111', adresa: 'Lipová 12, 760 01 Zlín', telefon: '777000555' },
+  anonymniText: '[PACIENT] R.č.: [RC_1] ZP: 111\nTrvalá adresa: [ADRESA_1] TEL: [TELEFON_1]\nDg.: R52.1\nDiagnóza: Chronická obstrukční plicní nemoc, srdeční selhání.\nOpioidy: OXYCONTIN 20-0-20\nSOS medikace: Novalgin tbl. při bolesti',
+  vysledek: { jmenoCele: 'Josef Příkladný', rok: 1938, dg: 'R52.1; Chronická obstrukční plicní nemoc, srdeční selhání', alergie: '', funkce: 'PPS 40 %; pohyblivost: převážně na lůžku; soběstačnost: nutná pomoc s většinou činností', pobyt: '',
+    cil: 'symptom', limity: [], doklad: { dvp: false, datum: '', zprava: 'Medistar – 02-Kontrolní vyšetření lékařem' }, opioidy: ['Oxycontin 20 mg 1-0-1'], sos: ['Novalgin tbl. při bolesti 3-4 x denně'], medikace: ['Furosemid 40 mg 1-0-0', 'Berodual inh. 2-2-2'],
+    kontakty: [], chybi: ['Pečující osoba (Dcera) je ve zprávě bez jména a telefonu – doplňte ji v Kontaktech.', 'Dříve vyslovené přání není sepsáno.'], citace: { cil: 'Probíhá zajištění komplexní paliativní péče MDT.' } } })));
 app.post('/api/c/pacient/:id/dokument/:did/pro-pacienta', j({ ok: true }));
 app.post('/api/c/pacient/:id/dokument/:did/rozbor', j({ blokovano: false, zdroj: 'ai', pocetNahrad: 4, dokument: { id: 2, nazev: 'Propouštěcí zpráva – interna' },
   anonymniText: 'Ambulantní zpráva\nPacientka: [JMENO_1], nar. [DATUM_1]\nDg.: C50.9 Zhoubný novotvar prsu, I50.0 Městnavé srdeční selhání\nAlergie: penicilin\nMedikace: Furosemid 40 mg 1-0-0\nPři dušnosti Morphin 5 mg s.c.',
@@ -506,6 +516,20 @@ if ((await p.$$('tr[data-id]')).length !== 1) throw new Error('seznam pacientů:
 await klik(p, '[data-misto=""]'); await p.waitForTimeout(200);
 await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' });
 await foto(p, 'c-novy-1');
+{ // 0.11.129: nový pacient ze zprávy v souboru (PDF z Medistaru) – formulář předvyplněný k úpravě, zpráva se uloží k pacientovi
+  if (!(await p.$('#w_zprava input[type=file]'))) throw new Error('nový pacient: chybí panel Založit z lékařské zprávy');
+  await p.setInputFiles('#w_zprava input[type=file]', { name: 'Dekurz_Prikladny.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 dekurz') });
+  await p.waitForSelector('#n_dok_ul', { timeout: 8000 });
+  const pole = async (id) => p.inputValue('#' + id);
+  if ((await pole('n_j')) !== 'Josef' || (await pole('n_p')) !== 'Příkladný' || (await pole('n_rc')) !== '380512/123' || (await pole('n_dn')) !== '1938-05-12' || (await pole('n_poj')) !== '111' || (await pole('n_tk')) !== '777000555') chyby.push('nový pacient ze zprávy: identita z hlavičky se nepředvyplnila');
+  if (!(await p.textContent('#work')).includes('Ze zprávy načteno') || !(await p.isChecked('#n_dok_ul')) || !(await p.isChecked('#n_dok_pp'))) chyby.push('nový pacient ze zprávy: chybí přehled Ze zprávy načteno nebo zaškrtnuté uložení zprávy');
+  const dgPole = await p.inputValue('#f_dg').catch(() => ''); if (!dgPole.includes('R52.1')) chyby.push('nový pacient ze zprávy: diagnózy se nepředvyplnily (' + dgPole + ')');
+  await p.waitForTimeout(3500); await foto(p, 'c-novy-zprava', { vyska: 1150 });
+  await p.fill('#n_j', 'Josef Karel'); await p.fill('#n_dok_n', 'Dekurz 16. 11.');
+  await p.click('#n_ok'); await p.waitForSelector('.tabs [data-t="karta"]', { timeout: 8000 });
+  if (!posledniZalozeni || posledniZalozeni.pacient.jmeno !== 'Josef Karel' || posledniZalozeni.zeZpravy !== 'Dekurz 16. 11.') chyby.push('nový pacient ze zprávy: úprava ve formuláři nebo název zprávy se neposlaly při založení');
+  if (!posledniDokument || posledniDokument.typ !== 'ZPRAVA' || posledniDokument.nazev !== 'Dekurz 16. 11.' || !posledniDokument.proPacienta || !posledniDokument.data) chyby.push('nový pacient ze zprávy: zpráva se po založení neuložila k pacientovi');
+  await klik(p, '.nav button[data-v="novy"]'); await p.waitForSelector('#w_json', { state: 'attached' }); }
 await p.setInputFiles('#w_csvp', { name: 'pacienti.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffjmeno;prijmeni;rodne_cislo;datum_narozeni;pohlavi;pobyt;adresa;telefon_karty;cil;limity;dg;kontakt1_jmeno;kontakt1_telefon;kontakt1_skupina\nMarie;Vzorová;460512/1234;1946-05-12;žena;doma;Dlouhá 12, Zlín;+420 777 000 123;symptom;KPR | Hospitalizace;C50 karcinom prsu;Jana Vzorová, dcera;+420 777 000 321;ROZHODUJE\nJosef;Dvořák;480508/1111;;muž;Domov Pohoda, pokoj 12;Otrokovice;601 111 222;limited;KPR;CHOPN IV;Petr Dvořák, syn;602 333 444;INFORMOVAT\nKarel;Bezčísla;;;muž;doma;;;symptom;;;;;\n') });
 await p.waitForSelector('#hr_b tr'); await p.waitForTimeout(300); await foto(p, 'c-novy-csv'); await p.evaluate(() => closeModal());
 await klik(p, '#w_pd'); await p.waitForSelector('#pdq'); await klik(p, '#pdf [data-f="t720"]'); await p.waitForSelector('tr[data-k]'); await p.waitForTimeout(300);

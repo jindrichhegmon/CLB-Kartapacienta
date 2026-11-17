@@ -289,7 +289,7 @@ export async function zalozPacienta(q, s, b) {
     await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi) VALUES (@p, @j, @t, @s, @poz, @o)`,
       { p: id, j: text(k.jmeno, 150), t: text(k.tel, 40), s: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(sk) ? sk : 'INFORMOVAT', poz: text(k.pozn, 200) || null, o: (i += 10) });
   }
-  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : b.zPeceDoma ? 'Průkaz založen z portálu PéčeDoma (Data klienta → Karta pacienta).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.zeZpravy ? `Průkaz založen z lékařské zprávy „${text(b.zeZpravy, 150).replace(/[„“]/g, '')}“ (údaje z rozboru zprávy zkontrolovány a potvrzeny).` : b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : b.zPeceDoma ? 'Průkaz založen z portálu PéčeDoma (Data klienta → Karta pacienta).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: b.zPeceDoma ? kod + ' (z PéčeDoma)' : kod, ip: s.ip });
   // pacient z PéčeDoma (výběr klienta nebo soubor Export pro Kartu pacienta): zapamatovat klienta a rovnou stáhnout léky a návštěvu
   const pdId = String((b.pecedoma || {}).klientId || '').toLowerCase();
@@ -404,9 +404,10 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const vsechnyVerze = await q.all(`SELECT Verze AS verze, Typ AS typ, PodepsalJmeno AS podepsal, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno, Poznamka AS poznamka, Data AS data
     FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze`, { p: id });
   const zal = await q.one(`SELECT TOP (1) Text AS text FROM dbo.A_KP_Denik WHERE PacientID = @p AND Typ = N'Založení' ORDER BY DenikID`, { p: id });
-  const zalozeni = /propouštěcí zprávy/i.test((zal && zal.text) || '') ? 'zprava' : /PéčeDoma/i.test((zal && zal.text) || '') ? 'pecedoma' : 'rucne';
+  const zalozeni = /(propouštěcí|lékařské) zprávy/i.test((zal && zal.text) || '') ? 'zprava' : /PéčeDoma/i.test((zal && zal.text) || '') ? 'pecedoma' : 'rucne';
+  const zalDok = (String((zal && zal.text) || '').match(/lékařské zprávy „(.+?)“/) || [])[1] || null;   // 0.11.129: založeno ze zprávy v souboru
   let puvod = null;
-  try { puvod = puvodPlanu(vsechnyVerze.map((v) => ({ ...v, data: JSON.parse(v.data || '{}') })), zalozeni); } catch { /* starý nečitelný plán – bez původu */ }
+  try { puvod = puvodPlanu(vsechnyVerze.map((v) => ({ ...v, data: JSON.parse(v.data || '{}') })), zalozeni, zalDok); } catch { /* starý nečitelný plán – bez původu */ }
   return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, predani, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy, puvod };
 }));
 
@@ -1263,12 +1264,40 @@ async function znamoPacienta(q, pacId, znamo) {
   znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = k.map((x) => x.Telefon);
   return znamo;
 }
-async function rozborALog(q, s, t, znamo, ucel = 'rozbor zprávy') {
-  const r = await rozborZpravy(t, znamo);
+async function rozborALog(q, s, t, znamo, ucel = 'rozbor zprávy', volby = {}) {
+  const r = await rozborZpravy(t, znamo, volby);
   await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, @uc, @d, @n, @b, @m, @v)`,
-    { u: s.uzivatelId, uc: ucel, d: t.length, n: r.pocetNahrad || 0, b: !!r.blokovano, m: r.model || null, v: r.blokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
+    { u: s.uzivatelId, uc: ucel, d: t.length, n: r.pocetNahrad || 0, b: !!(r.blokovano || r.aiBlokovano), m: r.model || null, v: r.blokovano || r.aiBlokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
   return r;
 }
+/* 0.11.129: založení pacienta ze zprávy v souboru (PDF z Medistaru, sken, fotka) – soubor se jen přečte a rozebere, nic se neukládá.
+   Vrací návrh pro formulář Nový pacient: identitu z hlavičky (čte server, do AI nejde) a diagnózy, léky, funkční stav z rozboru.
+   Zpráva se k pacientovi uloží až po jeho založení (POST /pacient/:id/dokument). */
+central.post('/ai/rozbor-souboru', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  const mime = text(b.mime, 80), nazev = text(b.nazev, 200) || 'zpráva';
+  if (!MIME_PRO_PACIENTA.includes(mime)) throw chyba('Nahrajte zprávu v PDF nebo fotku zprávy (JPG, PNG)');
+  const data = b.data ? Buffer.from(String(b.data), 'base64') : null;
+  if (!data || !data.length) throw chyba('Chybí soubor se zprávou');
+  if (data.length > 8 * 1024 * 1024) throw chyba('Soubor je větší než 8 MB');
+  omez('rozbor:' + s.uzivatelId, 40, 3600e3);
+  let z; const t0 = Date.now();
+  try { z = await textZeZpravy(data, mime); } catch (e) {
+    console.error('rozbor souboru', nazev, e);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'rozbor zprávy pro nového pacienta – chyba', detail: `${nazev} · ${String(e.message || e).slice(0, 300)}`, ip: s.ip });
+    throw chyba('Zprávu se nepodařilo přečíst: ' + String(e.message || e).slice(0, 160));
+  }
+  if (z.text.replace(/\s/g, '').length < 40) throw chyba(z.ocr ? 'Ve zprávě se nepodařilo rozpoznat text (nečitelný sken nebo fotka) – pacienta zapište ručně' : 'Zpráva neobsahuje text – pacienta zapište ručně');
+  const r = await rozborALog(q, s, z.text.slice(0, 60000), { telefony: [], osoby: [] }, 'nový pacient ze zprávy', { priBlokuLokalne: true });
+  // už je v Kartě? (stejné rodné číslo, nebo příjmení + rok narození) – jen upozornění, rozhoduje uživatel
+  const id = r.identita || {};
+  const existuje = id.rc || (id.prijmeni && id.rok) ? await q.all(`SELECT TOP (3) PacientID AS id, KodPrukazu AS kod, Jmeno AS jmeno, Prijmeni AS prijmeni, RokNarozeni AS rok, Stav AS stav FROM dbo.A_KP_Pacient
+    WHERE (@rc <> '' AND REPLACE(REPLACE(ISNULL(RodneCislo, ''), '/', ''), ' ', '') = @rc) OR (@pr <> '' AND Prijmeni = @pr AND RokNarozeni = @rok) ORDER BY PacientID DESC`,
+  { rc: String(id.rc || '').replace(/\D/g, ''), pr: String(id.prijmeni || '').toUpperCase(), rok: id.rok || null }) : [];
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'rozbor zprávy pro nového pacienta', detail: `${nazev} · ${z.ocr ? `text rozpoznán z obrázku (OCR, ${z.stran} str., ${Math.round((Date.now() - t0) / 1000)} s) · ` : ''}${r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
+  return { ...r, ocr: z.ocr, stran: z.stran || null, existuje, soubor: { nazev, mime, velikost: data.length } };
+}, { lekar: true }));
+
 /* 0.11.120: rozbor zprávy uložené u pacienta (PDF s textovou vrstvou, např. z Medistaru) – text z PDF → anonymizace → AI (nebo lokální rozbor)
    0.11.122: PDF bez textu (Medistar přes „Microsoft Print to PDF“, sken) a fotka JPG/PNG → rozpoznání textu (OCR) přímo na serveru
    → návrh diagnóz, alergií, léků a funkčního stavu. Nic se neukládá: centrála ukáže návrh ke kontrole a lékař / sestra ho uloží jako novou verzi plánu. */

@@ -18,14 +18,17 @@ const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const bezDiakritiky = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 /** Regex pro jméno ve všech pádech: kmen (bez koncové samohlásky) + až 4 písmena koncovky. */
+const DIA = { a: 'aá', c: 'cč', d: 'dď', e: 'eéě', i: 'ií', n: 'nň', o: 'oó', r: 'rř', s: 'sš', t: 'tť', u: 'uúů', y: 'yý', z: 'zž' };
 function vzorJmena(slovo) {
   const w = String(slovo || '').trim();
   if (w.length < 3) return null;
   let kmen = w.replace(/(ová|á|a|e|ě|o|y|i|í|u)$/i, '');
   if (kmen.length < 3) kmen = w;
+  // 0.11.129: bez ohledu na diakritiku (zpráva píše „Charuzova“ i „Charuzová“, „Novakova“ i „Nováková“)
+  const pism = [...kmen].map((ch) => { const z = bezDiakritiky(ch).toLowerCase(); return DIA[z] ? `[${DIA[z]}]` : esc(ch); });
   // pohyblivé e (Hrubeš → Hrubše, Marek → Marka): povolit vypadnutí posledního e
-  const k = esc(kmen).replace(/e(\p{L})$/u, 'e?$1');
-  return new RegExp(`(?<![\\p{L}])${k}[\\p{L}]{0,4}(?![\\p{L}])`, 'giu');
+  if (pism.length >= 2 && bezDiakritiky(kmen[kmen.length - 2] || '').toLowerCase() === 'e' && /\p{L}/u.test(kmen[kmen.length - 1])) pism[pism.length - 2] += '?';
+  return new RegExp(`(?<![\\p{L}])${pism.join('')}[\\p{L}]{0,4}(?![\\p{L}])`, 'giu');
 }
 
 function vekoveRozmezi(rok, dnes = new Date()) {

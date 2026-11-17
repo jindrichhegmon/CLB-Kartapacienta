@@ -257,22 +257,22 @@ export function normalizujPlan(d = {}) {
 export const DG_RADKY = (dg) => String(dg || '').split(/\n|;\s*/).map((x) => x.trim()).filter(Boolean);
 const klicDg = (x) => { const k = String(x).toUpperCase().match(/^[A-TV-Z]\d{2}(?:\.?\d{1,2})?/); return k ? 'K:' + k[0].replace('.', '') : 'T:' + String(x).toLowerCase().replace(/\s+/g, ' ').replace(/[.,;]$/, ''); };
 const klicText = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
-export function zdrojVerze(v, zalozeni = 'rucne') {
+export function zdrojVerze(v, zalozeni = 'rucne', zalozeniDokument = null) {
   const poz = String(v.poznamka || '');
   const z = poz.match(/^Doplněno z rozboru zprávy „(.+?)“/);
   if (z) return { zdroj: 'zprava', dokument: z[1] };
-  if (v.typ === 'ZALOZENI') return { zdroj: zalozeni === 'zprava' ? 'zalozeni-zprava' : zalozeni === 'pecedoma' ? 'zalozeni-pecedoma' : 'zalozeni', dokument: null };
+  if (v.typ === 'ZALOZENI') return { zdroj: zalozeni === 'zprava' ? 'zalozeni-zprava' : zalozeni === 'pecedoma' ? 'zalozeni-pecedoma' : 'zalozeni', dokument: zalozeni === 'zprava' ? zalozeniDokument || null : null };
   if (/^PéčeDoma:/.test(String(v.podepsal || ''))) return { zdroj: 'pecedoma', dokument: null };
   return { zdroj: 'rucne', dokument: null };
 }
-export function puvodPlanu(verze = [], zalozeni = 'rucne') {
+export function puvodPlanu(verze = [], zalozeni = 'rucne', zalozeniDokument = null) {
   const POLE = { dg: (d) => DG_RADKY(d.dg), opioidy: (d) => d.opioidy || [], sos: (d) => d.sos || [], medikace: (d) => d.medikace || [],
     funkce: (d) => (String(d.funkce || '').trim() ? [String(d.funkce).trim()] : []), alergie: (d) => (String(d.alergie || '').trim() ? [String(d.alergie).trim()] : []) };
   const puvod = {};   // pole → Map(klíč → původ)
   let posledni = {};
   for (const v of verze) {
     const d = v.data || {};
-    const info = { verze: v.verze, kdy: v.vytvoreno, kdo: v.podepsal, ...zdrojVerze(v, zalozeni) };
+    const info = { verze: v.verze, kdy: v.vytvoreno, kdo: v.podepsal, ...zdrojVerze(v, zalozeni, zalozeniDokument) };
     for (const [pole, fn] of Object.entries(POLE)) {
       const klic = pole === 'dg' ? klicDg : klicText;
       const dosud = puvod[pole] || new Map(), nove = new Map();

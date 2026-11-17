@@ -154,3 +154,33 @@ test('deník přístupů (0.11.128): hledání bez zástupných znaků SQL a pod
   assert.equal(hledatDatum('6.1.2026'), '2026-01-06');
   assert.equal(hledatDatum('Palexia'), 'Palexia');
 });
+
+test('nový pacient ze zprávy (0.11.129): identita z hlavičky Medistaru, rodné číslo, anonymizace bez diakritiky, původ při založení', async () => {
+  const fs = await import('node:fs');
+  const { identitaZeZpravy, zRodnehoCisla, rozdelJmeno } = await import('../src/identita.js');
+  const { anonymizuj } = await import('../src/anonym.js');
+  const { rozborZpravy } = await import('../src/ai.js');
+  const { puvodPlanu } = await import('../src/kp.js');
+  const t = fs.readFileSync(new URL('./zprava-medistar-dekurz.txt', import.meta.url), 'utf8');   // smyšlený dekurz
+  const id = identitaZeZpravy(t);
+  assert.deepEqual([id.jmeno, id.prijmeni, id.rc, id.datumNarozeni, id.pohlavi, id.pojistovna, id.adresa, id.telefon],
+    ['Jan', 'Testovací', '450101/123', '1945-01-01', 'muž', '111', 'Lipová 12, 760 01 Zlín', '777000111']);
+  assert.deepEqual(zRodnehoCisla('346231/434'), { rc: '346231/434', datumNarozeni: '1934-12-31', rok: 1934, pohlavi: 'žena' });
+  assert.equal(zRodnehoCisla('0452151234').datumNarozeni, '2004-02-15');
+  assert.equal(zRodnehoCisla('991332/1234'), null, 'neplatné datum');
+  assert.deepEqual(rozdelJmeno('MUDr. Jan NOVÁK, Ph.D.'), { jmeno: 'Jan', prijmeni: 'Novák' });
+  assert.deepEqual(rozdelJmeno('Charuzova Silvia', 'pj'), { jmeno: 'Silvia', prijmeni: 'Charuzova' });
+  assert.deepEqual(identitaZeZpravy('Pacient: Jan Novák, nar. 3. 5. 1944\nDg.: C50').datumNarozeni, '1944-05-03');
+  // příjmení psané ve zprávě bez diakritiky se skryje také
+  const a = anonymizuj('Pacientka Novakova přišla s dcerou. Paní Nováková souhlasí.', { jmeno: 'Marie', prijmeni: 'Nováková' });
+  assert.doesNotMatch(a.text, /Nov[aá]kov/i); assert.equal(a.blokovano, false);
+  // pacient ještě není v Kartě: identitu pro anonymizaci dodá hlavička zprávy
+  const r = await rozborZpravy(t, { telefony: [], osoby: [] }, { priBlokuLokalne: true });
+  assert.equal(r.blokovano, false);
+  assert.doesNotMatch(r.anonymniText, /Testovac|450101|777000111|Lipov/);
+  assert.equal(r.identita.prijmeni, 'Testovací');
+  assert.match(r.vysledek.dg, /R52\.1/);
+  // původ: založeno ze zprávy v souboru → štítek s názvem zprávy
+  const p = puvodPlanu([{ verze: 1, typ: 'ZALOZENI', podepsal: 'MUDr. A', vytvoreno: '2026-11-17 09:00', data: { dg: 'R52.1', opioidy: ['Oxycontin'] } }], 'zprava', 'Dekurz 16. 11.');
+  assert.deepEqual([p.dg[0].zdroj, p.dg[0].dokument, p.opioidy[0].dokument], ['zalozeni-zprava', 'Dekurz 16. 11.', 'Dekurz 16. 11.']);
+});

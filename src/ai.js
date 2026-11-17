@@ -6,6 +6,7 @@
  */
 import { config } from './config.js';
 import { anonymizuj, obnov } from './anonym.js';
+import { identitaZeZpravy } from './identita.js';
 
 const LIMITY = ['KPR', 'Umělá plicní ventilace', 'Hospitalizace', 'Antibiotika i.v.', 'Infuze / i.v. výživa', 'Sonda / PEG', 'Dialýza', 'Transfuze'];
 
@@ -137,13 +138,21 @@ export function lokalniRozbor(t) {
  * Rozbor zprávy. znamo = identifikátory pacienta z databáze (pokud už existuje).
  * Vrací { vysledek (s obnovenými hodnotami), anonymniText, pocetNahrad, blokovano, zdroj, model }.
  */
-export async function rozborZpravy(text, znamo = {}) {
-  const a = anonymizuj(text, znamo);
-  if (a.blokovano) {
-    return { blokovano: true, duvod: 'Po anonymizaci v textu zůstalo něco, co vypadá jako identifikátor (' + a.zbytky.join(', ') + '). Dotaz na AI nebyl odeslán.', pocetNahrad: a.pocetNahrad, anonymniText: a.text };
+export async function rozborZpravy(text, znamo = {}, { priBlokuLokalne = false } = {}) {
+  // 0.11.129: identita z hlavičky zprávy (jméno, RČ, adresa, telefon) – čte ji server; co z ní není známo z databáze,
+  // doplní se do anonymizace, aby se skrylo i u pacienta, který v Kartě ještě není
+  const identita = identitaZeZpravy(text);
+  const z = { ...znamo, jmeno: znamo.jmeno || identita.jmeno, prijmeni: znamo.prijmeni || identita.prijmeni, rc: znamo.rc || identita.rc,
+    datumNarozeni: znamo.datumNarozeni || identita.datumNarozeni, adresa: znamo.adresa || identita.adresa, telefony: [...(znamo.telefony || []), ...(identita.telefon ? [identita.telefon] : [])] };
+  const a = anonymizuj(text, z);
+  if (a.blokovano && !priBlokuLokalne) {
+    return { blokovano: true, duvod: 'Po anonymizaci v textu zůstalo něco, co vypadá jako identifikátor (' + a.zbytky.join(', ') + '). Dotaz na AI nebyl odeslán.', pocetNahrad: a.pocetNahrad, anonymniText: a.text, identita };
   }
   let surovy, zdroj = 'lokalne', model = null;
-  if (config.ai.apiKey) {
+  if (a.blokovano) {   // priBlokuLokalne: do AI nic neodejde, zprávu rozebere server sám podle pravidel
+    surovy = lokalniRozbor(a.text);
+    surovy.chybi = [`AI rozbor se neodeslal – v textu zůstalo něco, co vypadá jako identifikátor (${a.zbytky.join(', ')}). Zprávu rozebral server sám podle pravidel.`, ...(surovy.chybi || [])];
+  } else if (config.ai.apiKey) {
     try { surovy = await zavolejClaude(a.text); zdroj = 'ai'; model = config.ai.model; }
     catch (e) { surovy = lokalniRozbor(a.text); zdroj = 'lokalne'; surovy.chybi = [...(surovy.chybi || []), `AI nedostupná (${String(e.message).slice(0, 80)}), použit lokální rozbor.`]; }
   } else {
@@ -151,8 +160,7 @@ export async function rozborZpravy(text, znamo = {}) {
   }
   surovy.limity = (surovy.limity || []).filter((l) => LIMITY.includes(l));
   if (!['symptom', 'limited', 'full'].includes(surovy.cil)) surovy.cil = 'symptom';
-  // identita pacienta: jméno se z textu nevytěžuje přes AI – z hlavičky si ho vezme server sám
-  const hlavicka = String(text).match(/Pacient(?:ka)?\s*:?\s*([^,\n]+?)\s*,\s*nar\.\s*(\d{1,2}\.\s?\d{1,2}\.\s?)?(\d{4})/i);
-  const identita = hlavicka ? { jmenoCele: hlavicka[1].trim(), rok: Number(hlavicka[3]) } : {};
-  return { blokovano: false, vysledek: { ...obnov(surovy, a.mapa), ...identita }, anonymniText: a.text, pocetNahrad: a.pocetNahrad, zdroj, model };
+  // identita pacienta: jméno se z textu nevytěžuje přes AI – z hlavičky si ho vezme server sám (src/identita.js)
+  const zHlavicky = identita.jmenoCele ? { jmenoCele: identita.jmenoCele, ...(identita.rok ? { rok: identita.rok } : {}) } : {};
+  return { blokovano: false, aiBlokovano: a.blokovano, vysledek: { ...obnov(surovy, a.mapa), ...zHlavicky }, identita, anonymniText: a.text, pocetNahrad: a.pocetNahrad, zdroj, model };
 }

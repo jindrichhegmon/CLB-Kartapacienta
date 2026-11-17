@@ -1640,12 +1640,66 @@ function pdPanel(d, { jen = 'vse' } = {}) {
       ${pd.nastaveno ? '' : '<div class="hint">Propojení s PéčeDoma nastaví správce v Správa organizace → Nastavení.</div>'}</div></div>`;
   return stav + navsteva + leky;
 }
+/* 0.11.129: nový pacient ze zprávy – návrh z rozboru (text i soubor) do formuláře průvodce; identitu z hlavičky čte server, do AI nejde */
+function navrhDoPruvodce(w, r) {
+  const v = r.vysledek || {}, id = r.identita || {}, p = w.d.pacient || {};
+  const [prijmeniZ, ...jmZ] = String(v.jmenoCele || '').split(/\s+/).reverse();
+  w.ai = r; w.import = null;
+  w.d.pacient = { ...p, prijmeni: p.prijmeni || id.prijmeni || prijmeniZ || '', jmeno: p.jmeno || id.jmeno || jmZ.reverse().join(' '), rc: p.rc || id.rc || '', datumNarozeni: p.datumNarozeni || id.datumNarozeni || '',
+    rok: p.rok || id.rok || v.rok || '', pohlavi: id.pohlavi || p.pohlavi || '', pojistovna: p.pojistovna || id.pojistovna || '', adresa: p.adresa || id.adresa || '', telefonKarty: p.telefonKarty || id.telefon || '', pobyt: v.pobyt || p.pobyt || '' };
+  w.d.plan = { cil: v.cil, kpr: v.doklad && v.doklad.dvp ? 'dvp' : 'neuvedeno', limity: v.doklad && v.doklad.dvp ? (v.limity || []) : [], doklad: v.doklad || {}, dg: String(v.dg || '').split(/;\s*/).filter(Boolean).join('\n'), funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [] };
+  w.d.kontakty = (v.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: '' }));
+}
+const velikostSouboru = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' kB');
+const souborB64 = (f) => new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result).split(',')[1]); rd.onerror = () => rej(new Error('Soubor se nepodařilo načíst')); rd.readAsDataURL(f); });
+async function novyZeSouboru(f) {
+  if (!f) return;
+  if (!MIME_PRO_PACIENTA.includes(f.type)) return toast('Nahrajte zprávu v PDF nebo fotku zprávy (JPG, PNG)');
+  if (f.size > 8 * 1024 * 1024) return toast('Soubor je větší než 8 MB');
+  const w = S.wiz;
+  modal(`<h2>Nový pacient ze zprávy</h2>${nacitamHTML(`Čtu zprávu „${f.name}“…`)}<p class="muted" style="margin:0">Karta zprávu přečte (i z obrázku – asi 3–4 s na stranu) a připraví návrh údajů. Jméno, rodné číslo, adresu a telefon čte server sám z hlavičky; k rozboru odchází jen text bez těchto údajů. Nic se zatím neukládá.</p>`);
+  let data, r;
+  try { data = await souborB64(f); r = await C('/ai/rozbor-souboru', { method: 'POST', body: { nazev: f.name, mime: f.type, data } }); }
+  catch (e) {
+    return modal(`<h2>Zprávu se nepodařilo přečíst</h2><div class="banner crit">${esc(e.message || String(e))}</div>
+      <p class="muted">Zkuste to znovu, nebo pacienta zapište ručně – zprávu pak vložíte v jeho záložce Dokumenty.</p>
+      <div class="quick"><button class="btn primary" id="nz_znovu">Zkusit znovu</button><button class="btn" data-close>Zavřít</button></div>`, () => { $('nz_znovu').onclick = () => novyZeSouboru(f); });
+  }
+  closeModal();
+  w.d = { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] }; w.pecedoma = null; w.text = '';
+  navrhDoPruvodce(w, r);
+  w.soubor = { nazev: f.name.replace(/\.[a-z0-9]+$/i, ''), soubor: f.name, mime: f.type, velikost: f.size, data, ulozit: true, proPacienta: true };
+  w.krok = 2; renderNovy(); scrollTo(0, 0);
+  toast('Zpráva přečtena – zkontrolujte a doplňte údaje');
+}
+/* zóna pro soubor se zprávou (klik i přetažení myší) */
+const zonaZpravyHTML = (id, text, pod) => `<label class="soubor-vyber" id="${id}"><span class="sv-ik">📄</span><span><b>${text}</b><span class="hint" style="display:block">${pod}</span></span><input type="file" accept="application/pdf,image/jpeg,image/png" class="skryty-soubor"></label>`;
+function bindZonaZpravy(id) {
+  const z = $(id); if (!z) return;
+  const inp = z.querySelector('input[type=file]');
+  inp.onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; novyZeSouboru(f); };
+  ['dragenter', 'dragover'].forEach((t) => z.addEventListener(t, (e) => { e.preventDefault(); z.classList.add('dok-drop'); }));
+  ['dragleave', 'dragend'].forEach((t) => z.addEventListener(t, () => z.classList.remove('dok-drop')));
+  z.addEventListener('drop', (e) => { e.preventDefault(); z.classList.remove('dok-drop'); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { if (S.wiz.krok === 2) S.wiz.d.pacient = ctiUdaje('n'); novyZeSouboru(f); } });
+}
+/* co se ze zprávy načetlo – přehled vedle formuláře */
+function nactenoZeZpravyHTML(w) {
+  const v = (w.ai && w.ai.vysledek) || {}, id = (w.ai && w.ai.identita) || {};
+  const ident = [['jméno a příjmení', id.prijmeni], ['rodné číslo', id.rc], ['datum narození', id.datumNarozeni], ['pojišťovna', id.pojistovna], ['adresa', id.adresa], ['telefon', id.telefon]];
+  const pocet = (a) => (Array.isArray(a) ? a.length : 0), dg = String(v.dg || '').split(/;\s*|\n/).filter(Boolean).length;
+  const klin = [['diagnózy', dg], ['opioidy', pocet(v.opioidy)], ['SOS léky', pocet(v.sos)], ['další léky', pocet(v.medikace)], ['funkční stav', v.funkce ? 1 : 0], ['alergie', v.alergie ? 1 : 0], ['kontakty', pocet(v.kontakty)]];
+  const ok = (t) => `<li><span class="nz-ok">✓</span> ${t}</li>`, ne = (t) => `<li class="muted"><span class="nz-ne">–</span> ${t} <span class="lbl" style="display:inline">ve zprávě není</span></li>`;
+  return `<div><b style="font-size:13.5px">Ze zprávy načteno:</b><ul class="nz-seznam">${ident.map(([n, h]) => (h ? ok(n) : ne(n))).join('')}${klin.map(([n, k]) => (k ? ok(n + (['funkční stav', 'alergie'].includes(n) ? '' : ` (${k})`)) : ne(n))).join('')}</ul></div>`;
+}
 function renderNovy() {
   if (!S.wiz) S.wiz = { krok: S.jednoduchy ? 2 : 1, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } };   // 0.11.111: jednoduchý režim rovnou formulář
   const w = S.wiz;
   const garanti = S.posk.filter((p) => p.aktivni && p.smiBytGarant);
   if (w.krok === 1) {
     $('work').innerHTML = `${nav()}<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
+      <div class="panel"><div class="panel-h"><h2>Založit z lékařské zprávy</h2><span class="chip acc">PDF z Medistaru</span></div><div class="form" style="padding:14px">
+        <div class="muted" style="font-size:13.5px">Nahrajte lékařskou zprávu (dekurz z Medistaru vytištěný do PDF, sken nebo fotku). Karta z ní připraví <b>údaje pacienta, diagnózy, léky, funkční stav a kontakty</b> – ve formuláři je zkontrolujete a upravíte stejně jako při ručním zápisu. Zpráva se po založení uloží k pacientovi do Dokumentů.</div>
+        ${zonaZpravyHTML('w_zprava', 'Vybrat zprávu z počítače…', 'nebo ji sem přetáhněte myší · PDF, JPEG, PNG do 8 MB')}</div></div>
       <div class="panel"><div class="panel-h"><h2>Načíst klienta z PéčeDoma</h2><span class="chip acc">nejrychlejší</span></div><div class="form" style="padding:14px">
         <div class="muted" style="font-size:13.5px">V portálu PéčeDoma (Data klienta → <b>Export pro Kartu pacienta</b>) uložte soubor JSON a tady ho načtěte – vyplní se údaje pacienta, diagnózy, léky, funkční stav a kontakty. Cíl péče, limitace a číslo telefonu s kartou pak zkontroluje a doplní lékař.</div>
         <div class="row">${S.pecedoma && S.pecedoma.nastaveno ? '<button class="btn primary" id="w_pd">Vybrat klienty z PéčeDoma</button>' : ''}<label class="btn ${S.pecedoma && S.pecedoma.nastaveno ? '' : 'primary'}">Načíst soubor JSON<input type="file" id="w_json" accept=".json,application/json" hidden></label></div>
@@ -1664,7 +1718,8 @@ function renderNovy() {
       <div class="quick"><button class="btn primary" id="w_ai">Anonymní rozbor zprávy</button><button class="btn" id="w_skip">Pokračovat bez rozboru</button></div></div></div></div>
       <div style="display:grid;gap:12px;align-content:start"><div class="ai"><h3><span class="spark">AI</span>Rozbor je vždy anonymní</h3><div class="muted" style="font-size:13.5px">Než text odejde k AI, anonymizační brána na serveru odstraní jméno, rodné číslo, data, adresu, telefony, e-maily a jména příbuzných i lékařů a nahradí je značkami ([PACIENT], [OSOBA_1]…). Pokud by v textu cokoli z toho zůstalo, dotaz se neodešle. Fotka se převádí na text přímo v tomto prohlížeči. Výsledek se k pacientovi přiřadí zpět až na serveru. AI nic nerozhoduje – jen předvyplní formulář, potvrzuje lékař.${S.ai ? '' : ' <b>Na serveru není nastaven klíč AI – použije se lokální rozbor.</b>'}</div></div></div></div>`;
     bindNav();
-    const prevezmi = (j, klientId) => { const r = zPeceDoma(j); w.ai = null; w.import = r.info; w.d = r.d; w.pecedoma = { klientId: klientId || (j.puvod && j.puvod.famicuraKlientId) || '', portalKlientId: (j.puvod && j.puvod.portalKlientId) || null }; w.krok = 2; renderNovy(); toast('Načteno z PéčeDoma – zkontrolujte a doplňte údaje'); };
+    bindZonaZpravy('w_zprava');
+    const prevezmi = (j, klientId) => { const r = zPeceDoma(j); w.ai = null; w.soubor = null; w.import = r.info; w.d = r.d; w.pecedoma = { klientId: klientId || (j.puvod && j.puvod.famicuraKlientId) || '', portalKlientId: (j.puvod && j.puvod.portalKlientId) || null }; w.krok = 2; renderNovy(); toast('Načteno z PéčeDoma – zkontrolujte a doplňte údaje'); };
     $('w_json').onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
       try { const j = JSON.parse(await f.text()); if (j && j.format === 'CLB-Kartapacienta/pacienti') hromadneOkno(jsonNaPacienty(j), f.name); else prevezmi(j); }
@@ -1674,7 +1729,7 @@ function renderNovy() {
     $('w_txt').onchange = async (e) => { const f = e.target.files[0]; if (f) $('w_t').value = await f.text(); };
     $('w_img').onchange = (e) => ocr(e.target.files[0]);
     $('w_skip').onclick = () => { w.text = $('w_t').value; w.krok = 2; renderNovy(); };
-    $('w_rucne').onclick = () => { w.text = ''; w.ai = null; w.import = null; w.krok = 2; renderNovy(); scrollTo(0, 0); };
+    $('w_rucne').onclick = () => { w.text = ''; w.ai = null; w.import = null; w.soubor = null; w.krok = 2; renderNovy(); scrollTo(0, 0); };
     // 0.11.38: více pacientů ze souboru (CSV / JSON) s náhledem, šablona, vzor a export všech pacientů
     $('w_csvp').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const r = csvNaPacienty(await textSouboru(f)); if (!r.length) return toast('V souboru nejsou žádní pacienti (chybí jméno a příjmení)'); hromadneOkno(r, f.name); } catch (err) { toast(err.message); } };
     $('w_jsonp').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const j = JSON.parse(await f.text()); hromadneOkno(jsonNaPacienty(j), f.name); } catch (err) { toast(err.message || 'Soubor se nepodařilo přečíst'); } };
@@ -1687,11 +1742,7 @@ function renderNovy() {
       try {
         const r = await C('/ai/rozbor', { method: 'POST', body: { text: w.text } });
         if (r.blokovano) { toast('Dotaz zablokován'); modal(`<h2>Dotaz na AI nebyl odeslán</h2><p>${esc(r.duvod)}</p><div class="anon">${esc(r.anonymniText)}</div><div class="quick"><button class="btn" data-close>Rozumím</button></div>`); return; }
-        w.ai = r; w.import = null; const v = r.vysledek;
-        const [prijmeni, ...jm] = String(v.jmenoCele || '').split(/\s+/).reverse();
-        w.d.pacient = { ...w.d.pacient, prijmeni: w.d.pacient.prijmeni || (prijmeni || ''), jmeno: w.d.pacient.jmeno || jm.reverse().join(' '), rok: w.d.pacient.rok || v.rok || '', pobyt: v.pobyt || '' };
-        w.d.plan = { cil: v.cil, kpr: v.doklad && v.doklad.dvp ? 'dvp' : 'neuvedeno', limity: v.doklad && v.doklad.dvp ? (v.limity || []) : [], doklad: v.doklad || {}, dg: v.dg, funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [] };
-        w.d.kontakty = (v.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: '' }));
+        w.soubor = null; navrhDoPruvodce(w, r);
         w.krok = 2; renderNovy();
       } catch (e) { toast(e.message); } finally { if ($('w_ai')) { $('w_ai').disabled = false; $('w_ai').textContent = 'Anonymní rozbor zprávy'; } }
     };
@@ -1711,6 +1762,14 @@ function renderNovy() {
       <div class="quick"><button class="btn" id="n_zpet">${S.jednoduchy ? 'Načíst ze zprávy nebo ze souboru' : 'Zpět ke zprávě'}</button><button class="btn primary ulozit" id="n_ok" title="Založí průkaz a otevře ho (záložka Telefon a PINy)">Uložit</button><button class="btn ulozit" id="n_dalsi" title="Založí průkaz a hned otevře prázdný formulář pro dalšího pacienta – garant a tým zůstanou předvybrané">Uložit a další</button></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
+      ${w.soubor ? `${(w.ai.existuje || []).length ? `<div class="banner warn">Pacient už v Kartě nejspíš je: ${w.ai.existuje.map((x) => `<button class="btn sm" type="button" data-exist="${x.id}">${esc(x.kod)} · ${esc(x.prijmeni)} ${esc(x.jmeno)}${x.rok ? ', ' + x.rok : ''}${x.stav !== 'AKTIVNI' ? ' (uzavřený)' : ''}</button>`).join(' ')} – otevřete ho a zprávu vložte v jeho záložce Dokumenty. Nový průkaz zakládejte, jen když jde o jiného člověka.</div>` : ''}
+        <div class="panel"><div class="panel-h"><h2>Zpráva</h2><span class="chip acc">${esc(w.soubor.mime === 'application/pdf' ? 'PDF' : 'obrázek')} · ${velikostSouboru(w.soubor.velikost)}</span></div><div class="form" style="padding:14px">
+          <div class="lbl" style="overflow-wrap:anywhere">${esc(w.soubor.soubor)}${w.ai.ocr ? ` · <b>text rozpoznán z obrázku${w.ai.stran ? ` (${w.ai.stran} str.)` : ''} – zkontrolujte čísla a dávky</b>` : ''}</div>
+          <label class="row" style="gap:8px"><input type="checkbox" id="n_dok_ul" ${w.soubor.ulozit ? 'checked' : ''}> <span><b>Uložit zprávu k pacientovi</b> (Dokumenty)</span></label>
+          <div class="field"><label>Název dokumentu</label><input id="n_dok_n" value="${esc(w.soubor.nazev)}"></div>
+          <label class="row" style="gap:8px"><input type="checkbox" id="n_dok_pp" ${w.soubor.proPacienta ? 'checked' : ''}> <span><b>Předat pacientovi do Průkazu pacienta</b></span></label>
+          ${nactenoZeZpravyHTML(w)}</div></div>` : !w.ai && !w.import ? `<div class="panel"><div class="panel-h"><h2>Máte lékařskou zprávu?</h2></div><div class="form" style="padding:14px">
+          ${zonaZpravyHTML('n_zprava', 'Načíst údaje ze zprávy…', 'PDF z Medistaru, sken nebo fotka – formulář se předvyplní a zkontrolujete ho')}</div></div>` : ''}
       ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
         ${(v.chybi || []).length ? `<div><b style="font-size:13.5px">Chybí nebo ověřit:</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
         ${v.citace && v.citace.cil ? `<div class="ex"><div class="item"><div class="k">Cíl a limitace podle zprávy</div><div class="q">„${esc(v.citace.cil)}“</div></div></div>` : ''}
@@ -1723,7 +1782,10 @@ function renderNovy() {
     </div></div>`;
   bindNav();
   const ulozKont = () => { w.d.kontakty = [...document.querySelectorAll('#n_kont .kontrow')].map((r) => ({ jmeno: r.querySelector('[data-k=j]').value, tel: r.querySelector('[data-k=t]').value, skupina: r.querySelector('[data-k=s]').value, pozn: '' })); };
-  const ulozVse = () => { w.d.pacient = ctiUdaje('n'); const p = ctiPlan('f'); w.d.plan = p.data; w.d.platnostDo = p.platnostDo; ulozKont(); };
+  const ulozVse = () => { w.d.pacient = ctiUdaje('n'); const p = ctiPlan('f'); w.d.plan = p.data; w.d.platnostDo = p.platnostDo; ulozKont();
+    if (w.soubor && $('n_dok_ul')) { w.soubor.ulozit = $('n_dok_ul').checked; w.soubor.proPacienta = $('n_dok_pp').checked; w.soubor.nazev = $('n_dok_n').value.trim() || w.soubor.soubor; } };
+  bindZonaZpravy('n_zprava');
+  document.querySelectorAll('[data-exist]').forEach((b) => (b.onclick = () => { S.wiz = null; otevri(Number(b.dataset.exist), 'dok'); }));
   KP.bindPlanForm('f', { hledatDg: hledatDiagnozy });
   $('n_kplus').onclick = () => { ulozVse(); w.d.kontakty.push({ jmeno: '', tel: '', skupina: 'INFORMOVAT' }); renderNovy(); };
   document.querySelectorAll('[data-kx]').forEach((b) => (b.onclick = () => { ulozVse(); w.d.kontakty.splice(Number(b.dataset.kx), 1); renderNovy(); }));
@@ -1734,7 +1796,12 @@ function renderNovy() {
     $('n_ok').disabled = true; $('n_dalsi').disabled = true;
     const garant = S.jednoduchy ? S.ja.poskytovatelId : Number($('n_g').value), tym = S.jednoduchy ? [] : [...$('n_t').selectedOptions].map((o) => Number(o.value));
     try {
-      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: garant, tym, aiPouzito: !!w.ai } });
+      const r = await C('/pacient', { method: 'POST', body: { pacient: w.d.pacient, plan: w.d.plan, platnostDo: w.d.platnostDo, kontakty: w.d.kontakty, pecedoma: w.pecedoma || null, garantPoskytovatelId: garant, tym, aiPouzito: !!w.ai, zeZpravy: w.soubor ? w.soubor.nazev : '' } });
+      // 0.11.129: zpráva, ze které průkaz vznikl, se uloží k pacientovi (pacient už existuje – chyba tady založení nevrací)
+      if (w.soubor && w.soubor.ulozit) {
+        try { await C(`/pacient/${r.id}/dokument`, { method: 'POST', body: { typ: 'ZPRAVA', nazev: w.soubor.nazev, datum: KP.dnes(), mime: w.soubor.mime, data: w.soubor.data, proPacienta: !!w.soubor.proPacienta } }); }
+        catch (e) { toast(`Průkaz ${r.kod} je založen, ale zprávu se nepodařilo uložit (${e.message}) – vložte ji v záložce Dokumenty`, 7000); }
+      }
       S.wiz = null;
       if (dalsi) { S.wizDalsi = { garant, tym }; toast(`Průkaz ${r.kod} založen – další pacient`, 4000); S.wiz = { krok: 2, text: '', ai: null, d: { pacient: {}, plan: { cil: 'symptom', kpr: 'neuvedeno', limity: [] }, kontakty: [] } }; renderNovy(); scrollTo(0, 0); }
       else { toast(`Průkaz ${r.kod} založen`); otevri(r.id, S.jednoduchy ? 'karta' : 'telefon'); }

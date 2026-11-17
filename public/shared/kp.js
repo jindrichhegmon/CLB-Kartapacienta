@@ -273,7 +273,7 @@
   KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'paliativní terapie', PARENTERALNI: 'parenterálně' };
   KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Paliativní terapie', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
   /* 0.11.123: původ údaje – ze zprávy (rozbor), ručně, z PéčeDoma, při založení; s verzí plánu, časem a kdo zapsal */
-  KP.PUVOD_NAZ = { zprava: 'ze zprávy', 'zalozeni-zprava': 'z propouštěcí zprávy při založení', 'zalozeni-pecedoma': 'z PéčeDoma při založení', zalozeni: 'zapsáno při založení',
+  KP.PUVOD_NAZ = { zprava: 'ze zprávy', 'zalozeni-zprava': 'ze zprávy při založení', 'zalozeni-pecedoma': 'z PéčeDoma při založení', zalozeni: 'zapsáno při založení',
     pecedoma: 'zapsáno v PéčeDoma', rucne: 'zapsáno ručně', karta: 'zapsáno ručně v Kartě' };
   KP.puvodHTML = (u) => {
     if (!u || !u.zdroj) return '';
