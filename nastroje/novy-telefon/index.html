@@ -34,7 +34,7 @@
   .banner.ok{background:#e6f4ec;color:#145c34}.banner.warn{background:#fdf3e1;color:#7a5212}.banner.crit{background:#fbe9e7;color:#8e2a1f}
   ol li,ul li{margin:4px 0}
   #qr{display:none;text-align:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
-  #qr svg{width:min(380px,80vw);height:auto}
+  #qrObr svg{width:min(380px,80vw);height:auto}   /* jen QR kód – ikona v tlačítku Vytisknout zůstane malá */
   .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;word-break:break-all}
   #log{background:#0f1c2b;color:#d7e6f5;border-radius:10px;padding:10px 12px;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;min-height:80px;max-height:320px;overflow:auto;white-space:pre-wrap}
   .krok{display:flex;gap:10px;align-items:flex-start;margin:6px 0}
@@ -62,12 +62,14 @@
     <section id="tab-qr" hidden>
       <p class="noprint">Telefon po továrním resetu naskenuje QR kód z této obrazovky, sám si stáhne aplikaci Karta pacienta a nastaví se jako kiosk. <b>Nic se neinstaluje do počítače</b> a nepotřebujete kabel.</p>
       <div id="apkStav" class="banner warn">Ověřuji aplikaci na serveru…</div>
-      <div id="apkSoubor" class="noprint" hidden><div class="field"><label>Nebo vyberte soubor aplikace z počítače (kartapacienta.apk)</label><input type="file" id="apkFile" accept=".apk"></div><p class="muted">Soubor musí být stejný jako ten na serveru – telefon si aplikaci stahuje ze serveru a součet musí sedět.</p></div>
+      <div id="apkSoubor" class="noprint" hidden><div class="field"><label>Nebo vyberte soubor aplikace z počítače (kartapacienta.apk)</label><input type="file" id="apkFile" accept=".apk"></div><p class="muted">Telefon si aplikaci stahuje ze serveru. U QR kódu „pro všechny verze“ stačí, že je podepsaná stejným klíčem; u QR „jen pro tento soubor“ musí být soubor stejný jako ten na serveru.</p></div>
       <div class="row noprint">
         <div style="flex:1;min-width:260px">
           <div class="field"><label>Wi-Fi, ke které se telefon připojí</label><input id="wifi" value="SSD" autocomplete="off"></div>
           <div class="field"><label>Heslo Wi-Fi</label><input id="heslo" type="password" autocomplete="new-password"></div>
           <div class="field"><label>Zabezpečení</label><select id="zab"><option value="WPA">WPA / WPA2 (běžné)</option><option value="NONE">bez hesla</option></select></div>
+          <div class="field"><label>Platnost QR kódu</label><select id="platnost"><option value="podpis">pro všechny verze aplikace (doporučeno)</option><option value="soubor">jen pro tento soubor (původní způsob)</option></select>
+            <p class="muted" style="margin:6px 0 0">„Pro všechny verze“ ověřuje podpis aplikace, ne konkrétní soubor – vytištěný kód platí i po nahrání nové verze aplikace na server. „Jen pro tento soubor“ přestane platit, jakmile se soubor na serveru změní. <span id="platnostInfo"></span></p></div>
           <p class="muted">Heslo se nikam neposílá ani neukládá – je jen uvnitř QR kódu na této obrazovce. Vytištěný QR kód proto nesdílejte mimo tým.</p>
           <button class="btn primary big" id="vytvorQr" disabled>Vytvořit QR kód</button>
         </div>
@@ -81,7 +83,7 @@
       <h3>Když se něco nedaří</h3>
       <table><tr><th>Co se děje</th><th>Co udělat</th></tr>
         <tr><td>Po 6 klepnutích se čtečka neobjeví</td><td>Klepat rychleji na jedno místo; funguje jen na úplně první obrazovce po resetu.</td></tr>
-        <tr><td>„Zařízení nelze nastavit“</td><td>Aplikace na serveru chybí nebo nesedí s QR kódem – nahoře musí být zelené „Aplikace na serveru je připravená“. Pak Resetovat a nový QR kód.</td></tr>
+        <tr><td>„Zařízení nelze nastavit“</td><td>Aplikace na serveru chybí nebo nesedí s QR kódem – nahoře musí být zelené „Aplikace na serveru je připravená“. Pak Resetovat a nový QR kód. Starší vytištěný kód (platný jen pro jeden soubor) nahraďte novým s platností „pro všechny verze“. Když to telefon hlásí i s ním, zkuste Platnost QR kódu → „jen pro tento soubor“.</td></tr>
         <tr><td>Telefon se nepřipojí k Wi-Fi</td><td>Zkontrolujte název a heslo Wi-Fi (velká a malá písmena) a vytvořte QR znovu.</td></tr>
         <tr><td>Telefon chce Google účet</td><td>Nepřihlašovat – při účtu kiosk nejde nastavit. Znovu tovární reset.</td></tr>
       </table>
@@ -115,6 +117,7 @@
 <script src="kp-ikony.js"></script>
 <script src="qrcode.js"></script>
 <script src="kp-adb.js"></script>
+<script src="apk-podpis.js"></script>
 <script>
 const APK_URL = 'https://kartapacienta.95-216-201-2.sslip.io/android/kartapacienta.apk';
 const BALIK = 'cz.centrumlb.kartapacienta';
@@ -123,6 +126,15 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 $('apkUrlTxt').textContent = APK_URL;
 let APK = null, SOUCET = '';
+/* 0.11.133: otisk podpisového certifikátu aplikace – QR kód s ním platí i pro další verze aplikace (stejný podpisový klíč) */
+let OTISK = '', OTISK_SCHEMA = '';
+async function nactiOtisk(bajty) {
+  try { const o = await KPAPK.otiskPodpisu(bajty); OTISK = o.otisk; OTISK_SCHEMA = o.schema; } catch (e) { OTISK = ''; OTISK_SCHEMA = ''; console.warn('otisk podpisu:', e); }
+  const v = $('platnost'); if (!v) return;
+  v.querySelector('option[value=podpis]').disabled = !OTISK;
+  if (!OTISK) v.value = 'soubor';
+  $('platnostInfo').textContent = OTISK ? '' : 'Podpis aplikace se nepodařilo přečíst – QR kód bude platit jen pro soubor, který je teď na serveru.';
+}
 
 /* ---- volba počítače ---- */
 function nastavOs(os) {
@@ -153,8 +165,8 @@ async function nactiApk() {
     if (!r.ok) throw new Error(r.status === 404 ? 'na serveru chybí (404)' : 'server odpověděl ' + r.status);
     const b = new Uint8Array(await r.arrayBuffer());
     if (b.length < 100000 || b[0] !== 0x50 || b[1] !== 0x4b) throw new Error('soubor na serveru není aplikace pro Android');
-    APK = b; SOUCET = await soucetZ(b);
-    st.className = 'banner ok'; st.innerHTML = `✅ Aplikace na serveru je připravená (${mb(b.length)}, součet <span class="mono">${esc(SOUCET.slice(0, 10))}…</span>).`;
+    APK = b; SOUCET = await soucetZ(b); await nactiOtisk(b);
+    st.className = 'banner ok'; st.innerHTML = `✅ Aplikace na serveru je připravená (${mb(b.length)}${OTISK ? `, otisk podpisu <span class="mono">${esc(OTISK.slice(0, 10))}…</span>` : ''}, součet souboru <span class="mono">${esc(SOUCET.slice(0, 10))}…</span>).`;
     $('vytvorQr').disabled = false; $('apkSoubor').hidden = true;
     $('kabApk').className = 'banner ok'; $('kabApk').innerHTML = `✅ Aplikace se vezme ze serveru (${mb(b.length)}). Můžete vybrat i jiný soubor z počítače.`;
   } catch (e) {
@@ -173,8 +185,8 @@ $('kabFile').onchange = async (e) => {
 };
 $('apkFile').onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
-  APK = new Uint8Array(await f.arrayBuffer()); SOUCET = await soucetZ(APK);
-  $('apkStav').className = 'banner warn'; $('apkStav').innerHTML = `Vybrán soubor ${esc(f.name)} (${mb(APK.length)}, součet <span class="mono">${esc(SOUCET.slice(0, 10))}…</span>). QR kód bude fungovat jen tehdy, když je na serveru přesně tento soubor.`;
+  APK = new Uint8Array(await f.arrayBuffer()); SOUCET = await soucetZ(APK); await nactiOtisk(APK);
+  $('apkStav').className = 'banner warn'; $('apkStav').innerHTML = `Vybrán soubor ${esc(f.name)} (${mb(APK.length)}${OTISK ? `, otisk podpisu <span class="mono">${esc(OTISK.slice(0, 10))}…</span>` : ''}, součet souboru <span class="mono">${esc(SOUCET.slice(0, 10))}…</span>). Telefon si aplikaci stahuje ze serveru – QR kód „pro všechny verze“ bude fungovat, když je aplikace na serveru podepsaná stejným klíčem; QR „jen pro tento soubor“ jen tehdy, když je na serveru přesně tento soubor.`;
   $('vytvorQr').disabled = false;
 };
 nactiApk();
@@ -184,10 +196,12 @@ $('vytvorQr').onclick = () => {
   const wifi = $('wifi').value.trim(), heslo = $('heslo').value, zab = $('zab').value;
   if (!SOUCET) return alert('Nejdřív musí být ověřená aplikace.');
   if (wifi && zab === 'WPA' && !heslo) return alert('Zadejte heslo Wi-Fi, nebo zvolte „bez hesla“.');
+  const podpisem = $('platnost').value === 'podpis' && !!OTISK;
   const data = {
     'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': ADMIN,
     'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': APK_URL,
-    'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': SOUCET,
+    // jen jeden z obou údajů: se součtem souboru by Android otisk podpisu ignoroval
+    ...(podpisem ? { 'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM': OTISK } : { 'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': SOUCET }),
     'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,
     'android.app.extra.PROVISIONING_SENSORS_PERMISSION_GRANT_OPT_OUT': true,
     'android.app.extra.PROVISIONING_SKIP_EDUCATION_SCREENS': true,
@@ -199,7 +213,7 @@ $('vytvorQr').onclick = () => {
   }
   const qr = qrcode(0, 'L'); qr.addData(JSON.stringify(data)); qr.make();
   $('qrObr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4, scalable: true });
-  $('qrInfo').textContent = `Wi-Fi: ${wifi || '(připojit ručně)'} · aplikace ${mb(APK.length)} · součet ${SOUCET} · ${new Date().toLocaleString('cs-CZ')}`;
+  $('qrInfo').textContent = `Wi-Fi: ${wifi || '(připojit ručně)'} · ${podpisem ? `platí pro všechny verze aplikace · otisk podpisu ${OTISK}` : `platí jen pro tento soubor aplikace (${mb(APK.length)}) · součet ${SOUCET}`} · ${new Date().toLocaleString('cs-CZ')}`;
   $('qr').style.display = 'block'; $('qr').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 

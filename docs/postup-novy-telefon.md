@@ -54,7 +54,7 @@ Jednou se připraví release APK a QR, pak je každý další telefon pár minut
 
 1. V Android Studiu sestavit **release** APK (Build → Generate Signed App Bundle / APK → APK, vlastní podpisový klíč `.jks` uschovat mimo git) a zkopírovat ho do `public/android/kartapacienta.apk`.
 2. Nasadit web: `./deploy/vps-deploy.sh` (APK se nahraje na server).
-3. Vytvořit QR: `node android/provisioning-qr.mjs public/android/kartapacienta.apk --wifi NázevSítě` (heslo Wi‑Fi se zadá skrytě). Vznikne `android/provisioning-qr.html` – otevřít v prohlížeči, případně vytisknout. **Po každém novém sestavení APK vygenerovat QR znovu.**
+3. Vytvořit QR: `node android/provisioning-qr.mjs public/android/kartapacienta.apk --wifi NázevSítě` (heslo Wi‑Fi se zadá skrytě). Vznikne `android/provisioning-qr.html` – otevřít v prohlížeči, případně vytisknout. Od 0.11.133 kód nese otisk podpisového klíče aplikace, takže **platí i pro další verze** podepsané stejným release klíčem – vytištěný kód není potřeba po novém sestavení měnit (jen při změně Wi‑Fi nebo podpisového klíče). Starší vytištěné kódy (se součtem souboru) platí jen pro tehdejší soubor – nahradit novým. Totéž umí stránka https://newandroidkartapacienta.netlify.app (Platnost QR kódu → pro všechny verze).
 4. Nový telefon po továrním resetu zapnout, na uvítací obrazovce **6× klepnout**, naskenovat QR. Telefon si stáhne APK, zašifruje se, nastaví správce zařízení a spustí Kartu.
 5. Dál jako v A. 3: spárovat, vyzkoušet.
 

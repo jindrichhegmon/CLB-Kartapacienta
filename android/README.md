@@ -48,12 +48,15 @@ pár minut bez počítače.
 1. V Android Studiu sestavit **release** (Build → Generate Signed App Bundle / APK → APK) a soubor zkopírovat do
    `public/android/kartapacienta.apk` (složka je v gitu ignorovaná; `./deploy/vps-deploy.sh` ho nahraje na server).
 2. Nasadit: `./deploy/vps-deploy.sh`. APK je pak na `https://kartapacienta.95-216-201-2.sslip.io/android/kartapacienta.apk`.
-3. Vygenerovat QR (kontrolní součet se počítá z APK, po každém novém sestavení znovu):
+3. Vygenerovat QR. Od 0.11.133 kód nese **otisk podpisového klíče** aplikace, ne součet souboru – platí pro každou další
+   verzi podepsanou stejným release klíčem (`.jks`), takže vytištěný kód stačí udělat jednou. Nový je potřeba jen při změně
+   Wi-Fi, adresy APK nebo podpisového klíče. (Ladicí sestavení z Android Studia je podepsané jiným klíčem – s tímto kódem neprojde.)
    ```bash
    node android/provisioning-qr.mjs public/android/kartapacienta.apk --wifi NázevSítě
    ```
    Heslo Wi-Fi se zadá skrytě. Vznikne `android/provisioning-qr.html` (není v gitu) – otevřít v prohlížeči, případně vytisknout.
-   Bez `--wifi` se telefon musí k síti připojit ručně před skenováním.
+   Bez `--wifi` se telefon musí k síti připojit ručně před skenováním. S `--soubor` vznikne kód původním způsobem
+   (součet souboru – platí jen pro tento jeden soubor, po každém sestavení znovu).
 4. Telefon po továrním resetu zapnout, na uvítací obrazovce **6× klepnout**, naskenovat QR. Telefon si stáhne APK,
    zašifruje se, nastaví správce zařízení a spustí kartu. Pak jen spárovat.
 
