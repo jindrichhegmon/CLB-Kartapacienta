@@ -1,5 +1,6 @@
 package cz.centrumlb.kartapacienta
 
+import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
@@ -9,7 +10,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.UserManager
+import android.provider.Settings
 import android.telecom.TelecomManager
 import java.security.MessageDigest
 
@@ -32,7 +35,21 @@ object Kiosk {
     /** Aplikace právě drží telefon v kiosku. */
     fun jeZamceno(c: Context) = jeSpravce(c) && !servisniRezim
 
-    /** Pravidla zařízení – idempotentní, volá se při každém návratu do aplikace. */
+    /** Fotoaparát (čtečka QR) a mikrofon (videohovor): dialog oprávnění se v kiosku nezobrazí, správce zařízení je přidělí rovnou.
+     *  Volá se i při každém startu aplikace (0.1.4) – telefon nastavený starší verzí (bez mikrofonu) tak oprávnění dostane po pouhé aktualizaci APK. */
+    /** Vrací true, když jsou obě oprávnění opravdu přidělená. Od Androidu 12 správce zařízení fotoaparát a mikrofon přidělit nesmí
+     *  (vrací false), pokud telefon nebyl zaveden QR kódem s PROVISIONING_SENSORS_PERMISSION_GRANT_OPT_OUT – pak se zeptá běžný dialog (MainActivity). */
+    fun opravneni(c: Context): Boolean {
+        if (!jeSpravce(c)) return false
+        val d = dpm(c)
+        val a = admin(c)
+        // 0.1.12: READ_PHONE_STATE + ANSWER_PHONE_CALLS – tlačítko Zavěsit v kartě (TelecomManager.endCall), tato oprávnění správce přidělit smí i na Androidu 12+
+        val p = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.READ_PHONE_STATE, Manifest.permission.ANSWER_PHONE_CALLS)
+        p.forEach { runCatching { d.setPermissionGrantState(a, c.packageName, it, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) } }
+        return listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO).all { c.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+    }
+
+    /** Pravidla zařízení – idempotentní, volá se po nastavení správce zařízení (AdminReceiver). */
     fun nastavit(c: Context) {
         if (!jeSpravce(c)) return
         val d = dpm(c)
@@ -57,7 +74,25 @@ object Kiosk {
         d.addPersistentPreferredActivity(a, domov, ComponentName(c.packageName, DOMOV))
 
         d.setKeyguardDisabled(a, true) // bez zámku obrazovky (vrací false, pokud je nastaven PIN telefonu)
+        opravneni(c)
         d.addUserRestriction(a, UserManager.DISALLOW_SAFE_BOOT) // nouzový režim by kiosk obešel
+        // Zvonění při zhasnuté obrazovce (0.1.8): bez výjimky z úspor energie by telefon v klidu (Doze) službě odpojil síť
+        val android14 = Build.VERSION.SDK_INT >= 34
+        if (android14) {
+            vyjimkaZUspor(d, c.packageName)
+        }
+    }
+
+    /** DevicePolicyManager.setApplicationExemptions(balíček, {EXEMPT_FROM_POWER_RESTRICTIONS = 2}) – Android 14+; přes reflexi, aby šlo
+     *  sestavit i se starším SDK v Android Studiu (0.1.10). Když metoda chybí nebo selže, nic se neděje – jen Doze může v klidu omezit síť. */
+    private fun vyjimkaZUspor(d: DevicePolicyManager, balicek: String) {
+        try {
+            val metoda = DevicePolicyManager::class.java.getMethod("setApplicationExemptions", String::class.java, Set::class.java)
+            val vyjimky: Set<Int> = setOf(2)
+            metoda.invoke(d, balicek, vyjimky)
+        } catch (e: Exception) {
+            // bez výjimky z úspor energie – telefon v dlouhém klidu může službě zvonění omezit síť
+        }
     }
 
     /** Zamkne aktivitu do kiosku, pokud to jde a není zapnutý servis. */
@@ -75,8 +110,17 @@ object Kiosk {
         runCatching { a.stopLockTask() }
     }
 
+    /** Čas zhasnutí displeje v ms (systémové nastavení); správce ho smí měnit přímo (setSystemSetting), hodnota přežije restart. */
+    fun zhasinani(c: Context): Int = runCatching { Settings.System.getInt(c.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT) }.getOrDefault(-1)
+
+    fun nastavZhasinani(c: Context, ms: Int): Boolean {
+        if (!jeSpravce(c)) return false
+        return runCatching { dpm(c).setSystemSetting(admin(c), Settings.System.SCREEN_OFF_TIMEOUT, ms.toString()); true }.getOrDefault(false)
+    }
+
     /** Servis: kiosk vypnutý do restartu aplikace. */
     fun uvolnit(a: Activity) {
+        Zvoneni.zapomen(a); runCatching { a.stopService(Intent(a, ZvoneniService::class.java)) }
         servisniRezim = true
         runCatching { a.stopLockTask() }
     }
@@ -96,6 +140,8 @@ object Kiosk {
         d.setLockTaskPackages(ad, emptyArray())
         d.setKeyguardDisabled(ad, false)
         d.clearUserRestriction(ad, UserManager.DISALLOW_SAFE_BOOT)
+        d.setPermissionGrantState(ad, a.packageName, Manifest.permission.CAMERA, DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT)
+        d.setPermissionGrantState(ad, a.packageName, Manifest.permission.RECORD_AUDIO, DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT)
         domovskaObrazovka(a, false)
         d.clearDeviceOwnerApp(a.packageName)
     }
@@ -114,9 +160,19 @@ object Kiosk {
         c.packageManager.resolveActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:")), 0)
             ?.activityInfo?.packageName?.let { vysledek += it }
         vysledek += "com.android.server.telecom" // obrazovka hovoru na některých telefonech
+        // 0.1.12: obrazovka probíhajícího hovoru je na Samsungu i na Pixelu samostatná aplikace – bez ní v kiosku nejde hovor zavěsit
+        for (p in listOf("com.samsung.android.incallui", "com.android.incallui", "com.google.android.dialer", "com.android.dialer", "com.android.phone")) {
+            if (jeNainstalovana(c, p)) vysledek += p
+        }
+        // 0.1.12: SMS z karty (výzva kolegovi k videohovoru) – výchozí aplikace SMS
+        runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(c) }.getOrNull()?.let { vysledek += it }
+        c.packageManager.resolveActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("sms:")), 0)?.activityInfo?.packageName?.let { vysledek += it }
         vysledek.remove("android") // výběrový dialog systému, ne aplikace
         return vysledek
     }
+
+    private fun jeNainstalovana(c: Context, balicek: String): Boolean =
+        runCatching { c.packageManager.getPackageInfo(balicek, 0); true }.getOrDefault(false)
 
     fun sha256(s: String): String =
         MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }

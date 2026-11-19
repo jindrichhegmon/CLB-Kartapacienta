@@ -5,6 +5,9 @@ aplikace jen:
 
 - po zapnutí telefonu spustí kartu a nedovolí z ní odejít (Lock Task, aplikace je domovská obrazovka),
 - pustí volání z karty (`tel:` → vytáčení, telefonní aplikace je v kiosku povolená),
+- pustí fotoaparát jen pro kartu (čtečka párovacího QR kódu); v kiosku si oprávnění přidělí sama (0.1.1),
+- pustí mikrofon a fotoaparát pro videohovor vložený v kartě (Jitsi) a přehraje zvonění příchozího hovoru (0.1.3); oprávnění obnoví při každém startu, takže stačí aktualizovat APK (0.1.4); na Androidu 12+ zavedeném kabelem (`dpm set-device-owner`) správce mikrofon přidělit nesmí – aplikace se pak při startu zeptá běžným dialogem, stačí klepnout na Povolit; QR zavedení má opt-out, aby šlo přidělit rovnou (0.1.5); zvuk hovoru jde na hlasitý reproduktor a hlasitost se při začátku hovoru zvedne aspoň na 85 % (0.1.6),
+- **probudí telefon při hovoru z centrály** i se zhasnutou obrazovkou (0.1.8): karta aplikaci předá klíč jen pro zvonění (`window.KartaAndroid.nastavZvoneni`), služba na popředí se při zhasnutém displeji ptá serveru každých 15 s (`GET /api/d/video`, `Authorization: Video …`) a při zvonění z centrály rozsvítí displej a dá kartu do popředí; karta pak zvoní jako obvykle a drží obrazovku rozsvícenou (`drzObrazovku`). Jako správce zařízení si aplikace nastaví výjimku z úspor energie (Doze); na starším Androidu ručně `adb shell dumpsys deviceidle whitelist +cz.centrumlb.kartapacienta`,
 - bez signálu ukáže kartu z mezipaměti, při úplně prvním spuštění bez internetu nabídne „Zkusit znovu“,
 - po servisním PINu nabídne Wi-Fi, obnovení, vypnutí kiosku a vrácení telefonu.
 
@@ -34,8 +37,30 @@ Device Owner jde nastavit jen na telefonu **bez účtů** – tedy po továrním
    adb shell am start -n cz.centrumlb.kartapacienta/.MainActivity
    ```
 4. Restartovat telefon – naběhne rovnou karta. Pak spárovat kódem z centrální aplikace
-   (Telefon a PINy → Spárovat telefon; kód se v aplikaci opíše, fotoaparát v kiosku není).
+   (Telefon a PINy → Spárovat telefon; QR kód jde načíst fotoaparátem přímo v kartě, nebo kód opsat).
 5. Pro ostrý provoz vypnout Ladění USB.
+
+## Příprava telefonu QR kódem (bez kabelu, pro víc telefonů)
+
+Telefon si APK stáhne sám z živého serveru a nastaví se jako kiosk. Jednou se připraví QR, pak je to na telefon
+pár minut bez počítače.
+
+1. V Android Studiu sestavit **release** (Build → Generate Signed App Bundle / APK → APK) a soubor zkopírovat do
+   `public/android/kartapacienta.apk` (složka je v gitu ignorovaná; `./deploy/vps-deploy.sh` ho nahraje na server).
+2. Nasadit: `./deploy/vps-deploy.sh`. APK je pak na `https://kartapacienta.95-216-201-2.sslip.io/android/kartapacienta.apk`.
+3. Vygenerovat QR. Od 0.11.133 kód nese **otisk podpisového klíče** aplikace, ne součet souboru – platí pro každou další
+   verzi podepsanou stejným release klíčem (`.jks`), takže vytištěný kód stačí udělat jednou. Nový je potřeba jen při změně
+   Wi-Fi, adresy APK nebo podpisového klíče. (Ladicí sestavení z Android Studia je podepsané jiným klíčem – s tímto kódem neprojde.)
+   ```bash
+   node android/provisioning-qr.mjs public/android/kartapacienta.apk --wifi NázevSítě
+   ```
+   Heslo Wi-Fi se zadá skrytě. Vznikne `android/provisioning-qr.html` (není v gitu) – otevřít v prohlížeči, případně vytisknout.
+   Bez `--wifi` se telefon musí k síti připojit ručně před skenováním. S `--soubor` vznikne kód původním způsobem
+   (součet souboru – platí jen pro tento jeden soubor, po každém sestavení znovu).
+4. Telefon po továrním resetu zapnout, na uvítací obrazovce **6× klepnout**, naskenovat QR. Telefon si stáhne APK,
+   zašifruje se, nastaví správce zařízení a spustí kartu. Pak jen spárovat.
+
+Servisní PIN je v APK (`kp.servisPin` při sestavení), platí pro všechny telefony z tohoto APK.
 
 Chyba `Not allowed to set the device owner because there are already some accounts` = na telefonu
 zůstal účet, odebrat ho (nebo znovu tovární reset).
@@ -48,6 +73,9 @@ zůstal účet, odebrat ho (nebo znovu tovární reset).
 |---|---|
 | Nastavení Wi-Fi | otevře panel Wi-Fi, po zavření se kiosk sám znovu zamkne |
 | Obnovit kartu | znovu načte stránku |
+| (automaticky) | v kiosku je povolená i obrazovka probíhajícího hovoru (Samsung / Pixel InCallUI) a výchozí aplikace SMS; při hovoru karta ukáže červený pruh **Zavěsit** (0.1.12) |
+| Stav zvonění (diagnostika) | zda karta předala klíč pro zvonění, zda běží služba a co naposledy udělala (0.1.11) |
+| Zhasínání displeje | po kolika minutách displej zhasne (1 min – nikdy); nastaví se přímo, bez opouštění kiosku, platí i po restartu (0.1.9) |
 | Ukončit kiosk (do restartu) | uvolní telefon pro servis, po restartu je kiosk zpět |
 | Vrátit telefon | zruší správu zařízení – pak jde aplikace odinstalovat |
 
@@ -59,6 +87,6 @@ Po 5 chybných PINech je servis 15 minut zablokovaný.
 - Klíč pro podepisování release (`.jks`) uschovat mimo git; bez něj nejde vydat aktualizaci.
 - Google Play: aplikace funguje i bez kiosku, takže projde jako běžná aplikace. Kiosk se zapne jen na telefonech,
   kde ji nastavíte jako správce zařízení.
-- Pro 20 telefonů bez kabelu: nastavení **QR kódem při prvním zapnutí** (6× klepnout na uvítací obrazovku).
-  Aplikace je na to připravená (`ProvisioningActivity`), chybí jen APK na HTTPS adrese a QR s jeho kontrolním součtem.
+- Nastavení QR kódem vyžaduje **release APK podepsané vaším klíčem**; ladicí `app-debug.apk` na to nepoužívejte
+  (jiný podpis = aktualizace z Play by nešla nainstalovat přes něj).
 - Vzdálené zamčení a smazání (MDM) tato aplikace neřeší – viz `docs/souhrn-a-zadani-pro-vyvoj.md`.

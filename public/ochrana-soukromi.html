@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Karta pacienta on-line – ochrana osobních údajů</title>
+<style>
+  :root{--text:#1f2a3a;--muted:#5a6b7d;--primary:#1d6fd6;--border:#c9d9ea;--bg:#f3f5f8}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+  main{max-width:820px;margin:0 auto;padding:28px 16px 48px}
+  h1{color:var(--primary);font-size:26px;margin:0 0 4px}
+  h2{font-size:18px;margin:26px 0 6px;color:var(--primary)}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+  section{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px}
+  ul{padding-left:20px;margin:6px 0}
+  a{color:var(--primary)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Karta pacienta on-line – ochrana osobních údajů</h1>
+  <div class="sub">Paliativní průkaz a krizová karta pacienta · centrální aplikace, telefon u pacienta a aplikace Karta pacienta pro domácnost (Můj průkaz) · platné od 29. 10. 2026</div>
+
+  <section>
+    <h2>K čemu Karta pacienta slouží</h2>
+    <p>Karta pacienta on-line vede paliativní průkaz pacienta v domácí péči: cíl péče a jeho limity, dříve vyslovené přání, záchranné léky, koho volat, plán péče od lékaře, deník péče a zprávy s pečujícím týmem. Používají ji zdravotníci poskytovatele domácí paliativní péče (centrální aplikace a zapůjčený telefon u pacienta) a pacient nebo jeho rodina ve vlastním telefonu (aplikace <b>Karta pacienta pro domácnost</b>, v aplikaci označená jako <b>Můj průkaz</b>).</p>
+  </section>
+
+  <section>
+    <h2>Kdo údaje spravuje</h2>
+    <p>Správcem osobních údajů pacientů je vždy <b>poskytovatel péče</b>, který průkaz založil (garant uvedený na kartě). Provozovatelem aplikace je Centrum pro léčbu bolesti a paliativní medicínu s.r.o., Zlín, které údaje zpracovává jménem poskytovatele a podle jeho pokynů. Dotazy a žádosti týkající se údajů vyřizuje poskytovatel; kontakt na provozovatele je níže.</p>
+  </section>
+
+  <section>
+    <h2>Jaké údaje zpracováváme</h2>
+    <ul>
+      <li><b>Pacient:</b> jméno, rok narození, případně rodné číslo pro propojení s evidencí poskytovatele, adresa, diagnózy a informace podstatné pro krizovou situaci, cíl péče a jeho limity, dříve vyslovené přání, plán péče, léky a záchranná medikace, kontakty na blízké a na tým.</li>
+      <li><b>Záznamy péče:</b> deník návštěv a událostí, zprávy mezi pacientem (rodinou) a týmem, dokumenty přiložené poskytovatelem, záznamy o podání léků, poznámky a otázky, které pacient nebo rodina zapíší v Mém průkazu.</li>
+      <li><b>Uživatelé poskytovatele:</b> jméno, role, přihlašovací údaje (hesla a PINy se ukládají jen jako jednosměrný otisk), záznamy o přístupu (kdo, kdy a co otevřel – audit).</li>
+      <li><b>Technické údaje:</b> identifikátor spárovaného telefonu, čas poslední synchronizace, záznamy o běhu serveru pro řešení chyb. Aplikace nepoužívá reklamní ani analytické služby třetích stran a nesleduje polohu.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Aplikace Karta pacienta pro domácnost (Můj průkaz)</h2>
+    <ul>
+      <li>Aplikace je obal webové stránky Můj průkaz. Spáruje se kódem průkazu, který vydá poskytovatel; bez kódu neukazuje nic.</li>
+      <li>Průkaz je uložen <b>šifrovaně v telefonu</b>, aby byl k dispozici i bez signálu. Záznamy, které pacient nebo rodina zapíší (přání, poznámky, otázky, podání léků, zprávy), se předávají týmu poskytovatele na server Karty.</li>
+      <li>Do telefonu pacienta se nikdy nepřenáší deník týmu ani přístupové PINy zdravotníků.</li>
+      <li>Fotoaparát se používá jen k načtení kódu průkazu, fotoaparát a mikrofon k videohovoru s týmem; obojí jen po udělení oprávnění a jen v okamžiku použití. Videohovor vede vlastní server poskytovatele (Jitsi Meet), hovory se nenahrávají.</li>
+      <li>Údaje z telefonu smažete v aplikaci volbou <b>Odebrat průkaz</b> (nebo odinstalováním aplikace). Výmaz údajů na serveru zajišťuje poskytovatel uzavřením průkazu podle svých lhůt pro zdravotnickou dokumentaci.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Kde jsou data uložena a jak jsou chráněna</h2>
+    <ul>
+      <li>Server a databáze běží na serverech provozovatele v EU; údaje každého poskytovatele jsou v databázi oddělené.</li>
+      <li>Komunikace probíhá šifrovaně (HTTPS). Přístup mají jen přihlášení uživatelé poskytovatele podle svých rolí, pacient a rodina jen k vlastnímu průkazu po spárování.</li>
+      <li>Každý přístup k průkazu se zaznamenává; deník a záznamy jde jen doplňovat, ne mazat ani přepisovat.</li>
+      <li>Pomocné funkce s umělou inteligencí (rozbor textu zprávy) dostávají text <b>bez identity pacienta</b> – jména, rodná čísla, adresy a telefony se před odesláním nahradí zástupnými údaji.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Komu údaje předáváme</h2>
+    <p>Nikomu mimo poskytovatele péče a jeho tým. Údaje neprodáváme ani nepoužíváme k reklamě. Subdodavatelem je jen provozovatel serverů (hosting v EU), vázaný smlouvou o zpracování.</p>
+  </section>
+
+  <section>
+    <h2>Vaše práva</h2>
+    <p>Máte právo na přístup ke svým údajům, jejich opravu, výmaz (v mezích povinného vedení zdravotnické dokumentace), omezení zpracování a na podání stížnosti u Úřadu pro ochranu osobních údajů. Žádosti vyřizuje poskytovatel péče uvedený na kartě; technické dotazy zodpoví provozovatel.</p>
+  </section>
+
+  <section>
+    <h2>Kontakt</h2>
+    <p>Centrum pro léčbu bolesti a paliativní medicínu s.r.o., Zlín · <a href="https://www.centrumlb.cz">www.centrumlb.cz</a> · e-mail: <a href="mailto:jindrich.hegmon@centrumlb.cz">jindrich.hegmon@centrumlb.cz</a></p>
+  </section>
+</main>
+</body>
+</html>

@@ -249,6 +249,13 @@ CREATE TABLE dbo.A_KP_Dokument (
   CONSTRAINT FK_A_KP_Dokument_Tenant FOREIGN KEY (IDTENANT) REFERENCES dbo.Tenants(IDTENANT)
 );
 
+-- 0.11.118: dokument předaný pacientovi do Průkazu pacienta (ProPacienta) a otisk obsahu (Sha256 – Průkaz pozná, co už má).
+-- Staré dokumenty se pacientovi samy neposílají (výchozí 0). Idempotentní.
+IF COL_LENGTH('dbo.A_KP_Dokument', 'ProPacienta') IS NULL
+  ALTER TABLE dbo.A_KP_Dokument ADD ProPacienta bit NOT NULL CONSTRAINT DF_A_KP_Dokument_PP DEFAULT (0);
+IF COL_LENGTH('dbo.A_KP_Dokument', 'Sha256') IS NULL
+  ALTER TABLE dbo.A_KP_Dokument ADD Sha256 char(64) NULL;
+
 IF OBJECT_ID('dbo.A_KP_AuditLog') IS NULL
 CREATE TABLE dbo.A_KP_AuditLog (
   IDTENANT char(16) NOT NULL CONSTRAINT DF_A_KP_AuditLog_T DEFAULT (CAST(SESSION_CONTEXT(N'IDTENANT') AS char(16))),

@@ -2,3 +2,6 @@ node_modules
 .env
 .DS_Store
 *.log
+
+# APK pro nastavení telefonů QR kódem (nahrává se na VPS při nasazení, do gitu ne)
+public/android/*.apk

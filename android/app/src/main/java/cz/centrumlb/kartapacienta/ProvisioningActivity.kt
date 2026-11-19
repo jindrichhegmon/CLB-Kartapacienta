@@ -7,12 +7,17 @@ import android.os.Bundle
 
 /**
  * Nastavení telefonu QR kódem v průvodci prvního zapnutí (6× klepnout na úvodní obrazovku).
- * Android 12+ se správce ptá na režim – karta chce vždy plně spravované zařízení.
+ * Android 12+ se správce ptá na režim – karta chce vždy plně spravované zařízení. V kroku ADMIN_POLICY_COMPLIANCE se jen
+ * potvrdí výsledek a spustí čekání na konec průvodce (Zavedeni.dokoncit); kiosk se zapne až potom – zapnutý uprostřed
+ * průvodce vracel průvodce na začátek (0.1.13–0.1.15).
  */
 class ProvisioningActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (intent.action == DevicePolicyManager.ACTION_GET_PROVISIONING_MODE) {
+            val povolene: String = try { intent.getIntegerArrayListExtra("android.app.extra.PROVISIONING_ALLOWED_PROVISIONING_MODES")?.joinToString(",") ?: "?" } catch (e: Exception) { "?" }
+            val klice: String = try { intent.extras?.keySet()?.joinToString(",") ?: "-" } catch (e: Exception) { "-" }
+            Zavedeni.hlas(this, "dotaz na režim – plně spravované zařízení", "povolené režimy: $povolene; správce: ${Kiosk.jeSpravce(this)}; extras: $klice")
             setResult(
                 RESULT_OK,
                 Intent().putExtra(
@@ -21,7 +26,9 @@ class ProvisioningActivity : Activity() {
                 ),
             )
         } else {
-            setResult(RESULT_OK) // ADMIN_POLICY_COMPLIANCE – pravidla se nastaví v AdminReceiver
+            Zavedeni.hlas(this, "ADMIN_POLICY_COMPLIANCE", "správce: " + Kiosk.jeSpravce(this))
+            Zavedeni.dokoncit(this, "compliance")
+            setResult(RESULT_OK)
         }
         finish()
     }

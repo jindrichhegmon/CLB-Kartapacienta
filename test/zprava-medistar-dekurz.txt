@@ -1,0 +1,45 @@
+Centrum ukázkové paliativní péče s.r.o. IČO: 12345678, Mobilní hospic
+Ukázková 1, 760 01 Zlín Tel.: 577000000 Mail: info@example.cz
+ING. Jan Testovací R.č.: 450101/123 ZP: 111
+Trvalá adresa: Lipová 12, 760 01 Zlín TEL: 777000111
+Přechodná adresa:
+02.11.2026 15:51 R52.1 ALB
+Dg.: R52.1
+Probíhá zajištění komplexní paliativní péče MDT.
+Dnes bylo provedeno vyšetření v domácím prostředí.
+Pacient: Testovací Jan
+-- Základní informace o pacientovi --
+Typ vyšetření: 02-Kontrolní vyšetření lékařem
+Jméno a příjmení pacienta: Jan Testovací
+Jméno a příjmení pečující osoby: Dcera
+Zodpovědný lékař: MUDr. Ukázková
+Paliativní sestra: Lékař bez sestry
+Diagnóza: Chronická obstrukční plicní nemoc, srdeční selhání.
+Datum a čas: 02-11-2026 03:39
+-- Medikace --
+Opioidy: OXYCONTIN 20-0-20
+SOS Medikace:
+NOVALGIN 500 tbl při bolesti
+Parenterální medikace: Sine
+1
+Centrum ukázkové paliativní péče s.r.o. IČO: 12345678, Mobilní hospic
+Ukázková 1, 760 01 Zlín Tel.: 577000000 Mail: info@example.cz
+ING. Jan Testovací R.č.: 450101/123 ZP: 111
+Trvalá adresa: Lipová 12, 760 01 Zlín TEL: 777000111
+Přechodná adresa:
+-- PPS --
+Hodnocení : 40
+Pohyblivost: Převážně na lůžku Aktivita: Neschopen většiny činností
+Symptomy nemoci: Plně rozvinutá choroba Soběstačnost: Nutná pomoc s většinou činností
+MEDIKACE:
+- FUROSEMID 40 1-0-0
+- OXYCONTIN 20-0-20
+Ter.:
+Chronická terapie:
+Furosemid 40 mg 1-0-0
+Berodual inh. 2-2-2
+Paliativní terapie:
+Analgetická terapie: Oxycontin 20 mg 1-0-1
+SOS medikace: Novalgin tbl. při bolesti 3-4 x denně
+Parenterální terapie: sine
+2

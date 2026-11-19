@@ -1,0 +1,16 @@
+{
+  "appId": "cz.centrumlb.planpece",
+  "appName": "Plán péče",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "kartapacienta.95-216-201-2.sslip.io"
+    ]
+  },
+  "appendUserAgent": "PlanPeceApp",
+  "android": {
+    "zoomEnabled": false,
+    "backgroundColor": "#1d6fd6"
+  }
+}

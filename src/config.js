@@ -3,8 +3,13 @@
  * (DB_PECEDOMAPLUS_*), takže na VPS stačí hodnoty převzít z /opt/jhn-apps/.env.
  */
 import 'dotenv/config';
+import fs from 'node:fs';
+import dotenv from 'dotenv';
 
 const env = (k, d = '') => (process.env[k] ?? d).toString().trim();
+// Twilio pro SMS: když v .env karty chybí, převezme se ze sdíleného .env jhn-apps na stejném VPS (stejné názvy proměnných)
+const jhnApps = (() => { try { return dotenv.parse(fs.readFileSync(process.env.JHN_APPS_ENV || '/opt/jhn-apps/.env')); } catch { return {}; } })();
+const tw = (...k) => { for (const x of k) { const v = env(x) || String(jhnApps[x] ?? '').trim(); if (v) return v; } return ''; };
 const bool = (v, d) => (v === '' ? d : /^(1|true|yes|ano)$/i.test(v));
 
 export const config = {
@@ -28,7 +33,25 @@ export const config = {
     apiKey: env('ANTHROPIC_API_KEY'),
     model: env('KP_AI_MODEL', 'claude-sonnet-5-5'),
   },
-  verze: '0.1.0',
+  // SMS s odkazem na spárování telefonu s kartou (Twilio – stejné proměnné jako jhn-apps; účet + token, nebo API klíč + tajemství)
+  sms: {
+    ucet: tw('TWILIO_ACCOUNT_SID'),
+    token: tw('TWILIO_AUTH_TOKEN'),
+    klic: tw('TWILIO_API_KEY_SID', 'TWILIO_API_KEY'),
+    tajemstvi: tw('TWILIO_API_KEY_SECRET', 'TWILIO_API_SECRET'),
+    from: tw('TWILIO_SMS_FROM', 'TWILIO_FROM') || '+420736354150',   // odesílací číslo jako v jhn-apps
+  },
+  // server videohovorů Jitsi Meet (od 0.11.45): např. https://jitsi.95-216-201-2.sslip.io (deploy/vps-jitsi.sh); prázdné = videohovory vypnuté
+  video: { server: env('KP_JITSI_URL') },
+  // klíč pro partnerské API (/api/partner/* – PéčeDoma na stejném VPS si bere kód lékaře dne); prázdné = API vypnuté
+  partnerKlic: env('KP_PARTNER_KLIC'),
+  // 0.11.65: odkud smí být stránka /pd/ vložená do rámu (portál PéčeDoma) – více adres oddělených mezerou
+  pdOriginy: env('KP_PD_ORIGINY', 'https://web-pecedoma.netlify.app').split(/\s+/).filter(Boolean),
+  // 0.11.109: Průkaz pacienta – samostatný projekt DialogusPrukaz (web na Netlify) smí z prohlížeče volat párování, synchronizaci, sdílení a nápovědu
+  prukazOriginy: env('KP_PRUKAZ_ORIGINY', 'https://dialogusprukaz.netlify.app').split(/\s+/).filter(Boolean),
+  // 0.11.111: adresa aplikace Průkaz pacienta – odkaz v SMS a v QR kódu pro telefon pacienta (Můj průkaz /pacient/ je zrušený)
+  prukazAdresa: env('KP_PRUKAZ_ADRESA', 'https://dialogusprukaz.netlify.app').replace(/\/+$/, ''),
+  verze: '0.11.133',
 };
 
 export function zkontrolujKonfiguraci() {

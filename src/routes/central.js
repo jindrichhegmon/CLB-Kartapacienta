@@ -4,17 +4,25 @@
  * Všechny dotazy jsou pevně na serveru a běží v kontextu tenanta (RLS); prohlížeč žádné SQL neposílá.
  */
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
+import { textZeZpravy } from '../pdftext.js';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
-import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, totp, TOTP_KROK } from '../crypto.js';
-import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, roleSeznam, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
+import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
+import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, puvodPlanu, roleSeznam, roleNahledu, stavPredani, MIME_PRO_PACIENTA, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy } from '../ai.js';
+import { seznamSukl, lekText } from '../sukl.js';
+import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
+import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
+import { nastaveniPd, pdVolej, predejZhorseniPd, synchronizujPacienta, stavSync, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, uzivatelePd, PD_API_VYCHOZI, popisyDiagnoz, hledejDiagnozy } from '../pecedoma.js';
 
+import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 export const central = Router();
 
 const TTL = 12 * 3600;
 const tenantRe = /^[A-Z0-9]{16}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Přihlášený uživatel v kontextu tenanta: fn(q, s, req). */
 function sUzivatelem(fn, { admin = false, lekar = false } = {}) {
@@ -25,12 +33,18 @@ function sUzivatelem(fn, { admin = false, lekar = false } = {}) {
       const u = await q.one(`SELECT u.UzivatelID, u.Jmeno, u.Login, u.Role, u.Aktivni, u.PoskytovatelID, u.Telefon, u.MusiZmenitHeslo, p.Nazev AS Poskytovatel, p.Typ AS TypPoskytovatele, p.SmiBytGarant
         FROM dbo.A_KP_Uzivatel u JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = u.PoskytovatelID WHERE u.UzivatelID = @u`, { u: ses.uzivatelId });
       if (!u || !u.Aktivni) throw chyba('Účet není aktivní', 401);
-      const kp = await q.one(`SELECT Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic = 'KP_AKTIVNI'`);
-      if (!kp || kp.Hodnota !== '1') throw chyba('Karta pacienta je pro tuto organizaci vypnutá', 403);
-      const s = { tenant: ses.tenant, uzivatelId: u.UzivatelID, jmeno: u.Jmeno, login: u.Login, role: roleSeznam(u.Role), poskytovatelId: u.PoskytovatelID,
+      const nast = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('KP_AKTIVNI', 'REZIM_JEDNODUCHY')`)).map((x) => [x.Klic, x.Hodnota]));
+      if (nast.KP_AKTIVNI !== '1') throw chyba('Karta pacienta je pro tuto organizaci vypnutá', 403);
+      // 0.11.112: správce si smí přepnout roli (hlavička X-KP-Role) – jen na stejná nebo nižší práva; jednoduchý režim se správce netýká
+      const roleVlastni = roleSeznam(u.Role);
+      const chce = String(req.headers['x-kp-role'] || '').toLowerCase().trim();
+      const role = chce && chce !== 'admin' && roleNahledu(roleVlastni).includes(chce) ? [chce] : roleVlastni;
+      const s = { jednoduchy: nast.REZIM_JEDNODUCHY === '1' && !role.includes('admin'), rezimJednoduchy: nast.REZIM_JEDNODUCHY === '1', roleVlastni, roleNahled: role === roleVlastni ? null : chce,
+        tenant: ses.tenant, uzivatelId: u.UzivatelID, jmeno: u.Jmeno, login: u.Login, role, poskytovatelId: u.PoskytovatelID,
         poskytovatel: u.Poskytovatel, typPoskytovatele: u.TypPoskytovatele, smiBytGarant: !!u.SmiBytGarant, telefon: u.Telefon, musiZmenitHeslo: !!u.MusiZmenitHeslo, ip: ip(req) };
       if (admin && !s.role.includes('admin')) throw chyba('Tuto akci smí jen správce organizace', 403);
-      if (lekar && !s.role.includes('lekar')) throw chyba('Tuto akci smí jen lékař', 403);
+      // 0.11.111: v jednoduchém režimu smí „lékařské“ akce (založit pacienta…) každý, kdo zapisuje – lékař i sestra
+      if (lekar && !s.role.includes('lekar') && !(s.jednoduchy && s.role.some((r) => r !== 'ctenar'))) throw chyba('Tuto akci smí jen lékař', 403);
       return fn(q, s, req, res);
     });
   });
@@ -60,12 +74,46 @@ central.post('/login', h(async (req) => {
   return { session: podepis({ typ: 'kp', tenant, uzivatelId: r.UzivatelID }, TTL), musiZmenitHeslo: !!r.MusiZmenitHeslo };
 }));
 
+/* vzhled štítku na telefon (0.11.102): logo hospice, text dole (např. „Tento telefon i jeho provoz hradí firma XY“) a logo firmy –
+   pro celou organizaci v A_KP_Nastaveni (STITEK_TEXT, STITEK_LOGO, STITEK_LOGO_FIRMA). Loga jako obrázek PNG/JPEG/WebP v data URL
+   (prohlížeč je před uložením zmenší), nejvýš 300 kB; SVG se nepřijímá. Měnit smí kdokoli kromě role jen čtenář. */
+const LOGO_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+central.get('/stitek-vzhled', sUzivatelem(async (q) => {
+  const n = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('STITEK_TEXT', 'STITEK_LOGO', 'STITEK_LOGO_FIRMA')`)).map((x) => [x.Klic, x.Hodnota || '']));
+  return { text: n.STITEK_TEXT || '', logo: n.STITEK_LOGO || '', logoFirma: n.STITEK_LOGO_FIRMA || '' };
+}));
+central.post('/stitek-vzhled', sUzivatelem(async (q, s, req) => {
+  if (s.role.every((r) => r === 'ctenar')) throw chyba('Vzhled štítku mění člen týmu (ne role jen čtenář)', 403);
+  const b = req.body || {};
+  const logo = (v, nazev) => { const x = String(v || ''); if (!x) return ''; if (x.length > 300000 || !LOGO_RE.test(x)) throw chyba(`${nazev}: nahrajte obrázek PNG nebo JPG (nejvýš asi 200 kB)`); return x; };
+  const zmeny = [];
+  if (b.text != null) zmeny.push(['STITEK_TEXT', text(b.text, 120)]);
+  if (b.logo != null) zmeny.push(['STITEK_LOGO', logo(b.logo, 'Logo hospice')]);
+  if (b.logoFirma != null) zmeny.push(['STITEK_LOGO_FIRMA', logo(b.logoFirma, 'Logo firmy')]);
+  for (const [k, v] of zmeny) {
+    await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
+      WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });
+  }
+  if (zmeny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'vzhled štítku na telefon změněn', detail: zmeny.map(([k]) => k).join(', '), ip: s.ip });
+  return { ok: true };
+}));
+
 central.get('/ja', sUzivatelem(async (q, s) => {
   const n = await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni`);
   const nast = Object.fromEntries(n.map((x) => [x.Klic, x.Hodnota]));
-  return { ja: s, nazevSite: nast.NAZEV_SITE || '', nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3) }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
+  const pd = await nastaveniPd(q);
+  return { ja: s, roleMoznosti: roleNahledu(s.roleVlastni), jednoduchyAktivni: s.jednoduchy, nazevSite: nast.NAZEV_SITE || '', smsPacientVychozi: SMS_PACIENT_VYCHOZI, prukazAdresa: config.prukazAdresa, nastaveni: { intervalRevize: Number(nast.INTERVAL_REVIZE || 3), jednoduchy: nast.REZIM_JEDNODUCHY === '1' },
+    // token PéčeDoma se do prohlížeče neposílá – jen zda je vyplněný
+    pecedoma: { odkaz: pd.odkaz, api: pd.api, apiVychozi: PD_API_VYCHOZI, tokenNastaven: !!pd.token, sync: pd.sync, portal: pd.portal, nastaveno: pd.nastaveno, partnerKlic: !!config.partnerKlic }, ciselniky: { limity: LIMITY, cile: CILE, typyPoskytovatele: TYPY_POSKYTOVATELE, typyDeniku: TYPY_DENIKU }, verejnaAdresa: config.verejnaAdresa, verze: config.verze, ai: !!config.ai.apiKey };
 }));
 
+/* 0.11.112: správce přepnul roli v centrále (jen zápis do logu – samotné přepnutí nese každé volání v hlavičce X-KP-Role) */
+central.post('/role-nahled', sUzivatelem(async (q, s, req) => {
+  if (!s.roleVlastni.includes('admin')) throw chyba('Roli přepíná jen správce organizace', 403);
+  const r = String((req.body || {}).role || 'admin').toLowerCase();
+  if (!roleNahledu(s.roleVlastni).includes(r)) throw chyba('Na tuto roli se přepnout nejde');
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: r === 'admin' ? 'správce se vrátil ke svým rolím' : 'správce přepnul roli', detail: r, ip: s.ip });
+}));
 central.post('/heslo', sUzivatelem(async (q, s, req) => {
   const u = await q.one(`SELECT HesloHash FROM dbo.A_KP_Uzivatel WHERE UzivatelID = @u`, { u: s.uzivatelId });
   if (!overHeslo(req.body.stare, u.HesloHash)) throw chyba('Současné heslo nesouhlasí', 400);
@@ -78,20 +126,70 @@ central.post('/heslo', sUzivatelem(async (q, s, req) => {
 const VIDITELNI = `(@admin = 1 OR EXISTS (SELECT 1 FROM dbo.A_KP_Tym t WHERE t.PacientID = p.PacientID AND t.PoskytovatelID = @ps AND t.Aktivni = 1)
   OR EXISTS (SELECT 1 FROM dbo.A_KP_Garance g2 WHERE g2.PacientID = p.PacientID AND g2.PoskytovatelID = @ps AND g2.Stav = 'NAVRZENO'))`;
 
+/** export pacientů (0.11.38): všichni aktivní pacienti, které uživatel vidí – JSON (formát 'CLB-Kartapacienta/pacienti', každá položka je formát
+ *  importu 'CLB-Kartapacienta/pacient') nebo CSV se stejnými sloupci jako šablona; ?vzor=1 vrátí jen smyšlený vzorový záznam. Jen lékař nebo správce. */
+const CSV_SLOUPCE = ['kod', 'jmeno', 'prijmeni', 'rodne_cislo', 'datum_narozeni', 'rok_narozeni', 'pohlavi', 'pojistovna', 'pobyt', 'adresa', 'telefon_karty', 'email', 'cil', 'limity', 'dg', 'funkcni_stav', 'alergie',
+  'sos_leky', 'opioidy', 'medikace', 'doklad_dvp', 'doklad_datum', 'doklad_original', 'doklad_zprava', 'platnost_do', 'garant',
+  'kontakt1_jmeno', 'kontakt1_telefon', 'kontakt1_skupina', 'kontakt2_jmeno', 'kontakt2_telefon', 'kontakt2_skupina', 'kontakt3_jmeno', 'kontakt3_telefon', 'kontakt3_skupina'];
+const VZOR_PACIENT = { format: 'CLB-Kartapacienta/pacient', zdroj: 'vzor', kod: '', pacient: { jmeno: 'Marie', prijmeni: 'Vzorová', rc: '460512/1234', datumNarozeni: '1946-05-12', rok: 1946, pohlavi: 'žena', pojistovna: '111', pobyt: 'doma', adresa: 'Dlouhá 12, 760 01 Zlín', telefonKarty: '+420 777 000 123', email: '' },
+  plan: { cil: 'symptom', kpr: 'dvp', limity: ['KPR', 'Umělá plicní ventilace', 'Hospitalizace'], doklad: { dvp: true, datum: '2026-09-17', original: 'u dcery, obálka na lednici', zprava: '', pouceni: true, overenyPodpis: true, prijeti: '' },
+    dg: 'C50 karcinom prsu s metastázami do kostí a jater', funkce: 'PPS 40 % – většinu dne na lůžku', alergie: 'penicilin', sos: ['Morphin 10 mg s.c. – při bolesti nebo dušnosti'], opioidy: ['MST Continus 30 mg – 1-0-1'], medikace: ['Dexamethason 4 mg ráno'], platnostDo: '' },
+  kontakty: [{ jmeno: 'Jana Vzorová, dcera', tel: '+420 777 000 321', skupina: 'ROZHODUJE', pozn: '' }, { jmeno: 'Petr Vzorový, syn', tel: '+420 777 000 654', skupina: 'INFORMOVAT', pozn: '' }], garant: '' };
+function pacientDoCsvRadku(x) {
+  const pl = x.plan || {}, dk = pl.doklad || {}, k = (i, pole) => ((x.kontakty || [])[i] || {})[pole] || '';
+  const sez = (v) => (Array.isArray(v) ? v : []).join(' | ');
+  const r = { kod: x.kod || '', jmeno: x.pacient.jmeno, prijmeni: x.pacient.prijmeni, rodne_cislo: x.pacient.rc, datum_narozeni: x.pacient.datumNarozeni, rok_narozeni: x.pacient.rok, pohlavi: x.pacient.pohlavi, pojistovna: x.pacient.pojistovna, pobyt: x.pacient.pobyt, adresa: x.pacient.adresa, telefon_karty: x.pacient.telefonKarty, email: x.pacient.email,
+    cil: pl.cil, limity: sez(pl.limity), dg: pl.dg, funkcni_stav: pl.funkce, alergie: pl.alergie, sos_leky: sez(pl.sos), opioidy: sez(pl.opioidy), medikace: sez(pl.medikace), doklad_dvp: dk.dvp ? 'ano' : 'ne', doklad_datum: dk.datum, doklad_original: dk.original, doklad_zprava: dk.zprava, platnost_do: pl.platnostDo, garant: x.garant,
+    kontakt1_jmeno: k(0, 'jmeno'), kontakt1_telefon: k(0, 'tel'), kontakt1_skupina: k(0, 'skupina'), kontakt2_jmeno: k(1, 'jmeno'), kontakt2_telefon: k(1, 'tel'), kontakt2_skupina: k(1, 'skupina'), kontakt3_jmeno: k(2, 'jmeno'), kontakt3_telefon: k(2, 'tel'), kontakt3_skupina: k(2, 'skupina') };
+  const bunka = (v) => { const t = String(v == null ? '' : v).replace(/\r?\n/g, ' '); return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  return CSV_SLOUPCE.map((c) => bunka(r[c])).join(';');
+}
+const csvText = (polozky) => '﻿' + CSV_SLOUPCE.join(';') + '\n' + polozky.map(pacientDoCsvRadku).join('\n') + '\n';
+central.get('/pacienti/export', sUzivatelem(async (q, s, req) => {
+  if (!s.role.includes('lekar') && !s.role.includes('admin')) throw chyba('Export pacientů smí lékař nebo správce organizace', 403);
+  const format = req.query.format === 'csv' ? 'csv' : 'json';
+  const ted = new Date().toISOString().slice(0, 16);
+  if (req.query.vzor) return format === 'csv' ? { format: 'csv', vzor: true, csv: csvText([VZOR_PACIENT]) } : { ...VZOR_PACIENT, vytvoreno: ted };
+  const rows = await q.all(`SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, p.RodneCislo AS rc, CONVERT(char(10), p.DatumNarozeni, 23) AS datumNarozeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok,
+      p.Pohlavi AS pohlavi, p.Pojistovna AS pojistovna, p.Pobyt AS pobyt, p.Adresa AS adresa, p.TelefonKarty AS telefonKarty, p.Email AS email, pv.Data AS planData, CONVERT(char(10), pv.PlatnostDo, 23) AS platnostDo, gp.Nazev AS garant
+    FROM dbo.A_KP_Pacient p
+    OUTER APPLY (SELECT TOP 1 * FROM dbo.A_KP_PlanVerze v WHERE v.PacientID = p.PacientID ORDER BY v.Verze DESC) pv
+    LEFT JOIN dbo.A_KP_Garance g ON g.PacientID = p.PacientID AND g.Stav = 'PLATNA'
+    LEFT JOIN dbo.A_KP_Poskytovatel gp ON gp.PoskytovatelID = g.PoskytovatelID
+    WHERE p.Stav = 'AKTIVNI' AND ${VIDITELNI}
+    ORDER BY p.Prijmeni, p.Jmeno`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
+  const kontakty = await q.all(`SELECT PacientID AS pacientId, Jmeno AS jmeno, Telefon AS tel, Skupina AS skupina, ISNULL(Poznamka, '') AS pozn FROM dbo.A_KP_Kontakt WHERE Aktivni = 1 ORDER BY PacientID, Poradi, KontaktID`);
+  const polozky = rows.map((r) => {
+    let pl = {}; try { pl = JSON.parse(r.planData) || {}; } catch { /* bez plánu */ }
+    return { format: 'CLB-Kartapacienta/pacient', zdroj: 'Karta pacienta', vytvoreno: ted, kod: r.kod,
+      pacient: { jmeno: r.jmeno || '', prijmeni: r.prijmeni || '', rc: r.rc || '', datumNarozeni: r.datumNarozeni || '', rok: r.rok || '', pohlavi: r.pohlavi || '', pojistovna: r.pojistovna || '', pobyt: r.pobyt || '', adresa: r.adresa || '', telefonKarty: r.telefonKarty || '', email: r.email || '' },
+      plan: { cil: pl.cil || '', limity: Array.isArray(pl.limity) ? pl.limity : [], doklad: pl.doklad || {}, dg: pl.dg || '', funkce: pl.funkce || '', alergie: pl.alergie || '', sos: pl.sos || [], opioidy: pl.opioidy || [], medikace: pl.medikace || [], platnostDo: r.platnostDo || '' },
+      kontakty: kontakty.filter((k) => k.pacientId === r.id).map((k) => ({ jmeno: k.jmeno, tel: k.tel || '', skupina: k.skupina, pozn: k.pozn })), garant: r.garant || '' };
+  });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'export pacientů', detail: `${polozky.length} pacientů (${format.toUpperCase()})`, ip: s.ip });
+  return format === 'csv' ? { format: 'csv', pocet: polozky.length, csv: csvText(polozky) } : { format: 'CLB-Kartapacienta/pacienti', zdroj: 'Karta pacienta', vytvoreno: ted, pocet: polozky.length, pacienti: polozky };
+}));
+
 central.get('/prehled', sUzivatelem(async (q, s, req) => {
   const stav = req.query.stav === 'UZAVRENY' ? 'UZAVRENY' : 'AKTIVNI';
   const pacienti = await q.all(`
-    SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, p.Pobyt AS pobyt, p.Stav AS stav,
+    SELECT p.PacientID AS id, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, p.Pobyt AS pobyt, p.Adresa AS adresa, p.Stav AS stav,
       CONVERT(char(16), p.Zalozeno, 120) AS zalozeno, CONVERT(char(16), p.Uzavreno, 120) AS uzavreno,
       pv.Verze AS verze, CONVERT(char(10), pv.PlatnostDo, 23) AS platnostDo, JSON_VALUE(pv.Data, '$.cil') AS cil,
       g.PoskytovatelID AS garantId, gp.Nazev AS garant, gp.Typ AS garantTyp, CONVERT(char(16), g.Od, 120) AS garantOd,
-      (SELECT TOP 1 CONVERT(char(16), z.PosledniSync, 120) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' ORDER BY z.PosledniSync DESC) AS sync,
-      (SELECT TOP 1 z.Baterie FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' ORDER BY z.PosledniSync DESC) AS baterie,
-      (SELECT COUNT(*) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO') AS telefonu,
+      (SELECT TOP 1 CONVERT(char(16), z.PosledniSync, 120) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' ORDER BY z.PosledniSync DESC) AS sync,
+      (SELECT TOP 1 z.Baterie FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' ORDER BY z.PosledniSync DESC) AS baterie,
+      (SELECT COUNT(*) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY') AS telefonu,
+      (SELECT COUNT(*) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'PACIENT') AS prukazu,
+      (SELECT TOP 1 z.Telefon FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' ORDER BY z.PosledniSync DESC) AS telefonKarty,
       (SELECT TOP 1 d.Typ FROM dbo.A_KP_Denik d WHERE d.PacientID = p.PacientID AND d.Typ IN ('Zhoršení stavu','Stav stabilizován','Výjezd ZZS') ORDER BY d.CasZapisu DESC, d.DenikID DESC) AS posledniKrize,
       (SELECT TOP 1 CONVERT(char(16), d.CasZapisu, 120) FROM dbo.A_KP_Denik d WHERE d.PacientID = p.PacientID ORDER BY d.CasZapisu DESC, d.DenikID DESC) AS posledniZapis,
       (SELECT TOP 1 CONVERT(char(16), g3.Navrzeno, 120) FROM dbo.A_KP_Garance g3 WHERE g3.PacientID = p.PacientID AND g3.Stav = 'NAVRZENO') AS predavaSe,
-      (SELECT TOP 1 g4.PoskytovatelID FROM dbo.A_KP_Garance g4 WHERE g4.PacientID = p.PacientID AND g4.Stav = 'NAVRZENO') AS predavaSeKomu
+      (SELECT TOP 1 g4.PoskytovatelID FROM dbo.A_KP_Garance g4 WHERE g4.PacientID = p.PacientID AND g4.Stav = 'NAVRZENO') AS predavaSeKomu,
+      (SELECT TOP 1 dps.Nazev FROM dbo.A_KP_Tym td JOIN dbo.A_KP_Poskytovatel dps ON dps.PoskytovatelID = td.PoskytovatelID WHERE td.PacientID = p.PacientID AND td.Aktivni = 1 AND dps.Typ = 'DOMOV' ORDER BY td.Od) AS domov
+      , (SELECT ps.Kde FROM dbo.A_KP_PdSync ps WHERE ps.PacientID = p.PacientID) AS kde, CASE WHEN p.PdKlientID IS NULL THEN 0 ELSE 1 END AS pd
+      , (SELECT TOP 1 CONVERT(char(10), z.Sparovano, 23) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' ORDER BY z.Sparovano) AS sparovano
+      , (SELECT TOP 1 v.Zahajil + '|' + v.Stav FROM dbo.A_KP_Videohovor v WHERE v.PacientID = p.PacientID AND v.Stav IN ('ZVONI', 'PROBIHA') AND v.Zahajeno > DATEADD(hour, -3, SYSDATETIME()) ORDER BY v.VideohovorID DESC) AS videohovor
     FROM dbo.A_KP_Pacient p
     OUTER APPLY (SELECT TOP 1 * FROM dbo.A_KP_PlanVerze v WHERE v.PacientID = p.PacientID ORDER BY v.Verze DESC) pv
     LEFT JOIN dbo.A_KP_Garance g ON g.PacientID = p.PacientID AND g.Stav = 'PLATNA'
@@ -110,8 +208,12 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
       else if (dni <= 14) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: revize plánu do ${dni} dní` });
     } else upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: chybí plán péče` });
     if (p.posledniKrize === 'Zhoršení stavu') upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: probíhá zhoršení stavu` });
+    if (p.videohovor === 'TELEFON|ZVONI') upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: z telefonu u pacienta zvoní videohovor – otevřete pacienta a připojte se` });
+    else if (p.videohovor && p.videohovor.endsWith('|PROBIHA')) upozorneni.push({ uroven: 'info', pacientId: p.id, text: `${jm}: probíhá videohovor` });
     if (p.telefonu > 0 && p.sync && (dnes - d(p.sync)) > 12 * 3600e3) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: telefon se nepřipojil od ${p.sync}` });
-    if (p.telefonu > 0 && p.baterie != null && p.baterie < 20) upozorneni.push({ uroven: 'warn', pacientId: p.id, text: `${jm}: baterie telefonu ${p.baterie} %` });
+    // 0.11.117: vybitý telefon u pacienta (pod 15 %) je naléhavý – karta pro ZZS by zhasla; 15–19 % jen ke zkontrolování
+    if (p.telefonu > 0 && p.baterie != null && p.baterie < 15) upozorneni.push({ uroven: 'crit', typ: 'baterie', pacientId: p.id, text: `${jm}: vybitý telefon u pacienta – baterie ${p.baterie} %, připojte nabíječku` });
+    else if (p.telefonu > 0 && p.baterie != null && p.baterie < 20) upozorneni.push({ uroven: 'warn', typ: 'baterie', pacientId: p.id, text: `${jm}: baterie telefonu ${p.baterie} %` });
     if (p.telefonu === 0) upozorneni.push({ uroven: 'info', pacientId: p.id, text: `${jm}: průkaz zatím není v žádném telefonu` });
     if (p.predavaSe) {
       const hod = (dnes - d(p.predavaSe)) / 3600e3;
@@ -122,19 +224,30 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
     if (!p.garant) upozorneni.push({ uroven: 'crit', pacientId: p.id, text: `${jm}: pacient nemá garanta` });
   }
   const poradi = { crit: 0, warn: 1, info: 2 };
-  upozorneni.sort((a, b) => poradi[a.uroven] - poradi[b.uroven]);
+  upozorneni.sort((a, b) => poradi[a.uroven] - poradi[b.uroven] || (b.typ === 'baterie') - (a.typ === 'baterie'));   // mezi naléhavými vybitý telefon nahoře
   return { pacienti, upozorneni };
 }));
 
 /* ---------------- poskytovatelé (výběr pro tým a předání) ---------------- */
+/* 0.11.92: našeptávač diagnóz (číselník CLB1 přes PéčeDoma) pro plán péče */
+central.get('/diagnozy', sUzivatelem(async (q, s, req) => ({ diagnozy: await hledejDiagnozy(q, req.query.q) }), { lekar: true }));
+/* 0.11.124: našeptávač léků ze seznamu SÚKL – stejná databáze jako Průkaz pacienta (src/sukl.js) */
+central.get('/sukl', sUzivatelem(async (q, s, req) => {
+  const sz = seznamSukl();
+  return { verze: sz.verze, leky: sz.hledej(text(req.query.q, 60), 10).map((p) => ({ kod: p.kod, nazev: p.nazev, sila: p.sila, forma: p.formaText, text: lekText(p) })) };
+}));
+
 central.get('/poskytovatele', sUzivatelem(async (q) => ({
-  poskytovatele: await q.all(`SELECT PoskytovatelID AS id, Nazev AS nazev, ICO AS ico, ICP AS icp, Typ AS typ, SmiBytGarant AS smiBytGarant, Telefon24 AS telefon24, Adresa AS adresa, Aktivni AS aktivni
+  poskytovatele: await q.all(`SELECT PoskytovatelID AS id, Nazev AS nazev, ICO AS ico, ICP AS icp, Typ AS typ, SmiBytGarant AS smiBytGarant, Telefon24 AS telefon24, Adresa AS adresa, Aktivni AS aktivni, OdbornyZastupce AS odbornyZastupce
     FROM dbo.A_KP_Poskytovatel ORDER BY Aktivni DESC, Nazev`),
 })));
 
 /* ---------------- nový pacient ---------------- */
-central.post('/pacient', sUzivatelem(async (q, s, req) => {
-  const b = req.body || {};
+/** Založení průkazu – společné pro centrálu (POST /pacient) a partnerské API PéčeDoma (POST /api/partner/pacient, 0.11.72).
+ *  s = { tenant, uzivatelId, jmeno, role:[…], poskytovatelId, ip } (session centrály, nebo lékař-garant dosazený partnerským API);
+ *  b = tělo požadavku { pacient, garantPoskytovatelId, tym, plan, platnostDo, kontakty, aiPouzito, pecedoma:{klientId, portalKlientId} }. */
+export async function zalozPacienta(q, s, b) {
+  b = b || {};
   const pa = b.pacient || {};
   const jmeno = text(pa.jmeno, 80), prijmeni = text(pa.prijmeni, 80);
   if (!jmeno || !prijmeni) throw chyba('Vyplňte jméno a příjmení');
@@ -143,27 +256,33 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(pa.datumNarozeni || '') ? pa.datumNarozeni : null;
   const rok = cislo(pa.rok) || (datum ? Number(datum.slice(0, 4)) : null);
   if (!rok || rok < 1900 || rok > new Date().getFullYear()) throw chyba('Vyplňte rok nebo datum narození');
+  const telKarty = normTel(pa.telefonKarty);
+  // 0.11.111: jednoduchý režim nemá zapůjčený telefon u lůžka – číslo telefonu s kartou je nepovinné
+  if (!telKarty && !s.jednoduchy) throw chyba('Vyplňte číslo telefonu, na kterém bude karta (např. +420 777 123 456) – na žádném jiném telefonu karta nebude');
+  if (pa.telefonKarty && !telKarty) throw chyba('Číslo telefonu s kartou má tvar +420 777 123 456');
   if (rc) {
     const dup = await q.one(`SELECT KodPrukazu FROM dbo.A_KP_Pacient WHERE RodneCislo = @rc AND Stav = 'AKTIVNI'`, { rc });
     if (dup) throw chyba(`Pacient s tímto rodným číslem už má aktivní průkaz ${dup.KodPrukazu}`, 409);
   }
-  const garantId = cislo(b.garantPoskytovatelId) || s.poskytovatelId;
+  // 0.11.111: jednoduchý režim – garantem je vždy pracoviště přihlášeného uživatele (garance hned platná), v týmu jen ono
+  const garantId = s.jednoduchy ? s.poskytovatelId : (cislo(b.garantPoskytovatelId) || s.poskytovatelId);
   const gp = await q.one(`SELECT PoskytovatelID, Nazev, SmiBytGarant FROM dbo.A_KP_Poskytovatel WHERE PoskytovatelID = @p AND Aktivni = 1`, { p: garantId });
   if (!gp) throw chyba('Garantující pracoviště nenalezeno');
-  if (!gp.SmiBytGarant) throw chyba(`${gp.Nazev} nemůže být garantem (garantem je nemocnice, hospic, paliativní ambulance nebo praktický lékař)`);
+  if (!gp.SmiBytGarant && !s.jednoduchy) throw chyba(`${gp.Nazev} nemůže být garantem (garantem je nemocnice, hospic, paliativní ambulance nebo praktický lékař)`);
 
   const kod = await dalsiKod(q);
-  const pac = await q.one(`INSERT INTO dbo.A_KP_Pacient (KodPrukazu, Jmeno, Prijmeni, RodneCislo, DatumNarozeni, RokNarozeni, Pohlavi, Pojistovna, Adresa, Pobyt, ZalozilUzivatelID)
-    OUTPUT inserted.PacientID VALUES (@k, @j, @p, @rc, @dn, @r, @po, @poj, @a, @pb, @u)`,
-  { k: kod, j: jmeno, p: prijmeni.toUpperCase(), rc, dn: datum, r: rok, po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null, u: s.uzivatelId });
+  const pac = await q.one(`INSERT INTO dbo.A_KP_Pacient (KodPrukazu, Jmeno, Prijmeni, RodneCislo, DatumNarozeni, RokNarozeni, Pohlavi, Pojistovna, Adresa, Pobyt, TelefonKarty, Email, ZalozilUzivatelID)
+    OUTPUT inserted.PacientID VALUES (@k, @j, @p, @rc, @dn, @r, @po, @poj, @a, @pb, @tk, @em, @u)`,
+  { k: kod, j: jmeno, p: prijmeni.toUpperCase(), rc, dn: datum, r: rok, po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null, tk: telKarty, em: text(pa.email, 150) || null, u: s.uzivatelId });
   const id = pac.PacientID;
   await q.exec(`INSERT INTO dbo.A_KP_Garance (PacientID, PoskytovatelID, LekarUzivatelID, Stav, Od, NavrhlUzivatelID) VALUES (@p, @ps, @l, 'PLATNA', SYSDATETIME(), @u)`,
     { p: id, ps: garantId, l: garantId === s.poskytovatelId ? s.uzivatelId : null, u: s.uzivatelId });
-  const tym = new Set([garantId, s.poskytovatelId, ...(Array.isArray(b.tym) ? b.tym.map(Number).filter(Boolean) : [])]);
+  const tym = new Set([garantId, s.poskytovatelId, ...(!s.jednoduchy && Array.isArray(b.tym) ? b.tym.map(Number).filter(Boolean) : [])]);
   for (const t of tym) await q.exec(`INSERT INTO dbo.A_KP_Tym (PacientID, PoskytovatelID, Role) SELECT @p, @ps, @r WHERE EXISTS (SELECT 1 FROM dbo.A_KP_Poskytovatel WHERE PoskytovatelID = @ps)`,
     { p: id, ps: t, r: t === garantId ? 'GARANT' : (t === s.poskytovatelId ? 'LEKAR' : 'PECE') });
   const platnost = /^\d{4}-\d{2}-\d{2}$/.test(b.platnostDo || '') ? b.platnostDo : new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
   await ulozPlan(q, { pacientId: id, data: b.plan || {}, platnostDo: platnost, s, typ: 'ZALOZENI' });
+  await zajistiTymyVzdy(q, id, s.uzivatelId);   // týmy „přiřazené vždy“ (0.11.66)
   let i = 0;
   for (const k of (b.kontakty || []).slice(0, 30)) {
     const sk = String(k.skupina || 'INFORMOVAT').toUpperCase();
@@ -171,23 +290,35 @@ central.post('/pacient', sUzivatelem(async (q, s, req) => {
     await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi) VALUES (@p, @j, @t, @s, @poz, @o)`,
       { p: id, j: text(k.jmeno, 150), t: text(k.tel, 40), s: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(sk) ? sk : 'INFORMOVAT', poz: text(k.pozn, 200) || null, o: (i += 10) });
   }
-  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: kod, ip: s.ip });
+  await zapisDenik(q, { pacientId: id, typ: 'Založení', text: b.zeZpravy ? `Průkaz založen z lékařské zprávy „${text(b.zeZpravy, 150).replace(/[„“]/g, '')}“ (údaje z rozboru zprávy zkontrolovány a potvrzeny).` : b.aiPouzito ? 'Průkaz založen z propouštěcí zprávy (anonymní AI rozbor potvrzen lékařem).' : b.zPeceDoma ? 'Průkaz založen z portálu PéčeDoma (Data klienta → Karta pacienta).' : 'Průkaz založen po rozhovoru o cílech péče.', autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'založení průkazu', detail: b.zPeceDoma ? kod + ' (z PéčeDoma)' : kod, ip: s.ip });
+  // pacient z PéčeDoma (výběr klienta nebo soubor Export pro Kartu pacienta): zapamatovat klienta a rovnou stáhnout léky a návštěvu
+  const pdId = String((b.pecedoma || {}).klientId || '').toLowerCase();
+  if (UUID_RE.test(pdId)) {
+    await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = @pk WHERE PacientID = @p`, { k: pdId, pk: cislo((b.pecedoma || {}).portalKlientId) || null, p: id });
+    try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, id, pdId); } catch { /* bez synchronizace – doplní se automaticky nebo tlačítkem */ }
+  }
   return { id, kod };
-}, { lekar: true }));
+}
+central.post('/pacient', sUzivatelem(async (q, s, req) => zalozPacienta(q, s, req.body || {}), { lekar: true }));
 
 /* ---------------- detail pacienta ---------------- */
 central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
   const id = pid(req);
   const op = await opravneni(q, s, id);
   const pacient = await q.one(`SELECT PacientID AS id, KodPrukazu AS kod, Jmeno AS jmeno, Prijmeni AS prijmeni, RodneCislo AS rc, CONVERT(char(10), DatumNarozeni, 23) AS datumNarozeni,
-      RokNarozeni AS rok, Pohlavi AS pohlavi, Pojistovna AS pojistovna, Adresa AS adresa, Pobyt AS pobyt, Stav AS stav, Souhlas AS souhlas,
+      RokNarozeni AS rok, Pohlavi AS pohlavi, Pojistovna AS pojistovna, Adresa AS adresa, Pobyt AS pobyt, TelefonKarty AS telefonKarty, Email AS email, Stav AS stav, Souhlas AS souhlas,
+      LOWER(CONVERT(char(36), PdKlientID)) AS pdKlientId, PdPortalKlientID AS pdPortalKlientId,
       CONVERT(char(16), Zalozeno, 120) AS zalozeno, CONVERT(char(16), Uzavreno, 120) AS uzavreno, DuvodUzavreni AS duvodUzavreni
     FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
   const plan = await planAktualni(q, id);
   const verze = await q.all(`SELECT Verze AS verze, Typ AS typ, PodepsalJmeno AS podepsal, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno, CONVERT(char(10), PlatnostDo, 23) AS platnostDo, Poznamka AS poznamka
     FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze DESC`, { p: id });
-  const kontakty = await q.all(`SELECT KontaktID AS id, Jmeno AS jmeno, Telefon AS tel, Skupina AS skupina, Poznamka AS pozn, Poradi AS poradi FROM dbo.A_KP_Kontakt WHERE PacientID = @p AND Aktivni = 1 ORDER BY Poradi, KontaktID`, { p: id });
+  const kontakty = await q.all(`SELECT KontaktID AS id, Jmeno AS jmeno, Telefon AS tel, Skupina AS skupina, Poznamka AS pozn, Poradi AS poradi, VychoziID AS vychoziId FROM dbo.A_KP_Kontakt WHERE PacientID = @p AND Aktivni = 1 ORDER BY Poradi, KontaktID`, { p: id });
+  // výchozí kontakty organizace (0.11.75): celá sada + kolik klientů je používá; u klienta se jen zatrhne
+  const kontaktyVychozi = await q.all(`SELECT v.VychoziID AS id, v.Jmeno AS jmeno, v.Telefon AS tel, v.Skupina AS skupina, v.Poznamka AS pozn,
+      (SELECT COUNT(*) FROM dbo.A_KP_Kontakt k JOIN dbo.A_KP_Pacient p ON p.PacientID = k.PacientID WHERE k.VychoziID = v.VychoziID AND k.Aktivni = 1 AND p.Stav = 'AKTIVNI') AS klientu
+    FROM dbo.A_KP_KontaktVychozi v WHERE v.Aktivni = 1 ORDER BY v.Poradi, v.VychoziID`);
   const tym = await q.all(`SELECT t.TymID AS id, t.PoskytovatelID AS poskytovatelId, ps.Nazev AS nazev, ps.Typ AS typ, ps.Telefon24 AS telefon24, t.Role AS role, CONVERT(char(10), t.Od, 23) AS od
     FROM dbo.A_KP_Tym t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.PacientID = @p AND t.Aktivni = 1 ORDER BY CASE t.Role WHEN 'GARANT' THEN 0 ELSE 1 END, ps.Nazev`, { p: id });
   const garance = await q.all(`SELECT g.GaranceID AS id, g.PoskytovatelID AS poskytovatelId, ps.Nazev AS nazev, g.Stav AS stav, u.Jmeno AS lekar, n.Jmeno AS navrhl,
@@ -196,16 +327,113 @@ central.get('/pacient/:id', sUzivatelem(async (q, s, req) => {
     LEFT JOIN dbo.A_KP_Uzivatel u ON u.UzivatelID = g.LekarUzivatelID LEFT JOIN dbo.A_KP_Uzivatel n ON n.UzivatelID = g.NavrhlUzivatelID
     WHERE g.PacientID = @p ORDER BY g.GaranceID DESC`, { p: id });
   const zarizeni = await q.all(`SELECT ZarizeniID AS id, Stitek AS stitek, Stav AS stav, CONVERT(char(16), Sparovano, 120) AS sparovano, CONVERT(char(16), PosledniSync, 120) AS sync,
-      Baterie AS baterie, VerzeAplikace AS verzeAplikace, DelkaFronty AS fronta, VerzePlanuVZarizeni AS verzePlanu, ParovaciKod AS kod, CONVERT(char(16), ParovaciPlatnost, 120) AS kodPlatnost
+      Baterie AS baterie, VerzeAplikace AS verzeAplikace, DelkaFronty AS fronta, VerzePlanuVZarizeni AS verzePlanu, ParovaciKod AS kod, CONVERT(char(16), ParovaciPlatnost, 120) AS kodPlatnost, Telefon AS telefon, Rezim AS rezim, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno,
+      NahrazenoZarizenim AS nahrazeno, CONVERT(char(16), Nahrazeno, 120) AS nahrazenoKdy
     FROM dbo.A_KP_Zarizeni WHERE PacientID = @p ORDER BY ZarizeniID DESC`, { p: id });
-  const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, Role AS role, CONVERT(char(10), Vytvoreno, 23) AS vytvoreno FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1 ORDER BY PinID`, { p: id });
+  // 0.11.114: u propojených Průkazů pacienta, zda mají aktuální údaje (změna od posledního předání / výzva k obnovení)
+  const prukazy = zarizeni.filter((z) => z.rezim === 'PACIENT' && z.stav === 'SPAROVANO');
+  if (prukazy.length) { const st = await stavPredani(q, id, prukazy.map((z) => z.id)); for (const z of prukazy) z.predaniStav = st[z.id]; }
+  const piny = await q.all(`SELECT PinID AS id, Jmeno AS jmeno, Role AS role, PoskytovatelID AS poskytovatelId, CONVERT(char(10), Vytvoreno, 23) AS vytvoreno, CASE WHEN PinSifrovany IS NULL THEN 0 ELSE 1 END AS zobrazitelny FROM dbo.A_KP_Pin WHERE PacientID = @p AND Aktivni = 1 ORDER BY PinID`, { p: id });
+  const lide = await q.all(`SELECT po.PacientOsobaID AS id, o.OsobaID AS osobaId, o.Jmeno AS jmeno, o.Role AS role, o.Tym AS tym, o.PoskytovatelID AS poskytovatelId, ps.Nazev AS poskytovatel,
+      CONVERT(char(10), po.Od, 23) AS od, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, po.TymLidiID AS tymId
+    FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
+    WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.Aktivni = 1 ORDER BY ps.Nazev, o.Tym, o.Jmeno`, { p: id });
+  // týmy lidí u pacienta (0.10.0): členové z agendy Lidé a týmy, u pacienta jde člena jen deaktivovat; týmy „přiřazené vždy“ se doplní samy (0.11.66)
+  await zajistiTymyVzdy(q, id, s.uzivatelId);
+  const tymyLidi = await q.all(`SELECT pt.PacientTymID AS id, t.TymLidiID AS tymId, t.Nazev AS nazev, t.Popis AS popis, t.PoskytovatelID AS poskytovatelId, ps.Nazev AS poskytovatel, CONVERT(char(10), pt.Od, 23) AS od, t.PrirazenVzdy AS prirazenVzdy
+    FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_TymLidi t ON t.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE pt.PacientID = @p AND pt.Aktivni = 1 ORDER BY ps.Nazev, t.Nazev`, { p: id });
+  for (const t of tymyLidi) {
+    t.clenove = await q.all(`SELECT o.OsobaID AS osobaId, o.Jmeno AS jmeno, o.Role AS role, ps.Nazev AS poskytovatel, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, ISNULL(x.Aktivni, 0) AS aktivni
+      FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
+      OUTER APPLY (SELECT TOP 1 po.Aktivni FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.OsobaID = o.OsobaID ORDER BY po.Aktivni DESC, po.PacientOsobaID DESC) x
+      WHERE c.TymLidiID = @t AND o.Aktivni = 1 ORDER BY ps.Nazev, o.Jmeno`, { p: id, t: t.tymId });
+  }
+  const vTymuPs = new Set(tym.map((t) => t.poskytovatelId));
+  const tymyNabidka = await q.all(`SELECT t.TymLidiID AS id, t.Nazev AS nazev, t.Popis AS popis, t.PoskytovatelID AS poskytovatelId, ps.Nazev AS poskytovatel,
+      (SELECT COUNT(*) FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE c.TymLidiID = t.TymLidiID AND o.Aktivni = 1) AS clenu
+    FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE t.Aktivni = 1 AND ps.Aktivni = 1 AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = @p AND pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1)
+    ORDER BY ps.Nazev, t.Nazev`, { p: id });
+  for (const t of tymyNabidka) {   // pracoviště členů, která zatím nejsou v týmu kolem pacienta (přidáním týmu je garant přidá s rolí péče)
+    const ps = await q.all(`SELECT DISTINCT p2.PoskytovatelID AS id, p2.Nazev AS nazev FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID JOIN dbo.A_KP_Poskytovatel p2 ON p2.PoskytovatelID = o.PoskytovatelID WHERE c.TymLidiID = @t AND o.Aktivni = 1`, { t: t.id });
+    t.mimoTym = ps.filter((x) => !vTymuPs.has(x.id)).map((x) => x.nazev);
+  }
   const denik = await q.all(`SELECT TOP 300 LOWER(CONVERT(varchar(36), UUID)) AS uuid, Typ AS typ, Text AS text, Autor AS autor, Role AS role, CONVERT(char(16), CasZapisu, 120) AS cas,
       CONVERT(char(16), CasPrijeti, 120) AS prijato, Overeno AS overeno, ZarizeniID AS zarizeni FROM dbo.A_KP_Denik WHERE PacientID = @p ORDER BY CasZapisu DESC, DenikID DESC`, { p: id });
-  const dokumenty = await q.all(`SELECT DokumentID AS id, Typ AS typ, Nazev AS nazev, KdeOriginal AS kdeOriginal, MimeType AS mime, Velikost AS velikost, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno
+  const dokumenty = await q.all(`SELECT DokumentID AS id, Typ AS typ, Nazev AS nazev, KdeOriginal AS kdeOriginal, MimeType AS mime, Velikost AS velikost, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno,
+      CONVERT(char(10), DatumDokumentu, 23) AS datum, Pracoviste AS pracoviste, ProPacienta AS proPacienta
     FROM dbo.A_KP_Dokument WHERE PacientID = @p ORDER BY DokumentID DESC`, { p: id });
-  const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
+  // 0.11.118: kdy si pacient dokument naposledy stáhl do Průkazu (log přístupů, detail „… (dokument č. N)“)
+  const stazeno = await q.all(`SELECT Detail AS detail, CONVERT(char(16), MAX(Cas), 120) AS cas FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND Akce = N'dokument stažen do Průkazu pacienta' GROUP BY Detail`, { p: id });
+  for (const x of dokumenty) { x.proPacienta = !!x.proPacienta; const st = stazeno.filter((a) => new RegExp(`\\(dokument č\\. ${x.id}\\)$`).test(a.detail || '')).map((a) => a.cas).sort().pop(); x.vPrukazu = st || null; }
+  // co pacient sám poslal z vlastního telefonu (údaje pacienta – odděleně od záznamů týmu)
+  const odPacienta = (await q.all(`SELECT TOP 30 SdileniID AS id, CONVERT(char(16), Vytvoreno, 120) AS cas, Polozky AS polozky FROM dbo.A_KP_Sdileni WHERE PacientID = @p ORDER BY SdileniID DESC`, { p: id }))
+    .map((x) => ({ ...x, polozky: (() => { try { return JSON.parse(x.polozky); } catch { return []; } })() }));
+  const pristupy = op.garant || s.role.includes('admin') ? await q.all(`SELECT TOP 80 AuditID AS id, CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p ORDER BY AuditID DESC`, { p: id }) : [];
+  // 0.11.112: historie předání do Průkazu pacienta – vše z logu přístupů, co se týká vlastních telefonů pacienta (vydání kódu, SMS,
+  // propojení, načtení údajů, ukončení); log je jen pro doplňování, takže historie nejde upravit ani smazat
+  const predani = await q.all(`SELECT TOP 100 CONVERT(char(16), a.Cas, 120) AS cas, CONVERT(char(19), a.Cas, 120) AS casS, a.ZarizeniID AS zarizeniId, a.Kdo AS kdo, a.Akce AS akce, a.Detail AS detail, z.Telefon AS telefon, z.Stitek AS stitek
+    FROM dbo.A_KP_AuditLog a JOIN dbo.A_KP_Zarizeni z ON z.ZarizeniID = a.ZarizeniID
+    WHERE a.PacientID = @p AND z.PacientID = @p AND z.Rezim = 'PACIENT' ORDER BY a.AuditID DESC`, { p: id });
+  // 0.11.113: u propojení a načtení i to, CO bylo předáno – snímek z A_KP_Predani (od 0.11.113); u starších předání dovozeno
+  // z verze plánu platné v tu chvíli (verze plánu se nemění), kontakty a léky z PéčeDoma tehdy doložit nejde
+  const predaneUdaje = predani.filter((x) => /^telefon spárován|^údaje načteny/.test(x.akce));
+  if (predaneUdaje.length) {
+    const snimky = await q.all(`SELECT TOP 200 PredaniID AS id, CONVERT(char(19), Cas, 120) AS casS, ZarizeniID AS zarizeniId, Obsah AS obsah FROM dbo.A_KP_Predani WHERE PacientID = @p ORDER BY PredaniID DESC`, { p: id });
+    const verzePlanu = await q.all(`SELECT Verze AS verze, Data AS data, CONVERT(char(19), Vytvoreno, 120) AS vytvoreno, CONVERT(char(10), PlatnostDo, 23) AS platnostDo, PodepsalJmeno AS podepsal FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze`, { p: id });
+    const t = (x) => new Date(x.replace(' ', 'T')).getTime();
+    const pouzite = new Set();
+    for (const x of predaneUdaje) {
+      const sn = snimky.find((y) => !pouzite.has(y.id) && y.zarizeniId === x.zarizeniId && Math.abs(t(y.casS) - t(x.casS)) <= 15000);
+      if (sn) { pouzite.add(sn.id); try { x.obsah = JSON.parse(sn.obsah); } catch { /* poškozený snímek přeskočit */ } continue; }
+      const v = [...verzePlanu].reverse().find((y) => t(y.vytvoreno) <= t(x.casS) + 1000);
+      if (v) { let d = {}; try { d = JSON.parse(v.data); } catch { /* */ }
+        x.obsah = { dovozeno: true, plan: { verze: v.verze, platnostDo: v.platnostDo, podepsal: v.podepsal, cil: d.cil || null, kpr: d.kpr || null, limity: d.limity || [], dvp: !!(d.doklad && d.doklad.dvp), dvpDatum: (d.doklad && d.doklad.datum) || '', dvpOriginal: (d.doklad && d.doklad.original) || '' },
+          dg: d.dg || '', alergie: d.alergie || '', funkce: d.funkce || '', leky: { zdroj: 'plán péče', sos: d.sos || [], opioidy: d.opioidy || [], medikace: d.medikace || [] } };
+      }
+    }
+  }
+  for (const x of predani) { delete x.casS; delete x.zarizeniId; }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení průkazu', ip: s.ip });
-  return { pacient, plan, verze, kontakty, tym, garance, zarizeni, piny, denik, dokumenty, pristupy, op };
+  const pdNast = await nastaveniPd(q);
+  const pecedoma = { klientId: pacient.pdKlientId, portalKlientId: pacient.pdPortalKlientId, odkaz: pdNast.odkaz, nastaveno: pdNast.nastaveno, autoSync: pdNast.sync, sync: pacient.pdKlientId ? await stavSync(q, id) : null };
+  const video = await videoProPacienta(q, s, id);
+  op.vychozi = op.aktivni && (s.role.includes('admin') || s.role.includes('lekar'));   // výchozí kontakty organizace mění správce a lékař
+  const dgPopisy = await popisyDiagnoz(q, plan && plan.data && plan.data.dg);   // 0.11.92
+  // 0.11.123: původ diagnóz, léků, funkčního stavu a alergií (ze zprávy / ručně / z PéčeDoma) z historie verzí plánu
+  const vsechnyVerze = await q.all(`SELECT Verze AS verze, Typ AS typ, PodepsalJmeno AS podepsal, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno, Poznamka AS poznamka, Data AS data
+    FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze`, { p: id });
+  const zal = await q.one(`SELECT TOP (1) Text AS text FROM dbo.A_KP_Denik WHERE PacientID = @p AND Typ = N'Založení' ORDER BY DenikID`, { p: id });
+  const zalozeni = /(propouštěcí|lékařské) zprávy/i.test((zal && zal.text) || '') ? 'zprava' : /PéčeDoma/i.test((zal && zal.text) || '') ? 'pecedoma' : 'rucne';
+  const zalDok = (String((zal && zal.text) || '').match(/lékařské zprávy „(.+?)“/) || [])[1] || null;   // 0.11.129: založeno ze zprávy v souboru
+  let puvod = null;
+  try { puvod = puvodPlanu(vsechnyVerze.map((v) => ({ ...v, data: JSON.parse(v.data || '{}') })), zalozeni, zalDok); } catch { /* starý nečitelný plán – bez původu */ }
+  return { pacient, plan, verze, kontakty, kontaktyVychozi, tym, garance, zarizeni, piny, lide, tymyLidi, tymyNabidka, denik, dokumenty, odPacienta, pristupy, predani, pecedoma, op, video, smsDostupne: smsDostupne(), dgPopisy, puvod };
+}));
+
+/* 0.11.128: deník přístupů po stránkách (Načíst starší), hledání v celém logu pacienta a skrytí pouhých zobrazení – jen garant a správce */
+export const AKCE_ZOBRAZENI = ['zobrazení průkazu', 'PéčeDoma: chat zobrazen'];
+export const likeVzor = (t) => '%' + String(t || '').replace(/[[%_]/g, (c) => `[${c}]`) + '%';
+/** české datum v hledání („16. 11.“, „16.11.2026“) → tvar uložený v logu (2026-11-16 / -11-16) */
+export function hledatDatum(t) {
+  const m = String(t || '').trim().match(/^(\d{1,2})\.\s*(\d{1,2})\.(?:\s*(\d{4}))?$/);
+  if (!m) return t;
+  const dd = m[1].padStart(2, '0'), mm = m[2].padStart(2, '0');
+  return m[3] ? `${m[3]}-${mm}-${dd}` : `-${mm}-${dd}`;
+}
+central.get('/pacient/:id/pristupy', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !s.role.includes('admin')) throw chyba('Deník přístupů vidí garant a správce', 403);
+  const pred = cislo(req.query.pred) || null, hledat = text(req.query.q, 100).trim(), bez = req.query.bezZobrazeni === '1' ? 1 : 0;
+  const n = Math.min(Math.max(cislo(req.query.n) || 100, 10), 500);
+  const kde = `PacientID = @p AND (@q = N'' OR Kdo LIKE @ql OR Akce LIKE @ql OR Detail LIKE @ql OR CONVERT(char(16), Cas, 120) LIKE @ql)
+    AND (@bz = 0 OR Akce NOT IN (${AKCE_ZOBRAZENI.map((_, i) => '@z' + i).join(', ')}))`;
+  const par = { p: id, q: hledat, ql: likeVzor(hledatDatum(hledat)), bz: bez, ...Object.fromEntries(AKCE_ZOBRAZENI.map((a, i) => ['z' + i, a])) };
+  const radky = await q.all(`SELECT TOP (${n + 1}) AuditID AS id, CONVERT(char(16), Cas, 120) AS cas, Kdo AS kdo, Akce AS akce, Detail AS detail
+    FROM dbo.A_KP_AuditLog WHERE ${kde} AND (@pred IS NULL OR AuditID < @pred) ORDER BY AuditID DESC`, { ...par, pred });
+  const c = await q.one(`SELECT COUNT(*) AS n, CONVERT(char(10), MIN(Cas), 23) AS od FROM dbo.A_KP_AuditLog WHERE ${kde}`, par);
+  return { pristupy: radky.slice(0, n), dalsi: radky.length > n, celkem: c ? c.n : 0, od: c ? c.od : null };
 }));
 
 central.get('/pacient/:id/plan/:verze', sUzivatelem(async (q, s, req) => {
@@ -222,9 +450,18 @@ central.post('/pacient/:id/udaje', sUzivatelem(async (q, s, req) => {
   if (!op.lekar && !op.garant) throw chyba('Údaje pacienta upravuje lékař z týmu', 403);
   const pa = req.body || {};
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(pa.datumNarozeni || '') ? pa.datumNarozeni : null;
-  await q.exec(`UPDATE dbo.A_KP_Pacient SET Jmeno = @j, Prijmeni = @p, RodneCislo = @rc, DatumNarozeni = @dn, RokNarozeni = @r, Pohlavi = @po, Pojistovna = @poj, Adresa = @a, Pobyt = @pb WHERE PacientID = @id`,
-    { id, j: text(pa.jmeno, 80), p: text(pa.prijmeni, 80).toUpperCase(), rc: text(pa.rc, 11) || null, dn: datum, r: cislo(pa.rok) || (datum ? Number(datum.slice(0, 4)) : null), po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null });
+  const telKarty = normTel(pa.telefonKarty);
+  if (!telKarty) throw chyba('Vyplňte číslo telefonu, na kterém je karta (např. +420 777 123 456)');
+  const dosud = await q.one(`SELECT TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @id`, { id });
+  await q.exec(`UPDATE dbo.A_KP_Pacient SET Jmeno = @j, Prijmeni = @p, RodneCislo = @rc, DatumNarozeni = @dn, RokNarozeni = @r, Pohlavi = @po, Pojistovna = @poj, Adresa = @a, Pobyt = @pb, TelefonKarty = @tk, Email = @em WHERE PacientID = @id`,
+    { id, j: text(pa.jmeno, 80), p: text(pa.prijmeni, 80).toUpperCase(), rc: text(pa.rc, 11) || null, dn: datum, r: cislo(pa.rok) || (datum ? Number(datum.slice(0, 4)) : null), po: text(pa.pohlavi, 10) || null, poj: text(pa.pojistovna, 3) || null, a: text(pa.adresa, 300) || null, pb: text(pa.pobyt, 200) || null, tk: telKarty, em: text(pa.email, 150) || null });
   await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: 'Upraveny identifikační údaje nebo místo pobytu.', autor: s.jmeno, role: 'lekar', uzivatelId: s.uzivatelId });
+  if (dosud && dosud.TelefonKarty !== telKarty) {
+    // karta smí být jen na novém čísle: telefon spárovaný s jiným číslem se zablokuje (při připojení se vymaže), čekající kódy propadnou
+    const n = await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE PacientID = @id AND Stav IN ('SPAROVANO', 'CEKA') AND Rezim = 'ZAPUJCENY' AND ISNULL(Telefon, N'') <> @tk`, { id, tk: telKarty });
+    await srovnejTymyTelefonu(q, id, s.uzivatelId, s.jmeno);   // 0.11.89
+    await zapisDenik(q, { pacientId: id, typ: 'Systém', text: `Číslo telefonu s kartou změněno na ${hezkyTel(telKarty)}.${n ? ' Telefon na předchozím čísle byl zablokován – při připojení se z něj karta smaže.' : ''}`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'úprava údajů', ip: s.ip });
 }));
 
@@ -249,20 +486,130 @@ central.post('/pacient/:id/kontakt', sUzivatelem(async (q, s, req) => {
   const sk = String(b.skupina || 'INFORMOVAT').toUpperCase();
   if (!['ROZHODUJE', 'INFORMOVAT', 'PECUJE'].includes(sk)) throw chyba('Neznámá skupina kontaktu');
   const kid = cislo(b.id);
+  const poradi = text(b.poradi) === '' ? null : cislo(b.poradi);   // prázdné = beze změny (Number('') by bylo 0)
   if (kid) {
-    const k = await q.one(`SELECT Skupina FROM dbo.A_KP_Kontakt WHERE KontaktID = @k AND PacientID = @p`, { k: kid, p: id });
+    const k = await q.one(`SELECT Skupina, VychoziID FROM dbo.A_KP_Kontakt WHERE KontaktID = @k AND PacientID = @p AND Aktivni = 1`, { k: kid, p: id });
     if (!k) throw chyba('Kontakt nenalezen', 404);
+    if (k.VychoziID && !b.jenPoradi && !b.smazat) {   // výchozí kontakt organizace: úprava z kteréhokoli klienta se propíše všem (0.11.75)
+      await upravVychozi(q, s, k.VychoziID, b, id);
+      return;
+    }
+    if (b.jenPoradi) {   // přeřazení šipkami: jen pořadí, bez zápisu do deníku (pořadí smí měnit celý tým, i u skupiny „rozhoduje“)
+      if (poradi === null) throw chyba('Chybí pořadí');
+      await q.exec(`UPDATE dbo.A_KP_Kontakt SET Poradi = @o, Zmeneno = SYSDATETIME() WHERE KontaktID = @k`, { k: kid, o: poradi });
+      return;
+    }
     if ((k.Skupina === 'ROZHODUJE' || sk === 'ROZHODUJE') && !op.lekar) throw chyba('Kontakt „rozhoduje“ mění jen lékař (na základě dokladu)', 403);
     if (b.smazat) await q.exec(`UPDATE dbo.A_KP_Kontakt SET Aktivni = 0, Zmeneno = SYSDATETIME() WHERE KontaktID = @k`, { k: kid });
-    else await q.exec(`UPDATE dbo.A_KP_Kontakt SET Jmeno = @j, Telefon = @t, Skupina = @s, Poznamka = @poz, Poradi = ISNULL(@o, Poradi), Zmeneno = SYSDATETIME() WHERE KontaktID = @k`,
-      { k: kid, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: cislo(b.poradi) });
+    else {
+      if (!text(b.jmeno) || !text(b.tel)) throw chyba('Vyplňte jméno i telefon');
+      await q.exec(`UPDATE dbo.A_KP_Kontakt SET Jmeno = @j, Telefon = @t, Skupina = @s, Poznamka = @poz, Poradi = ISNULL(@o, Poradi), Zmeneno = SYSDATETIME() WHERE KontaktID = @k`,
+        { k: kid, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: poradi });
+    }
   } else {
     if (sk === 'ROZHODUJE' && !op.lekar) throw chyba('Kontakt „rozhoduje“ přidává jen lékař (na základě dokladu)', 403);
     if (!text(b.jmeno) || !text(b.tel)) throw chyba('Vyplňte jméno i telefon');
     await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi) VALUES (@p, @j, @t, @s, @poz, ISNULL(@o, 100))`,
-      { p: id, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: cislo(b.poradi) });
+      { p: id, j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null, o: poradi });
   }
   await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `${b.smazat ? 'Odebrán' : kid ? 'Upraven' : 'Přidán'} kontakt ${text(b.jmeno, 150)} (${sk.toLowerCase()}).`, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+}));
+
+/* Výchozí kontakty organizace (0.11.75). Sada kontaktů pro celou organizaci; u klienta se jen zatrhne (řádek A_KP_Kontakt
+   s VychoziID = kopie údajů, aby karta, telefon i PéčeDoma četly kontakty beze změny). Úprava z kteréhokoli klienta se
+   propíše do všech klientů, kteří kontakt používají – do jejich kopií i deníku. Mění správce organizace a lékař. */
+const SKUP_VYCHOZI = ['PECUJE', 'INFORMOVAT'];
+const smiVychozi = (s) => s.role.includes('admin') || s.role.includes('lekar');
+function udajeVychozi(b) {
+  const sk = String(b.skupina || 'PECUJE').toUpperCase();
+  if (!SKUP_VYCHOZI.includes(sk)) throw chyba('Výchozí kontakt organizace může být jen ve skupině Pečuje nebo Informovat');
+  if (!text(b.jmeno) || !text(b.tel)) throw chyba('Vyplňte jméno i telefon');
+  return { j: text(b.jmeno, 150), t: text(b.tel, 40), s: sk, poz: text(b.pozn, 200) || null };
+}
+async function klientiVychozi(q, vid) {
+  return q.all(`SELECT k.PacientID AS pacientId FROM dbo.A_KP_Kontakt k JOIN dbo.A_KP_Pacient p ON p.PacientID = k.PacientID
+    WHERE k.VychoziID = @v AND k.Aktivni = 1 AND p.Stav = 'AKTIVNI'`, { v: vid });
+}
+async function upravVychozi(q, s, vid, b, pacientId) {
+  if (!smiVychozi(s)) throw chyba('Výchozí kontakt organizace upravuje správce nebo lékař – změna se propíše všem klientům', 403);
+  const u = udajeVychozi(b);
+  const v = await q.one(`SELECT Jmeno FROM dbo.A_KP_KontaktVychozi WHERE VychoziID = @v AND Aktivni = 1`, { v: vid });
+  if (!v) throw chyba('Výchozí kontakt nenalezen', 404);
+  await q.exec(`UPDATE dbo.A_KP_KontaktVychozi SET Jmeno = @j, Telefon = @t, Skupina = @s, Poznamka = @poz, Zmeneno = SYSDATETIME(), ZmenilUzivatelID = @u WHERE VychoziID = @v`, { ...u, v: vid, u: s.uzivatelId });
+  const klienti = await klientiVychozi(q, vid);
+  await q.exec(`UPDATE dbo.A_KP_Kontakt SET Jmeno = @j, Telefon = @t, Skupina = @s, Poznamka = @poz, Zmeneno = SYSDATETIME() WHERE VychoziID = @v AND Aktivni = 1`, { ...u, v: vid });
+  const role = s.role.includes('lekar') ? 'lekar' : 'sestra';
+  for (const k of klienti) {
+    await zapisDenik(q, { pacientId: k.pacientId, typ: 'Úprava údajů', text: `Upraven výchozí kontakt organizace ${u.j} (${u.t}); změna platí pro všechny klienty, kteří ho používají.`, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+  }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId, akce: 'úprava výchozího kontaktu', detail: `${v.Jmeno} → ${u.j}; klientů ${klienti.length}`, ip: s.ip });
+}
+
+central.post('/pacient/:id/kontakt-vychozi', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Kontakty upravuje tým kolem pacienta', 403);
+  const b = req.body || {};
+  const role = s.role.includes('lekar') ? 'lekar' : 'sestra';
+  const dalsiPoradi = async () => ((await q.one(`SELECT ISNULL(MAX(Poradi), 0) AS m FROM dbo.A_KP_Kontakt WHERE PacientID = @p AND Aktivni = 1`, { p: id })).m || 0) + 10;
+  const pouzit = async (vid) => {   // zatrhnout u klienta: kopie údajů výchozího kontaktu na konec seznamu
+    const v = await q.one(`SELECT Jmeno, Telefon, Skupina, Poznamka FROM dbo.A_KP_KontaktVychozi WHERE VychoziID = @v AND Aktivni = 1`, { v: vid });
+    if (!v) throw chyba('Výchozí kontakt nenalezen', 404);
+    const uz = await q.one(`SELECT KontaktID FROM dbo.A_KP_Kontakt WHERE PacientID = @p AND VychoziID = @v AND Aktivni = 1`, { p: id, v: vid });
+    if (uz) return v;
+    await q.exec(`INSERT INTO dbo.A_KP_Kontakt (PacientID, Jmeno, Telefon, Skupina, Poznamka, Poradi, VychoziID) VALUES (@p, @j, @t, @s, @poz, @o, @v)`,
+      { p: id, j: v.Jmeno, t: v.Telefon, s: v.Skupina, poz: v.Poznamka, o: await dalsiPoradi(), v: vid });
+    return v;
+  };
+  const akce = String(b.akce || '');
+  if (akce === 'pouzit' || akce === 'nepouzit') {
+    const vid = cislo(b.vychoziId);
+    if (!vid) throw chyba('Chybí výchozí kontakt');
+    if (akce === 'pouzit') {
+      const v = await pouzit(vid);
+      await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `Přidán výchozí kontakt organizace ${v.Jmeno} (${v.Telefon}).`, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+    } else {
+      const v = await q.one(`SELECT Jmeno FROM dbo.A_KP_KontaktVychozi WHERE VychoziID = @v`, { v: vid });
+      await q.exec(`UPDATE dbo.A_KP_Kontakt SET Aktivni = 0, Zmeneno = SYSDATETIME() WHERE PacientID = @p AND VychoziID = @v AND Aktivni = 1`, { p: id, v: vid });
+      await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `Odebrán výchozí kontakt organizace ${(v && v.Jmeno) || ''} (u ostatních klientů zůstává).`, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+    }
+    return;
+  }
+  if (!smiVychozi(s)) throw chyba('Výchozí kontakty organizace zakládá a ruší správce nebo lékař', 403);
+  if (akce === 'novy') {   // nový výchozí kontakt rovnou zatržený u tohoto klienta
+    const u = udajeVychozi(b);
+    const max = (await q.one(`SELECT ISNULL(MAX(Poradi), 0) AS m FROM dbo.A_KP_KontaktVychozi WHERE Aktivni = 1`)).m || 0;
+    const r = await q.one(`INSERT INTO dbo.A_KP_KontaktVychozi (Jmeno, Telefon, Skupina, Poznamka, Poradi, ZmenilUzivatelID) OUTPUT INSERTED.VychoziID AS id VALUES (@j, @t, @s, @poz, @o, @u)`, { ...u, o: max + 10, u: s.uzivatelId });
+    await pouzit(r.id);
+    await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `Přidán výchozí kontakt organizace ${u.j} (${u.t}).`, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'nový výchozí kontakt', detail: u.j, ip: s.ip });
+    return { id: r.id };
+  }
+  if (akce === 'zVlastniho') {   // existující kontakt klienta se stane výchozím kontaktem organizace (zůstane u klienta, propojený)
+    const kid = cislo(b.kontaktId);
+    const k = await q.one(`SELECT Jmeno, Telefon, Skupina, Poznamka, VychoziID FROM dbo.A_KP_Kontakt WHERE KontaktID = @k AND PacientID = @p AND Aktivni = 1`, { k: kid, p: id });
+    if (!k) throw chyba('Kontakt nenalezen', 404);
+    if (k.VychoziID) return { id: k.VychoziID };
+    const u = udajeVychozi({ jmeno: k.Jmeno, tel: k.Telefon, skupina: k.Skupina, pozn: k.Poznamka });
+    const max = (await q.one(`SELECT ISNULL(MAX(Poradi), 0) AS m FROM dbo.A_KP_KontaktVychozi WHERE Aktivni = 1`)).m || 0;
+    const r = await q.one(`INSERT INTO dbo.A_KP_KontaktVychozi (Jmeno, Telefon, Skupina, Poznamka, Poradi, ZmenilUzivatelID) OUTPUT INSERTED.VychoziID AS id VALUES (@j, @t, @s, @poz, @o, @u)`, { ...u, o: max + 10, u: s.uzivatelId });
+    await q.exec(`UPDATE dbo.A_KP_Kontakt SET VychoziID = @v, Zmeneno = SYSDATETIME() WHERE KontaktID = @k`, { v: r.id, k: kid });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'nový výchozí kontakt', detail: `${u.j} (z kontaktu klienta)`, ip: s.ip });
+    return { id: r.id };
+  }
+  if (akce === 'zrusit') {   // zrušit výchozí kontakt organizace = odebrat ho všem klientům
+    const vid = cislo(b.vychoziId);
+    const v = await q.one(`SELECT Jmeno FROM dbo.A_KP_KontaktVychozi WHERE VychoziID = @v AND Aktivni = 1`, { v: vid });
+    if (!v) throw chyba('Výchozí kontakt nenalezen', 404);
+    const klienti = await klientiVychozi(q, vid);
+    await q.exec(`UPDATE dbo.A_KP_KontaktVychozi SET Aktivni = 0, Zmeneno = SYSDATETIME(), ZmenilUzivatelID = @u WHERE VychoziID = @v`, { v: vid, u: s.uzivatelId });
+    await q.exec(`UPDATE dbo.A_KP_Kontakt SET Aktivni = 0, Zmeneno = SYSDATETIME() WHERE VychoziID = @v AND Aktivni = 1`, { v: vid });
+    for (const k of klienti) {
+      await zapisDenik(q, { pacientId: k.pacientId, typ: 'Úprava údajů', text: `Výchozí kontakt organizace ${v.Jmeno} byl zrušen a odebrán všem klientům.`, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+    }
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zrušení výchozího kontaktu', detail: `${v.Jmeno}; klientů ${klienti.length}`, ip: s.ip });
+    return { klientu: klienti.length };
+  }
+  throw chyba('Neznámá akce');
 }));
 
 central.post('/pacient/:id/denik', sUzivatelem(async (q, s, req) => {
@@ -271,7 +618,9 @@ central.post('/pacient/:id/denik', sUzivatelem(async (q, s, req) => {
   const typ = TYPY_DENIKU.includes(req.body.typ) ? req.body.typ : 'Změna stavu';
   const t = text(req.body.text, 4000);
   if (!t) throw chyba('Napište text zápisu');
-  await zapisDenik(q, { pacientId: id, typ, text: t, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+  const role = s.role.includes('lekar') ? 'lekar' : 'sestra';
+  const zapsano = await zapisDenik(q, { pacientId: id, typ, text: t, autor: s.jmeno, role, uzivatelId: s.uzivatelId });
+  if (zapsano.novy) await predejZhorseniPd(q, id, [{ typ, text: t, autor: s.jmeno, role: role === 'lekar' ? 'lékař' : 'sestra', cas: null }], { audit: (qq, a) => audit(qq, { ...a, uzivatelId: s.uzivatelId }), ip: s.ip });
 }));
 
 central.post('/pacient/:id/souhlas', sUzivatelem(async (q, s, req) => {
@@ -294,7 +643,11 @@ central.post('/pacient/:id/tym', sUzivatelem(async (q, s, req) => {
     await q.exec(`UPDATE dbo.A_KP_Tym SET Aktivni = 0, Do = SYSDATETIME() WHERE TymID = @t`, { t: cislo(b.odebratId) });
     // PINy jeho personálu přestanou platit
     await q.exec(`UPDATE dbo.A_KP_Pin SET Aktivni = 0 WHERE PacientID = @p AND PoskytovatelID = @ps`, { p: id, ps: t.PoskytovatelID });
-    await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: 'Pracoviště odebráno z týmu kolem pacienta; jeho PINy zneplatněny.', autor: s.jmeno, role: 'lekar', uzivatelId: s.uzivatelId });
+    await q.exec(`UPDATE po SET Aktivni = 0, Do = SYSDATETIME() FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
+      WHERE po.PacientID = @p AND po.Aktivni = 1 AND o.PoskytovatelID = @ps`, { p: id, ps: t.PoskytovatelID });
+    await q.exec(`UPDATE pt SET Aktivni = 0, Do = SYSDATETIME() FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_TymLidi tl ON tl.TymLidiID = pt.TymLidiID
+      WHERE pt.PacientID = @p AND pt.Aktivni = 1 AND tl.PoskytovatelID = @ps`, { p: id, ps: t.PoskytovatelID });
+    await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: 'Pracoviště odebráno z týmu kolem pacienta; jeho lidé a PINy už kartu neodemknou.', autor: s.jmeno, role: 'lekar', uzivatelId: s.uzivatelId });
     return {};
   }
   const ps = cislo(b.poskytovatelId);
@@ -345,15 +698,74 @@ central.post('/pacient/:id/prevzit', sUzivatelem(async (q, s, req) => {
 central.post('/pacient/:id/parovat', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
   if (!op.garant && !op.lekar) throw chyba('Telefon páruje garant nebo lékař v týmu', 403);
-  const kod = parovaciKod();
-  const platnost = new Date(Date.now() + 15 * 60e3);
-  // čekající nespárovaný telefon pacienta se použije znovu, jinak nový záznam
-  const z = await q.one(`SELECT TOP 1 ZarizeniID FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' ORDER BY ZarizeniID DESC`, { p: id });
+  const pac = await q.one(`SELECT TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  const telKarty = normTel(pac && pac.TelefonKarty);
+  if (!telKarty) throw chyba('Nejdřív u pacienta vyplňte číslo telefonu, na kterém bude karta (záložka Údaje) – karta jde nahrát jen do telefonu s tímto číslem');
+  // čekající nespárovaný telefon pacienta se použije znovu, jinak nový záznam; kód platný ještě aspoň 10 minut zůstává (0.11.18) –
+  // QR kód na obrazovce, odkaz v SMS i ručně opsaný kód jsou pak stejné a další kliknutí předchozí kód neruší
+  const z = await q.one(`SELECT TOP 1 ZarizeniID, ParovaciKod, ParovaciPlatnost FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'ZAPUJCENY' ORDER BY ZarizeniID DESC`, { p: id });
+  const platny = z && z.ParovaciKod && z.ParovaciPlatnost && new Date(z.ParovaciPlatnost).getTime() > Date.now() + 10 * 60e3;
+  const kod = platny ? z.ParovaciKod : parovaciKod();
+  // 0.11.91: delší platnost pro vytištěné párování do terénu (24 h, 3 dny, 7 dní); kód stále platí jen pro telefon s číslem karty
+  const hodin = [0.5, 24, 72, 168].includes(Number(req.body.platnostHodin)) ? Number(req.body.platnostHodin) : 0.5;
+  const chtena = Date.now() + hodin * 3600e3;
+  const platnost = platny && new Date(z.ParovaciPlatnost).getTime() >= chtena - 60e3 ? new Date(z.ParovaciPlatnost) : new Date(chtena);   // 0.11.10: výchozích 30 minut (stihne se i přidání na plochu iPhonu)
   let zid;
   if (z) { zid = z.ZarizeniID; await q.exec(`UPDATE dbo.A_KP_Zarizeni SET ParovaciKod = @k, ParovaciPlatnost = @pl, Stitek = ISNULL(@st, Stitek) WHERE ZarizeniID = @z`, { k: kod, pl: platnost, st: text(req.body.stitek, 60) || null, z: zid }); }
   else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost) OUTPUT inserted.ZarizeniID VALUES (@p, @st, @k, @pl)`, { p: id, st: text(req.body.stitek, 60) || null, k: kod, pl: platnost })).ZarizeniID;
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací kód vydán', ip: s.ip });
-  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}` };
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: platny ? 'párovací kód zobrazen znovu' : 'párovací kód vydán', detail: `platí do ${platnost.toISOString().slice(0, 16).replace('T', ' ')} UTC${req.body.tisk ? ' · vytištěno do terénu' : ''}`, ip: s.ip });
+  const odkaz = `${config.verejnaAdresa}/karta/#p=${s.tenant}.${kod}.T${telKarty.replace(/\D/g, '')}`;   // .T<číslo> = předvyplnění čísla v telefonu
+  let sms = null;
+  if (req.body.sms) {   // odkaz SMS na číslo s kartou – dostane ho jen tento telefon
+    const doKdy = hodin <= 0.5 ? '30 minut' : `do ${platnost.toLocaleString('cs-CZ', { timeZone: 'Europe/Prague', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    try { await posliSms(telKarty, `Karta pacienta: otevřete odkaz v tomto telefonu a potvrďte jeho číslo. ${odkaz} (platí ${doKdy})`); sms = { ok: true };
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'párovací odkaz poslán SMS', detail: hezkyTel(telKarty), ip: s.ip });
+    } catch (e) { sms = { ok: false, chyba: e.message }; }
+  }
+  // jeden telefon pro více pacientů (domov seniorů, 0.11.0): průkazy ostatních pacientů na stejném čísle v telefonu zůstanou, nový se přidá
+  const dalsi = await q.all(`SELECT DISTINCT p.Prijmeni + ' ' + p.Jmeno AS jmeno FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+    WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.PacientID <> @p AND p.Stav = 'AKTIVNI' AND z.Telefon = @tel ORDER BY jmeno`, { p: id, tel: telKarty });
+  const ci = vydejCislo({ typ: 'parovat', tenant: s.tenant, kod, rezim: 'ZAPUJCENY' }, telKarty, platnost);   // 0.11.110: 6místné číslo místo dlouhých kódů
+  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefonKarty: hezkyTel(telKarty), smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, dalsiNaTelefonu: dalsi.map((x) => x.jmeno), cislo: ci.cislo, cisloPlatnost: ci.platnost.toISOString() };
+}));
+
+/* vlastní telefon pacienta („Můj průkaz“): kód jen pro číslo pacienta, SMS na něj, nebo QR v ordinaci; platí 3 dny */
+// 0.11.111: aplikace Můj průkaz (/pacient/) je zrušená – pacient má Průkaz pacienta (DialogusPrukaz); {cislo} = 6místné číslo, {odkaz} = Průkaz s kódem
+export const SMS_PACIENT_VYCHOZI = 'Průkaz pacienta: lékař vám připravil údaje. Otevřete {odkaz} (nebo aplikaci Průkaz pacienta), klepněte na Propojit s Kartou pacienta a zadejte číslo {cislo}.';
+central.post('/pacient/:id/pacientovi', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('Průkaz pacientovi zpřístupňuje garant nebo lékař v týmu (v jednoduchém režimu kdokoli z týmu, kdo zapisuje)', 403);
+  if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+  const tel = normTel(req.body.telefon);
+  if (!tel) throw chyba('Zadejte číslo mobilu (např. +420 777 123 456) – kód půjde použít jen s ním');
+  const stitek = text(req.body.stitek, 60) || 'telefon pacienta';
+  // víc telefonů najednou (0.11.22): pacient i rodina, každé číslo má vlastní záznam; čekající záznam se stejným číslem se použije znovu
+  const z = await q.one(`SELECT TOP 1 ZarizeniID, ParovaciKod, ParovaciPlatnost, Telefon FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'CEKA' AND Rezim = 'PACIENT' AND Telefon = @t ORDER BY ZarizeniID DESC`, { p: id, t: tel });
+  if (!z) {
+    const aktivnich = (await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Rezim = 'PACIENT' AND Stav IN ('CEKA', 'SPAROVANO')`, { p: id })).n;
+    if (aktivnich >= 6) throw chyba('Pacient už má průkaz zpřístupněný nebo nabídnutý v 6 telefonech – nejdřív některý přístup ukončete nebo zrušte');
+  }
+  const platny = z && z.ParovaciKod && z.ParovaciPlatnost && new Date(z.ParovaciPlatnost).getTime() > Date.now() + 60 * 60e3;   // aspoň hodina platnosti → stejný kód (0.11.18)
+  const kod = platny ? z.ParovaciKod : parovaciKod();
+  const platnost = platny ? new Date(z.ParovaciPlatnost) : new Date(Date.now() + 72 * 3600e3);
+  let zid;
+  if (z) { zid = z.ZarizeniID; await q.exec(`UPDATE dbo.A_KP_Zarizeni SET ParovaciKod = @k, ParovaciPlatnost = @pl, Telefon = @t, Stitek = @st WHERE ZarizeniID = @z`, { k: kod, pl: platnost, t: tel, st: stitek, z: zid }); }
+  else zid = (await q.one(`INSERT INTO dbo.A_KP_Zarizeni (PacientID, Stitek, ParovaciKod, ParovaciPlatnost, Telefon, Rezim) OUTPUT inserted.ZarizeniID VALUES (@p, @st, @k, @pl, @t, 'PACIENT')`,
+    { p: id, st: stitek, k: kod, pl: platnost, t: tel })).ZarizeniID;
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: platny ? 'kód pro vlastní telefon zobrazen znovu' : 'kód pro vlastní telefon pacienta vydán', detail: `${hezkyTel(tel)} · ${stitek}`, ip: s.ip });
+  const odkaz = `${config.prukazAdresa}/prukaz/#p=${s.tenant}.${kod}.T${tel.replace(/\D/g, '')}`;   // Průkaz pacienta; .T<číslo> = předvyplněné číslo
+  const ci = vydejCislo({ typ: 'parovat', tenant: s.tenant, kod, rezim: 'PACIENT' }, tel, platnost);   // 0.11.110: 6místné číslo
+  let sms = null;
+  if (req.body.sms) {
+    // text SMS (0.11.20): lékař ho vidí a doplní v okně; {odkaz} se nahradí odkazem, chybí-li, odkaz se připojí na konec
+    let textSms = text(req.body.text, 600).replace(/\s+/g, ' ').trim() || SMS_PACIENT_VYCHOZI;
+    textSms = textSms.replace(/\{cislo\}/g, `${ci.cislo.slice(0, 3)} ${ci.cislo.slice(3)}`);
+    textSms = textSms.includes('{odkaz}') ? textSms.replace(/\{odkaz\}/g, odkaz) : `${textSms} ${odkaz}`;
+    try { await posliSms(tel, textSms); sms = { ok: true, text: textSms };
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'odkaz pro vlastní telefon poslán SMS', detail: `${hezkyTel(tel)}${req.body.text && req.body.text !== SMS_PACIENT_VYCHOZI ? ' · vlastní text' : ''}`, ip: s.ip });
+    } catch (e) { sms = { ok: false, chyba: e.message }; }
+  }
+  return { zarizeniId: zid, kod, tenant: s.tenant, platnost: platnost.toISOString(), odkaz, telefon: hezkyTel(tel), stitek, smsDostupne: smsDostupne(), smsDuvod: smsDuvod(), sms, cislo: ci.cislo, cisloPlatnost: ci.platnost.toISOString() };
 }));
 
 central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
@@ -361,12 +773,154 @@ central.post('/pacient/:id/zarizeni', sUzivatelem(async (q, s, req) => {
   if (!op.garant && !s.role.includes('admin')) throw chyba('Telefony spravuje garant', 403);
   const zid = cislo(req.body.zarizeniId);
   const akce = req.body.akce;
-  const stav = { zablokovat: 'ZABLOKOVANO', vratit: 'VRACENO' }[akce];
+  const stav = { zablokovat: 'ZABLOKOVANO', vratit: 'VRACENO', zrusit: 'VRACENO' }[akce];
   if (!stav) throw chyba('Neznámá akce');
-  const n = await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = @s, TokenHash = CASE WHEN @s = 'VRACENO' THEN NULL ELSE TokenHash END, ParovaciKod = NULL WHERE ZarizeniID = @z AND PacientID = @p`, { s: stav, z: zid, p: id });
-  if (!n) throw chyba('Telefon nenalezen', 404);
-  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: akce === 'zablokovat' ? 'Telefon zablokován – při příštím připojení se data v něm smažou.' : 'Telefon vrácen provozovateli.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  const z = await q.one(`SELECT Rezim, Stav FROM dbo.A_KP_Zarizeni WHERE ZarizeniID = @z AND PacientID = @p`, { z: zid, p: id });
+  if (!z) throw chyba('Telefon nenalezen', 404);
+  if (akce === 'zrusit' && z.Stav !== 'CEKA') throw chyba('Zrušit jde jen odkaz, který pacient ještě nepoužil');
+  await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = @s, TokenHash = CASE WHEN @s = 'VRACENO' THEN NULL ELSE TokenHash END, ParovaciKod = NULL WHERE ZarizeniID = @z AND PacientID = @p`, { s: stav, z: zid, p: id });
+  const pacientuv = z.Rezim === 'PACIENT';
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: pacientuv
+    ? (akce === 'zablokovat' ? 'Přístup ve vlastním telefonu pacienta ukončen – data od lékaře se v něm přestanou aktualizovat (co už pacient má, zůstává jeho kopií).' : akce === 'zrusit' ? 'Nabídka průkazu pro vlastní telefon zrušena – kód už nejde použít.' : 'Vlastní telefon pacienta odebrán ze seznamu.')
+    : (akce === 'zablokovat' ? 'Telefon zablokován – při příštím připojení se data v něm smažou.' : 'Telefon vrácen provozovateli.'), autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: `telefon: ${akce}`, ip: s.ip });
+  await srovnejTymyTelefonu(q, id, s.uzivatelId, s.jmeno);   // 0.11.89: tým přiřazený přes tento telefon odejde
+}));
+
+/* ---- výměna a deaktivace telefonu u lůžka z centrály (0.11.96) ----
+   Jeden zapůjčený telefon může nést průkazy více pacientů. Garant nebo lékař v týmu připraví výměnu pro číslo starého telefonu:
+   centrála ukáže QR kód (30 min, jednorázový, s číslem nového telefonu), nový telefon ho naskenuje a převezme všechny průkazy
+   (POST /api/d/prenos/prevzit) – starý se tím zablokuje. Deaktivace (ztráta, vrácení) jen zablokuje všechny průkazy na čísle. */
+async function prukazyNaTelefonu(q, s, telefon) {
+  const tel = normTel(telefon);
+  if (!tel) throw chyba('Neplatné číslo telefonu');
+  // 0.11.97: Nahrazeno = starý telefon po výměně, který ještě nikdo nedeaktivoval (výměna ho nebere, deaktivace po výměně jen jeho)
+  const rows = await q.all(`SELECT z.ZarizeniID, z.PacientID, z.TokenHash, z.Telefon, z.NahrazenoZarizenim, p.KodPrukazu AS Kod, p.Jmeno, p.Prijmeni FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+    WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.Telefon = @tel ORDER BY p.Prijmeni, p.Jmeno`, { tel });
+  const out = [];
+  for (const r of rows) { const op = await opravneni(q, s, r.PacientID).catch(() => ({})); out.push({ ...r, op }); }
+  return { tel, rows: out };
+}
+central.get('/telefon/prukazy', sUzivatelem(async (q, s, req) => {
+  const { tel, rows } = await prukazyNaTelefonu(q, s, req.query.telefon);
+  const pac = (r) => ({ id: r.PacientID, zarizeniId: r.ZarizeniID, kod: r.Kod, jmeno: `${r.Prijmeni} ${r.Jmeno}`.trim(), vymena: !!(r.op.garant || r.op.lekar), deaktivace: !!(r.op.garant || s.role.includes('admin')) });
+  return { telefon: hezkyTel(tel), pacienti: rows.filter((r) => !r.NahrazenoZarizenim).map(pac), nahrazene: rows.filter((r) => r.NahrazenoZarizenim).map(pac) };
+}));
+/* 0.11.114: výzva k obnovení údajů v Průkazu pacienta – Průkaz ji uvidí (GET /api/d/stav) a nabídne „Načíst z Karty pacienta“;
+   volitelně SMS na číslo telefonu. Údaje do telefonu neodcházejí, stáhne si je pacient sám. */
+central.post('/pacient/:id/obnovit', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('Obnovení v Průkazu posílá garant nebo lékař v týmu (v jednoduchém režimu kdokoli z týmu, kdo zapisuje)', 403);
+  if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+  const zid = cislo((req.body || {}).zarizeniId);
+  const z = await q.one(`SELECT ZarizeniID, Telefon, Stav, Rezim FROM dbo.A_KP_Zarizeni WHERE ZarizeniID = @z AND PacientID = @p`, { z: zid, p: id });
+  if (!z || z.Rezim !== 'PACIENT' || z.Stav !== 'SPAROVANO') throw chyba('Telefon s propojeným Průkazem pacienta nenalezen', 404);
+  omez('obnovit:' + zid, 20, 3600e3);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: VYZVA_OBNOVIT, detail: hezkyTel(z.Telefon), ip: s.ip });
+  let sms = null;
+  if (req.body.sms) {
+    try { await posliSms(z.Telefon, 'Průkaz pacienta: lékař aktualizoval vaše údaje. Otevřete Průkaz pacienta a klepněte na Načíst z Karty pacienta.'); sms = { ok: true };
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: zid, akce: 'výzva k obnovení poslána SMS', detail: hezkyTel(z.Telefon), ip: s.ip });
+    } catch (e) { sms = { ok: false, chyba: e.message }; }
+  }
+  return { ok: true, sms, telefon: hezkyTel(z.Telefon) };
+}));
+central.post('/telefon/vymena', sUzivatelem(async (q, s, req) => {
+  const { tel, rows } = await prukazyNaTelefonu(q, s, req.body.telefon);
+  const novy = normTel(req.body.novyTelefon) || tel;
+  const aktualni = rows.filter((r) => !r.NahrazenoZarizenim);
+  const smi = aktualni.filter((r) => r.op.garant || r.op.lekar);
+  if (!aktualni.length) throw chyba(`Na telefonu ${hezkyTel(tel)} není žádný aktivní průkaz – nový telefon spárujte u pacienta (Telefon a PINy → Spárovat telefon)`, 404);
+  if (!smi.length) throw chyba('Výměnu telefonu připravuje garant nebo lékař v týmu pacientů v tomto telefonu', 403);
+  const { kod, platnost } = zalozPrenos(smi.map((r) => ({ tenant: s.tenant, zarizeniId: r.ZarizeniID, tokenHash: r.TokenHash, telefon: tel })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: novy, zdroj: 'centrala' });
+  for (const r of smi) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: 'výměna telefonu připravena v centrále', detail: `${hezkyTel(tel)} → ${hezkyTel(novy)}`, ip: s.ip });
+  const ci = vydejCislo({ typ: 'prenos', kod }, novy, platnost);
+  return { kod, kodZobrazeni: formatujKod(kod), cislo: ci.cislo, platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, stary: hezkyTel(tel), novy: hezkyTel(novy),
+    pacienti: smi.map((r) => `${r.Prijmeni} ${r.Jmeno}`.trim()), bezOpravneni: aktualni.length - smi.length };
+}));
+/* hromadné nahrání pacientů do telefonu (0.11.99): garant nebo lékař vybere pacienty (např. Kde je = DS C) a číslo telefonu; centrála
+   jim nastaví Telefon s kartou a ukáže jeden QR kód (30 min, jednorázový, jen pro toto číslo). Telefon na párovací stránce QR načte a
+   dostane všechny vybrané průkazy najednou (POST /api/d/prenos/prevzit, karty s pacientId): komu telefon zatím nebyl, založí se nový,
+   jinak nový nahradí dřívější zapůjčený telefon pacienta jako při novém spárování; týmy zatržené u telefonu se přiřadí samy. */
+central.post('/telefon/nahrat', sUzivatelem(async (q, s, req) => {
+  const tel = normTel(req.body.telefon);
+  if (!tel) throw chyba('Zadejte číslo telefonu (např. +420 777 123 456)');
+  const ids = [...new Set((Array.isArray(req.body.pacienti) ? req.body.pacienti : []).map(Number).filter((x) => Number.isInteger(x) && x > 0))].slice(0, 60);
+  if (!ids.length) throw chyba('Vyberte aspoň jednoho pacienta');
+  const ok = [], bez = [];
+  for (const id of ids) {
+    const p = await q.one(`SELECT PacientID, Jmeno, Prijmeni, Stav, TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+    if (!p || p.Stav !== 'AKTIVNI') { bez.push(id); continue; }
+    const op = await opravneni(q, s, id).catch(() => ({}));
+    if (!op.garant && !op.lekar) { bez.push(id); continue; }
+    if (normTel(p.TelefonKarty) !== tel) {
+      await q.exec(`UPDATE dbo.A_KP_Pacient SET TelefonKarty = @tel WHERE PacientID = @p`, { tel, p: id });
+      await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'telefon s kartou změněn (hromadné nahrání)', detail: `${p.TelefonKarty || '—'} → ${hezkyTel(tel)}`, ip: s.ip });
+    }
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'hromadné nahrání do telefonu připraveno', detail: hezkyTel(tel), ip: s.ip });
+    ok.push({ id, jmeno: `${p.Prijmeni} ${p.Jmeno}`.trim() });
+  }
+  if (!ok.length) throw chyba('Žádného z vybraných pacientů nemůžete nahrát do telefonu (telefon páruje garant nebo lékař v týmu, průkaz musí být aktivní)', 403);
+  const { kod, platnost } = zalozPrenos(ok.map((x) => ({ tenant: s.tenant, pacientId: x.id })), Date.now(), { platnostMs: 30 * 60e3, novyTelefon: tel, zdroj: 'nahrat' });
+  const ci = vydejCislo({ typ: 'prenos', kod }, tel, platnost);
+  return { kod, kodZobrazeni: formatujKod(kod), cislo: ci.cislo, platnost: platnost.toISOString(), odkaz: `${config.verejnaAdresa}/karta/#prenos=${kod}`, novy: hezkyTel(tel), pacienti: ok.map((x) => x.jmeno), bezOpravneni: bez.length };
+}));
+central.get('/telefon/vymena/stav', sUzivatelem(async (q, s, req) => {
+  const kod = normalizujKod(req.query.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return stavPrenosu(kod);
+}));
+/* telefon bez kamery (0.11.104): obsluha opíše 6místný kód z obrazovky telefonu do okna s QR kódem – sedí-li i číslo telefonu,
+   telefon dostane kód přenosu a převezme průkazy sám */
+central.post('/telefon/potvrdit-kod', sUzivatelem(async (q, s, req) => {
+  omez('potvrdit-kod:' + s.uzivatelId, 30);
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  const p = nahledPrenosu(kod);
+  if (!p) throw chyba('QR kód už neplatí – vytvořte nový', 404);
+  if (p.karty.some((k) => k.tenant !== s.tenant)) throw chyba('Kód patří jiné organizaci', 403);
+  const kodTel = String(req.body.kodTelefonu || '').replace(/\D/g, '');
+  if (kodTel.length !== 6) throw chyba('Kód z obrazovky telefonu má 6 číslic');
+  if (!potvrdCekani(kodTel, p.novyTelefon, kod)) throw chyba(`Telefon s číslem ${hezkyTel(p.novyTelefon)} s tímto kódem nečeká – zkontrolujte kód a číslo na telefonu (kód platí 15 minut)`, 404);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'telefon bez kamery potvrzen kódem z obrazovky', detail: hezkyTel(p.novyTelefon), ip: s.ip });
+  return { ok: true, telefon: hezkyTel(p.novyTelefon) };
+}));
+/* 0.11.105: totéž v okně Spárovat telefon u pacienta – telefon dostane kód organizace a párovací kód a spáruje se sám (/api/d/parovat) */
+central.post('/pacient/:id/potvrdit-kod', sUzivatelem(async (q, s, req) => {
+  omez('potvrdit-kod:' + s.uzivatelId, 30);
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('Telefon páruje garant nebo lékař v týmu', 403);
+  const kodTel = String(req.body.kodTelefonu || '').replace(/\D/g, '');
+  if (kodTel.length !== 6) throw chyba('Kód z obrazovky telefonu má 6 číslic');
+  const p = await q.one(`SELECT TelefonKarty FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  const tel = normTel(p && p.TelefonKarty);
+  if (!tel) throw chyba('U pacienta chybí číslo telefonu s kartou');
+  const z = await q.one(`SELECT TOP 1 ParovaciKod FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav IN ('CEKA', 'SPAROVANO') AND Rezim = 'ZAPUJCENY' AND ParovaciKod IS NOT NULL AND ParovaciPlatnost > SYSDATETIME() ORDER BY ZarizeniID DESC`, { p: id });
+  if (!z) throw chyba('Párovací kód už neplatí – otevřete Spárovat telefon znovu', 404);
+  if (!potvrdCekani(kodTel, tel, { tenant: s.tenant, kod: z.ParovaciKod })) throw chyba(`Telefon s číslem ${hezkyTel(tel)} s tímto kódem nečeká – zkontrolujte kód a číslo na telefonu (kód platí 15 minut)`, 404);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'telefon bez kamery potvrzen kódem z obrazovky (párování)', detail: hezkyTel(tel), ip: s.ip });
+  return { ok: true, telefon: hezkyTel(tel) };
+}));
+central.post('/telefon/vymena/zrusit', sUzivatelem(async (q, s, req) => {
+  const kod = normalizujKod(req.body.kod);
+  if (!PRENOS_KOD_RE.test(kod)) throw chyba('Neplatný kód');
+  return { zruseno: zrusPrenos(kod) };
+}));
+/* deaktivace jen na pokyn (0.11.97): nahrazene = starý telefon po výměně (jen jeho průkazy, nový telefon se stejným číslem zůstává);
+   jinak celý telefon (ztráta, vrácení bez náhrady) – průkazy, které nejsou označené jako nahrazené */
+central.post('/telefon/deaktivovat', sUzivatelem(async (q, s, req) => {
+  const { tel, rows: vse } = await prukazyNaTelefonu(q, s, req.body.telefon);
+  const rows = vse.filter((r) => (req.body.nahrazene ? !!r.NahrazenoZarizenim : !r.NahrazenoZarizenim));
+  const smi = rows.filter((r) => r.op.garant || s.role.includes('admin'));
+  if (!rows.length) throw chyba(`Na telefonu ${hezkyTel(tel)} už není žádný aktivní průkaz`, 404);
+  if (!smi.length) throw chyba('Telefon deaktivuje garant pacientů v tomto telefonu', 403);
+  for (const r of smi) {
+    await q.exec(`UPDATE dbo.A_KP_Zarizeni SET Stav = 'ZABLOKOVANO', ParovaciKod = NULL WHERE ZarizeniID = @z`, { z: r.ZarizeniID });
+    await zapisDenik(q, { pacientId: r.PacientID, typ: 'Systém', text: `${req.body.nahrazene ? 'Starý telefon po výměně' : 'Telefon u lůžka'} ${hezkyTel(tel)} deaktivován v centrální aplikaci – při příštím připojení se z něj průkaz vymaže.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: r.PacientID, zarizeniId: r.ZarizeniID, akce: req.body.nahrazene ? 'telefon: starý po výměně deaktivován' : 'telefon: deaktivován (celý telefon)', detail: hezkyTel(tel), ip: s.ip });
+    await srovnejTymyTelefonu(q, r.PacientID, s.uzivatelId, s.jmeno);
+  }
+  return { deaktivovano: smi.length, zustalo: rows.length - smi.length };
 }));
 
 central.post('/pacient/:id/pin', sUzivatelem(async (q, s, req) => {
@@ -377,42 +931,290 @@ central.post('/pacient/:id/pin', sUzivatelem(async (q, s, req) => {
     await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PIN zrušen', ip: s.ip });
     return {};
   }
-  const jmeno = text(req.body.jmeno, 150);
-  const role = String(req.body.role || 'RODINA').toUpperCase();
+  let jmeno = text(req.body.jmeno, 150);
+  let role = String(req.body.role || 'RODINA').toUpperCase();
+  let ps = cislo(req.body.poskytovatelId);
+  let obnoven = null;
+  if (req.body.obnovitId) {   // 0.11.31: Nový PIN stejnému držiteli (starý přestane platit) – pro PINy vydané před verzí, která je umí zobrazit, nebo při zapomenutí
+    const st = await q.one(`SELECT PinID, Jmeno, Role, PoskytovatelID FROM dbo.A_KP_Pin WHERE PinID = @i AND PacientID = @p AND Aktivni = 1`, { i: cislo(req.body.obnovitId), p: id });
+    if (!st) throw chyba('PIN nenalezen', 404);
+    jmeno = st.Jmeno; role = st.Role; ps = st.PoskytovatelID; obnoven = st.PinID;
+  }
   if (!jmeno) throw chyba('Vyplňte jméno držitele PINu');
   if (!['SESTRA', 'RODINA', 'HOSPIC', 'PL'].includes(role)) throw chyba('Neznámá role');
-  const ps = cislo(req.body.poskytovatelId);
   const n = novyPin();
-  await q.exec(`INSERT INTO dbo.A_KP_Pin (PacientID, Jmeno, Role, PoskytovatelID, Salt, Hash, Iterace, VytvorilUzivatelID) VALUES (@p, @j, @r, @ps, @s, @h, @i, @u)`,
-    { p: id, j: jmeno, r: role, ps, s: n.salt, h: n.hash, i: n.iterace, u: s.uzivatelId });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PIN vydán', detail: `${jmeno} (${role.toLowerCase()})`, ip: s.ip });
-  return { pin: n.pin };
+  if (obnoven) await q.exec(`UPDATE dbo.A_KP_Pin SET Aktivni = 0 WHERE PinID = @i AND PacientID = @p`, { i: obnoven, p: id });
+  await q.exec(`INSERT INTO dbo.A_KP_Pin (PacientID, Jmeno, Role, PoskytovatelID, Salt, Hash, Iterace, VytvorilUzivatelID, PinSifrovany) VALUES (@p, @j, @r, @ps, @s, @h, @i, @u, @psf)`,
+    { p: id, j: jmeno, r: role, ps, s: n.salt, h: n.hash, i: n.iterace, u: s.uzivatelId, psf: zasifruj(n.pin) });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: obnoven ? 'PIN vydán znovu' : 'PIN vydán', detail: `${jmeno} (${role.toLowerCase()})`, ip: s.ip });
+  return { pin: n.pin, jmeno, role };
+}));
+
+/** zobrazení platného PINu rodiny / jednorázového PINu (0.11.31) – jen PINy vydané od této verze; kontrola shody s otiskem jako u osobních PINů. Zapisuje se do logu. */
+central.post('/pacient/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.garant && !op.lekar) throw chyba('PIN zobrazí garant nebo lékař v týmu', 403);
+  const o = await q.one(`SELECT PinID, Jmeno, Role, PinSifrovany, Salt, Hash, Iterace, CONVERT(char(16), Vytvoreno, 120) AS vydan FROM dbo.A_KP_Pin WHERE PinID = @i AND PacientID = @p AND Aktivni = 1`, { i: cislo(req.body.pinId), p: id });
+  if (!o) throw chyba('PIN nenalezen', 404);
+  const pin = desifruj(o.PinSifrovany);
+  if (!pin) throw chyba('Tento PIN byl vydán před verzí, která ho umí znovu zobrazit – vydejte držiteli nový PIN (tlačítko Nový PIN).', 409);
+  if (hashPin(pin, o.Salt, o.Iterace || undefined) !== o.Hash) {
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení PINu selhalo', detail: `${o.Jmeno}: uložený PIN neodpovídá ověřovacímu otisku`, ip: s.ip });
+    throw chyba('Uložený PIN neodpovídá otisku, kterým telefon PIN ověřuje – vydejte držiteli nový PIN (tlačítko Nový PIN).', 409);
+  }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'zobrazení PINu', detail: `${o.Jmeno} (${String(o.Role).toLowerCase()})`, ip: s.ip });
+  return { pin, jmeno: o.Jmeno, role: o.Role, vydan: o.vydan };
+}));
+
+/* Linka paliativní podpory (od 0.11.71): telefony přidělené kartě (číslo s kartou, zapůjčené i vlastní telefony) – registrace k lince
+   ambulance vede PéčeDoma (CLB1 A_MSPPP_LPP, akce linka / linka-nastav); jen portál CLB, PéčeDoma Plus linku nemá */
+async function telefonyKarty(q, id) {
+  const p = await q.one(`SELECT TelefonKarty, Jmeno, Prijmeni, KodPrukazu FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p) throw chyba('Pacient nenalezen', 404);
+  const z = await q.all(`SELECT Telefon, Stitek, Rezim, Stav FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav <> 'VRACENO' AND Telefon IS NOT NULL ORDER BY ZarizeniID DESC`, { p: id });
+  const mapa = new Map();
+  const pridej = (t, popis) => { const n = normTel(t); if (n && !mapa.has(n)) mapa.set(n, { telefon: n, hezky: hezkyTel(n), popis }); };
+  pridej(p.TelefonKarty, 'telefon s kartou');
+  for (const x of z) pridej(x.Telefon, (x.Stitek || (x.Rezim === 'PACIENT' ? 'vlastní telefon pacienta' : 'zapůjčený telefon')) + (x.Stav === 'ZABLOKOVANO' ? ' · zablokováno' : ''));
+  return { pacient: `${p.Prijmeni || ''} ${p.Jmeno || ''}`.trim(), kod: p.KodPrukazu, telefony: [...mapa.values()].filter((x) => /^\+420\d{9}$/.test(x.telefon)) };
+}
+central.get('/pacient/:id/linka', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Linku vidí tým kolem pacienta', 403);
+  const t = await telefonyKarty(q, id);
+  const nast = await nastaveniPd(q);
+  if (nast.portal === 'plus') return { telefony: t.telefony, dostupne: false, duvod: 'Linka paliativní podpory je jen v PéčeDoma Centra LB' };
+  if (!t.telefony.length) return { telefony: [], dostupne: true };
+  try {
+    const r = await pdVolej(nast, 'linka', { telefony: t.telefony.map((x) => x.telefon) });
+    const stav = r.stav || {};
+    return { dostupne: true, smi: !!(op.lekar || op.garant), telefony: t.telefony.map((x) => ({ ...x, ...(stav[x.telefon.slice(-9)] || { registrovan: false }) })) };
+  } catch (e) { return { telefony: t.telefony, dostupne: false, duvod: e.message }; }
+}));
+central.post('/pacient/:id/linka', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant) throw chyba('Registraci k lince mění lékař nebo garant', 403);
+  const tel = normTel(req.body.telefon);
+  const t = await telefonyKarty(q, id);
+  const x = t.telefony.find((y) => y.telefon === tel);
+  if (!x) throw chyba('Číslo nepatří k telefonům této karty');
+  const aktivni = !!req.body.aktivni;
+  const nast = await nastaveniPd(q);
+  if (nast.portal === 'plus') throw chyba('Linka paliativní podpory je jen v PéčeDoma Centra LB');
+  await pdVolej(nast, 'linka-nastav', { telefon: tel, aktivni, nazev: `${t.pacient} · Karta ${t.kod || ''} · ${x.popis}`.slice(0, 200), kdo: s.jmeno });
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: aktivni ? `Telefon ${x.hezky} (${x.popis}) registrován k Lince paliativní podpory.` : `Registrace telefonu ${x.hezky} k Lince paliativní podpory zrušena.`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: aktivni ? 'linka: registrace telefonu' : 'linka: zrušení registrace', detail: x.hezky, ip: s.ip });
+  return { registrovan: aktivni };
 }));
 
 central.get('/pacient/:id/kod-lekare', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
   if (!s.role.includes('lekar') || !(op.lekar || op.garant)) throw chyba('Kód pro odemčení telefonu dostane jen lékař z týmu', 403);
-  const z = await q.one(`SELECT TOP 1 ZarizeniID, Tajemstvi FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO' ORDER BY Sparovano DESC`, { p: id });
+  const z = await q.one(`SELECT TOP 1 ZarizeniID, Tajemstvi FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO' AND Rezim = 'ZAPUJCENY' ORDER BY Sparovano DESC`, { p: id });
   if (!z) throw chyba('Pacient nemá spárovaný telefon');
   const t = desifruj(z.Tajemstvi);
   if (!t) throw chyba('Tajemství telefonu nelze přečíst – spárujte telefon znovu', 500);
-  const ted = Date.now();
-  const platiDo = new Date((Math.floor(ted / 1000 / TOTP_KROK) + 1) * TOTP_KROK * 1000);
+  // kód dne: celý kalendářní den stejný (najde ho i lékař v PéčeDoma – /api/partner/kod-dne)
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, zarizeniId: z.ZarizeniID, akce: 'kód lékaře vydán', ip: s.ip });
-  return { kod: totp(t, ted), platiDo: platiDo.toISOString(), lekar: s.jmeno };
+  return { kod: kodDne(t), platiDo: konecDnePraha(), lekar: s.jmeno };
+}));
+
+/* ---------------- PéčeDoma: výběr klienta, propojení pacienta, synchronizace ---------------- */
+central.get('/pecedoma/klienti', sUzivatelem(async (q, s, req) => {
+  const nast = await nastaveniPd(q);
+  const filtr = String(req.query.filtr || '').split(',').map((x) => x.trim()).filter((x) => ['hospic', 't720', 'lpp', 'doma', 'ds', 'hosp'].includes(x)).join(',');   // 0.11.77: i místo pobytu
+  const r = await pdVolej(nast, 'klienti', { q: text(req.query.q, 100), filtr });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: hledání klienta', detail: [text(req.query.q, 100), filtr].filter(Boolean).join(' · ') || null, ip: s.ip });
+  return { klienti: Array.isArray(r.klienti) ? r.klienti : [], skupiny: r.skupiny || null };
+}, { lekar: true }));
+
+central.get('/pecedoma/klient/:id', sUzivatelem(async (q, s, req) => {
+  const kid = String(req.params.id || '').toLowerCase();
+  if (!UUID_RE.test(kid)) throw chyba('Neplatný klient');
+  const nast = await nastaveniPd(q);
+  const r = await pdVolej(nast, 'klient', { klientId: kid });
+  if (!r.karta) throw chyba('PéčeDoma nevrátilo údaje klienta', 502);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: načtení klienta', detail: kid, ip: s.ip });
+  return { karta: r.karta, klientId: kid };
+}, { lekar: true }));
+
+/* propojit / odpojit existujícího pacienta s klientem PéčeDoma (lékař nebo garant) */
+central.post('/pacient/:id/pecedoma', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant) throw chyba('Propojení s PéčeDoma mění lékař nebo garant', 403);
+  const kid = String(req.body.klientId || '').toLowerCase();
+  if (req.body.odpojit) {
+    await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = NULL, PdPortalKlientID = NULL WHERE PacientID = @p`, { p: id });
+    await q.exec(`DELETE FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: id });
+    await zapisDenik(q, { pacientId: id, typ: 'Systém', text: 'Propojení s klientem PéčeDoma zrušeno.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: odpojení', ip: s.ip });
+    return {};
+  }
+  if (!UUID_RE.test(kid)) throw chyba('Vyberte klienta PéčeDoma');
+  await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = NULL WHERE PacientID = @p`, { k: kid, p: id });
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: 'Pacient propojen s klientem PéčeDoma – léky a plánované návštěvy se přebírají z PéčeDoma.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: propojení', detail: kid, ip: s.ip });
+  const nast = await nastaveniPd(q);
+  let sync = null, chybaSync = null;
+  try { await synchronizujPacienta(q, nast, id, kid); sync = await stavSync(q, id); } catch (e) { chybaSync = e.message; }
+  return { sync, chyba: chybaSync };
+}));
+
+/* chat PéčeDoma s klientem (od 0.8.0): zprávy A_MSPPP_Zprava portálu – tým kolem pacienta čte a píše jako „Tým“ se značkou [Karta · jméno] */
+async function pdKlientPacienta(q, id) {
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) throw chyba('Pacient není propojený s klientem PéčeDoma');
+  return p.pd;
+}
+central.get('/pacient/:id/pecedoma/zpravy', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Chat PéčeDoma vidí tým kolem pacienta', 403);
+  const r = await zpravyPd(await nastaveniPd(q), await pdKlientPacienta(q, id));
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: chat zobrazen', detail: `${r.zpravy.length} zpráv`, ip: s.ip });
+  return r;
+}));
+central.post('/pacient/:id/pecedoma/zprava', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis || !op.aktivni) throw chyba('Zprávu do PéčeDoma píše tým kolem pacienta u aktivního průkazu', 403);
+  omez('pdchat:' + s.uzivatelId, 60, 3600e3);
+  const r = await posliZpravuPd(await nastaveniPd(q), await pdKlientPacienta(q, id), { text: text(req.body.text, 4000), smer: 'OD_TYMU', kdo: s.jmeno });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: zpráva odeslána', ip: s.ip });
+  return r;
+}));
+
+/* Léky – jedna agenda (od 0.9.0). Propojený pacient: léky jsou v PéčeDoma (A_MSPPP_Medikace) a Karta je tam čte i mění, pak hned
+   synchronizuje (A_KP_PdSync → karta, telefon, Můj průkaz). Nepropojený pacient: léky jsou součást plánu (nová verze přes /plan). */
+central.get('/pacient/:id/leky', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); await opravneni(q, s, id);
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) return { zdroj: 'plan' };
+  const r = await lekyPd(await nastaveniPd(q), p.pd);
+  return { zdroj: 'pecedoma', leky: await puvodLekuPd(q, id, r.leky) };
+}));
+/* 0.11.123: původ léku vedeného v PéčeDoma – poslední zápis z Karty (audit „PéčeDoma: úprava léků“), jinak zapsáno v portálu PéčeDoma.
+   0.11.124: zápis z rozboru zprávy má v auditu „· ze zprávy „dokument““ → štítek ze zprávy (i potvrzení léku, který už v PéčeDoma byl) */
+export const RE_AUDIT_LEKU = /^(přidán|upraven|potvrzen) (?:SOS lék|lék) (.+?)(?: · ze zprávy „(.+)“)?$/;
+export async function puvodLekuPd(q, pacientId, leky) {
+  const a = await q.all(`SELECT Kdo AS kdo, CONVERT(char(16), Cas, 120) AS kdy, Detail AS detail FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND Akce = N'PéčeDoma: úprava léků' ORDER BY AuditID DESC`, { p: pacientId });
+  const zKarty = a.map((x) => { const m = String(x.detail || '').match(RE_AUDIT_LEKU); return m ? { ...x, akce: m[1], lek: m[2].trim().toLowerCase(), dokument: m[3] || null } : null; }).filter(Boolean);
+  // 0.11.125: původ = kdo lék zapsal (ručně v Kartě / ze zprávy / v PéčeDoma); ověření zprávou zvlášť – lék zapsaný ručně
+  // a později potvrzený rozborem zprávy má štítek „zapsáno ručně“ i „ověřeno zprávou „dokument““
+  return (leky || []).map((l) => {
+    const t = `${l.nazev}${l.davka ? ' ' + l.davka : ''}`.trim().toLowerCase();
+    const shody = zKarty.filter((x) => x.lek === t);   // od nejnovějšího
+    const rucne = shody.find((x) => !x.dokument), zpr = shody.find((x) => x.dokument), zZpravy = shody.find((x) => x.dokument && x.akce !== 'potvrzen');
+    const z = rucne || zZpravy;   // stejný text zapsaný ručně = zapsal člověk (rozbor ho jen potvrdil nebo přesunul do skupiny); jinak ze zprávy
+    const puvod = z ? { zdroj: z.dokument ? 'zprava' : 'karta', dokument: z.dokument, kdo: z.kdo, kdy: z.kdy, akce: z.akce } : { zdroj: 'pecedoma', kdy: l.od || null };
+    if (zpr && puvod.zdroj !== 'zprava') puvod.overeno = { dokument: zpr.dokument, kdo: zpr.kdo, kdy: zpr.kdy };
+    return { ...l, puvod };
+  });
+}
+/* 0.11.124: léky z rozboru zprávy do PéčeDoma (pacient propojený s PéčeDoma) – nové přidá, změněné upraví, shodné jen potvrdí
+   (bez zápisu do PéčeDoma, jen audit, aby měly štítek „ze zprávy“). Jedna synchronizace a jeden zápis v deníku. */
+central.post('/pacient/:id/leky/ze-zpravy', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis || !op.aktivni) throw chyba('Léky upravuje tým kolem pacienta u aktivního průkazu', 403);
+  const pd = await pdKlientPacienta(q, id);
+  const nast = await nastaveniPd(q);
+  const b = req.body || {};
+  const dok = text(b.dokument, 200).replace(/[„“]/g, '') || 'zpráva';
+  const polozky = (Array.isArray(b.polozky) ? b.polozky : []).slice(0, 60);
+  if (!polozky.length) throw chyba('Nic není zaškrtnuté');
+  let r = null; const zmeny = [];
+  for (const x of polozky) {
+    const lek = { id: x.id ? String(x.id) : undefined, typ: text(x.typ, 15), nazev: text(x.nazev, 200), davka: text(x.davka, 200), instr: text(x.instr, 500), popis: text(x.popis, 300) };
+    if (!lek.nazev) continue;
+    const akce = x.akce === 'potvrdit' && lek.id ? 'potvrzen' : lek.id ? 'upraven' : 'přidán';
+    if (akce !== 'potvrzen') r = await ulozLekPd(nast, pd, lek, s.jmeno);
+    const co = `${akce} ${lek.typ === 'ZACHRANNA' ? 'SOS lék' : 'lék'} ${lek.nazev}${lek.davka ? ' ' + lek.davka : ''}`;
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: úprava léků', detail: `${co} · ze zprávy „${dok}“`, ip: s.ip });
+    zmeny.push(co);
+  }
+  let sync = null;
+  try { await synchronizujPacienta(q, nast, id, pd); sync = await stavSync(q, id); } catch (e) { /* synchronizace doběhne automaticky */ }
+  if (zmeny.length) await zapisDenik(q, { pacientId: id, typ: 'Úprava léků', text: `Léky (PéčeDoma) z rozboru zprávy „${dok}“: ${zmeny.join('; ')}.`, autor: s.jmeno, role: 'tym', uzivatelId: s.uzivatelId });
+  return { leky: await puvodLekuPd(q, id, (r || await lekyPd(nast, pd)).leky), sync, zmen: zmeny.length };
+}));
+async function lekPd(q, s, req, akce) {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis || !op.aktivni) throw chyba('Léky upravuje tým kolem pacienta u aktivního průkazu', 403);
+  const pd = await pdKlientPacienta(q, id);
+  const nast = await nastaveniPd(q);
+  const b = req.body || {};
+  let r, detail;
+  if (akce === 'uloz') {
+    const lek = { id: b.id ? String(b.id) : undefined, typ: text(b.typ, 15), nazev: text(b.nazev, 200), davka: text(b.davka, 200), instr: text(b.instr, 500), popis: text(b.popis, 300) };
+    if (!lek.nazev) throw chyba('Vyplňte název léku');
+    r = await ulozLekPd(nast, pd, lek, s.jmeno);
+    detail = `${lek.id ? 'upraven' : 'přidán'} ${lek.typ === 'ZACHRANNA' ? 'SOS lék' : 'lék'} ${lek.nazev}${lek.davka ? ' ' + lek.davka : ''}`;
+  } else {
+    if (!b.id) throw chyba('Chybí lék');
+    r = await smazLekPd(nast, pd, b.id, s.jmeno);
+    detail = `vyřazen lék ${text(b.nazev, 200) || '#' + b.id}`;
+  }
+  let sync = null;
+  try { await synchronizujPacienta(q, nast, id, pd); sync = await stavSync(q, id); } catch (e) { /* léky jsou uložené v PéčeDoma, synchronizace doběhne automaticky */ }
+  await zapisDenik(q, { pacientId: id, typ: 'Úprava léků', text: `Léky (PéčeDoma): ${detail}.`, autor: s.jmeno, role: 'tym', uzivatelId: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: úprava léků', detail, ip: s.ip });
+  return { leky: await puvodLekuPd(q, id, r.leky), sync };
+}
+central.post('/pacient/:id/leky', sUzivatelem((q, s, req) => lekPd(q, s, req, 'uloz')));
+central.post('/pacient/:id/leky/smaz', sUzivatelem((q, s, req) => lekPd(q, s, req, 'smaz')));
+
+/* 0.11.80: synchronizace všech aktivních pacientů propojených s PéčeDoma najednou (léky, návštěva, kde se pacient nachází) – tlačítko v seznamu */
+central.post('/pecedoma/sync-vse', sUzivatelem(async (q, s) => {
+  const nast = await nastaveniPd(q);
+  if (!nast.nastaveno) throw chyba('Propojení s PéčeDoma není nastavené (Správa organizace → Nastavení)');
+  const pac = await q.all(`SELECT PacientID AS id, LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE Stav = 'AKTIVNI' AND PdKlientID IS NOT NULL`);
+  let ok = 0; const chyby = [];
+  for (const p of pac) { try { await synchronizujPacienta(q, nast, p.id, p.pd); ok++; } catch (e) { chyby.push(String(e.message || e).slice(0, 120)); } }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: synchronizace všech pacientů', detail: `${ok} z ${pac.length}${chyby.length ? ', chyb ' + chyby.length : ''}`, ip: s.ip });
+  return { celkem: pac.length, ok, chyby: chyby.slice(0, 5) };
+}, { lekar: true }));
+
+central.post('/pacient/:id/pecedoma/sync', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis) throw chyba('Synchronizaci spouští tým kolem pacienta', 403);
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) throw chyba('Pacient není propojený s klientem PéčeDoma');
+  const nast = await nastaveniPd(q);
+  const v = await synchronizujPacienta(q, nast, id, p.pd);
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: synchronizace', detail: `${v.medikace.length + v.sos.length} léků${v.pristiNavsteva ? ', návštěva ' + v.pristiNavsteva : ''}`, ip: s.ip });
+  return { sync: await stavSync(q, id) };
 }));
 
 /* ---------------- dokumenty ---------------- */
 central.post('/pacient/:id/dokument', sUzivatelem(async (q, s, req) => {
   const id = pid(req); const op = await opravneni(q, s, id);
-  if (!op.lekar && !op.garant) throw chyba('Dokumenty vkládá lékař', 403);
+  // 0.11.118: dokumenty vkládá kdokoli z týmu, kdo zapisuje (sestra uloží zprávu z Medistaru); dřív jen lékař / garant
+  if (!op.lekar && !op.garant && !op.zapis) throw chyba('Dokumenty vkládá tým kolem pacienta', 403);
   const b = req.body || {};
   const data = b.data ? Buffer.from(String(b.data), 'base64') : null;
   if (data && data.length > 8 * 1024 * 1024) throw chyba('Soubor je větší než 8 MB');
   const typ = ['DVP', 'ZPRAVA', 'SOUHLAS', 'JINY'].includes(b.typ) ? b.typ : 'JINY';
-  await q.exec(`INSERT INTO dbo.A_KP_Dokument (PacientID, Typ, Nazev, KdeOriginal, MimeType, Obsah, Velikost, VlozilUzivatelID) VALUES (@p, @t, @n, @k, @m, @o, @v, @u)`,
-    { p: id, t: typ, n: text(b.nazev, 200) || 'dokument', k: text(b.kdeOriginal, 200) || null, m: text(b.mime, 80) || null, o: data, v: data ? data.length : null, u: s.uzivatelId });
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(b.datum || '') ? b.datum : null;
+  const mime = text(b.mime, 80) || null;
+  const pro = !!b.proPacienta;
+  if (pro && (!data || !MIME_PRO_PACIENTA.includes(mime))) throw chyba('Pacientovi do Průkazu jde předat jen soubor PDF, JPEG nebo PNG (do 8 MB)');
+  const r = await q.one(`INSERT INTO dbo.A_KP_Dokument (PacientID, Typ, Nazev, KdeOriginal, MimeType, Obsah, Velikost, VlozilUzivatelID, DatumDokumentu, Pracoviste, ProPacienta, Sha256)
+    OUTPUT inserted.DokumentID VALUES (@p, @t, @n, @k, @m, @o, @v, @u, @d, @pr, @pp, @sha)`,
+    { p: id, t: typ, n: text(b.nazev, 200) || 'dokument', k: text(b.kdeOriginal, 200) || null, m: mime, o: data, v: data ? data.length : null, u: s.uzivatelId, d: datum, pr: text(b.pracoviste, 200) || null,
+      pp: pro, sha: data ? createHash('sha256').update(data).digest('hex') : null });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'vložen dokument', detail: text(b.nazev, 200), ip: s.ip });
+  if (pro) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'dokument předán pacientovi', detail: `${text(b.nazev, 200) || 'dokument'} (dokument č. ${r.DokumentID})`, ip: s.ip });
+  return { id: r.DokumentID };
+}));
+/* 0.11.118: předání dokumentu pacientovi do Průkazu zapnout / vypnout (PDF, JPEG, PNG do 8 MB) */
+central.post('/pacient/:id/dokument/:did/pro-pacienta', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant && !op.zapis) throw chyba('Předání dokumentu mění tým kolem pacienta', 403);
+  const d = await q.one(`SELECT DokumentID, Nazev, MimeType, Velikost, ProPacienta FROM dbo.A_KP_Dokument WHERE DokumentID = @d AND PacientID = @p`, { d: cislo(req.params.did), p: id });
+  if (!d) throw chyba('Dokument nenalezen', 404);
+  const zap = !!(req.body || {}).zapnout;
+  if (zap && (!d.Velikost || !MIME_PRO_PACIENTA.includes(d.MimeType) || d.Velikost > 8 * 1024 * 1024)) throw chyba('Pacientovi do Průkazu jde předat jen soubor PDF, JPEG nebo PNG do 8 MB');
+  await q.exec(`UPDATE dbo.A_KP_Dokument SET ProPacienta = @z, Sha256 = CASE WHEN @z = 1 AND Sha256 IS NULL AND Obsah IS NOT NULL THEN LOWER(CONVERT(char(64), HASHBYTES('SHA2_256', Obsah), 2)) ELSE Sha256 END
+    WHERE DokumentID = @d AND PacientID = @p`, { z: zap, d: d.DokumentID, p: id });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: zap ? 'dokument předán pacientovi' : 'předání dokumentu zrušeno', detail: `${d.Nazev} (dokument č. ${d.DokumentID})`, ip: s.ip });
 }));
 
 central.get('/pacient/:id/dokument/:did', sUzivatelem(async (q, s, req, res) => {
@@ -452,18 +1254,550 @@ central.post('/ai/rozbor', sUzivatelem(async (q, s, req) => {
   const pa = req.body.znamo || {};
   const znamo = { jmeno: text(pa.jmeno, 80), prijmeni: text(pa.prijmeni, 80), rc: text(pa.rc, 11), datumNarozeni: pa.datumNarozeni, adresa: text(pa.adresa, 300), telefony: [], osoby: [] };
   const pacId = cislo(req.body.pacientId);
-  if (pacId) {
-    await opravneni(q, s, pacId);
-    const p = await q.one(`SELECT Jmeno, Prijmeni, RodneCislo, CONVERT(char(10), DatumNarozeni, 23) AS DN, Adresa FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacId });
-    Object.assign(znamo, { jmeno: p.Jmeno, prijmeni: p.Prijmeni, rc: p.RodneCislo, datumNarozeni: p.DN, adresa: p.Adresa });
-    const k = await q.all(`SELECT Jmeno, Telefon FROM dbo.A_KP_Kontakt WHERE PacientID = @p`, { p: pacId });
-    znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = k.map((x) => x.Telefon);
-  }
-  const r = await rozborZpravy(t, znamo);
-  await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, N'rozbor zprávy', @d, @n, @b, @m, @v)`,
-    { u: s.uzivatelId, d: t.length, n: r.pocetNahrad || 0, b: !!r.blokovano, m: r.model || null, v: r.blokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
-  return r;
+  if (pacId) { await opravneni(q, s, pacId); await znamoPacienta(q, pacId, znamo); }
+  return rozborALog(q, s, t, znamo);
 }, { lekar: true }));
+/* identifikátory pacienta pro anonymizaci (jméno, RČ, datum narození, adresa, kontakty) – do AI nejdou */
+async function znamoPacienta(q, pacId, znamo) {
+  const p = await q.one(`SELECT Jmeno, Prijmeni, RodneCislo, CONVERT(char(10), DatumNarozeni, 23) AS DN, Adresa FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacId });
+  Object.assign(znamo, { jmeno: p.Jmeno, prijmeni: p.Prijmeni, rc: p.RodneCislo, datumNarozeni: p.DN, adresa: p.Adresa });
+  const k = await q.all(`SELECT Jmeno, Telefon FROM dbo.A_KP_Kontakt WHERE PacientID = @p`, { p: pacId });
+  znamo.osoby = k.map((x) => x.Jmeno); znamo.telefony = k.map((x) => x.Telefon);
+  return znamo;
+}
+async function rozborALog(q, s, t, znamo, ucel = 'rozbor zprávy', volby = {}) {
+  const r = await rozborZpravy(t, znamo, volby);
+  await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, @uc, @d, @n, @b, @m, @v)`,
+    { u: s.uzivatelId, uc: ucel, d: t.length, n: r.pocetNahrad || 0, b: !!(r.blokovano || r.aiBlokovano), m: r.model || null, v: r.blokovano || r.aiBlokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
+  return r;
+}
+/* 0.11.129: založení pacienta ze zprávy v souboru (PDF z Medistaru, sken, fotka) – soubor se jen přečte a rozebere, nic se neukládá.
+   Vrací návrh pro formulář Nový pacient: identitu z hlavičky (čte server, do AI nejde) a diagnózy, léky, funkční stav z rozboru.
+   Zpráva se k pacientovi uloží až po jeho založení (POST /pacient/:id/dokument). */
+central.post('/ai/rozbor-souboru', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  const mime = text(b.mime, 80), nazev = text(b.nazev, 200) || 'zpráva';
+  if (!MIME_PRO_PACIENTA.includes(mime)) throw chyba('Nahrajte zprávu v PDF nebo fotku zprávy (JPG, PNG)');
+  const data = b.data ? Buffer.from(String(b.data), 'base64') : null;
+  if (!data || !data.length) throw chyba('Chybí soubor se zprávou');
+  if (data.length > 8 * 1024 * 1024) throw chyba('Soubor je větší než 8 MB');
+  omez('rozbor:' + s.uzivatelId, 40, 3600e3);
+  let z; const t0 = Date.now();
+  try { z = await textZeZpravy(data, mime); } catch (e) {
+    console.error('rozbor souboru', nazev, e);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'rozbor zprávy pro nového pacienta – chyba', detail: `${nazev} · ${String(e.message || e).slice(0, 300)}`, ip: s.ip });
+    throw chyba('Zprávu se nepodařilo přečíst: ' + String(e.message || e).slice(0, 160));
+  }
+  if (z.text.replace(/\s/g, '').length < 40) throw chyba(z.ocr ? 'Ve zprávě se nepodařilo rozpoznat text (nečitelný sken nebo fotka) – pacienta zapište ručně' : 'Zpráva neobsahuje text – pacienta zapište ručně');
+  const r = await rozborALog(q, s, z.text.slice(0, 60000), { telefony: [], osoby: [] }, 'nový pacient ze zprávy', { priBlokuLokalne: true });
+  // už je v Kartě? (stejné rodné číslo, nebo příjmení + rok narození) – jen upozornění, rozhoduje uživatel
+  const id = r.identita || {};
+  const existuje = id.rc || (id.prijmeni && id.rok) ? await q.all(`SELECT TOP (3) PacientID AS id, KodPrukazu AS kod, Jmeno AS jmeno, Prijmeni AS prijmeni, RokNarozeni AS rok, Stav AS stav FROM dbo.A_KP_Pacient
+    WHERE (@rc <> '' AND REPLACE(REPLACE(ISNULL(RodneCislo, ''), '/', ''), ' ', '') = @rc) OR (@pr <> '' AND Prijmeni = @pr AND RokNarozeni = @rok) ORDER BY PacientID DESC`,
+  { rc: String(id.rc || '').replace(/\D/g, ''), pr: String(id.prijmeni || '').toUpperCase(), rok: id.rok || null }) : [];
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'rozbor zprávy pro nového pacienta', detail: `${nazev} · ${z.ocr ? `text rozpoznán z obrázku (OCR, ${z.stran} str., ${Math.round((Date.now() - t0) / 1000)} s) · ` : ''}${r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
+  return { ...r, ocr: z.ocr, stran: z.stran || null, existuje, soubor: { nazev, mime, velikost: data.length } };
+}, { lekar: true }));
+
+/* 0.11.120: rozbor zprávy uložené u pacienta (PDF s textovou vrstvou, např. z Medistaru) – text z PDF → anonymizace → AI (nebo lokální rozbor)
+   0.11.122: PDF bez textu (Medistar přes „Microsoft Print to PDF“, sken) a fotka JPG/PNG → rozpoznání textu (OCR) přímo na serveru
+   → návrh diagnóz, alergií, léků a funkčního stavu. Nic se neukládá: centrála ukáže návrh ke kontrole a lékař / sestra ho uloží jako novou verzi plánu. */
+central.post('/pacient/:id/dokument/:did/rozbor', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.lekar && !op.garant && !op.zapis) throw chyba('Rozbor zprávy dělá tým kolem pacienta', 403);
+  omez('rozbor:' + s.uzivatelId, 40, 3600e3);
+  const d = await q.one(`SELECT DokumentID, Nazev, MimeType, Obsah FROM dbo.A_KP_Dokument WHERE DokumentID = @d AND PacientID = @p`, { d: cislo(req.params.did), p: id });
+  if (!d || !d.Obsah) throw chyba('Dokument nemá přiložený soubor', 404);
+  if (!['application/pdf', 'image/jpeg', 'image/png'].includes(d.MimeType)) throw chyba('Rozebrat jde zprávu v PDF nebo fotku zprávy (JPG, PNG)');
+  let z;
+  const t0 = Date.now();
+  try { z = await textZeZpravy(d.Obsah, d.MimeType); } catch (e) {
+    // 0.11.126: chyba čtení do auditu (a do logu serveru) – jinak po ní nezůstala žádná stopa
+    console.error('rozbor dokumentu', d.DokumentID, e);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu – chyba', detail: `${d.Nazev} · ${String(e.message || e).slice(0, 300)}`, ip: s.ip });
+    throw chyba('Zprávu se nepodařilo přečíst: ' + String(e.message || e).slice(0, 160));
+  }
+  const t = z.text;
+  if (t.replace(/\s/g, '').length < 40) throw chyba(z.ocr ? 'Ve zprávě se nepodařilo rozpoznat text (nečitelný sken nebo fotka) – údaje doplňte ručně' : 'Zpráva neobsahuje text – údaje doplňte ručně');
+  const r = await rozborALog(q, s, t.slice(0, 60000), await znamoPacienta(q, id, { telefony: [], osoby: [] }), 'rozbor dokumentu');
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'rozbor dokumentu (AI)', detail: `${d.Nazev} · ${z.ocr ? `text rozpoznán z obrázku (OCR, ${z.stran} str., ${Math.round((Date.now() - t0) / 1000)} s) · ` : ''}${r.blokovano ? 'zablokováno anonymizací' : r.zdroj === 'ai' ? 'AI' : 'lokální rozbor'}`, ip: s.ip });
+  return { ...r, ocr: z.ocr, stran: z.stran || null, dokument: { id: d.DokumentID, nazev: d.Nazev } };
+}));
+
+/* ---------------- lidé a týmy pracovišť (zapíší se jednou, k pacientovi se přiřazují) ---------------- */
+// správce organizace spravuje lidi všech pracovišť, ostatní (kromě „jen čtení“) lidi svého pracoviště – i partner, např. domov
+const smiSpravovatLidi = (s, ps) => s.role.includes('admin') || (ps === s.poskytovatelId && s.role.some((r) => r !== 'ctenar'));
+const TEXT_PIN = (pin) => `Karta pacienta – váš osobní PIN: ${pin}. Odemknete jím kartu na telefonu u pacientů, ke kterým jste přiřazen(a). PIN nikomu nesdělujte.`;
+async function pinSms(telefon, pin) {
+  if (!normTel(telefon)) return { ok: false, chyba: 'chybí platné číslo telefonu' };
+  try { await posliSms(telefon, TEXT_PIN(pin)); return { ok: true }; } catch (e) { return { ok: false, chyba: e.message }; }
+}
+function ctiOsobu(b, typPracoviste) {
+  const jmeno = text(b.jmeno, 150);
+  if (jmeno.length < 3) throw chyba('Vyplňte jméno');
+  const role = ROLE_OSOBY[b.role] ? b.role : roleOsoby(b.role, typPracoviste);
+  if (!role) throw chyba(`Neznámá role u „${jmeno}“ – použijte lékař, praktický lékař, hospic nebo sestra DPS`);
+  return { jmeno, role, tym: text(b.tym, 60) || null, telefon: text(b.telefon, 30) || null, email: text(b.email, 150) || null, pozn: text(b.pozn, 200) || null };
+}
+async function pracoviste(q, s, psId) {
+  const ps = await q.one(`SELECT PoskytovatelID, Nazev, Typ, Aktivni FROM dbo.A_KP_Poskytovatel WHERE PoskytovatelID = @ps`, { ps: cislo(psId) });
+  if (!ps) throw chyba('Pracoviště nenalezeno', 404);
+  if (!smiSpravovatLidi(s, ps.PoskytovatelID)) throw chyba('Lidi tohoto pracoviště spravuje jeho pracovník nebo správce organizace', 403);
+  return ps;
+}
+
+/* ---- týmy lidí (0.10.0): hlavička týmu v A_KP_TymLidi, členství = A_KP_Osoba.Tym; u pacientů se členové drží v A_KP_PacientOsoba (TymLidiID) ---- */
+async function zajistiTymLidi(q, psId, nazev, uzivatelId) {
+  const n = text(nazev, 60); if (!n) return null;
+  const t = await q.one(`SELECT TymLidiID FROM dbo.A_KP_TymLidi WHERE PoskytovatelID = @ps AND Nazev = @n`, { ps: psId, n });
+  if (t) { await q.exec(`UPDATE dbo.A_KP_TymLidi SET Aktivni = 1 WHERE TymLidiID = @t AND Aktivni = 0`, { t: t.TymLidiID }); return t.TymLidiID; }
+  const r = await q.one(`INSERT INTO dbo.A_KP_TymLidi (PoskytovatelID, Nazev, VytvorilUzivatelID) OUTPUT inserted.TymLidiID VALUES (@ps, @n, @u)`, { ps: psId, n, u: uzivatelId });
+  return r.TymLidiID;
+}
+/** Srovná A_KP_PacientOsoba podle aktuálních členů týmu u všech pacientů, kteří tým mají: nové členy přidá (pokud u pacienta z tohoto týmu
+ *  ještě žádný záznam nemají – deaktivovaný člen se sám nevrátí), kdo už v týmu není nebo tým u pacienta skončil, ztratí přístup. */
+/** Týmy „přiřazené vždy“ (0.11.66): týmy pracoviště, které je u pacienta garantem, se k jeho aktivní kartě přiřadí samy – při založení
+ *  pacienta, při zaškrtnutí v Lidé a týmy a pro jistotu při každém otevření pacienta (kdyby je někdo odebral jinou cestou). Týmy jiných
+ *  organizací se nepřiřazují. Vrací počet nově přiřazených týmů. */
+async function zajistiTymyVzdy(q, pacientId, uzivatelId = null) {
+  const pac = await q.one(`SELECT Stav FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: pacientId });
+  if (!pac || pac.Stav !== 'AKTIVNI') return 0;
+  const tymy = await q.all(`SELECT t.TymLidiID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE t.PrirazenVzdy = 1 AND t.Aktivni = 1 AND ps.Aktivni = 1
+      AND EXISTS (SELECT 1 FROM dbo.A_KP_Garance g WHERE g.PacientID = @p AND g.Stav = 'PLATNA' AND g.PoskytovatelID = t.PoskytovatelID)
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = @p AND pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1)`, { p: pacientId });
+  for (const t of tymy) {
+    const puv = await q.one(`SELECT TOP 1 PacientTymID FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t ORDER BY PacientTymID DESC`, { p: pacientId, t: t.TymLidiID });
+    if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: uzivatelId });
+    else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID) VALUES (@p, @t, @u)`, { p: pacientId, t: t.TymLidiID, u: uzivatelId });
+    // dřív deaktivovaní členové se po novém přiřazení vrátí (tým se přiřazuje celý) – stejně jako při ručním přidání
+    await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba x WHERE x.PacientID = po.PacientID AND x.OsobaID = po.OsobaID AND x.Aktivni = 1)
+      AND po.PacientOsobaID = (SELECT MAX(y.PacientOsobaID) FROM dbo.A_KP_PacientOsoba y WHERE y.PacientID = po.PacientID AND y.OsobaID = po.OsobaID AND y.TymLidiID = @t)`, { p: pacientId, t: t.TymLidiID });
+    await synchronizujTymUPacientu(q, t.TymLidiID, uzivatelId);
+    await audit(q, { uzivatelId, kdo: 'systém', pacientId, akce: 'přístup ke kartě (tým)', detail: `+ ${t.Nazev} (${t.Pracoviste}) – přiřazen vždy` });
+  }
+  return tymy.length;
+}
+
+/** 0.11.85: přiřadí jeden tým k pacientovi (stejně jako „přiřadit vždy“: obnoví dřív deaktivované členy, synchronizuje, audit). Vrací 1 = nově přiřazen. */
+async function priradTymPacientovi(q, pacientId, tymId, uzivatelId, duvod, zdrojTelefon = null) {
+  const t = await q.one(`SELECT t.TymLidiID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE t.TymLidiID = @t AND t.Aktivni = 1 AND ps.Aktivni = 1 AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = @p AND pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1)`, { t: tymId, p: pacientId });
+  if (!t) return 0;
+  const puv = await q.one(`SELECT TOP 1 PacientTymID FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t ORDER BY PacientTymID DESC`, { p: pacientId, t: t.TymLidiID });
+  if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u, ZdrojTelefon = @zt WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: uzivatelId, zt: zdrojTelefon });
+  else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID, ZdrojTelefon) VALUES (@p, @t, @u, @zt)`, { p: pacientId, t: t.TymLidiID, u: uzivatelId, zt: zdrojTelefon });
+  await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba x WHERE x.PacientID = po.PacientID AND x.OsobaID = po.OsobaID AND x.Aktivni = 1)
+      AND po.PacientOsobaID = (SELECT MAX(y.PacientOsobaID) FROM dbo.A_KP_PacientOsoba y WHERE y.PacientID = po.PacientID AND y.OsobaID = po.OsobaID AND y.TymLidiID = @t)`, { p: pacientId, t: t.TymLidiID });
+  await synchronizujTymUPacientu(q, t.TymLidiID, uzivatelId);
+  await audit(q, { uzivatelId, kdo: uzivatelId ? 'centrála' : 'systém', pacientId, akce: 'přístup ke kartě (tým)', detail: `+ ${t.Nazev} (${t.Pracoviste}) – ${duvod}` });
+  return 1;
+}
+/** 0.11.85: týmy zatržené u telefonu s kartou → přiřadit pacientovi, jehož průkaz je v tomto telefonu (volá i párování telefonu). */
+export async function priradTymyTelefonu(q, pacientId, telefon, uzivatelId = null) {
+  const tel = normTel(telefon); if (!tel) return 0;
+  let n = 0;
+  for (const t of await q.all(`SELECT TymLidiID FROM dbo.A_KP_TymTelefon WHERE Telefon = @tel`, { tel })) n += await priradTymPacientovi(q, pacientId, t.TymLidiID, uzivatelId, `telefon s kartou ${hezkyTel(tel)}`, tel);
+  return n;
+}
+/** 0.11.89: tým přiřazený přes telefon s kartou (ZdrojTelefon) odejde od pacienta, který v tom telefonu už není (nové číslo, zablokování,
+ *  vrácení, odebrání z telefonu) nebo jehož telefon tým odtrhl. Je-li pacient v jiném telefonu téhož týmu, jen se přepíše zdroj.
+ *  Ručně přidané týmy a týmy „přiřazen vždy“ se nemění. Vrací počet odebraných týmů. */
+export async function srovnejTymyTelefonu(q, pacientId, uzivatelId = null, kdo = 'systém') {
+  const rows = await q.all(`SELECT pt.PacientTymID, pt.TymLidiID, pt.ZdrojTelefon, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_PacientTym pt
+      JOIN dbo.A_KP_TymLidi t ON t.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID
+    WHERE pt.PacientID = @p AND pt.Aktivni = 1 AND pt.ZdrojTelefon IS NOT NULL AND t.PrirazenVzdy = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = pt.TymLidiID
+        WHERE z.PacientID = pt.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND z.Telefon = pt.ZdrojTelefon)`, { p: pacientId });
+  let odebrano = 0;
+  for (const r of rows) {
+    const jiny = await q.one(`SELECT TOP 1 z.Telefon FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = @t
+      WHERE z.PacientID = @p AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY'`, { p: pacientId, t: r.TymLidiID });
+    if (jiny) { await q.exec(`UPDATE dbo.A_KP_PacientTym SET ZdrojTelefon = @zt WHERE PacientTymID = @i`, { zt: jiny.Telefon, i: r.PacientTymID }); continue; }
+    await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 0, Do = SYSDATETIME() WHERE PacientTymID = @i`, { i: r.PacientTymID });
+    await synchronizujTymUPacientu(q, r.TymLidiID, uzivatelId);
+    await zapisDenik(q, { pacientId, typ: 'Systém', text: `Tým ${r.Nazev} (${r.Pracoviste}) odebrán – pacient už není v telefonu ${hezkyTel(r.ZdrojTelefon)}, přes který byl tým přiřazen.`, autor: kdo, role: 'system', uzivatelId });
+    await audit(q, { uzivatelId, kdo, pacientId, akce: 'přístup ke kartě (tým)', detail: `− ${r.Nazev} (${r.Pracoviste}) – už není v telefonu ${hezkyTel(r.ZdrojTelefon)}` });
+    odebrano++;
+  }
+  return odebrano;
+}
+
+async function synchronizujTymUPacientu(q, tymId, uzivatelId = null) {
+  const t = await q.one(`SELECT TymLidiID, PoskytovatelID, Nazev, Aktivni FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: tymId });
+  if (!t) return;
+  const prm = { t: t.TymLidiID, ps: t.PoskytovatelID, n: t.Nazev, akt: t.Aktivni ? 1 : 0, u: uzivatelId };
+  // pracoviště členů patří do týmu kolem pacienta (role péče) – tým schválil garant přidáním k pacientovi
+  await q.exec(`INSERT INTO dbo.A_KP_Tym (PacientID, PoskytovatelID, Role)
+    SELECT DISTINCT pt.PacientID, o.PoskytovatelID, 'PECE' FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_TymClen c ON c.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID
+    WHERE pt.TymLidiID = @t AND pt.Aktivni = 1 AND @akt = 1 AND o.Aktivni = 1
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_Tym x WHERE x.PacientID = pt.PacientID AND x.PoskytovatelID = o.PoskytovatelID AND x.Aktivni = 1)`, prm);
+  // člověk je u pacienta aktivní nejvýš jednou (UX_A_KP_PacientOsoba_Aktivni), i když je ve více týmech u téhož pacienta:
+  // nový člen se přidá, jen když u pacienta ještě není aktivní (přes jiný tým nebo jednotlivě) a z tohoto týmu nebyl deaktivován
+  await q.exec(`INSERT INTO dbo.A_KP_PacientOsoba (PacientID, OsobaID, TymLidiID, PridalUzivatelID)
+    SELECT pt.PacientID, o.OsobaID, @t, @u FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_TymClen c ON c.TymLidiID = pt.TymLidiID JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID
+    WHERE pt.TymLidiID = @t AND pt.Aktivni = 1 AND @akt = 1 AND o.Aktivni = 1
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = pt.PacientID AND po.OsobaID = o.OsobaID AND po.TymLidiID = @t)
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = pt.PacientID AND po.OsobaID = o.OsobaID AND po.Aktivni = 1)`, prm);
+  // kdo z tohoto týmu odchází (tým skončil, člověk vyřazen nebo z týmu odebrán), ale u pacienta zůstává přes jiný aktivní tým → jen přepsat původ
+  const JINY_TYM = `SELECT TOP 1 pt2.TymLidiID FROM dbo.A_KP_PacientTym pt2 JOIN dbo.A_KP_TymLidi t2 ON t2.TymLidiID = pt2.TymLidiID JOIN dbo.A_KP_TymClen c2 ON c2.TymLidiID = pt2.TymLidiID
+      WHERE pt2.PacientID = po.PacientID AND pt2.Aktivni = 1 AND t2.Aktivni = 1 AND pt2.TymLidiID <> @t AND c2.OsobaID = po.OsobaID ORDER BY pt2.TymLidiID`;
+  const ODCHAZI = `po.TymLidiID = @t AND po.Aktivni = 1 AND (@akt = 0 OR o.Aktivni = 0
+      OR NOT EXISTS (SELECT 1 FROM dbo.A_KP_TymClen c WHERE c.TymLidiID = @t AND c.OsobaID = o.OsobaID)
+      OR NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientTym pt WHERE pt.PacientID = po.PacientID AND pt.TymLidiID = @t AND pt.Aktivni = 1))`;
+  await q.exec(`UPDATE po SET TymLidiID = (${JINY_TYM}) FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
+    WHERE ${ODCHAZI} AND o.Aktivni = 1 AND EXISTS (${JINY_TYM})`, prm);
+  await q.exec(`UPDATE po SET Aktivni = 0, Do = SYSDATETIME() FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Osoba o ON o.OsobaID = po.OsobaID
+    WHERE ${ODCHAZI}`, prm);
+}
+async function pridejClena(q, tymId, osobaId, uzivatelId = null) {
+  if (!tymId || !osobaId) return;
+  await q.exec(`INSERT INTO dbo.A_KP_TymClen (TymLidiID, OsobaID, PridalUzivatelID) SELECT @t, @o, @u WHERE NOT EXISTS (SELECT 1 FROM dbo.A_KP_TymClen WHERE TymLidiID = @t AND OsobaID = @o)`, { t: tymId, o: osobaId, u: uzivatelId });
+  await synchronizujTymUPacientu(q, tymId, uzivatelId);
+}
+async function synchronizujTymyPracoviste(q, psId, uzivatelId = null) {
+  for (const t of await q.all(`SELECT TymLidiID FROM dbo.A_KP_TymLidi WHERE PoskytovatelID = @ps`, { ps: psId })) await synchronizujTymUPacientu(q, t.TymLidiID, uzivatelId);
+}
+/** týmy, ve kterých je člověk (i týmy jiných pracovišť) – po změně člověka */
+async function synchronizujTymyOsoby(q, osobaId, uzivatelId = null) {
+  for (const t of await q.all(`SELECT TymLidiID FROM dbo.A_KP_TymClen WHERE OsobaID = @o`, { o: osobaId })) await synchronizujTymUPacientu(q, t.TymLidiID, uzivatelId);
+}
+
+/** tým lidí: založení / úprava (název, popis, aktivní) a členové – lidé kteréhokoli pracoviště organizace (i třetích stran); tým patří pracovišti, které ho založilo (garant) */
+central.post('/tym-lidi', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  const ps = await pracoviste(q, s, b.poskytovatelId);
+  const nazev = text(b.nazev, 60); if (nazev.length < 2) throw chyba('Vyplňte název týmu');
+  const popis = text(b.popis, 200) || null, aktivni = b.aktivni !== false, vzdy = b.prirazenVzdy === true;
+  let id = cislo(b.id), puv = null;
+  if (id) {
+    puv = await q.one(`SELECT TymLidiID, PoskytovatelID, Nazev FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: id });
+    if (!puv) throw chyba('Tým nenalezen', 404);
+    if (puv.PoskytovatelID !== ps.PoskytovatelID) throw chyba('Tým patří jinému pracovišti');
+  }
+  const dup = await q.one(`SELECT TymLidiID FROM dbo.A_KP_TymLidi WHERE PoskytovatelID = @ps AND Nazev = @n AND TymLidiID <> @t`, { ps: ps.PoskytovatelID, n: nazev, t: id || 0 });
+  if (dup) throw chyba(`Tým „${nazev}“ už v pracovišti je`);
+  if (puv) {
+    await q.exec(`UPDATE dbo.A_KP_TymLidi SET Nazev = @n, Popis = @p, Aktivni = @a, PrirazenVzdy = @v WHERE TymLidiID = @t`, { n: nazev, p: popis, a: aktivni, v: vzdy, t: id });
+  } else {
+    id = (await q.one(`INSERT INTO dbo.A_KP_TymLidi (PoskytovatelID, Nazev, Popis, Aktivni, PrirazenVzdy, VytvorilUzivatelID) OUTPUT inserted.TymLidiID VALUES (@ps, @n, @p, @a, @v, @u)`,
+      { ps: ps.PoskytovatelID, n: nazev, p: popis, a: aktivni, v: vzdy, u: s.uzivatelId })).TymLidiID;
+  }
+  if (Array.isArray(b.clenove)) {
+    const ids = b.clenove.map(cislo).filter(Boolean).slice(0, 500);
+    const seznam = ids.length ? ids.join(',') : '0';
+    await q.exec(`DELETE FROM dbo.A_KP_TymClen WHERE TymLidiID = @t AND OsobaID NOT IN (${seznam})`, { t: id });
+    await q.exec(`INSERT INTO dbo.A_KP_TymClen (TymLidiID, OsobaID, PridalUzivatelID) SELECT @t, o.OsobaID, @u FROM dbo.A_KP_Osoba o
+      WHERE o.OsobaID IN (${seznam}) AND o.Aktivni = 1 AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_TymClen c WHERE c.TymLidiID = @t AND c.OsobaID = o.OsobaID)`, { t: id, u: s.uzivatelId });
+  }
+  await synchronizujTymUPacientu(q, id, s.uzivatelId);
+  // přiřadit vždy (0.11.66): hned ke všem aktivním pacientům organizace
+  let prirazeno = 0;
+  // 0.11.85: zatržené telefony s kartou – tým ke všem pacientům, jejichž průkaz je v telefonu (a k dalším při párování)
+  if (Array.isArray(b.telefony)) {
+    const tels = [...new Set(b.telefony.map(normTel).filter(Boolean))].slice(0, 100);
+    const puvTel = (await q.all(`SELECT Telefon FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t`, { t: id })).map((x) => x.Telefon);
+    for (const x of puvTel.filter((x) => !tels.includes(x))) await q.exec(`DELETE FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t AND Telefon = @tel`, { t: id, tel: x });
+    for (const x of tels.filter((x) => !puvTel.includes(x))) await q.exec(`INSERT INTO dbo.A_KP_TymTelefon (TymLidiID, Telefon, PridalUzivatelID) VALUES (@t, @tel, @u)`, { t: id, tel: x, u: s.uzivatelId });
+    if (aktivni) for (const p of await q.all(`SELECT DISTINCT z.PacientID, z.Telefon FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient pa ON pa.PacientID = z.PacientID
+        JOIN dbo.A_KP_TymTelefon tt ON tt.Telefon = z.Telefon AND tt.TymLidiID = @t WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND pa.Stav = 'AKTIVNI'`, { t: id }))
+      prirazeno += await priradTymPacientovi(q, p.PacientID, id, s.uzivatelId, `telefon s kartou ${hezkyTel(p.Telefon)}`, p.Telefon);
+    // 0.11.89: odtržený telefon / pacient už v telefonu není → tým přiřazený přes telefon od pacienta odejde
+    for (const p of await q.all(`SELECT DISTINCT PacientID FROM dbo.A_KP_PacientTym WHERE TymLidiID = @t AND Aktivni = 1 AND ZdrojTelefon IS NOT NULL`, { t: id })) await srovnejTymyTelefonu(q, p.PacientID, s.uzivatelId, s.jmeno);
+    if (tels.length !== puvTel.length || tels.some((x) => !puvTel.includes(x))) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'telefony s kartou u týmu', detail: `${nazev}: ${tels.map(hezkyTel).join(', ') || 'žádný'}` });
+  }
+  if (vzdy && aktivni) { for (const p of await q.all(`SELECT pa.PacientID FROM dbo.A_KP_Pacient pa WHERE pa.Stav = 'AKTIVNI' AND EXISTS (SELECT 1 FROM dbo.A_KP_Garance g WHERE g.PacientID = pa.PacientID AND g.Stav = 'PLATNA' AND g.PoskytovatelID = @ps)`, { ps: ps.PoskytovatelID })) prirazeno += await zajistiTymyVzdy(q, p.PacientID, s.uzivatelId); }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: puv ? 'úprava týmu lidí' : 'nový tým lidí', detail: `${nazev} (${ps.Nazev})${aktivni ? '' : ' – zrušen'}${vzdy ? ' – přiřazen vždy' : ''}${prirazeno ? ` – nově u ${prirazeno} pacientů` : ''}`, ip: s.ip });
+  return { id, prirazeno };
+}));
+
+/** kartičky s PINem pro celý tým (0.11.7): vrátí platné PINy všech aktivních členů (i z jiných pracovišť – tým a kartičky rozdává garant).
+ *  Členům, jejichž PIN je jen v otisku (vydán před 0.11.6), se s `noveChybejicim: true` vydá nový; bez toho jsou vráceni v `bezPinu`. Audit. */
+central.post('/tym-lidi/:id/piny', sUzivatelem(async (q, s, req) => {
+  const t = await q.one(`SELECT TymLidiID, PoskytovatelID, Nazev FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: cislo(req.params.id) });
+  if (!t) throw chyba('Tým nenalezen', 404);
+  if (!smiSpravovatLidi(s, t.PoskytovatelID)) throw chyba('Kartičky týmu tiskne pracoviště, které tým založilo, nebo správce organizace', 403);
+  const clenove = await q.all(`SELECT o.OsobaID, o.Jmeno, ISNULL(o.Role, '') AS Role, ps.Nazev AS Pracoviste, o.PinSifrovany FROM dbo.A_KP_TymClen c
+    JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID AND o.Aktivni = 1 JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = o.PoskytovatelID
+    WHERE c.TymLidiID = @t ORDER BY ps.Nazev, o.Jmeno`, { t: t.TymLidiID });
+  const noveChybejicim = !!(req.body && req.body.noveChybejicim);
+  const piny = [], bezPinu = []; let novych = 0;
+  for (const o of clenove) {
+    let pin = desifruj(o.PinSifrovany), novy = false;
+    if (!pin) {
+      if (!noveChybejicim) { bezPinu.push(o.Jmeno); continue; }
+      const n = await novyPinAsync(); pin = n.pin; novy = true; novych++;
+      await q.exec(`UPDATE dbo.A_KP_Osoba SET Salt = @sa, Hash = @h, Iterace = @i, PinVydan = SYSDATETIME(), PinSifrovany = @psf WHERE OsobaID = @o`, { sa: n.salt, h: n.hash, i: n.iterace, psf: zasifruj(pin), o: o.OsobaID });
+    }
+    piny.push({ id: o.OsobaID, jmeno: o.Jmeno, role: o.Role, pracoviste: o.Pracoviste, tym: t.Nazev, pin, novy });
+  }
+  if (piny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'kartičky s PINem pro tým', detail: `${t.Nazev}: ${piny.length} členů${novych ? `, ${novych} nových PINů` : ''}`, ip: s.ip });
+  return { tym: t.Nazev, piny, bezPinu };
+}));
+
+/** smazání týmu (0.11.2): u pacientů ztratí členové přístup získaný tímto týmem (přes jiný tým zůstanou), tým zmizí z nabídky i přehledu */
+central.post('/tym-lidi/:id/smazat', sUzivatelem(async (q, s, req) => {
+  const t = await q.one(`SELECT t.TymLidiID, t.PoskytovatelID, t.Nazev, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.TymLidiID = @t`, { t: cislo(req.params.id) });
+  if (!t) throw chyba('Tým nenalezen', 404);
+  if (!smiSpravovatLidi(s, t.PoskytovatelID)) throw chyba('Tým maže pracoviště, které ho založilo, nebo správce organizace', 403);
+  const pacientu = (await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_PacientTym WHERE TymLidiID = @t AND Aktivni = 1`, { t: t.TymLidiID })).n;
+  await q.exec(`UPDATE dbo.A_KP_TymLidi SET Aktivni = 0 WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await synchronizujTymUPacientu(q, t.TymLidiID, s.uzivatelId);   // členové u pacientů: přepsat na jiný tým, nebo vyřadit
+  await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET TymLidiID = NULL WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await q.exec(`DELETE FROM dbo.A_KP_PacientTym WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await q.exec(`DELETE FROM dbo.A_KP_TymClen WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await q.exec(`DELETE FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: t.TymLidiID });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'smazání týmu lidí', detail: `${t.Nazev} (${t.Pracoviste})${pacientu ? ` – odebrán u ${pacientu} pacientů` : ''}`, ip: s.ip });
+  return { pacientu };
+}));
+
+/* 0.11.85: zapůjčené telefony s kartou a pacienti v nich – pro zatržení u týmu. Jména jen u pacientů, které uživatel vidí (jako v přehledu). */
+central.get('/tym-lidi/telefony', sUzivatelem(async (q, s, req) => {
+  const tym = cislo(req.query.tym);
+  const rows = await q.all(`SELECT z.Telefon AS telefon, p.PacientID AS id, p.Prijmeni AS prijmeni, p.Jmeno AS jmeno, p.KodPrukazu AS kod, ISNULL(p.RokNarozeni, YEAR(p.DatumNarozeni)) AS rok, CASE WHEN ${VIDITELNI} THEN 1 ELSE 0 END AS vidim
+    FROM dbo.A_KP_Zarizeni z JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID
+    WHERE z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' AND p.Stav = 'AKTIVNI' AND z.Telefon IS NOT NULL ORDER BY z.Telefon, p.Prijmeni, p.Jmeno`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
+  const vybrane = tym ? (await q.all(`SELECT Telefon FROM dbo.A_KP_TymTelefon WHERE TymLidiID = @t`, { t: tym })).map((x) => x.Telefon) : [];
+  const m = new Map();
+  for (const r of rows) { const t = m.get(r.telefon) || { telefon: r.telefon, hezky: hezkyTel(r.telefon), pacienti: [], skrytych: 0, vybran: vybrane.includes(r.telefon) }; if (r.vidim) t.pacienti.push({ id: r.id, jmeno: `${r.prijmeni} ${r.jmeno}`, kod: r.kod, rok: r.rok }); else t.skrytych++; m.set(r.telefon, t); }
+  for (const x of vybrane) if (!m.has(x)) m.set(x, { telefon: x, hezky: hezkyTel(x), pacienti: [], skrytych: 0, vybran: true });   // zatržený telefon zatím bez průkazu
+  return { telefony: [...m.values()].sort((a, b) => (b.pacienti.length + b.skrytych) - (a.pacienti.length + a.skrytych)) };
+}));
+
+central.get('/lide', sUzivatelem(async (q) => ({
+  clenstvi: await q.all(`SELECT c.TymLidiID AS tymId, c.OsobaID AS osobaId FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE o.Aktivni = 1`),
+  tymy: await q.all(`SELECT t.TymLidiID AS id, t.PoskytovatelID AS poskytovatelId, p.Nazev AS poskytovatel, t.Nazev AS nazev, t.Popis AS popis, t.Aktivni AS aktivni, t.PrirazenVzdy AS prirazenVzdy,
+      (SELECT COUNT(*) FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE c.TymLidiID = t.TymLidiID AND o.Aktivni = 1) AS clenu,
+      (SELECT COUNT(*) FROM dbo.A_KP_PacientTym pt JOIN dbo.A_KP_Pacient pa ON pa.PacientID = pt.PacientID WHERE pt.TymLidiID = t.TymLidiID AND pt.Aktivni = 1 AND pa.Stav = 'AKTIVNI') AS pacientu,
+      (SELECT COUNT(*) FROM dbo.A_KP_TymTelefon tt WHERE tt.TymLidiID = t.TymLidiID) AS telefonu
+    FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = t.PoskytovatelID ORDER BY t.Aktivni DESC, p.Nazev, t.Nazev`),
+  lide: await q.all(`SELECT o.OsobaID AS id, o.PoskytovatelID AS poskytovatelId, p.Nazev AS poskytovatel, p.Typ AS typPoskytovatele, o.Tym AS tym, o.Jmeno AS jmeno, o.Role AS role,
+      o.Telefon AS telefon, o.Email AS email, o.Poznamka AS pozn, CASE WHEN o.Hash IS NULL THEN 0 ELSE 1 END AS maPin, CONVERT(char(16), o.PinVydan, 120) AS pinVydan,
+      o.Zdroj AS zdroj, o.ExterniID AS externiId, o.Aktivni AS aktivni,
+      (SELECT COUNT(*) FROM dbo.A_KP_PacientOsoba po JOIN dbo.A_KP_Pacient pa ON pa.PacientID = po.PacientID WHERE po.OsobaID = o.OsobaID AND po.Aktivni = 1 AND pa.Stav = 'AKTIVNI') AS pacientu
+    FROM dbo.A_KP_Osoba o JOIN dbo.A_KP_Poskytovatel p ON p.PoskytovatelID = o.PoskytovatelID
+    ORDER BY o.Aktivni DESC, p.Nazev, o.Tym, o.Jmeno`),
+  role: ROLE_OSOBY, smsDostupne: smsDostupne(),
+})));
+
+central.post('/osoba', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  const ps = await pracoviste(q, s, b.poskytovatelId);
+  const o = ctiOsobu(b, ps.Typ);
+  if (b.id) {
+    const puv = await q.one(`SELECT OsobaID, PoskytovatelID, Aktivni FROM dbo.A_KP_Osoba WHERE OsobaID = @o`, { o: cislo(b.id) });
+    if (!puv) throw chyba('Člověk nenalezen', 404);
+    if (!smiSpravovatLidi(s, puv.PoskytovatelID)) throw chyba('Tohoto člověka spravuje jeho pracoviště', 403);
+    const aktivni = b.aktivni !== false;
+    await q.exec(`UPDATE dbo.A_KP_Osoba SET PoskytovatelID = @ps, Jmeno = @j, Role = @r, Telefon = @tel, Email = @e, Poznamka = @poz, Aktivni = @a WHERE OsobaID = @o`,
+      { ps: ps.PoskytovatelID, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, poz: o.pozn, a: aktivni, o: puv.OsobaID });
+    // jiné pracoviště nebo vyřazení → u pacientů už kartu neodemkne
+    if (!aktivni || puv.PoskytovatelID !== ps.PoskytovatelID) await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 0, Do = SYSDATETIME() WHERE OsobaID = @o AND Aktivni = 1`, { o: puv.OsobaID });
+    await synchronizujTymyOsoby(q, puv.OsobaID, s.uzivatelId);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'úprava člověka pracoviště', detail: `${o.jmeno} (${ps.Nazev})${aktivni ? '' : ' – vyřazen'}`, ip: s.ip });
+    return { id: puv.OsobaID };
+  }
+  const pin = await novyPinAsync();
+  const r = await q.one(`INSERT INTO dbo.A_KP_Osoba (PoskytovatelID, Tym, Jmeno, Role, Telefon, Email, Poznamka, Salt, Hash, Iterace, PinVydan, PinSifrovany, Zdroj, VytvorilUzivatelID)
+    OUTPUT inserted.OsobaID VALUES (@ps, @t, @j, @r, @tel, @e, @poz, @sa, @h, @i, SYSDATETIME(), @psf, 'RUCNE', @u)`,
+    { ps: ps.PoskytovatelID, t: o.tym, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, poz: o.pozn, sa: pin.salt, h: pin.hash, i: pin.iterace, psf: zasifruj(pin.pin), u: s.uzivatelId });
+  if (o.tym) { const tid = await zajistiTymLidi(q, ps.PoskytovatelID, o.tym, s.uzivatelId); await pridejClena(q, tid, r.OsobaID, s.uzivatelId); }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'nový člověk pracoviště', detail: `${o.jmeno} (${ps.Nazev})`, ip: s.ip });
+  return { id: r.OsobaID, pin: pin.pin, sms: b.sms ? await pinSms(o.telefon, pin.pin) : null };
+}));
+
+central.post('/osoba/:id/pin', sUzivatelem(async (q, s, req) => {
+  const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(req.params.id) });
+  if (!o) throw chyba('Člověk nenalezen', 404);
+  if (!smiSpravovatLidi(s, o.PoskytovatelID)) throw chyba('Tohoto člověka spravuje jeho pracoviště', 403);
+  const pin = await novyPinAsync();
+  await q.exec(`UPDATE dbo.A_KP_Osoba SET Salt = @sa, Hash = @h, Iterace = @i, PinVydan = SYSDATETIME(), PinSifrovany = @psf WHERE OsobaID = @o`, { sa: pin.salt, h: pin.hash, i: pin.iterace, psf: zasifruj(pin.pin), o: o.OsobaID });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'nový osobní PIN', detail: o.Jmeno, ip: s.ip });
+  return { pin: pin.pin, sms: req.body && req.body.sms ? await pinSms(o.Telefon, pin.pin) : null };
+}));
+
+/** zobrazení platného osobního PINu (0.11.6) – jen PINy vydané od této verze (uložené šifrovaně); starší se zobrazit nedají, vydá se nový. Zapisuje se do logu přístupů. */
+central.post('/osoba/:id/pin/zobrazit', sUzivatelem(async (q, s, req) => {
+  const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, PinSifrovany, Salt, Hash, Iterace, CONVERT(char(16), PinVydan, 120) AS vydan FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(req.params.id) });
+  if (!o) throw chyba('Člověk nenalezen', 404);
+  if (!smiSpravovatLidi(s, o.PoskytovatelID)) throw chyba('PIN zobrazí pracoviště člověka nebo správce organizace', 403);
+  const pin = desifruj(o.PinSifrovany);
+  if (!pin) throw chyba('Tento PIN byl vydán před verzí, která ho umí znovu zobrazit – vydejte nový PIN (tlačítko Nový PIN).', 409);
+  // 0.11.30: kontrola, že zobrazený PIN je ten, kterým telefon ověřuje (stejný PBKDF2 jako v telefonu) – jinak by se uživatel marně přihlašoval
+  if (!o.Salt || !o.Hash || hashPin(pin, o.Salt, o.Iterace || undefined) !== o.Hash) {
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zobrazení osobního PINu selhalo', detail: `${o.Jmeno}: uložený PIN neodpovídá ověřovacímu otisku`, ip: s.ip });
+    throw chyba('Uložený PIN neodpovídá otisku, kterým telefon PIN ověřuje – vydejte tomuto člověku nový PIN (tlačítko Nový PIN).', 409);
+  }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zobrazení osobního PINu', detail: o.Jmeno, ip: s.ip });
+  return { pin, vydan: o.vydan, sms: req.body && req.body.sms ? await pinSms(o.Telefon, pin) : null };
+}));
+
+/** hromadný import do jednoho pracoviště: CSV nebo tým z PéčeDoma; existující (stejné ExterniID, jinak stejné jméno) se jen aktualizují */
+central.post('/lide/import', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  const ps = await pracoviste(q, s, b.poskytovatelId);
+  const zdroj = b.zdroj === 'PECEDOMA' ? 'PECEDOMA' : 'CSV';
+  const radky = (Array.isArray(b.radky) ? b.radky : []).slice(0, 500);
+  if (!radky.length) throw chyba('Žádní lidé k načtení');
+  const stavajici = await q.all(`SELECT OsobaID, Jmeno, ExterniID FROM dbo.A_KP_Osoba WHERE PoskytovatelID = @ps`, { ps: ps.PoskytovatelID });
+  const out = { pridano: 0, aktualizovano: 0, piny: [], chyby: [] };
+  for (const rr of radky) {
+    let o; try { o = ctiOsobu(rr, ps.Typ); } catch (e) { out.chyby.push(e.message); continue; }
+    const ext = text(rr.externiId, 60) || null;
+    const puv = stavajici.find((x) => (ext && x.ExterniID === ext) || x.Jmeno.toLowerCase() === o.jmeno.toLowerCase());
+    const tymId = o.tym ? await zajistiTymLidi(q, ps.PoskytovatelID, o.tym, s.uzivatelId) : null;
+    if (puv) {
+      await q.exec(`UPDATE dbo.A_KP_Osoba SET Role = @r, Telefon = ISNULL(@tel, Telefon), Email = ISNULL(@e, Email), ExterniID = ISNULL(@x, ExterniID), Aktivni = 1 WHERE OsobaID = @o`,
+        { r: o.role, tel: o.telefon, e: o.email, x: ext, o: puv.OsobaID });
+      await pridejClena(q, tymId, puv.OsobaID, s.uzivatelId);
+      out.aktualizovano++; continue;
+    }
+    const pin = await novyPinAsync();
+    const novy = await q.one(`INSERT INTO dbo.A_KP_Osoba (PoskytovatelID, Jmeno, Role, Telefon, Email, Salt, Hash, Iterace, PinVydan, PinSifrovany, Zdroj, ExterniID, VytvorilUzivatelID)
+      OUTPUT inserted.OsobaID VALUES (@ps, @j, @r, @tel, @e, @sa, @h, @i, SYSDATETIME(), @psf, @z, @x, @u)`,
+      { ps: ps.PoskytovatelID, j: o.jmeno, r: o.role, tel: o.telefon, e: o.email, sa: pin.salt, h: pin.hash, i: pin.iterace, psf: zasifruj(pin.pin), z: zdroj, x: ext, u: s.uzivatelId });
+    await pridejClena(q, tymId, novy.OsobaID, s.uzivatelId);
+    stavajici.push({ OsobaID: novy.OsobaID, Jmeno: o.jmeno, ExterniID: ext });
+    out.pridano++;
+    out.piny.push({ jmeno: o.jmeno, role: o.role, tym: o.tym, telefon: o.telefon, pin: pin.pin, sms: b.sms ? await pinSms(o.telefon, pin.pin) : null });
+  }
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: `import lidí (${zdroj})`, detail: `${ps.Nazev}: +${out.pridano}, aktualizováno ${out.aktualizovano}`, ip: s.ip });
+  return out;
+}));
+
+/** uživatelé portálu PéčeDoma: přes partnerské API (akce uzivatele – jediný zdroj s telefony), když propojení není nastavené, kopie tabulky ve stejné databázi */
+async function uzivatelePortalu(q) {
+  const nast = await nastaveniPd(q);
+  if (nast.nastaveno) { try { return { rows: await uzivatelePd(nast), zdroj: 'api' }; } catch (e) { throw chyba('Uživatele z PéčeDoma se nepodařilo načíst: ' + e.message, 502); } }
+  try {
+    return { rows: await q.all(`SELECT UzivatelID AS id, Jmeno AS jmeno, ISNULL(Role, N'') AS role, ISNULL(Telefon, N'') AS telefon, ISNULL(Login, N'') AS login FROM dbo.A_MSPPP_UzivatelSestra WHERE Aktivni = 1 ORDER BY Jmeno`), zdroj: 'db' };
+  } catch (e) { throw chyba('Tým z PéčeDoma se nepodařilo načíst (' + String(e.message).slice(0, 120) + ') – použijte soubor CSV', 502); }
+}
+/** tým z PéčeDoma – uživatelé portálu i s telefony */
+central.get('/lide/pecedoma', sUzivatelem(async (q) => {
+  const { rows } = await uzivatelePortalu(q);
+  const nactene = new Set((await q.all(`SELECT ExterniID FROM dbo.A_KP_Osoba WHERE ExterniID LIKE 'pd:%'`)).map((x) => x.ExterniID));
+  return { lide: rows.map((r) => ({ ...r, externiId: 'pd:' + r.id, nacteno: nactene.has('pd:' + r.id) })) };
+}));
+
+/** aktualizace lidí z PéčeDoma (0.11.3): jméno, role a telefon podle uživatele portálu (párování přes ExterniID pd:<UzivatelID>, jinak stejné jméno);
+ *  PéčeDoma e-mail nevede – ten se vyplní u člověka ručně. { poskytovatelId } = celé pracoviště, { osobaId } = jeden člověk. PIN zůstává. */
+central.post('/lide/pecedoma/aktualizovat', sUzivatelem(async (q, s, req) => {
+  const b = req.body || {};
+  let lide;
+  if (cislo(b.osobaId)) {
+    lide = await q.all(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, ExterniID FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: cislo(b.osobaId) });
+    if (!lide.length) throw chyba('Člověk nenalezen', 404);
+    if (!smiSpravovatLidi(s, lide[0].PoskytovatelID)) throw chyba('Tohoto člověka spravuje jeho pracoviště', 403);
+  } else {
+    const ps = await pracoviste(q, s, b.poskytovatelId);
+    lide = await q.all(`SELECT OsobaID, PoskytovatelID, Jmeno, Telefon, ExterniID FROM dbo.A_KP_Osoba WHERE PoskytovatelID = @ps AND Aktivni = 1`, { ps: ps.PoskytovatelID });
+  }
+  const { rows: pd, zdroj } = await uzivatelePortalu(q);
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  const zmeny = [], bezTelefonu = [], neparovani = [];
+  for (const o of lide) {
+    const u = pd.find((x) => 'pd:' + x.id === o.ExterniID) || pd.find((x) => norm(x.jmeno) === norm(o.Jmeno));
+    if (!u) { neparovani.push(o.Jmeno); continue; }
+    const tel = text(u.telefon, 30) || null;
+    const co = [];
+    if (!o.ExterniID) co.push('propojeno s PéčeDoma');
+    if (tel && normTel(tel) !== normTel(o.Telefon)) co.push(`telefon ${hezkyTel(o.Telefon) || '—'} → ${hezkyTel(tel)}`);
+    if (!tel) bezTelefonu.push(o.Jmeno);
+    if (!co.length) continue;
+    await q.exec(`UPDATE dbo.A_KP_Osoba SET Telefon = ISNULL(@tel, Telefon), ExterniID = ISNULL(ExterniID, @x), Zdroj = CASE WHEN Zdroj = 'RUCNE' THEN 'PECEDOMA' ELSE Zdroj END WHERE OsobaID = @o`, { tel, x: 'pd:' + u.id, o: o.OsobaID });
+    zmeny.push({ jmeno: o.Jmeno, co: co.join(', ') });
+  }
+  if (zmeny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'aktualizace lidí z PéčeDoma', detail: zmeny.map((z) => `${z.jmeno}: ${z.co}`).join('; ').slice(0, 400), ip: s.ip });
+  return { zmeny, bezTelefonu, neparovani, celkem: lide.length, zdroj };
+}));
+
+/** týmy lidí u pacienta (0.10.0): { pridatTymId } | { odebratTymId } | { tymId, osobaId, aktivni } – lidé se přidávají jen po týmech z agendy Lidé a týmy,
+ *  u pacienta jde člena jen deaktivovat (a zase aktivovat). Garant / lékař v týmu pro všechna pracoviště, ostatní členové týmu pro své pracoviště. */
+central.post('/pacient/:id/tym-lidi', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+  const b = req.body || {};
+  const smiPs = (psId) => op.garant || op.lekar || (op.zapis && psId === s.poskytovatelId);
+  const tymId = cislo(b.pridatTymId || b.odebratTymId || b.tymId);
+  const t = await q.one(`SELECT t.TymLidiID, t.PoskytovatelID, t.Nazev, t.Aktivni, ps.Nazev AS Pracoviste FROM dbo.A_KP_TymLidi t JOIN dbo.A_KP_Poskytovatel ps ON ps.PoskytovatelID = t.PoskytovatelID WHERE t.TymLidiID = @t`, { t: tymId });
+  if (!t) throw chyba('Tým nenalezen', 404);
+  if (!smiPs(t.PoskytovatelID)) throw chyba('Týmy u pacienta vybírá garant nebo lékař v týmu; ostatní jen týmy svého pracoviště', 403);
+  if (b.pridatTymId) {
+    if (!t.Aktivni) throw chyba('Tým je zrušený');
+    const mimo = await q.all(`SELECT DISTINCT p2.PoskytovatelID AS id, p2.Nazev AS nazev FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID JOIN dbo.A_KP_Poskytovatel p2 ON p2.PoskytovatelID = o.PoskytovatelID
+      WHERE c.TymLidiID = @t AND o.Aktivni = 1 AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_Tym x WHERE x.PacientID = @p AND x.PoskytovatelID = p2.PoskytovatelID AND x.Aktivni = 1)`, { t: t.TymLidiID, p: id });
+    if (mimo.length && !op.garant) throw chyba(`Pracoviště členů týmu (${mimo.map((x) => x.nazev).join(', ')}) nejsou v týmu kolem pacienta – tým přidá garant`);
+    const vTymu = !mimo.length;
+    const puv = await q.one(`SELECT PacientTymID, Aktivni FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t ORDER BY Aktivni DESC, PacientTymID DESC`, { p: id, t: t.TymLidiID });
+    if (puv && puv.Aktivni) throw chyba('Tým už u pacienta je');
+    if (puv) await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 1, Do = NULL, Od = SYSDATETIME(), PridalUzivatelID = @u, ZdrojTelefon = NULL WHERE PacientTymID = @i`, { i: puv.PacientTymID, u: s.uzivatelId });
+    else await q.exec(`INSERT INTO dbo.A_KP_PacientTym (PacientID, TymLidiID, PridalUzivatelID) VALUES (@p, @t, @u)`, { p: id, t: t.TymLidiID, u: s.uzivatelId });
+    // dřív deaktivovaní členové se po novém přidání týmu vrátí – tým se přidává celý
+    await q.exec(`UPDATE po SET Aktivni = 1, Do = NULL FROM dbo.A_KP_PacientOsoba po WHERE po.PacientID = @p AND po.TymLidiID = @t AND po.Aktivni = 0
+      AND NOT EXISTS (SELECT 1 FROM dbo.A_KP_PacientOsoba x WHERE x.PacientID = po.PacientID AND x.OsobaID = po.OsobaID AND x.Aktivni = 1)
+      AND po.PacientOsobaID = (SELECT MAX(y.PacientOsobaID) FROM dbo.A_KP_PacientOsoba y WHERE y.PacientID = po.PacientID AND y.OsobaID = po.OsobaID AND y.TymLidiID = @t)`, { p: id, t: t.TymLidiID });
+    await synchronizujTymUPacientu(q, t.TymLidiID, s.uzivatelId);
+    await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `K pacientovi přiřazen tým ${t.Nazev} (${t.Pracoviste}).`, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'přístup ke kartě (tým)', detail: `+ ${t.Nazev} (${t.Pracoviste})${vTymu ? '' : ' · do týmu kolem pacienta přidáno (péče): ' + mimo.map((x) => x.nazev).join(', ')}`, ip: s.ip });
+    return { pracovistePridano: !vTymu };
+  }
+  if (b.odebratTymId) {
+    const vzdy = await q.one(`SELECT PrirazenVzdy FROM dbo.A_KP_TymLidi WHERE TymLidiID = @t`, { t: t.TymLidiID });
+    if (vzdy && vzdy.PrirazenVzdy) throw chyba('Tým je přiřazený vždy – u pacienta ho nejde odebrat, jen deaktivovat členy. Zrušit to jde v Lidé a týmy (zatržítko Přiřadit vždy).');
+    const n = await q.exec(`UPDATE dbo.A_KP_PacientTym SET Aktivni = 0, Do = SYSDATETIME() WHERE PacientID = @p AND TymLidiID = @t AND Aktivni = 1`, { p: id, t: t.TymLidiID });
+    if (!n) throw chyba('Tým u pacienta není', 404);
+    await synchronizujTymUPacientu(q, t.TymLidiID, s.uzivatelId);
+    await zapisDenik(q, { pacientId: id, typ: 'Úprava údajů', text: `Tým ${t.Nazev} (${t.Pracoviste}) odebrán; jeho členové už kartu neodemknou.`, autor: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'přístup ke kartě (tým)', detail: `− ${t.Nazev} (${t.Pracoviste})`, ip: s.ip });
+    return {};
+  }
+  const oid = cislo(b.osobaId); if (!oid) throw chyba('Chybí člen týmu');
+  const o = await q.one(`SELECT o.OsobaID, o.Jmeno FROM dbo.A_KP_TymClen c JOIN dbo.A_KP_Osoba o ON o.OsobaID = c.OsobaID WHERE c.TymLidiID = @t AND o.OsobaID = @o AND o.Aktivni = 1`, { t: t.TymLidiID, o: oid });
+  if (!o) throw chyba('Člověk není členem tohoto týmu', 404);
+  const maTym = await q.one(`SELECT 1 AS x FROM dbo.A_KP_PacientTym WHERE PacientID = @p AND TymLidiID = @t AND Aktivni = 1`, { p: id, t: t.TymLidiID });
+  if (!maTym) throw chyba('Tým u pacienta není', 404);
+  const aktivni = b.aktivni !== false;
+  // deaktivace platí pro člověka u pacienta (ať je v kolika týmech), aktivace vrátí poslední záznam nebo založí nový z tohoto týmu
+  const radek = await q.one(`SELECT TOP 1 PacientOsobaID, Aktivni FROM dbo.A_KP_PacientOsoba WHERE PacientID = @p AND OsobaID = @o ORDER BY Aktivni DESC, PacientOsobaID DESC`, { p: id, o: oid });
+  if (!aktivni) { if (radek && radek.Aktivni) await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 0, Do = SYSDATETIME() WHERE PacientID = @p AND OsobaID = @o AND Aktivni = 1`, { p: id, o: oid }); }
+  else if (radek && !radek.Aktivni) await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 1, Do = NULL, TymLidiID = ISNULL(TymLidiID, @t) WHERE PacientOsobaID = @i`, { i: radek.PacientOsobaID, t: t.TymLidiID });
+  else if (!radek) await q.exec(`INSERT INTO dbo.A_KP_PacientOsoba (PacientID, OsobaID, TymLidiID, PridalUzivatelID) VALUES (@p, @o, @t, @u)`, { p: id, o: oid, t: t.TymLidiID, u: s.uzivatelId });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'přístup ke kartě (člen týmu)', detail: `${aktivni ? '+' : '−'}${o.Jmeno} (${t.Nazev})`, ip: s.ip });
+  return {};
+}));
+
+/** jednotlivé odebrání přístupu (záznamy z doby před týmy, 0.10.0 už lidi jednotlivě nepřidává – jen po týmech) */
+central.post('/pacient/:id/lide', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+  if (Array.isArray(req.body.pridat) && req.body.pridat.length) throw chyba('Lidé se k pacientovi přiřazují po týmech – záložka Tým a garance → Týmy u pacienta; lidi a týmy spravuje agenda Lidé a týmy');
+  const tymPs = new Set((await q.all(`SELECT PoskytovatelID FROM dbo.A_KP_Tym WHERE PacientID = @p AND Aktivni = 1`, { p: id })).map((x) => x.PoskytovatelID));
+  const ids = (v) => (Array.isArray(v) ? v : []).map(cislo).filter(Boolean).slice(0, 300);
+  const smi = (o) => op.garant || op.lekar || (op.zapis && o.PoskytovatelID === s.poskytovatelId);
+  const zmeny = [];
+  for (const oid of ids(req.body.pridat)) {
+    const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno FROM dbo.A_KP_Osoba WHERE OsobaID = @o AND Aktivni = 1`, { o: oid });
+    if (!o) continue;
+    if (!tymPs.has(o.PoskytovatelID)) throw chyba(`${o.Jmeno}: jeho pracoviště není v týmu kolem pacienta – nejdřív ho přidejte v Týmu a garanci`);
+    if (!smi(o)) throw chyba('Přiřadit smí garant nebo lékař v týmu; ostatní jen lidi svého pracoviště', 403);
+    const je = await q.one(`SELECT 1 AS x FROM dbo.A_KP_PacientOsoba WHERE PacientID = @p AND OsobaID = @o AND Aktivni = 1`, { p: id, o: oid });
+    if (je) continue;
+    await q.exec(`INSERT INTO dbo.A_KP_PacientOsoba (PacientID, OsobaID, PridalUzivatelID) VALUES (@p, @o, @u)`, { p: id, o: oid, u: s.uzivatelId });
+    zmeny.push('+' + o.Jmeno);
+  }
+  for (const oid of ids(req.body.odebrat)) {
+    const o = await q.one(`SELECT OsobaID, PoskytovatelID, Jmeno FROM dbo.A_KP_Osoba WHERE OsobaID = @o`, { o: oid });
+    if (!o) continue;
+    if (!smi(o)) throw chyba('Odebrat smí garant nebo lékař v týmu; ostatní jen lidi svého pracoviště', 403);
+    const r = await q.exec(`UPDATE dbo.A_KP_PacientOsoba SET Aktivni = 0, Do = SYSDATETIME() WHERE PacientID = @p AND OsobaID = @o AND Aktivni = 1`, { p: id, o: oid });
+    if (r) zmeny.push('−' + o.Jmeno);
+  }
+  if (zmeny.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'přístup ke kartě (lidé)', detail: zmeny.join(', ').slice(0, 400), ip: s.ip });
+  return { zmeny: zmeny.length };
+}));
 
 /* ---------------- správa organizace (role admin) ---------------- */
 central.post('/poskytovatel', sUzivatelem(async (q, s, req) => {
@@ -471,9 +1805,9 @@ central.post('/poskytovatel', sUzivatelem(async (q, s, req) => {
   const typ = String(b.typ || '').toUpperCase();
   if (!TYPY_POSKYTOVATELE[typ]) throw chyba('Vyberte typ pracoviště');
   if (!text(b.nazev)) throw chyba('Vyplňte název');
-  const par = { n: text(b.nazev, 200), ico: text(b.ico, 8) || null, icp: text(b.icp, 20) || null, t: typ, tel: text(b.telefon24, 40) || null, a: text(b.adresa, 300) || null, ak: b.aktivni !== false };
-  if (cislo(b.id)) await q.exec(`UPDATE dbo.A_KP_Poskytovatel SET Nazev = @n, ICO = @ico, ICP = @icp, Typ = @t, Telefon24 = @tel, Adresa = @a, Aktivni = @ak WHERE PoskytovatelID = @id`, { ...par, id: cislo(b.id) });
-  else await q.exec(`INSERT INTO dbo.A_KP_Poskytovatel (Nazev, ICO, ICP, Typ, Telefon24, Adresa, Aktivni) VALUES (@n, @ico, @icp, @t, @tel, @a, @ak)`, par);
+  const par = { n: text(b.nazev, 200), ico: text(b.ico, 8) || null, icp: text(b.icp, 20) || null, t: typ, tel: text(b.telefon24, 40) || null, a: text(b.adresa, 300) || null, ak: b.aktivni !== false, oz: text(b.odbornyZastupce, 150) || null };
+  if (cislo(b.id)) await q.exec(`UPDATE dbo.A_KP_Poskytovatel SET Nazev = @n, ICO = @ico, ICP = @icp, Typ = @t, Telefon24 = @tel, Adresa = @a, Aktivni = @ak, OdbornyZastupce = @oz WHERE PoskytovatelID = @id`, { ...par, id: cislo(b.id) });
+  else await q.exec(`INSERT INTO dbo.A_KP_Poskytovatel (Nazev, ICO, ICP, Typ, Telefon24, Adresa, Aktivni, OdbornyZastupce) VALUES (@n, @ico, @icp, @t, @tel, @a, @ak, @oz)`, par);
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: cislo(b.id) ? 'úprava pracoviště' : 'nové pracoviště', detail: par.n, ip: s.ip });
 }, { admin: true }));
 
@@ -516,7 +1850,7 @@ central.post('/uzivatel', sUzivatelem(async (q, s, req) => {
 
 central.get('/zarizeni', sUzivatelem(async (q) => ({
   zarizeni: await q.all(`SELECT z.ZarizeniID AS id, z.Stitek AS stitek, z.Stav AS stav, p.KodPrukazu AS kod, p.PacientID AS pacientId, CONVERT(char(16), z.Sparovano, 120) AS sparovano,
-      CONVERT(char(16), z.PosledniSync, 120) AS sync, z.Baterie AS baterie, z.VerzeAplikace AS verze, z.DelkaFronty AS fronta, z.VerzePlanuVZarizeni AS verzePlanu
+      CONVERT(char(16), z.PosledniSync, 120) AS sync, z.Baterie AS baterie, z.VerzeAplikace AS verze, z.DelkaFronty AS fronta, z.VerzePlanuVZarizeni AS verzePlanu, z.Rezim AS rezim
     FROM dbo.A_KP_Zarizeni z LEFT JOIN dbo.A_KP_Pacient p ON p.PacientID = z.PacientID ORDER BY CASE z.Stav WHEN 'SPAROVANO' THEN 0 ELSE 1 END, z.PosledniSync DESC`),
 }), { admin: true }));
 
@@ -531,8 +1865,79 @@ central.post('/nastaveni', sUzivatelem(async (q, s, req) => {
   const zmeny = [];
   if (b.nazevSite != null) zmeny.push(['NAZEV_SITE', text(b.nazevSite, 200)]);
   if (b.intervalRevize != null) zmeny.push(['INTERVAL_REVIZE', String(Math.min(12, Math.max(1, Number(b.intervalRevize) || 3)))]);
+  // propojení s PéčeDoma: odkaz na portál organizace, server jhn-apps, token aplikace (prázdný = nechat), automatická synchronizace
+  if (b.pdOdkaz != null) { const v = text(b.pdOdkaz, 500); if (v && !/^https?:\/\//i.test(v)) throw chyba('Odkaz na PéčeDoma musí začínat https://'); zmeny.push(['PD_ODKAZ', v]); }
+  if (b.pdApi != null) { const v = text(b.pdApi, 300).replace(/\/+$/, ''); if (v && !/^https?:\/\//i.test(v)) throw chyba('Adresa serveru PéčeDoma musí začínat https://'); zmeny.push(['PD_API', v]); }
+  if (b.pdToken != null && text(b.pdToken, 200)) zmeny.push(['PD_TOKEN', text(b.pdToken, 200)]);
+  if (b.pdTokenSmazat) zmeny.push(['PD_TOKEN', '']);
+  if (b.pdPortal != null) zmeny.push(['PD_PORTAL', b.pdPortal === 'plus' ? 'plus' : '']);
+  if (b.pdSync != null) zmeny.push(['PD_SYNC', b.pdSync === true || b.pdSync === '1' || b.pdSync === 1 ? '1' : '0']);
+  // 0.11.111: jednoduchý režim (jen obrazovka – data ani záznamy se nemění, přepnout jde tam i zpět)
+  if (b.jednoduchy != null) zmeny.push(['REZIM_JEDNODUCHY', b.jednoduchy === true || b.jednoduchy === '1' || b.jednoduchy === 1 ? '1' : '0']);
   for (const [k, v] of zmeny) {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
       WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });
   }
+  const rz = zmeny.find(([k]) => k === 'REZIM_JEDNODUCHY');
+  if (rz) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: rz[1] === '1' ? 'jednoduchý režim zapnut' : 'jednoduchý režim vypnut', ip: s.ip });
 }, { admin: true }));
+
+/* ---------------- videohovor (0.11.45) ----------------
+   GET  /pacient/:id/video              → { server, hovor }  (hovor i s odkazem pro přihlášeného – centrála se ptá každých 20 s)
+   POST /pacient/:id/video { akce }     akce: zahajit (telefon u pacienta začne zvonit) | ukoncit
+   Smí každý, kdo pacienta vidí a není jen čtenář. Hovor vede server Jitsi (KP_JITSI_URL); Karta drží jen záznam a odkaz. */
+async function videoProPacienta(q, s, id) {
+  const server = videoServer() || null;
+  if (!server) return { server: null, hovor: null };
+  const hovor = await aktivniHovor(q, id);
+  const telefon = await q.one(`SELECT COUNT(*) AS n FROM dbo.A_KP_Zarizeni WHERE PacientID = @p AND Stav = 'SPAROVANO'`, { p: id });   // karta týmu i Můj průkaz (0.11.55)
+  return { server, telefon: telefon.n > 0, hovor: hovor ? { ...hovor, odkaz: odkazDoHovoru(hovor.mistnost, s.jmeno) } : null };
+}
+central.get('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
+  const id = pid(req);
+  await opravneni(q, s, id);
+  return videoProPacienta(q, s, id);
+}));
+central.post('/pacient/:id/video', sUzivatelem(async (q, s, req) => {
+  const id = pid(req);
+  const op = await opravneni(q, s, id);
+  if (!videoServer()) throw chyba('Videohovory nejsou na serveru zapnuté (KP_JITSI_URL)');
+  if (s.role.every((r) => r === 'ctenar')) throw chyba('Videohovor smí zahájit jen člen týmu, ne čtenář', 403);
+  const akce = String((req.body || {}).akce || '');
+  if (akce === 'zahajit') {
+    if (!op.aktivni) throw chyba('Průkaz je uzavřený');
+    const pac = await q.one(`SELECT KodPrukazu FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+    const hovor = await zahajHovor(q, { pacientId: id, kodPrukazu: pac.KodPrukazu, zahajil: 'CENTRALA', jmeno: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: hovor.novy ? 'videohovor zahájen z centrály' : 'připojení k videohovoru', detail: hovor.mistnost, ip: s.ip });
+    return videoProPacienta(q, s, id);
+  }
+  if (akce === 'prijmout') {
+    // lékař se připojuje k hovoru zahájenému z telefonu – bez toho by server hovor po 15 minutách zavřel jako nepřijatý
+    const id2 = Number((req.body || {}).id) || null;
+    if (!id2) throw chyba('Chybí hovor');
+    await prijmiHovor(q, id, id2);
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'videohovor přijat v centrále', detail: String(id2), ip: s.ip });
+    return videoProPacienta(q, s, id);
+  }
+  if (akce === 'ukoncit') {
+    const id2 = Number((req.body || {}).id) || null;
+    if (!id2) throw chyba('Chybí hovor');
+    await ukonciHovor(q, id, id2, { jmeno: s.jmeno, role: s.role.includes('lekar') ? 'lekar' : 'sestra', uzivatelId: s.uzivatelId });
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'videohovor ukončen z centrály', detail: String(id2), ip: s.ip });
+    return videoProPacienta(q, s, id);
+  }
+  throw chyba('Neznámá akce');
+}));
+/* GET /video/aktivni → { server, hovory:[{ pacientId, kod, jmeno, prijmeni, id, stav, zahajil, zahajilJmeno, zahajeno, odkaz }] }
+   – zvonící a probíhající hovory všech pacientů, které uživatel vidí; centrála se ptá každých 15 s v každé agendě (0.11.47) */
+central.get('/video/aktivni', sUzivatelem(async (q, s) => {
+  const server = videoServer() || null;
+  if (!server) return { server: null, hovory: [] };
+  await q.exec(`UPDATE dbo.A_KP_Videohovor SET Stav = 'NEPRIJAT', Ukonceno = SYSDATETIME() WHERE Stav = 'ZVONI' AND Zahajeno < DATEADD(minute, -3, SYSDATETIME())`);
+  await q.exec(`UPDATE dbo.A_KP_Videohovor SET Stav = 'UKONCEN', Ukonceno = SYSDATETIME() WHERE Stav = 'PROBIHA' AND Prijato < DATEADD(hour, -3, SYSDATETIME())`);
+  const rows = await q.all(`SELECT v.VideohovorID AS id, v.PacientID AS pacientId, p.KodPrukazu AS kod, p.Jmeno AS jmeno, p.Prijmeni AS prijmeni, v.Mistnost AS mistnost, v.Stav AS stav, v.Zahajil AS zahajil,
+      v.ZahajilJmeno AS zahajilJmeno, CONVERT(char(16), v.Zahajeno, 120) AS zahajeno, CONVERT(char(16), v.Prijato, 120) AS prijato
+    FROM dbo.A_KP_Videohovor v JOIN dbo.A_KP_Pacient p ON p.PacientID = v.PacientID
+    WHERE v.Stav IN ('ZVONI', 'PROBIHA') AND ${VIDITELNI} ORDER BY v.VideohovorID DESC`, { admin: s.role.includes('admin'), ps: s.poskytovatelId });
+  return { server, hovory: rows.map((r) => ({ ...r, odkaz: odkazDoHovoru(r.mistnost, s.jmeno) })) };
+}));

@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" width="1000" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Zpráva z Medistaru do Karty pacienta, PéčeDoma a Průkazu pacienta</title>
+  <desc id="d">Tři kroky: v Medistaru Dekurz, Tisk dekurzu, Uložit PDF, v Kartě pacienta vložit PDF do Dokumentů a potvrdit návrh, údaje se propíší do Karty, PéčeDoma a Průkazu pacienta.</desc>
+  <defs>
+    <marker id="s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <style>
+      .h{font-size:15px;font-weight:800;letter-spacing:.06em;fill:#0f172a}
+      .n{font-size:13px;font-weight:800;fill:#fff}
+      .b{font-size:15px;font-weight:700;fill:#0f172a}
+      .s{font-size:12.5px;fill:#475569}
+      .k{font-size:12.5px;font-weight:700}
+      .sip{stroke:#475569;stroke-width:2;fill:none;marker-end:url(#s)}
+    </style>
+  </defs>
+  <rect width="1000" height="720" fill="#ffffff"/>
+  <text x="500" y="34" text-anchor="middle" font-size="20" font-weight="800" fill="#0f172a">Zpráva z Medistaru → Karta pacienta → PéčeDoma a Průkaz pacienta</text>
+  <text x="500" y="56" text-anchor="middle" class="s">jeden soubor PDF, jedno potvrzení – údaje se propíší všude</text>
+
+  <!-- sloupec 1: Medistar -->
+  <rect x="20" y="78" width="290" height="620" rx="16" fill="#f1f5f9"/>
+  <circle cx="44" cy="104" r="14" fill="#64748b"/><text x="44" y="109" text-anchor="middle" class="n">1</text>
+  <text x="66" y="109" class="h">MEDISTAR</text>
+  <g>
+    <rect x="38" y="132" width="254" height="74" rx="10" fill="#fff" stroke="#cbd5e1"/>
+    <text x="54" y="162" class="b">Dekurz pacienta</text>
+    <text x="54" y="184" class="s">záznam z návštěvy / vyšetření</text>
+    <path class="sip" d="M165 206 V236"/>
+    <rect x="38" y="238" width="254" height="74" rx="10" fill="#fff" stroke="#cbd5e1"/>
+    <text x="54" y="268" class="b">Tisk dekurzu</text>
+    <text x="54" y="290" class="s">celý dekurz, všechny strany</text>
+    <path class="sip" d="M165 312 V342"/>
+    <rect x="38" y="344" width="254" height="92" rx="10" fill="#fff" stroke="#cbd5e1"/>
+    <text x="54" y="384" class="b">Uložit PDF</text>
+    <text x="54" y="408" class="s">volba v okně tisku dekurzu</text>
+    <path class="sip" d="M165 436 V466"/>
+    <rect x="38" y="468" width="254" height="92" rx="10" fill="#fff" stroke="#cbd5e1"/>
+    <text x="54" y="498" class="b">Soubor PDF je připraven</text>
+    <text x="54" y="520" class="s">např. Dekurz_Novak.pdf</text>
+    <text x="54" y="540" class="s">na Ploše nebo ve Stažených souborech</text>
+  </g>
+  <text x="165" y="600" text-anchor="middle" class="s">Obrázkové PDF nevadí –</text>
+  <text x="165" y="620" text-anchor="middle" class="s">Karta text rozpozná sama.</text>
+
+
+  <!-- sloupec 2: Karta pacienta -->
+  <rect x="330" y="78" width="320" height="620" rx="16" fill="#e8f1fd"/>
+  <circle cx="354" cy="104" r="14" fill="#2563eb"/><text x="354" y="109" text-anchor="middle" class="n">2</text>
+  <text x="376" y="109" class="h">KARTA PACIENTA – centrála</text>
+  <rect x="348" y="132" width="284" height="64" rx="10" fill="#fff" stroke="#93c5fd"/>
+  <text x="364" y="160" class="b">Pacient → záložka Dokumenty</text>
+  <text x="364" y="182" class="s">u propojeného i nepropojeného pacienta</text>
+  <path class="sip" d="M490 196 V222"/>
+  <rect x="348" y="224" width="284" height="132" rx="10" fill="#fff" stroke="#93c5fd"/>
+  <text x="364" y="252" class="b">Přetáhnout PDF do seznamu</text>
+  <text x="364" y="272" class="s">nebo Vybrat soubor z počítače</text>
+  <rect x="364" y="286" width="14" height="14" rx="3" fill="#2563eb"/><path d="M367 293 l3 3 l5 -6" stroke="#fff" stroke-width="2" fill="none"/>
+  <text x="386" y="298" class="s">Rozebrat zprávu a doplnit údaje</text>
+  <rect x="364" y="310" width="14" height="14" rx="3" fill="#2563eb"/><path d="M367 317 l3 3 l5 -6" stroke="#fff" stroke-width="2" fill="none"/>
+  <text x="386" y="322" class="s">Předat pacientovi do Průkazu</text>
+  <text x="364" y="344" class="s">obojí je u zprávy zaškrtnuté samo → Vložit</text>
+  <path class="sip" d="M490 356 V382"/>
+  <rect x="348" y="384" width="284" height="92" rx="10" fill="#fff" stroke="#93c5fd"/>
+  <text x="364" y="412" class="b">Karta zprávu přečte</text>
+  <text x="364" y="434" class="s">10–15 s, text i z obrázku (na serveru)</text>
+  <text x="364" y="454" class="s">k rozboru jde jen text bez jména, RČ,</text>
+  <text x="364" y="470" class="s">adresy a telefonu</text>
+  <path class="sip" d="M490 476 V502"/>
+  <rect x="348" y="504" width="284" height="132" rx="10" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+  <text x="364" y="532" class="b">Okno Doplnit údaje ze zprávy</text>
+  <text x="364" y="554" class="s">diagnózy · funkční stav · alergie</text>
+  <text x="364" y="574" class="s">léky: nový / stejně / jiná skupina / dávka</text>
+  <text x="364" y="598" class="k" fill="#b45309">Zkontrolovat čísla a dávky</text>
+  <text x="364" y="620" class="k" fill="#15803d">→ Uložit</text>
+  <text x="490" y="668" text-anchor="middle" class="s">Lékař; v jednoduchém režimu i sestra.</text>
+
+
+  <!-- sloupec 3: výsledek -->
+  <rect x="670" y="78" width="310" height="620" rx="16" fill="#f0fdf4"/>
+  <circle cx="694" cy="104" r="14" fill="#15803d"/><text x="694" y="109" text-anchor="middle" class="n">3</text>
+  <text x="716" y="109" class="h">KAM SE ÚDAJE DOSTANOU</text>
+
+  <rect x="688" y="132" width="274" height="178" rx="10" fill="#fff" stroke="#2563eb"/>
+  <rect x="688" y="132" width="274" height="34" rx="10" fill="#2563eb"/><rect x="688" y="150" width="274" height="16" fill="#2563eb"/>
+  <text x="704" y="155" font-size="14" font-weight="800" fill="#fff">KARTA PACIENTA</text>
+  <text x="704" y="190" class="s">diagnózy, funkční stav, alergie</text>
+  <text x="704" y="210" class="s">→ nová verze plánu péče</text>
+  <text x="704" y="234" class="s">krizová karta a zapůjčený telefon</text>
+  <text x="704" y="254" class="s">u pacienta (při synchronizaci)</text>
+  <text x="704" y="282" class="k" fill="#1d4ed8">štítek: ze zprávy „Dekurz…“</text>
+
+  <rect x="688" y="328" width="274" height="178" rx="10" fill="#fff" stroke="#15803d"/>
+  <rect x="688" y="328" width="274" height="34" rx="10" fill="#15803d"/><rect x="688" y="346" width="274" height="16" fill="#15803d"/>
+  <text x="704" y="351" font-size="14" font-weight="800" fill="#fff">PÉČEDOMA</text>
+  <text x="704" y="386" class="s">Data klienta → Léky</text>
+  <text x="704" y="406" class="s">nový lék přidá, skupinu opraví</text>
+  <text x="704" y="426" class="s">(opioid), jinou dávku jen po zaškrtnutí</text>
+  <text x="704" y="450" class="s">Historie změn léků: zapsáno Kartou</text>
+  <text x="704" y="478" class="k" fill="#15803d">štítek: ověřeno zprávou</text>
+
+  <rect x="688" y="524" width="274" height="160" rx="10" fill="#fff" stroke="#7c3aed"/>
+  <rect x="688" y="524" width="274" height="34" rx="10" fill="#7c3aed"/><rect x="688" y="542" width="274" height="16" fill="#7c3aed"/>
+  <text x="704" y="547" font-size="14" font-weight="800" fill="#fff">PRŮKAZ PACIENTA</text>
+  <text x="704" y="582" class="s">zpráva v PDF + aktuální údaje</text>
+  <text x="704" y="602" class="s">(plán, léky, kontakty)</text>
+  <text x="704" y="626" class="s">pacient: Načíst z Karty pacienta</text>
+  <text x="704" y="646" class="s">nebo tým: Obnovit (SMS pacientovi)</text>
+  <text x="704" y="670" class="k" fill="#6d28d9">jen ke čtení, šifrovaně v telefonu</text>
+  <!-- spojovací šipky navrch (přes pozadí sloupců) -->
+  <g stroke="#1e293b" stroke-width="2.5" fill="none" marker-end="url(#s)">
+    <path d="M292 514 C322 514 316 162 344 162"/>
+    <path d="M632 548 C664 548 652 200 684 200"/>
+    <path d="M632 570 C668 570 654 400 684 400"/>
+    <path d="M632 592 C664 592 658 600 684 600"/>
+  </g>
+</svg>

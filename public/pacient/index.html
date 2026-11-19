@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Průkaz pacienta</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<meta name="theme-color" content="#1d6fd6">
+<link rel="stylesheet" href="/shared/kp.css">
+<style>
+  body{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
+  .box{max-width:460px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;gap:14px;box-shadow:0 6px 24px rgba(30,80,140,.1)}
+  h1{font-size:22px;margin:0;color:var(--accent-ink)}
+  p{margin:0;line-height:1.5}
+  .btn.primary{height:54px;font-size:17px;border-radius:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="box">
+  <img src="/icons/icon.svg" width="56" height="56" alt="" style="border-radius:14px">
+  <h1>Můj průkaz nahradil Průkaz pacienta</h1>
+  <p>Aplikace <b>Můj průkaz</b> už není v provozu. Údaje od lékaře si teď do svého telefonu zkopírujete v aplikaci <b>Průkaz pacienta</b> – je zdarma a data má jen váš telefon.</p>
+  <a class="btn primary" id="prukaz" href="https://dialogusprukaz.netlify.app/prukaz/">Otevřít Průkaz pacienta</a>
+  <p class="muted" style="font-size:13.5px">V Průkazu klepněte na <b>Propojit s Kartou pacienta</b> a zadejte 6místné číslo, které vám dá lékař nebo sestra. Rodina se na kartu pacienta dostane PINem na telefonu u lůžka, nebo si také nainstaluje Průkaz pacienta.</p>
+</div>
+<script>
+/* 0.11.111: Můj průkaz (/pacient/) je zrušený – odkaz z dřívější SMS (#p=…) se předá do Průkazu pacienta (DialogusPrukaz) beze změny.
+   Adresa Průkazu = KP_PRUKAZ_ADRESA na serveru (výchozí https://dialogusprukaz.netlify.app). Starý service worker se sám odregistruje (sw.js). */
+(function () {
+  var a = document.getElementById('prukaz');
+  if (/p=[A-Z0-9]{16}\.[A-Z0-9]{8}/i.test(location.hash)) a.href += location.hash;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (x) { x.unregister(); }); }).catch(function () {});
+})();
+</script>
+</body>
+</html>

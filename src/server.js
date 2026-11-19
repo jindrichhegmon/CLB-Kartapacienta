@@ -1,19 +1,27 @@
 /**
- * Karta pacienta – server. Tři aplikace na jednom endpointu:
+ * Karta pacienta – server. Čtyři aplikace na jednom endpointu:
  *   /tenanti/   správa tenantů (provozovatel platformy)
  *   /centrala/  centrální aplikace (garant, tým kolem pacienta)
- *   /karta/     karta pacienta na mobil (PWA, offline, synchronizace)
- *   /demo/      původní lokální prototyp (data jen v prohlížeči)
- * API: /api/admin/*, /api/c/*, /api/d/*, /api/health
+ *   /karta/     karta pacienta na zapůjčeném telefonu (PWA, offline, synchronizace) – jeden pacient, jen v telefonu s číslem uvedeným u pacienta
+ *   /pacient/   zrušený Můj průkaz (0.11.111) – jen stránka s odkazem na Průkaz pacienta (DialogusPrukaz); vlastní telefon pacienta = Průkaz pacienta
+ *   /prukaz/    Průkaz pro plán péče (prototyp, zadání MUDr. Kabelky): pacientem řízená karta bez serveru – jen statické soubory, žádné API
+ *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
+ * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/partner/* (PéčeDoma: kód lékaře dne), /api/health
  */
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config, zkontrolujKonfiguraci } from './config.js';
 import { pool } from './db.js';
+import { smsDuvod } from './telefon.js';
 import { admin } from './routes/admin.js';
 import { central } from './routes/central.js';
 import { device } from './routes/device.js';
+import { napoveda } from './routes/napoveda.js';
+import { partner } from './routes/partner.js';
+import { pd } from './routes/pd.js';
+import { spustSynchronizaci } from './pecedoma.js';
+import { videoServer } from './video.js';
 
 const koren = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = express();
@@ -23,9 +31,36 @@ app.set('trust proxy', 'loopback');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=()');
+  // 0.11.65: stránku /pd/ (Karta pacienta uvnitř PéčeDoma) smí vložit do rámu jen portál PéčeDoma (KP_PD_ORIGINY); vše ostatní zůstává bez rámu
+  // 0.11.70: totéž centrála /centrala/ – portál PéčeDoma ji na telefonu a v mobilní aplikaci otevírá v okně z pásu Info a dashboardy
+  const vRamu = (p) => req.path === p || req.path.startsWith(p + '/');
+  if (vRamu('/pd') || vRamu('/centrala')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
+  // 0.11.93: živý náhled karty – centrála vkládá /karta/?nahled=1 do rámečku; smí jen stránka ze stejného serveru (dřív DENY = prázdný náhled)
+  // 0.11.108: frame-ancestors platí pro všechny předky – centrála otevřená v okně portálu PéčeDoma (portál → centrála → náhled /karta/)
+  // měla prázdný telefon, protože portál nebyl mezi povolenými; povolené jsou stejné adresy jako u /pd a /centrala
+  else if (vRamu('/karta')) res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${config.pdOriginy.join(' ')}`);
+  else res.setHeader('X-Frame-Options', 'DENY');
+  // 0.11.60: mikrofon a fotoaparát smí stránka Karty a vložený hovor ze serveru videohovorů (Jitsi v iframe) – dřív „microphone=()“
+  // zakazovalo mikrofon i vloženému hovoru („Permissions policy violation: microphone is not allowed in this document“), telefon nebylo slyšet
+  const jitsi = videoServer();
+  const puvody = jitsi ? `(self "${jitsi}")` : '(self)';
+  res.setHeader('Permissions-Policy', `geolocation=(), microphone=${puvody}, camera=${puvody}, display-capture=${puvody}`);
   if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+/* 0.11.109: CORS pro Průkaz pacienta (DialogusPrukaz, web na Netlify / aplikace pro Android a iPhone) – jen vyjmenované cesty
+   a jen z adres v KP_PRUKAZ_ORIGINY; přihlášení je hlavičkou Authorization (token zařízení), cookies se nepoužívají */
+const PRUKAZ_CESTY = new Set(['/api/d/parovat', '/api/d/parovaci-info', '/api/d/cislo', '/api/d/stav', '/api/d/sync', '/api/d/sdilet', '/api/napoveda', '/api/napoveda/dotaz']);
+app.use((req, res, next) => {
+  const o = req.headers.origin;
+  if (!o || !(PRUKAZ_CESTY.has(req.path.replace(/\/$/, '')) || /^\/api\/d\/dokument\/\d+$/.test(req.path)) || !config.prukazOriginy.includes(o)) return next();
+  res.setHeader('Access-Control-Allow-Origin', o);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Max-Age', '600');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Sha256');   // 0.11.118: Průkaz ověří otisk staženého dokumentu
+  if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
 app.use('/api', express.json({ limit: '12mb' }));
@@ -33,15 +68,23 @@ app.use('/api', express.json({ limit: '12mb' }));
 app.get('/api/health', async (req, res) => {
   let db = 'ok';
   try { const p = await pool(); await p.request().query('SELECT 1 AS x'); } catch (e) { db = 'chyba: ' + String(e.message).slice(0, 80); }
-  res.json({ ok: db === 'ok', aplikace: 'clb-kartapacienta', verze: config.verze, db, cas: new Date().toISOString(), konfigurace: zkontrolujKonfiguraci() });
+  res.json({ ok: db === 'ok', aplikace: 'clb-kartapacienta', verze: config.verze, db, sms: smsDuvod() || 'zapnuto', cas: new Date().toISOString(), konfigurace: zkontrolujKonfiguraci() });
 });
 app.use('/api/admin', admin);
 app.use('/api/c', central);
 app.use('/api/d', device);
+app.use('/api/napoveda', napoveda);
+app.use('/api/partner', partner);
+app.use('/api/pd', pd);
 app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznámý endpoint' }));
 
+// ostrá verze: lokální prototyp už není
+app.get(/^\/demo(\/.*)?$/, (req, res) => res.redirect(301, '/'));
 // statické aplikace; service worker karty smí řídit celé /karta/
 app.use('/karta', (req, res, next) => { if (req.path === '/sw.js') res.setHeader('Service-Worker-Allowed', '/karta/'); next(); });
+// 0.11.100: aplikaci pro zavedení telefonu (veřejný soubor, stahuje ji telefon při zavedení QR kódem) smí stáhnout i stránka
+// „Nový telefon“ na Netlify – spočítá z ní kontrolní součet do QR kódu a při instalaci kabelem ji nahraje do telefonu
+app.use('/android', (req, res, next) => { res.setHeader('Access-Control-Allow-Origin', '*'); next(); });
 app.use(express.static(path.join(koren, 'public'), {
   extensions: ['html'],
   setHeaders: (res, f) => { if (/\.(html|js|webmanifest)$/.test(f)) res.setHeader('Cache-Control', 'no-cache'); },
@@ -50,3 +93,5 @@ app.use(express.static(path.join(koren, 'public'), {
 const chyby = zkontrolujKonfiguraci();
 if (chyby.length) console.warn('POZOR – v .env chybí:', chyby.join(', '));
 app.listen(config.port, config.host, () => console.log(`clb-kartapacienta ${config.verze} na http://${config.host}:${config.port}`));
+// propojení s PéčeDoma: léky a nejbližší návštěva propojených pacientů (tenanti s PD_SYNC = 1), po startu a každých 30 minut
+if (process.env.KP_PECEDOMA_SYNC !== '0') spustSynchronizaci();

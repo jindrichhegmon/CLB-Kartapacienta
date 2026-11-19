@@ -7,7 +7,17 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script>
+/* ikona oka je vložené SVG (ne emotikona přes ikony.js) – spolehlivě i v Safari */
+const OKO_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>', OKO_SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>';
+function hesloOko(btn){ const i = btn.parentNode.querySelector('input'); const uk = i.type === 'password'; i.type = uk ? 'text' : 'password'; btn.innerHTML = uk ? OKO_SVG_OFF : OKO_SVG; btn.title = uk ? 'Skrýt heslo' : 'Zobrazit heslo'; btn.setAttribute('aria-label', btn.title); i.focus(); }
+/* vzhled zvolený na tomto zařízení – nastaví se před vykreslením, aby stránka neprobleskla jinou barvou */
+try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.documentElement.setAttribute('data-theme', 'dark'); else if (_v && _v !== 'modra' && /^[a-z]+$/.test(_v)) { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.setAttribute('data-skin', _v); } } catch (e) {}</script>
 <link rel="stylesheet" href="/shared/kp.css">
+<style>
+/* zobrazit / skrýt heslo (👁) u polí s heslem – od 0.11.74 */
+.oko-obal{position:relative}.oko-obal input{width:100%;padding-right:42px;box-sizing:border-box}.oko{position:absolute;right:4px;top:50%;transform:translateY(-50%);height:30px;width:34px;border:0;background:transparent;color:#2E86D9;cursor:pointer;font-size:16px;padding:0;margin:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none;box-shadow:none}
+</style>
 </head>
 <body>
 <div class="app wide">
@@ -16,6 +26,8 @@
 </div>
 <div id="modal"></div><div id="toast" class="toast" hidden></div>
 <script src="/shared/kp.js"></script>
+<script src="/shared/kp-ikony.js"></script>
+<script src="/shared/kp-napoveda.js"></script>
 <script>
 const { esc, api, toast, modal, closeModal } = KP;
 const KEY = 'kp_tenanti_session';
@@ -23,9 +35,11 @@ let S = { session: sessionStorage.getItem(KEY) || '', tenanti: [], typy: {} };
 const $ = (id) => document.getElementById(id);
 const A = (p, o = {}) => api('/api/admin' + p, { ...o, token: S.session }).catch((e) => { if (e.status === 401) { S.session = ''; sessionStorage.removeItem(KEY); render(); } throw e; });
 
+KP.napoveda.nastav({ aplikace: 'tenanti', kapitola: 15, auth: () => ({ token: S.session }), obrazovka: () => (S.session ? 'Seznam tenantů' : 'Přihlášení') });
+
 function hlavicka(meta) {
   $('top').innerHTML = `<img src="/icons/icon.svg" alt="" width="40" height="40" style="border-radius:12px"><div class="ttl"><h1>Správa tenantů</h1><div class="meta">${esc(meta || 'Karta pacienta · provozovatel platformy')}</div></div>
-    ${S.session ? '<button class="btn sm" id="odhlasit">Odhlásit</button>' : ''}`;
+    ${KP.tlacitkaHlavicky()}${S.session ? '<button class="btn sm" id="odhlasit">Odhlásit</button>' : ''}`;
   if ($('odhlasit')) $('odhlasit').onclick = () => { S.session = ''; sessionStorage.removeItem(KEY); render(); };
 }
 
@@ -39,7 +53,7 @@ function renderLogin() {
   $('work').innerHTML = `<div class="login"><div class="panel">
     <h2>Přihlášení provozovatele</h2>
     <div class="note">Správa tenantů je jen pro provozovatele platformy. Organizace (nemocnice, hospic, domov…) pracují v <a href="/centrala/">centrální aplikaci</a>.</div>
-    <div class="field"><label>Heslo správy</label><input type="password" id="heslo" autocomplete="current-password" autofocus></div>
+    <div class="field"><label>Heslo správy</label><div class="oko-obal"><input type="password" id="heslo" autocomplete="current-password" autofocus><button type="button" class="oko" onclick="hesloOko(this)" title="Zobrazit heslo" aria-label="Zobrazit heslo" tabindex="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     <button class="btn primary" id="prihlasit">Přihlásit</button></div></div>`;
   const go = async () => { try { const d = await api('/api/admin/login', { method: 'POST', body: { heslo: $('heslo').value } }); S.session = d.session; sessionStorage.setItem(KEY, d.session); render(); } catch (e) { toast(e.message); } };
   $('prihlasit').onclick = go; $('heslo').onkeydown = (e) => { if (e.key === 'Enter') go(); };
@@ -61,7 +75,7 @@ async function renderSeznam() {
       <div class="panel stat"><span class="muted">Uživatelé</span><b>${kp.reduce((a, t) => a + t.uzivatelu, 0)}</b></div>
     </div>
     <div class="panel"><div class="panel-h"><h2>Tenanti</h2></div><div class="tblwrap"><table class="tbl hover"><thead><tr><th>Organizace</th><th>IDTENANT</th><th>Karta pacienta</th><th>Pacienti</th><th>Pracoviště</th><th>Uživatelé</th><th>Telefony</th><th>Poslední sync</th></tr></thead><tbody>
-      ${d.tenanti.map((t) => `<tr data-id="${esc(t.id)}"><td><b>${esc(t.nazev)}</b><div class="lbl">IČO ${esc(t.ico)}${t.nazevSite && t.nazevSite !== t.nazev ? ' · síť ' + esc(t.nazevSite) : ''}</div></td><td class="mono" style="font-size:12.5px">${esc(t.id)}</td>
+      ${d.tenanti.map((t) => `<tr data-id="${esc(t.id)}"><td><b>${esc(t.nazev)}</b><div class="lbl">IČO ${esc(t.ico)}${t.nazevSite && t.nazevSite !== t.nazev ? ' · síť ' + esc(t.nazevSite) : ''}${t.jednoduchy ? ' · jednoduchý režim' : ''}</div></td><td class="mono" style="font-size:12.5px">${esc(t.id)}</td>
         <td>${t.kp ? '<span class="chip ok">zapnuta</span>' : t.uzivatelu ? '<span class="chip warn">vypnuta</span>' : '<span class="chip">ne</span>'}</td><td>${t.pacientu}</td><td>${t.poskytovatelu}</td><td>${t.uzivatelu}</td><td>${t.telefonu}</td><td class="mono" style="font-size:12px">${esc(t.posledniSync || '—')}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   $('novy').onclick = () => formular();
@@ -82,9 +96,9 @@ function formular(predvyplnit = {}) {
       <h3 style="font-size:14px;margin-top:6px">Správce organizace</h3>
       <div class="frow"><div class="field"><label>Jméno a příjmení</label><input id="f_sj" placeholder="MUDr. Jana Nová"></div><div class="field"><label>Přihlašovací jméno</label><input id="f_sl" placeholder="jana.nova" autocapitalize="off"></div></div>
       <div class="frow"><div class="field"><label>E-mail</label><input id="f_se" type="email"></div><div class="field"><label>Telefon</label><input id="f_st"></div></div>
-      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label>
-        <label style="color:inherit"><input type="checkbox" id="f_demo" style="accent-color:var(--accent)"> vložit ukázková data (2 pacienti, 4 pracoviště)</label></div>
-      <div class="quick"><button class="btn primary" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
+      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_lek" checked style="accent-color:var(--accent)"> správce je lékař (smí zakládat pacienty)</label></div>
+      <div class="checks"><label style="color:inherit"><input type="checkbox" id="f_jed" style="accent-color:var(--accent)"> jednoduchý režim (malá ordinace: jen údaje pro Průkaz pacienta – správce ho může později vypnout)</label></div>
+      <div class="quick"><button class="btn primary ulozit" id="f_ok">Založit</button><button class="btn" data-close>Zrušit</button></div>
       <div class="note">Vznikne: tenant v PeceDomaPlus (IDTENANT = IČO + 8 písmen z názvu), první pracoviště, účet správce s vygenerovaným heslem a odkaz pro přihlášení. Heslo se zobrazí jen jednou – správce si ho po prvním přihlášení změní.</div>
     </div>`, () => {
     $('f_sj').oninput = () => { if (!$('f_sl').dataset.ruc) $('f_sl').value = $('f_sj').value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(mudr|ing|mgr|bc|phdr)\.?\s*/g, '').trim().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, ''); };
@@ -95,7 +109,7 @@ function formular(predvyplnit = {}) {
     };
     $('f_ok').onclick = async () => {
       const b = { ico: $('f_ico').value, nazev: $('f_nazev').value, adresa: $('f_adresa').value, typ: $('f_typ').value, telefon24: $('f_tel').value, nazevSite: $('f_sit').value,
-        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked, demo: $('f_demo').checked };
+        spravceJmeno: $('f_sj').value, spravceLogin: $('f_sl').value, spravceEmail: $('f_se').value, spravceTelefon: $('f_st').value, spravceLekar: $('f_lek').checked, jednoduchy: $('f_jed').checked };
       $('f_ok').disabled = true;
       try { const r = await A('/zalozit', { method: 'POST', body: b }); vysledek(r); renderSeznam(); } catch (e) { toast(e.message); $('f_ok').disabled = false; }
     };

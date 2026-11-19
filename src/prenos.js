@@ -1,9 +1,15 @@
 /**
- * Hromadný přenos průkazů ze starého telefonu (A) na nový (B) – „výměna telefonu“.
+ * Hromadný přenos průkazů ze starého telefonu (A) na nový (B) – „výměna telefonu“ (0.11.95, převzato z úkolu Velína #2).
  *
- *   A: POST /api/d/prenos/zahajit  { tokeny:[…] } → { kod, odkaz }   (A ukáže QR kód s odkazem)
- *   B: POST /api/d/prenos/prevzit  { kod }        → { karty:[…] }    (B naskenuje QR, dostane nové tokeny)
- *   A: POST /api/d/prenos/stav     { kod }        → { stav }         (A zjistí, že je hotovo, a vymaže se)
+ *   A: POST /api/d/prenos/zahajit  { tokeny:[…], role, kdo } → { kod, odkaz }   (tým odemčený PINem; A ukáže QR kód s odkazem)
+ *   B: POST /api/d/prenos/nahled   { kod }                   → { pocet, telefon } (kolik průkazů a číslo starého telefonu – kód se nespotřebuje)
+ *   B: POST /api/d/prenos/prevzit  { kod, telefon }          → { karty:[…] }      (B naskenuje QR, dostane nové tokeny; jiné číslo → změní se
+ *                                                                                   i číslo telefonu s kartou u pacientů a u týmů)
+ *   A: POST /api/d/prenos/stav     { kod }                   → { stav }           (A zjistí, že je hotovo, a vymaže se)
+ *
+ * Od 0.11.96 jde výměnu připravit i v centrální aplikaci (POST /api/c/telefon/vymena): kód vydá přihlášený garant nebo lékař pro
+ * všechny průkazy na čísle starého telefonu, QR ukáže centrála (platí 30 min) a v kódu je i číslo nového telefonu (novyTelefon) –
+ * nový telefon musí mít právě toto číslo. Starý telefon se po převzetí zablokuje (při připojení se vymaže).
  *
  * Přenosový kód je jednorázový a platí 10 minut. Drží se jen v paměti serveru (běží jedna instance
  * v pm2) – po restartu stačí na starém telefonu vygenerovat nový. V kódu nejsou žádná data pacienta,
@@ -31,15 +37,21 @@ export const normalizujKod = (v) => String(v || '').toUpperCase().replace(/[^A-Z
 /** Formát pro zobrazení: ABCD-EFGH-JKLM */
 export const formatujKod = (k) => String(k).replace(/(.{4})(?=.)/g, '$1-');
 
-export function zalozPrenos(karty, nyni = Date.now()) {
+export function zalozPrenos(karty, nyni = Date.now(), { platnostMs = PRENOS_PLATNOST_MS, novyTelefon = '', zdroj = 'telefon' } = {}) {
   if (!Array.isArray(karty) || !karty.length) throw new Error('Žádné průkazy k přenosu');
   // jedno zařízení smí mít jen jeden čekající přenos – starší kód se zruší
-  const zid = new Set(karty.map((k) => `${k.tenant}.${k.zarizeniId}`));
-  for (const [kod, p] of cekajici) if (p.karty.some((k) => zid.has(`${k.tenant}.${k.zarizeniId}`))) cekajici.delete(kod);
+  const zid = new Set(karty.filter((k) => k.zarizeniId).map((k) => `${k.tenant}.${k.zarizeniId}`));
+  for (const [kod, p] of cekajici) if (p.karty.some((k) => k.zarizeniId && zid.has(`${k.tenant}.${k.zarizeniId}`))) cekajici.delete(kod);
   let kod;
   do kod = novyKodPrenosu(); while (cekajici.has(kod) || hotove.has(kod));
-  cekajici.set(kod, { exp: nyni + PRENOS_PLATNOST_MS, karty: karty.map((k) => ({ ...k })) });
-  return { kod, platnost: new Date(nyni + PRENOS_PLATNOST_MS) };
+  cekajici.set(kod, { exp: nyni + platnostMs, karty: karty.map((k) => ({ ...k })), novyTelefon, zdroj });
+  return { kod, platnost: new Date(nyni + platnostMs) };
+}
+
+/** Náhled bez spotřebování kódu (nový telefon předvyplní číslo starého telefonu). */
+export function nahledPrenosu(kod, nyni = Date.now()) {
+  const p = cekajici.get(kod);
+  return p && p.exp >= nyni ? p : null;
 }
 
 /** Jednorázové vyzvednutí: vrátí přenos a hned ho odebere (podruhé už vrátí null). */
@@ -66,8 +78,61 @@ export function stavPrenosu(kod, nyni = Date.now()) {
   return { stav: 'neplatny' };
 }
 
+/* ---- telefon bez kamery (0.11.104): kód z obrazovky telefonu ----
+   Telefon zadá své číslo a ukáže 6místný kód; obsluha ho v centrále opíše do okna s QR kódem (nahrání / výměna). Server spojí čekající
+   telefon s přenosem jen tehdy, když sedí kód i číslo nového telefonu – telefon si pak přenos převezme sám (stejně jako po QR kódu).
+   Drží se jen v paměti, platí 15 minut; telefon zná jen náhodné id, kód z obrazovky slouží jen ke spojení. */
+export const CEKANI_PLATNOST_MS = 15 * 60 * 1000;
+const cekaniTel = new Map();   // id → { kod, telefon, exp, prenos }
+export function zalozCekani(telefon, nyni = Date.now()) {
+  // jeden telefon (číslo) má jen jedno čekání – starší se zruší
+  for (const [id, c] of cekaniTel) if (c.telefon === telefon) cekaniTel.delete(id);
+  let kod;
+  do kod = String(randomInt(100000, 1000000)); while ([...cekaniTel.values()].some((c) => c.kod === kod));
+  const id = novyKodPrenosu() + novyKodPrenosu();
+  cekaniTel.set(id, { kod, telefon, exp: nyni + CEKANI_PLATNOST_MS, prenos: null });
+  return { id, kod, platnost: new Date(nyni + CEKANI_PLATNOST_MS) };
+}
+export function stavCekani(id, nyni = Date.now()) {
+  const c = cekaniTel.get(String(id || ''));
+  if (!c || c.exp < nyni) return { stav: 'neplatny' };
+  return c.prenos ? { stav: 'potvrzeno', prenos: c.prenos } : { stav: 'ceka', zbyva: Math.round((c.exp - nyni) / 1000) };
+}
+/** centrála: kód z obrazovky telefonu + číslo nového telefonu z přenosu → telefon dostane kód přenosu */
+export function potvrdCekani(kod, telefon, prenos, nyni = Date.now()) {
+  for (const c of cekaniTel.values()) if (c.kod === String(kod) && c.telefon === telefon && c.exp >= nyni) { c.prenos = prenos; c.exp = Math.max(c.exp, nyni + 5 * 60e3); return true; }
+  return false;
+}
+export function zrusCekani(id) { return cekaniTel.delete(String(id || '')); }
+
+/* ---- 6místné číslo z centrály (0.11.110) ----
+   Centrála k párovacímu kódu (Spárovat telefon, Můj průkaz) i ke kódu přenosu (Nahrát do telefonu, Výměna telefonu) vydá
+   krátké 6místné číslo, které se do telefonu jen opíše místo dlouhých kódů. Číslo samo nic nepáruje: telefon s ním a se svým
+   číslem dostane původní kód (POST /api/d/cislo) a pokračuje obvyklou cestou, kde server znovu ověří číslo telefonu.
+   Číslo platí jen pro telefon, pro který bylo vydané, nejdéle 24 hodin a jen v paměti serveru (po restartu se vydá znovu). */
+export const CISLO_MAX_MS = 24 * 3600e3;
+const cisla = new Map();   // číslo → { cil, telefon, exp, klic }
+export function vydejCislo(cil, telefon, platnostDo, nyni = Date.now()) {
+  const klic = JSON.stringify(cil);
+  const exp = Math.min(new Date(platnostDo).getTime() || nyni, nyni + CISLO_MAX_MS);
+  for (const [c, k] of cisla) if (k.klic === klic && k.exp >= nyni) { k.exp = exp; k.telefon = telefon || ''; return { cislo: c, platnost: new Date(exp) }; }
+  let c;
+  do c = String(randomInt(100000, 1000000)); while (cisla.has(c));
+  cisla.set(c, { cil, telefon: telefon || '', exp, klic });
+  return { cislo: c, platnost: new Date(exp) };
+}
+/** telefon zadá číslo a své číslo telefonu → původní kód (cil), jinak null */
+export function najdiCislo(cislo, telefon, nyni = Date.now()) {
+  const k = cisla.get(String(cislo || '').replace(/\D/g, ''));
+  if (!k || k.exp < nyni) return null;
+  if (k.telefon && k.telefon !== telefon) return null;
+  return k.cil;
+}
+
 export function uklidPrenosy(nyni = Date.now()) {
+  for (const [k, c] of cisla) if (c.exp < nyni) cisla.delete(k);
   for (const [k, p] of cekajici) if (p.exp < nyni) cekajici.delete(k);
+  for (const [k, c] of cekaniTel) if (c.exp < nyni) cekaniTel.delete(k);
   for (const [k, h] of hotove) if (nyni - h.cas > HOTOVO_DRZET_MS) hotove.delete(k);
 }
 setInterval(() => uklidPrenosy(), 60 * 1000).unref();

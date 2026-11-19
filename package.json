@@ -1,6 +1,6 @@
 {
   "name": "clb-kartapacienta",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Karta pacienta (paliativní průkaz): správa tenantů, centrální aplikace a karta na mobilu nad PeceDomaPlus",
   "type": "module",
   "private": true,
@@ -13,8 +13,12 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "@tesseract.js-data/ces": "^1.0.0",
     "dotenv": "^16.6.1",
     "express": "^4.22.3",
-    "mssql": "^11.0.2"
+    "mssql": "^11.0.2",
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^7.0.0"
   }
 }
