@@ -5,19 +5,19 @@
   /* paleta, písmo a rozměry převzaté z portálu PéčeDoma (od 0.9.4): modré odstíny pozadí, hlavička s přechodem, tlačítka 38 / 32 px */
   --bg:#f0f7fd; --surface:#ffffff; --surface-2:#e9f3fc; --line:#d6e6f5; --head:#eaf4fd; --fg:#25384a; --muted:#6b7f94;
   --accent:#2E86D9; --accent-soft:#e3f1fc; --accent-ink:#1e6cb8; --top1:#4A9EE8; --stin:rgba(46,134,217,.15);
-  --crit:#d64545; --crit-soft:#fde8e8; --warn:#e8942a; --warn-soft:#fdf0dd; --ok:#3d9a5f; --ok-soft:#dff2e6; --violet:#6b4fd8; --violet-soft:#ece6fb; --ulozit:#1b7f4b;
+  --crit:#d64545; --crit-soft:#fde8e8; --warn:#e8942a; --warn-soft:#fdf0dd; --ok:#3d9a5f; --ok-soft:#dff2e6; --violet:#6b4fd8; --violet-soft:#ece6fb; --amb:#0f9d76; --amb-soft:#d6f3e8; --ulozit:#1b7f4b;
   --font:"Segoe UI",system-ui,-apple-system,sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
   --r:10px; --shadow:0 1px 3px rgba(46,134,217,.07); --nav:64px;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#121417; --surface:#1b1f25; --surface-2:#20272f; --line:#303a46; --head:#1a2634; --fg:#e6ebf1; --muted:#9fb0c2;
   --accent:#4f9be0; --accent-soft:#232c36; --accent-ink:#8cc0f0; --top1:#22446b; --stin:rgba(79,155,224,.25);
-  --crit:#ef6a5e; --crit-soft:#3a1f22; --warn:#f0a93a; --warn-soft:#3a2d14; --ok:#49c47f; --ok-soft:#173327; --violet:#9b86e6; --violet-soft:#2a2342; --ulozit:#1f8a5b;
+  --crit:#ef6a5e; --crit-soft:#3a1f22; --warn:#f0a93a; --warn-soft:#3a2d14; --ok:#49c47f; --ok-soft:#173327; --violet:#9b86e6; --violet-soft:#2a2342; --amb:#3ecfa3; --amb-soft:#12382d; --ulozit:#1f8a5b;
   --shadow:0 1px 3px rgba(0,0,0,.35); color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#121417; --surface:#1b1f25; --surface-2:#20272f; --line:#303a46; --head:#1a2634; --fg:#e6ebf1; --muted:#9fb0c2;
   --accent:#4f9be0; --accent-soft:#232c36; --accent-ink:#8cc0f0; --top1:#22446b; --stin:rgba(79,155,224,.25);
-  --crit:#ef6a5e; --crit-soft:#3a1f22; --warn:#f0a93a; --warn-soft:#3a2d14; --ok:#49c47f; --ok-soft:#173327; --violet:#9b86e6; --violet-soft:#2a2342; --ulozit:#1f8a5b;
+  --crit:#ef6a5e; --crit-soft:#3a1f22; --warn:#f0a93a; --warn-soft:#3a2d14; --ok:#49c47f; --ok-soft:#173327; --violet:#9b86e6; --violet-soft:#2a2342; --amb:#3ecfa3; --amb-soft:#12382d; --ulozit:#1f8a5b;
   --shadow:0 1px 3px rgba(0,0,0,.35); color-scheme:dark }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -124,10 +124,12 @@ input.sukl-pridat{width:100%;margin-top:6px;font-size:13.5px}
 .lkpole{--c:var(--accent);border-left:5px solid var(--c);padding-left:10px}
 .lkpole.warn{--c:var(--warn)}.lkpole.crit{--c:var(--crit)}.lkpole.acc{--c:var(--accent)}.lkpole.vio{--c:var(--violet)}
 .lkpole>label{color:var(--c);font-weight:700}
-tr.amb>td{background:var(--violet-soft)}
-tr.amb>td:first-child{box-shadow:inset 5px 0 0 var(--violet)}
-.rez-tecka{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--ok);vertical-align:-1px}
-.rez-tecka.amb{background:var(--violet)}
+/* 0.11.132: pacienti ambulance lékařsky zeleně (vlastní barva --amb, ať se nepletou s fialovou „předává se“ a Parenterálně) */
+tr.amb>td{background:var(--amb-soft)}
+tr.amb>td:first-child{box-shadow:inset 5px 0 0 var(--amb)}
+.chip.amb{background:var(--amb-soft);color:var(--amb);border:1px solid var(--amb)}
+.rez-tecka{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--accent);vertical-align:-1px}
+.rez-tecka.amb{background:var(--amb)}
 .btn.rezsez.primary .rez-tecka{outline:2px solid #fff}
 .pr-filtr{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
 .pr-filtr input[type=search]{flex:1 1 260px;min-width:0}
