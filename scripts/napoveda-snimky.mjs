@@ -226,9 +226,18 @@ app.get('/api/c/ja', j((req) => { const chce = req.headers['x-kp-role'] || ''; c
 app.get('/api/c/poskytovatele', j({ poskytovatele: posk }));
 app.get('/api/c/pacienti/export', j(() => ({ format: 'csv', vzor: true, csv: 'kod;jmeno;prijmeni\n' })));
 app.get('/api/c/diagnozy', j((req) => ({ diagnozy: [{ kod: 'C509', popis: 'ZN - prs NS' }, { kod: 'C50', popis: 'Zhoubný novotvar prsu' }, { kod: 'C341', popis: 'ZN - horní lalok průdušky nebo plíce' }].filter((d) => (d.kod + ' ' + d.popis).toLowerCase().includes(String(req.query.q || '').toLowerCase().slice(0, 4)) || String(req.query.q || '').length > 3) })));
-app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti: pacienti.map((x, i) => ({ ...x, kde: ['Doma', 'DS B', ''][i] ?? '' })), upozorneni })));
+app.get('/api/c/prehled', j((req) => (req.query.stav === 'UZAVRENY' ? { pacienti: [], upozorneni: [] } : { pacienti: pacienti.map((x, i) => ({ ...x, kde: ['Doma', 'DS B', ''][i] ?? '', pd: i < 2 ? 1 : 0, prukazu: i === 2 ? 1 : 0 })), upozorneni })));   // 0.11.131: třetí je pacient ambulance
+// 0.11.131: detail pacienta ambulance (bez PéčeDoma) – léky v plánu ve stejných skupinách, parenterální první
+let mockAmbulance = false;
+app.post('/__mock/ambulance', (req, res) => { mockAmbulance = !!(req.body && req.body.zap); res.json({ ok: true }); });
+const detailAmbulance = () => ({ ...detail, pecedoma: { ...detail.pecedoma, klientId: null, portalKlientId: null, sync: null },
+  plan: { ...plan, data: { ...planData, parenteralni: ['Dexamethason 8 mg i.v. 1× týdně v ambulanci'] } },
+  puvod: { ...detail.puvod, parenteralni: [{ text: 'Dexamethason 8 mg i.v. 1× týdně v ambulanci', verze: 3, kdy: cas(-7, '10:24'), kdo: 'MUDr. Petra Ukázková', zdroj: 'rucne', dokument: null }],
+    sos: planData.sos.map((t) => ({ text: t, verze: 1, kdy: cas(-21, '09:10'), kdo: 'MUDr. Petra Ukázková', zdroj: 'zalozeni-zprava', dokument: 'Dekurz z Medistaru' })),
+    opioidy: planData.opioidy.map((t) => ({ text: t, verze: 1, kdy: cas(-21, '09:10'), kdo: 'MUDr. Petra Ukázková', zdroj: 'zalozeni-zprava', dokument: 'Dekurz z Medistaru' })),
+    medikace: planData.medikace.map((t) => ({ text: t, verze: 3, kdy: cas(-7, '10:24'), kdo: 'MUDr. Petra Ukázková', zdroj: 'rucne', dokument: null })) } });
 app.post('/api/c/pecedoma/sync-vse', j(() => ({ celkem: 2, ok: 2, chyby: [] })));
-app.get('/api/c/pacient/:id', j(() => ({ ...detail, video: { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null } })));
+app.get('/api/c/pacient/:id', j(() => ({ ...(mockAmbulance ? detailAmbulance() : detail), video: { server: 'https://jitsi.example.org', telefon: true, hovor: videoHovor ? { ...videoHovor, odkaz: 'about:blank' } : null } })));
 // výchozí kontakty organizace (0.11.70): zatržení / odebrání u klienta, nový výchozí, z vlastního kontaktu, zrušení u všech
 app.post('/api/c/pacient/:id/kontakt-vychozi', j((req) => { const b = req.body || {}; const dalsi = () => Math.max(0, ...kontakty.map((x) => x.poradi || 0)) + 10;
   const pouzit = (v) => { if (!kontakty.some((x) => x.vychoziId === v.id)) { kontakty.push({ id: Math.max(...kontakty.map((x) => x.id)) + 1, jmeno: v.jmeno, tel: v.tel, skupina: v.skupina, pozn: v.pozn, poradi: dalsi(), vychoziId: v.id }); v.klientu++; } };
@@ -510,6 +519,15 @@ await foto(p, 'c-stitky-vzhled', { vyska: 1000 });
   await okno.screenshot({ path: path.join(VYSTUP, 'c-stitky-tisk.png'), clip: { x: 0, y: 0, width: 900, height: 360 } }); await okno.close(); }
 await p.evaluate(() => KP.closeModal());
 await foto(p, 'c-pacienti');
+{ // 0.11.131: režim seznamu Vše / PéčeDoma / Ambulance, pacienti ambulance barevně odlišení
+  if ((await p.$$('[data-rez]')).length !== 3) chyby.push('seznam pacientů: chybí přepínač Vše / PéčeDoma / Ambulance');
+  if ((await p.$$('tr.amb[data-id]')).length !== 1 || !(await p.textContent('tr.amb')).includes('Ambulance') || !(await p.textContent('tr.amb')).includes('Průkaz v telefonu pacienta')) chyby.push('seznam pacientů: pacient ambulance není odlišený nebo nemá stav Průkazu');
+  await klik(p, '[data-rez="amb"]'); await p.waitForTimeout(200);
+  if ((await p.$$('tr[data-id]')).length !== 1 || await p.isVisible('#p_mista')) chyby.push('seznam pacientů: režim Ambulance neukazuje jen pacienty ambulance nebo zůstal filtr Kde je');
+  await klik(p, '[data-rez="pd"]'); await p.waitForTimeout(200);
+  if ((await p.$$('tr[data-id]')).length !== 2 || (await p.$$('tr.amb')).length) chyby.push('seznam pacientů: režim PéčeDoma neukazuje jen propojené pacienty');
+  await klik(p, '[data-rez=""]'); await p.waitForTimeout(200);
+  if ((await p.$$('tr[data-id]')).length !== 3) chyby.push('seznam pacientů: režim Vše neukazuje všechny'); }
 if (!(await p.$('[data-misto="ds"]'))) throw new Error('seznam pacientů: chybí filtr Kde je');
 await klik(p, '[data-misto="ds"]'); await p.waitForTimeout(200);
 if ((await p.$$('tr[data-id]')).length !== 1) throw new Error('seznam pacientů: filtr DS neukazuje jednoho pacienta');
@@ -553,6 +571,18 @@ await foto(p, 'c-novy-2', { vyska: 1100 });
 await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('dg', 'c-dg', { vyska: 900 });
+{ // 0.11.131: pacient ambulance – léky v plánu ve stejných barevných skupinách, Parenterálně první, zápis textem
+  await p.evaluate(() => fetch('/__mock/ambulance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: true }) }));
+  await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
+  await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_plan .lkskup');
+  const nadpisy = await p.$$eval('#lk_plan .lkskup-h span:first-child', (e) => e.map((x) => x.textContent.trim()));
+  if (nadpisy.join('|') !== 'Parenterálně|SOS léky|Opioidy|Paliativní terapie') chyby.push('léky ambulance: skupiny nejsou Parenterálně, SOS léky, Opioidy, Paliativní terapie: ' + nadpisy.join('|'));
+  const pole = await p.$$eval('#work textarea[id^="lk_"]', (e) => e.map((x) => x.id));
+  if (pole.join('|') !== 'lk_par|lk_sos|lk_opi|lk_med') chyby.push('léky ambulance: pole formuláře nejsou ve stejném pořadí: ' + pole.join('|'));
+  if (!(await p.textContent('#work')).includes('Ambulance')) chyby.push('léky ambulance: v hlavičce chybí štítek Ambulance');
+  await p.waitForTimeout(200); await foto(p, 'c-leky-ambulance', { vyska: 1000 });
+  await p.evaluate(() => fetch('/__mock/ambulance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: false }) }));
+  await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on'); }
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });
 { const t = await p.textContent('#work');   // 0.11.125: ověřeno zprávou a rozbor zprávy přímo ze záložky Léky
   if (!t.includes('ověřeno zprávou')) chyby.push('léky: chybí štítek „ověřeno zprávou“');

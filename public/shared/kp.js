@@ -158,9 +158,7 @@
       ${ro ? '' : `<div class="dg-hledat"><input id="${pref}_dgq" placeholder="Přidat diagnózu z číselníku – kód (C50) nebo název" autocomplete="off"><div id="${pref}_dgn" class="dg-nab" hidden></div></div><span class="hint">Ke kódům diagnóz se na kartě doplní popis z číselníku (např. C50 – Zhoubný novotvar prsu).</span>`}</div>
     <div class="field"><label>Obvyklý funkční stav</label><textarea id="${pref}_fun" style="font-family:var(--font);min-height:60px">${e(data.funkce || '')}</textarea></div>
     <div class="frow"><div class="field"><label>Alergie</label><input id="${pref}_al" value="${e(data.alergie || '')}"></div><div class="field"><label>Platnost plánu do</label><input type="date" id="${pref}_plat" value="${e(platnost || '')}"></div></div>
-    ${leky ? `<div class="field"><label>Opioidy (řádek = lék)</label><textarea id="${pref}_opi" style="font-family:var(--font);min-height:60px">${e((data.opioidy || []).join('\n'))}</textarea></div>
-    <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="${pref}_sos" style="font-family:var(--font);min-height:80px">${e((data.sos || []).join('\n'))}</textarea></div>
-    <div class="field"><label>Paliativní terapie (řádek = lék)</label><textarea id="${pref}_med" style="font-family:var(--font);min-height:90px">${e((data.medikace || []).join('\n'))}</textarea><span class="hint">Chronická terapie se nezadává.</span></div>` : ''}
+    ${leky ? KP.SKUPINY_PLANU.map(([klic, nazev, barva, zkr]) => `<div class="field lkpole ${barva}"><label>${nazev} (řádek = lék)</label><textarea id="${pref}_${zkr}" style="font-family:var(--font);min-height:${klic === 'medikace' ? 90 : 60}px">${e((data[klic] || []).join('\n'))}</textarea></div>`).join('') : ''}
     <label class="row" style="gap:8px"><input type="checkbox" id="${pref}_ter" ${data.terapieNaKarte ? 'checked' : ''}> Na krizové kartě ukazovat i <b>paliativní terapii</b> (jinak jen opioidy a SOS medikaci)</label>
   </div>`;
   };
@@ -173,7 +171,7 @@
     const dvp = kpr === 'dvp';
     return { data: { cil: v('cil'), kpr, limity: dvp ? [...document.querySelectorAll(`input[name=${pref}_lim]:checked`)].map((i) => i.value) : [],
       doklad: { dvp, datum: dvp ? v('dvpd') : '', original: dvp ? v('orig') : '', zprava: v('zpr'), pouceni: dvp && v('pou') === '1', overenyPodpis: dvp && v('ovp') === '1', prijeti: dvp ? v('prij').trim() : '' },
-      dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), opioidy: radky('opi', base.opioidy), medikace: radky('med', base.medikace),
+      dg: v('dg'), funkce: v('fun'), alergie: v('al'), sos: radky('sos', base.sos), opioidy: radky('opi', base.opioidy), medikace: radky('med', base.medikace), parenteralni: radky('par', base.parenteralni),
       terapieNaKarte: $(`${pref}_ter`) ? $(`${pref}_ter`).checked : !!base.terapieNaKarte }, platnostDo: v('plat') };
   };
   /* 0.11.92: oživení formuláře plánu – přepínání DVP části a našeptávač diagnóz (hledat(q) → Promise<{diagnozy}>) */
@@ -271,6 +269,8 @@
   };
   /* Léky z PéčeDoma – seznam s tlačítky a okno pro přidání / úpravu (centrála i telefon lékaře) */
   KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'paliativní terapie', PARENTERALNI: 'parenterálně' };
+  /* 0.11.131: léky v plánu péče (pacient bez PéčeDoma – ambulance) ve stejných skupinách a barvách jako léky z PéčeDoma, parenterální první: [pole plánu, název, barva, zkratka pole] */
+  KP.SKUPINY_PLANU = [['parenteralni', 'Parenterálně', 'vio', 'par'], ['sos', 'SOS léky', 'warn', 'sos'], ['opioidy', 'Opioidy', 'crit', 'opi'], ['medikace', 'Paliativní terapie', 'acc', 'med']];   // parenterální léky u těchto pacientů jako první
   KP.SKUPINY_LEKU = [['ZACHRANNA', 'SOS léky', 'warn'], ['OPIOID', 'Opioidy', 'crit'], ['PRAVIDELNA', 'Paliativní terapie', 'acc'], ['PARENTERALNI', 'Parenterálně', 'vio']];
   /* 0.11.123: původ údaje – ze zprávy (rozbor), ručně, z PéčeDoma, při založení; s verzí plánu, časem a kdo zapsal */
   KP.PUVOD_NAZ = { zprava: 'ze zprávy', 'zalozeni-zprava': 'ze zprávy při založení', 'zalozeni-pecedoma': 'z PéčeDoma při založení', zalozeni: 'zapsáno při založení',

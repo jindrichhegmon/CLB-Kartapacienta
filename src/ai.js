@@ -17,6 +17,7 @@ Vrať POUZE JSON bez komentáře v tomto tvaru:
  "alergie":"…nebo 'žádné známé'",
  "medikace":["lék dávka schéma", …],
  "opioidy":["opioid dávka schéma (pravidelně podávaný)", …],
+ "parenteralni":["lék dávka cesta podání (injekce, infuze – podává sestra)", …],
  "sos":["lék dávka cesta indikace", …],
  "funkce":"obvyklý funkční stav",
  "pobyt":"kam byl propuštěn",
@@ -97,6 +98,8 @@ export function lokalniRozbor(t) {
   const jeSos = (l) => /^(při\s|v případě|dle potřeby|SOS\b)/i.test(l);
   // opioidy: „Opioidy: …“ (Základní informace) a „Analgetická terapie: …“ (Ter.:)
   a.opioidy = bezOpakovani([...t.matchAll(/^[ \t]*(?:Opioidy|Analgetická terapie|Analgetika)[ \t]*:[ \t]*([^\n]*)/gim)].map((m) => m[1].trim()).filter((x) => x && !prazdne(x)));
+  // 0.11.131: parenterální léky (injekce, infuze) – „Parenterální medikace: …“ / „Parenterální terapie: …“
+  a.parenteralni = bezOpakovani([...t.matchAll(/^[ \t]*Parenterální (?:medikace|terapie)[ \t]*:[ \t]*([^\n]*)/gim)].map((m) => m[1].trim().replace(/[.,;]$/, '')).filter((x) => x && !prazdne(x)));
   a.medikace = bezOpakovani(leky.filter((l) => !jeSos(l))).filter((l) => !a.opioidy.some((o) => prvniSlovo(o) === prvniSlovo(l)));
   // SOS medikace: na stejném řádku, nebo (Medistar „SOS Medikace:“ bez textu) na řádku pod ním
   const sosRadky = lines.flatMap((l, i) => {

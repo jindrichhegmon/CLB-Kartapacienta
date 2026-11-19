@@ -243,6 +243,7 @@ export function normalizujPlan(d = {}) {
     sos: pole(d.sos),
     opioidy: pole(d.opioidy),
     medikace: pole(d.medikace),
+    parenteralni: pole(d.parenteralni),   // 0.11.131: stejné skupiny jako v PéčeDoma (SOS, opioidy, paliativní terapie, parenterálně)
     terapieNaKarte: d.terapieNaKarte === true,   // 0.11.92: na krizové kartě i paliativní terapie (jinak jen opioidy a SOS medikace)
   };
 }
@@ -266,7 +267,7 @@ export function zdrojVerze(v, zalozeni = 'rucne', zalozeniDokument = null) {
   return { zdroj: 'rucne', dokument: null };
 }
 export function puvodPlanu(verze = [], zalozeni = 'rucne', zalozeniDokument = null) {
-  const POLE = { dg: (d) => DG_RADKY(d.dg), opioidy: (d) => d.opioidy || [], sos: (d) => d.sos || [], medikace: (d) => d.medikace || [],
+  const POLE = { dg: (d) => DG_RADKY(d.dg), opioidy: (d) => d.opioidy || [], sos: (d) => d.sos || [], medikace: (d) => d.medikace || [], parenteralni: (d) => d.parenteralni || [],
     funkce: (d) => (String(d.funkce || '').trim() ? [String(d.funkce).trim()] : []), alergie: (d) => (String(d.alergie || '').trim() ? [String(d.alergie).trim()] : []) };
   const puvod = {};   // pole → Map(klíč → původ)
   let posledni = {};

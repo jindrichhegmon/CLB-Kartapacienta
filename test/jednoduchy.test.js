@@ -196,3 +196,15 @@ test('Medistar dekurz, léky v řádku (0.11.129): „Ter.: Chronická medikace:
   assert.deepEqual(r.opioidy, []);
   assert.deepEqual(r.sos, ['Pri bolesti metamizol 35 gtt']);
 });
+
+test('léky pacienta ambulance (0.11.131): skupina Parenterálně v plánu, v rozboru zprávy i v původu údajů', async () => {
+  const { normalizujPlan, puvodPlanu } = await import('../src/kp.js');
+  const { lokalniRozbor } = await import('../src/ai.js');
+  assert.deepEqual(normalizujPlan({ parenteralni: ' Dexamethason 8 mg i.v. \n\nMorfin 10 mg s.c.' }).parenteralni, ['Dexamethason 8 mg i.v.', 'Morfin 10 mg s.c.']);
+  assert.deepEqual(normalizujPlan({}).parenteralni, [], 'starší plány bez skupiny');
+  assert.deepEqual(lokalniRozbor('Dg.: C61\nOpioidy: Sine\nParenterální medikace: Sine\nParenterální terapie: Dexamethason 8 mg i.v. 1x týdně.').parenteralni, ['Dexamethason 8 mg i.v. 1x týdně']);
+  assert.deepEqual(lokalniRozbor('Dg.: C61\nParenterální medikace: Sine').parenteralni, []);
+  const p = puvodPlanu([{ verze: 1, typ: 'ZALOZENI', podepsal: 'A', vytvoreno: '2026-11-19 15:11', data: { parenteralni: [] } },
+    { verze: 2, typ: 'ZMENA', podepsal: 'B', vytvoreno: '2026-11-19 15:18', data: { parenteralni: ['Dexamethason 8 mg i.v.'] } }], 'zprava', 'Dekurz');
+  assert.deepEqual([p.parenteralni[0].zdroj, p.parenteralni[0].verze], ['rucne', 2]);
+});

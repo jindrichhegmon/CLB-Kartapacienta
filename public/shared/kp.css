@@ -120,6 +120,15 @@ input.sukl-pridat{width:100%;margin-top:6px;font-size:13.5px}
 .nz-seznam{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 12px;font-size:13.5px}
 .nz-ok{color:var(--ok);font-weight:800}
 .nz-ne{color:var(--muted)}
+/* 0.11.131: pole léků ve formuláři ve stejných barvách jako skupiny léků; pacienti ambulance v seznamu */
+.lkpole{--c:var(--accent);border-left:5px solid var(--c);padding-left:10px}
+.lkpole.warn{--c:var(--warn)}.lkpole.crit{--c:var(--crit)}.lkpole.acc{--c:var(--accent)}.lkpole.vio{--c:var(--violet)}
+.lkpole>label{color:var(--c);font-weight:700}
+tr.amb>td{background:var(--violet-soft)}
+tr.amb>td:first-child{box-shadow:inset 5px 0 0 var(--violet)}
+.rez-tecka{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--ok);vertical-align:-1px}
+.rez-tecka.amb{background:var(--violet)}
+.btn.rezim.primary .rez-tecka{outline:2px solid #fff}
 .pr-filtr{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
 .pr-filtr input[type=search]{flex:1 1 260px;min-width:0}
 .chip.zalom{white-space:normal;height:auto;min-height:22px;line-height:1.3;padding-top:2px;padding-bottom:2px;max-width:100%}

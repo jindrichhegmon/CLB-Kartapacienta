@@ -329,10 +329,17 @@ async function renderPacienti(dCache) {
   if (!dCache && S.pacView !== 'agenda') return renderDashboard();   // 0.11.90: Pacienti začínají přehledem
   if (!dCache) { $('work').innerHTML = `${nav()}${nacitamHTML('Načítám agendu pacientů…')}`; bindNav(); }
   let d = dCache; if (!d) try { d = await C('/prehled?stav=' + S.stav); } catch (e) { $('work').innerHTML = `${nav()}<div class="banner crit">${esc(e.message)}</div>`; bindNav(); return; }
-  const vsichni = d.pacienti; if (S.misto === undefined) { try { S.misto = localStorage.getItem('kp_misto') || ''; } catch { S.misto = ''; } }
+  const uplne = d.pacienti; if (S.misto === undefined) { try { S.misto = localStorage.getItem('kp_misto') || ''; } catch { S.misto = ''; } }
+  // 0.11.131: režim seznamu – PéčeDoma (propojení klienti) / Ambulance (bez PéčeDoma, zapsaní kvůli Průkazu pacienta)
+  const rezimy = maPeceDoma() || uplne.some((p) => p.pd);
+  if (S.rezimSez === undefined) { try { S.rezimSez = localStorage.getItem('kp_rezim_sez') || ''; } catch { S.rezimSez = ''; } }
+  const rez = rezimy ? S.rezimSez : '', jeAmb = (p) => rezimy && !p.pd;
+  const poctyRez = { '': uplne.length, pd: uplne.filter((p) => p.pd).length, amb: uplne.filter((p) => !p.pd).length };
+  const vsichni = rez === 'pd' ? uplne.filter((p) => p.pd) : rez === 'amb' ? uplne.filter((p) => !p.pd) : uplne;
+  const misto = rez === 'amb' ? '' : S.misto;   // pacienti ambulance nemají místo z PéčeDoma – filtr Kde je se u nich nepoužije
   const pocty = {}; vsichni.forEach((p) => { const k = mistoKat(mistoPac(p)); pocty[k] = (pocty[k] || 0) + 1; });
-  d = { ...d, pacienti: S.misto ? vsichni.filter((p) => mistoKat(mistoPac(p)) === S.misto) : vsichni };
-  const synch = (p) => !p.telefonu ? '<span class="chip">bez telefonu</span>' : `${p.telefonKarty ? `<div style="margin-bottom:3px">${telChip(p.telefonKarty)}</div>` : ''}<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ' ' + baterieHTML(p.baterie) : ''}`;
+  d = { ...d, pacienti: misto ? vsichni.filter((p) => mistoKat(mistoPac(p)) === misto) : vsichni };
+  const synch = (p) => jeAmb(p) && !p.telefonu ? (p.prukazu ? '<span class="chip vio">Průkaz v telefonu pacienta</span>' : '<span class="chip">Průkaz zatím nepředán</span>') : !p.telefonu ? '<span class="chip">bez telefonu</span>' : `${p.telefonKarty ? `<div style="margin-bottom:3px">${telChip(p.telefonKarty)}</div>` : ''}<span class="dot ${p.sync && (Date.now() - new Date(p.sync.replace(' ', 'T'))) < 12 * 3600e3 ? 'ok' : 'warn'}"></span> <span class="mono" style="font-size:12px">${esc(p.sync ? fmtDT(p.sync) : '—')}</span>${p.baterie != null ? ' ' + baterieHTML(p.baterie) : ''}`;
   $('work').innerHTML = `${nav()}
     ${d.upozorneni.length && S.stav === 'AKTIVNI' ? (() => {
       // panel Upozornění se rozbaluje (0.11.15): nad 3 upozornění je zavřený, stav si pamatuje prohlížeč; zavřený ukáže souhrn podle druhu
@@ -343,9 +350,10 @@ async function renderPacienti(dCache) {
     <div class="dash-head"><button class="btn" id="p_dash" type="button">← Přehled pacientů</button><span class="muted">Agenda pacientů – seznam, hledání a filtry</span></div>
     <div class="panel"><div class="panel-h"><h2>${S.stav === 'AKTIVNI' ? 'Pacienti s průkazem' : 'Uzavřené průkazy'} (${d.pacienti.length})</h2>${S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_stitky" title="Samolepky 70 × 70 mm na zadní stranu telefonů – komu telefon patří a kam volat">🏷 Štítky na telefony</button>' + '<button class="btn sm" id="p_nahrat" title="Vybrat pacienty (např. Kde je = DS C) a nahrát je do jednoho telefonu najednou – jeden QR kód">📱 Nahrát do telefonu</button>' : ''}${hledatHTML('pac', 'Hledat pacienta, adresu, garanta…')}
       <div class="seg" style="width:240px"><button data-s="AKTIVNI" class="${S.stav === 'AKTIVNI' ? 'on' : ''}">Aktivní</button><button data-s="UZAVRENY" class="${S.stav === 'UZAVRENY' ? 'on' : ''}">Uzavřené</button></div></div>
-      <div class="quick" id="p_mista" style="padding:8px 14px 0;align-items:center"><span class="lbl">Kde je:</span>${MISTA_SEZ.map(([k, n]) => `<button class="btn sm ${S.misto === k ? 'primary' : ''}" data-misto="${k}" type="button">${n}${k ? ' · ' + (pocty[k] || 0) : ' · ' + vsichni.length}</button>`).join('')}${S.pecedoma && S.pecedoma.nastaveno && jeLekar() && S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_pdsync" type="button" title="Načte z PéčeDoma u všech propojených pacientů léky, nejbližší návštěvu a kde se pacient nachází">↻ Načíst z PéčeDoma</button>' : ''}</div>
+      ${rezimy ? `<div class="quick" id="p_rezim" style="padding:10px 14px 0;align-items:center"><span class="lbl">Seznam:</span>${[['', 'Vše', ''], ['pd', 'PéčeDoma', 'pd'], ['amb', 'Ambulance', 'amb']].map(([k, n, t]) => `<button class="btn sm rezim ${rez === k ? 'primary' : ''}" data-rez="${k}" type="button">${t ? `<span class="rez-tecka ${t}"></span>` : ''}${n} · ${poctyRez[k]}</button>`).join('')}<span class="muted" style="font-size:12.5px">Ambulance = pacienti bez PéčeDoma, zapsaní kvůli Průkazu pacienta</span></div>` : ''}
+      <div class="quick" id="p_mista" style="padding:8px 14px 0;align-items:center" ${rez === 'amb' ? 'hidden' : ''}><span class="lbl">Kde je:</span>${MISTA_SEZ.map(([k, n]) => `<button class="btn sm ${S.misto === k ? 'primary' : ''}" data-misto="${k}" type="button">${n}${k ? ' · ' + (pocty[k] || 0) : ' · ' + vsichni.length}</button>`).join('')}${S.pecedoma && S.pecedoma.nastaveno && jeLekar() && S.stav === 'AKTIVNI' ? '<button class="btn sm" id="p_pdsync" type="button" title="Načte z PéčeDoma u všech propojených pacientů léky, nejbližší návštěvu a kde se pacient nachází">↻ Načíst z PéčeDoma</button>' : ''}</div>
       <div class="tblwrap"><table class="tbl hover"><thead><tr><th>Průkaz</th><th>Pacient</th><th>Adresa</th><th>Garant</th><th>Plán</th><th>Telefon</th><th>Poslední zápis</th></tr></thead><tbody>
-      ${d.pacienti.map((p) => `<tr data-id="${p.id}" class="${vDomove(p) !== null ? 'vdomove' : ''}${p.telefonu && p.baterie != null && p.baterie < BATERIE_VYBITA ? ' vybito' : ''}"><td class="mono">${esc(p.kod)}</td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.rok || '')}${p.posledniKrize === 'Zhoršení stavu' ? ' · <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' · <span class="chip vio">předává se</span>' : ''}</div></td>
+      ${d.pacienti.map((p) => `<tr data-id="${p.id}" class="${vDomove(p) !== null ? 'vdomove' : ''}${p.telefonu && p.baterie != null && p.baterie < BATERIE_VYBITA ? ' vybito' : ''}${jeAmb(p) ? ' amb' : ''}"><td class="mono">${esc(p.kod)}</td><td><b>${esc(p.prijmeni)} ${esc(p.jmeno)}</b><div class="lbl">${esc(p.rok || '')}${jeAmb(p) ? ' · <span class="chip vio">Ambulance</span>' : ''}${p.posledniKrize === 'Zhoršení stavu' ? ' · <span class="chip crit">zhoršení</span>' : ''}${p.predavaSe ? ' · <span class="chip vio">předává se</span>' : ''}</div></td>
         <td>${!p.kde && p.pd ? '<span class="chip warn" style="font-size:11px" title="Místo zatím nebylo načteno z PéčeDoma – stiskněte ↻ Načíst z PéčeDoma">místo neověřeno</span><br>' : ''}${p.kde ? pdKde(p).trim() + (vDomove(p) ? ' ' + domovChip(vDomove(p)) : '') + '<br>' : vDomove(p) !== null ? domovChip(vDomove(p)) + '<br>' : mistoPac(p) ? pdKde({ kde: mistoPac(p) }).trim() + '<br>' : ''}${esc(p.adresa || p.pobyt || '—')}${p.adresa && p.pobyt && p.pobyt !== p.adresa ? `<div class="lbl">${esc(p.pobyt)}</div>` : ''}</td><td>${esc(p.garant || '—')}</td>
         <td>${p.platnostDo ? (KP.prosly(p.platnostDo) ? '<span class="chip crit">po platnosti</span>' : 'do ' + fmtD(p.platnostDo)) : '<span class="chip warn">chybí</span>'}<div class="lbl">${esc(CILE[p.cil] ? CILE[p.cil].split(' (')[0] : '')}${p.verze ? ' · v' + p.verze : ''}</div></td>
         <td>${S.stav === 'AKTIVNI' ? synch(p) : esc(fmtDT(p.uzavreno))}</td><td class="mono" style="font-size:12px">${esc(fmtDT(p.posledniZapis))}</td></tr>`).join('') || `<tr><td colspan="7" class="muted">${S.stav === 'AKTIVNI' ? 'Zatím žádný pacient.' + (jeLekar() ? ' Začněte tlačítkem „+ Nový pacient“.' : '') : 'Žádné uzavřené průkazy.'}</td></tr>`}
@@ -357,7 +365,8 @@ async function renderPacienti(dCache) {
   bindHledani('pac', 'tr[data-id]');
   if ($('p_stitky')) $('p_stitky').onclick = () => stitkyOkno(d.pacienti.filter((p) => p.telefonu).map((p) => p.id));
   if ($('p_nahrat')) $('p_nahrat').onclick = () => { const vid = new Set([...document.querySelectorAll('tr[data-id]')].filter((tr) => tr.offsetParent).map((tr) => Number(tr.dataset.id))); nahratDoTelefonuOkno(d.pacienti.filter((p) => vid.has(p.id))); };
-  document.querySelectorAll('[data-misto]').forEach((b) => (b.onclick = () => { S.misto = b.dataset.misto; try { localStorage.setItem('kp_misto', S.misto); } catch { /* bez paměti */ } renderPacienti({ ...d, pacienti: vsichni }); }));
+  document.querySelectorAll('[data-misto]').forEach((b) => (b.onclick = () => { S.misto = b.dataset.misto; try { localStorage.setItem('kp_misto', S.misto); } catch { /* bez paměti */ } renderPacienti({ ...d, pacienti: uplne }); }));
+  document.querySelectorAll('[data-rez]').forEach((b) => (b.onclick = () => { S.rezimSez = b.dataset.rez; try { localStorage.setItem('kp_rezim_sez', S.rezimSez); } catch { /* bez paměti */ } renderPacienti({ ...d, pacienti: uplne }); }));
   if ($('p_pdsync')) $('p_pdsync').onclick = async () => { const b = $('p_pdsync'); b.disabled = true; b.textContent = 'Načítám z PéčeDoma…';
     try { const r = await C('/pecedoma/sync-vse', { method: 'POST', body: {} }); toast(`Načteno z PéčeDoma: ${r.ok} z ${r.celkem} propojených pacientů${r.chyby.length ? ' · chyba: ' + r.chyby[0] : ''}`, 7000); renderPacienti(); }
     catch (e) { toast(e.message); b.disabled = false; b.textContent = '↻ Načíst z PéčeDoma'; } };
@@ -386,7 +395,7 @@ function balikNahledu(d) {
   if ($('f_cil')) { const p = ctiPlan('f', base); data = { ...base, ...p.data }; platnostDo = p.platnostDo || platnostDo; }
   if ($('dg_dg')) data = { ...data, dg: $('dg_dg').value, funkce: $('dg_fun').value, alergie: $('dg_al').value };
   const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean);
-  if ($('lk_opi')) data = { ...data, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med') };
+  if ($('lk_opi')) data = { ...data, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med'), ...($('lk_par') ? { parenteralni: r('lk_par') } : {}) };
   if ($('lk_ter')) data.terapieNaKarte = $('lk_ter').checked;
   return { ...b, pacient: { ...b.pacient, pobyt: d.pacient.pobyt, stav: d.pacient.stav },
     plan: { ...(d.plan || { verze: 0, podepsal: S.ja.jmeno, vytvoreno: new Date().toISOString() }), data, platnostDo },
@@ -432,7 +441,7 @@ function kresliDetail() {
   const body = { dg: tabDg, leky: tabLeky, karta: tabKarta, plan: tabPlan, denik: tabDenik, kontakty: tabKontakty, tym: tabTym, telefon: S.jednoduchy ? tabPredani : tabTelefon, udaje: tabUdaje, dok: tabDok, pristupy: tabPristupy }[S.tab] || tabKarta;
   $('work').innerHTML = `${nav()}
     <div class="row noprint"><button class="btn sm" id="zpet">${KP.ICON.back} Pacienti</button>
-      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}${telefonyKarty(d.zarizeni).length && !S.jednoduchy ? ' · karta týmu: ' + telefonyKarty(d.zarizeni).map((z) => telChip(z.telefon, z.stitek ? `Zavolat na telefon s kartou (${z.stitek})` : 'Zavolat na telefon s kartou týmu')).join(' ') : ''}</div></div></div>
+      <div><h2 style="font-size:20px">${esc(p.prijmeni)} ${esc(p.jmeno)}${p.rok ? ', ' + esc(p.rok) : ''}</h2><div class="muted" style="font-size:13px"><span class="mono">${esc(p.kod)}</span> · ${esc(p.pobyt || 'pobyt neuveden')} ${domovChip(vDomove(p, d.tym))}· garant: <b>${esc(g ? g.nazev : '—')}</b>${jeAmbulance(d) ? ' · <span class="chip vio" title="Pacient není v PéčeDoma – je zapsaný kvůli Průkazu pacienta. Propojit ho jde v záložce Detail pacienta → PéčeDoma.">Ambulance</span>' : ''}${p.stav === 'UZAVRENY' ? ' · <span class="chip">uzavřeno ' + esc(fmtDT(p.uzavreno)) + '</span>' : ''}${telefonyKarty(d.zarizeni).length && !S.jednoduchy ? ' · karta týmu: ' + telefonyKarty(d.zarizeni).map((z) => telChip(z.telefon, z.stitek ? `Zavolat na telefon s kartou (${z.stitek})` : 'Zavolat na telefon s kartou týmu')).join(' ') : ''}</div></div></div>
     ${navrh && op.prijmoutGaranci ? `<div class="banner crit">Bylo vám navrženo převzetí garance (navrhl ${esc(navrh.navrhl || '—')}, ${esc(fmtDT(navrh.navrzeno))}).<button class="btn sm primary" id="prevzit">Převzít garanci</button><button class="btn sm" id="odmitnout">Odmítnout</button></div>` : navrh ? `<div class="banner warn">Předání garance na ${esc(navrh.nazev)} čeká na potvrzení (od ${esc(fmtDT(navrh.navrzeno))}). Do potvrzení zůstává garantem ${esc(g ? g.nazev : '—')}.</div>` : ''}
     ${S.jednoduchy ? '' : videoBannerC(d)}
     ${d.plan && KP.prosly(d.plan.platnostDo) ? `<div class="banner ${op.lekar ? 'crit' : 'warn'}">Plán je po datu platnosti (${fmtD(d.plan.platnostDo)}) a čeká na revizi lékařem.${op.lekar ? '<button class="btn sm primary" id="revize2">Provést revizi</button>' : ''}</div>` : ''}
@@ -624,22 +633,26 @@ function tabLeky(d) {
           ${d.op.lekar ? '<button class="btn sm ulozit" id="lk_ter_ok">Uložit (nová verze plánu)</button>' : '<span class="hint">Mění lékař.</span>'}</div></div>
       </div></div>`;
   }
-  const ro = !d.op.lekar;
+  /* 0.11.131: pacient bez PéčeDoma (ambulance, zapsaný kvůli Průkazu pacienta) – léky v plánu péče, ale ve stejných skupinách,
+     a barvách jako u PéčeDoma, v pořadí Parenterálně, SOS léky, Opioidy, Paliativní terapie; zápis textem (řádek = lék) */
+  const ro = !d.op.lekar, amb = jeAmbulance(d);
+  const skupina = ([klic, nazev, barva]) => { const leky = p[klic] || [], pu = (d.puvod && d.puvod[klic]) || [];
+    return `<section class="lkskup ${barva}${leky.length ? '' : ' prazdna'}"><div class="lkskup-h"><span>${nazev}</span><span class="chip ${barva}">${leky.length}</span></div>
+      ${leky.length ? `<table class="tbl"><tbody>${leky.map((x, i) => `<tr><td><b>${esc(x)}</b>${KP.puvodHTML(pu[i])}</td></tr>`).join('')}</tbody></table>` : '<div class="muted lkskup-p">žádné</div>'}</section>`; };
   return `<div class="grid2 l"><div style="display:grid;gap:12px;align-content:start">
-      <div class="panel"><div class="panel-h"><h2>Opioidy</h2>${d.plan ? `<span class="chip acc">plán v${d.plan.verze}</span>` : ''}</div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.opioidy || []).map((x, i) => `<li>${esc(x)}${KP.puvodHTML(d.puvod && d.puvod.opioidy && d.puvod.opioidy[i])}</li>`).join('') || '<li class="muted">žádné</li>'}</ul></div>
-      <div class="panel"><div class="panel-h"><h2>SOS medikace</h2></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.sos || []).map((x, i) => `<li>${esc(x)}${KP.puvodHTML(d.puvod && d.puvod.sos && d.puvod.sos[i])}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
-      <div class="panel"><div class="panel-h"><h2>Paliativní terapie</h2><span class="chip ${p.terapieNaKarte ? 'ok' : ''}">${p.terapieNaKarte ? 'na kartě' : 'jen v Lécích'}</span></div><ul style="margin:0;padding:12px 14px 12px 30px">${(p.medikace || []).map((x, i) => `<li>${esc(x)}${KP.puvodHTML(d.puvod && d.puvod.medikace && d.puvod.medikace[i])}</li>`).join('') || '<li class="muted">neuvedena</li>'}</ul></div>
+      <div class="panel"><div class="panel-h"><h2>Léky</h2><span class="chip ${amb ? 'vio' : 'acc'}">${amb ? 'Ambulance · ' : ''}${d.plan ? 'plán v' + d.plan.verze : 'bez plánu'}</span></div><div id="lk_plan" style="padding:4px 0">${KP.SKUPINY_PLANU.map(skupina).join('')}</div></div>
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit léky</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">
-        <div class="field"><label>Opioidy (řádek = lék)</label><textarea id="lk_opi" style="font-family:var(--font);min-height:60px">${esc((p.opioidy || []).join('\n'))}</textarea><input class="sukl-pridat" data-cil="lk_opi" placeholder="+ přidat lék ze seznamu SÚKL – začněte psát název"></div>
-        <div class="field"><label>SOS medikace (řádek = lék)</label><textarea id="lk_sos" style="font-family:var(--font);min-height:80px">${esc((p.sos || []).join('\n'))}</textarea><input class="sukl-pridat" data-cil="lk_sos" placeholder="+ přidat lék ze seznamu SÚKL – začněte psát název"></div>
-        <div class="field"><label>Paliativní terapie (řádek = lék)</label><textarea id="lk_med" style="font-family:var(--font);min-height:90px">${esc((p.medikace || []).join('\n'))}</textarea><input class="sukl-pridat" data-cil="lk_med" placeholder="+ přidat lék ze seznamu SÚKL – začněte psát název"><span class="hint">Chronická terapie se nezadává.</span></div>
+        ${KP.SKUPINY_PLANU.map(([klic, nazev, barva, zkr]) => `<div class="field lkpole ${barva}"><label>${nazev} (řádek = lék)</label><textarea id="lk_${zkr}" style="font-family:var(--font);min-height:${klic === 'medikace' ? 90 : 60}px">${esc((p[klic] || []).join('\n'))}</textarea><input class="sukl-pridat" data-cil="lk_${zkr}" placeholder="+ přidat lék ze seznamu SÚKL – začněte psát název"></div>`).join('')}
         <label class="row" style="gap:8px"><input type="checkbox" id="lk_ter" ${p.terapieNaKarte ? 'checked' : ''}> Na krizové kartě ukazovat i <b>paliativní terapii</b></label>
         <div class="quick"><button class="btn primary ulozit" id="lk_ok">Uložit</button><button class="btn" data-np type="button">📱 Živý náhled karty</button></div></div></div>`}
-      <div class="note">Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.</div>
+      <div class="note">${amb ? 'Pacient ambulance – není v PéčeDoma, je zapsaný kvůli Průkazu pacienta. Léky se vedou tady, ve stejných skupinách jako v PéčeDoma; uložení vytvoří novou verzi plánu péče. Do Průkazu a na krizovou kartu jdou SOS léky a opioidy (paliativní terapie podle zaškrtnutí); skupina Parenterálně je jen tady v Lécích. Když pacient přejde do domácí péče, propojte ho s PéčeDoma (Detail pacienta → PéčeDoma) a léky budou společné.' : 'Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.'}</div>
     </div></div>`;
 }
+/* 0.11.131: režim pacienta – Ambulance = aktivní organizace používá PéčeDoma, ale pacient s ní propojený není (zapsaný kvůli Průkazu pacienta) */
+const maPeceDoma = () => !!(S.pecedoma && S.pecedoma.nastaveno);
+const jeAmbulance = (d) => maPeceDoma() && !(d.pecedoma && d.pecedoma.klientId);
 async function nactiLeky(d) {
   const el = $('lk_seznam'); if (!el) return;
   try { const r = await C('/pacient/' + d.pacient.id + '/leky'); S.leky = r.leky || []; ukazLeky(d); }
@@ -956,7 +969,7 @@ function rozdelLek(t) {
   return m ? { nazev: m[1].trim(), davka: m[2].trim(), instr } : { nazev: x, davka: '', instr };
 }
 function lekyZeZpravy(v, lekyPd) {
-  const skup = [['opioidy', 'OPIOID'], ['sos', 'ZACHRANNA'], ['medikace', 'PRAVIDELNA']], vid = new Set(), out = [];
+  const skup = [['opioidy', 'OPIOID'], ['sos', 'ZACHRANNA'], ['medikace', 'PRAVIDELNA'], ['parenteralni', 'PARENTERALNI']], vid = new Set(), out = [];
   for (const [k, typ] of skup) for (const t of (Array.isArray(v[k]) ? v[k] : [])) {
     const z = rozdelLek(t), kl = klicLeku(z.nazev);
     if (!z.nazev || !kl || vid.has(kl)) continue; vid.add(kl);
@@ -982,7 +995,8 @@ function navrhZRozboru(r, dok) {
     ...(pd ? [] : [
       ['sos', 'SOS medikace', sezn(p.sos).join('\n'), slouc(p.sos, v.sos).join('\n'), sezn(v.sos).length > 0, true],
       ['opioidy', 'Opioidy', sezn(p.opioidy).join('\n'), slouc(p.opioidy, v.opioidy).join('\n'), sezn(v.opioidy).length > 0, true],
-      ['medikace', 'Paliativní terapie / léky', sezn(p.medikace).join('\n'), slouc(p.medikace, v.medikace).join('\n'), sezn(v.medikace).length > 0, true]]),
+      ['medikace', 'Paliativní terapie / léky', sezn(p.medikace).join('\n'), slouc(p.medikace, v.medikace).join('\n'), sezn(v.medikace).length > 0, true],
+      ...(sezn(v.parenteralni).length || sezn(p.parenteralni).length ? [['parenteralni', 'Parenterálně', sezn(p.parenteralni).join('\n'), slouc(p.parenteralni, v.parenteralni).join('\n'), sezn(v.parenteralni).length > 0, true]] : [])]),
   ];
   const muze = d.op.lekar;
   // 0.11.124: propojený pacient – léky ze zprávy rovnou do PéčeDoma (nové přidat, změněné upravit, shodné jen označit „ze zprávy“)
@@ -1017,7 +1031,7 @@ function navrhZRozboru(r, dok) {
       let zmen = 0;
       document.querySelectorAll('[data-np-k]').forEach((c) => {
         if (!c.checked || !muze) return; const k = c.dataset.npK, t = document.querySelector(`[data-np-t="${k}"]`).value;
-        data[k] = ['sos', 'opioidy', 'medikace'].includes(k) ? sezn(t) : t.trim().replace(/\n+/g, k === 'dg' ? '\n' : ' '); zmen++;
+        data[k] = ['sos', 'opioidy', 'medikace', 'parenteralni'].includes(k) ? sezn(t) : t.trim().replace(/\n+/g, k === 'dg' ? '\n' : ' '); zmen++;
       });
       const noveKont = [...document.querySelectorAll('[data-np-kont]:checked')].map((c) => kont[Number(c.dataset.npKont)]);
       const val = (a, i) => { const el = document.querySelector(`[${a}="${i}"]`); return el ? el.value.trim() : ''; };
@@ -1106,7 +1120,7 @@ function bindTab() {
     ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' : '') + p.text + ' ';
     inp.value = ''; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
   }));
-  on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med'), terapieNaKarte: $('lk_ter').checked }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
+  on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med'), ...($('lk_par') ? { parenteralni: r('lk_par') } : {}), terapieNaKarte: $('lk_ter').checked }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
   on('lk_novy', () => lekOkno(d));
   if ($('lk_seznam')) nactiLeky(d);
   on('revize', revize);
@@ -1647,7 +1661,7 @@ function navrhDoPruvodce(w, r) {
   w.ai = r; w.import = null;
   w.d.pacient = { ...p, prijmeni: p.prijmeni || id.prijmeni || prijmeniZ || '', jmeno: p.jmeno || id.jmeno || jmZ.reverse().join(' '), rc: p.rc || id.rc || '', datumNarozeni: p.datumNarozeni || id.datumNarozeni || '',
     rok: p.rok || id.rok || v.rok || '', pohlavi: id.pohlavi || p.pohlavi || '', pojistovna: p.pojistovna || id.pojistovna || '', adresa: p.adresa || id.adresa || '', telefonKarty: p.telefonKarty || id.telefon || '', pobyt: v.pobyt || p.pobyt || '' };
-  w.d.plan = { cil: v.cil, kpr: v.doklad && v.doklad.dvp ? 'dvp' : 'neuvedeno', limity: v.doklad && v.doklad.dvp ? (v.limity || []) : [], doklad: v.doklad || {}, dg: String(v.dg || '').split(/;\s*/).filter(Boolean).join('\n'), funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [] };
+  w.d.plan = { cil: v.cil, kpr: v.doklad && v.doklad.dvp ? 'dvp' : 'neuvedeno', limity: v.doklad && v.doklad.dvp ? (v.limity || []) : [], doklad: v.doklad || {}, dg: String(v.dg || '').split(/;\s*/).filter(Boolean).join('\n'), funkce: v.funkce, alergie: v.alergie, sos: v.sos || [], opioidy: v.opioidy || [], medikace: v.medikace || [], parenteralni: v.parenteralni || [] };
   w.d.kontakty = (v.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina || 'INFORMOVAT', pozn: '' }));
 }
 const velikostSouboru = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' kB');
