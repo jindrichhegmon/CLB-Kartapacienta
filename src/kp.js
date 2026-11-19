@@ -192,7 +192,8 @@ export function obsahPredani(b) {
     plan: b.plan ? { verze: b.plan.verze, platnostDo: b.plan.platnostDo || null, podepsal: b.plan.podepsal || null, cil: p.cil || null, kpr: p.kpr || null, limity: p.limity || [],
       dvp: !!(p.doklad && p.doklad.dvp), dvpDatum: (p.doklad && p.doklad.datum) || '', dvpOriginal: (p.doklad && p.doklad.original) || '' } : null,
     dg: p.dg || '', dgPopisy: b.dgPopisy || {}, alergie: p.alergie || '', funkce: p.funkce || '',
-    leky: { zdroj: zPd ? 'PéčeDoma' : 'plán péče', sos: lk.sos || [], opioidy: lk.opioidy || [], medikace: lk.medikace || [] },
+    // 0.11.132: parenterální léky z plánu (pacient bez PéčeDoma) jdou do Průkazu také; klíč jen když nějaké jsou – starší snímky se nemění
+    leky: { zdroj: zPd ? 'PéčeDoma' : 'plán péče', sos: lk.sos || [], opioidy: lk.opioidy || [], medikace: lk.medikace || [], ...(!zPd && (p.parenteralni || []).length ? { parenteralni: p.parenteralni } : {}) },
     kontakty: (b.kontakty || []).map((k) => ({ jmeno: k.jmeno, tel: k.tel, skupina: k.skupina })),
     tym: (b.tym || []).map((t) => ({ nazev: t.nazev, tel: t.tel })),
     garant: { poskytovatel: g.poskytovatel || null, lekar: g.lekar || null, telefon24: g.telefon24 || null },

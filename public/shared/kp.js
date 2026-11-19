@@ -265,7 +265,7 @@
   KP.leky = (b) => {
     const pd = b && b.pecedoma, p = (b && b.plan && b.plan.data) || {};
     if (pd && pd.propojeno && pd.aktualizovano) return { sos: pd.sos || [], opioidy: pd.opioidy || [], medikace: pd.medikace || [], zdroj: 'pecedoma', aktualizovano: pd.aktualizovano };
-    return { sos: p.sos || [], opioidy: p.opioidy || [], medikace: p.medikace || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };
+    return { sos: p.sos || [], opioidy: p.opioidy || [], medikace: p.medikace || [], parenteralni: p.parenteralni || [], zdroj: pd && pd.propojeno ? 'pecedoma-ceka' : 'plan' };   // 0.11.132: parenterální léky z plánu (Průkaz pacienta)
   };
   /* Léky z PéčeDoma – seznam s tlačítky a okno pro přidání / úpravu (centrála i telefon lékaře) */
   KP.TYP_LEKU = { ZACHRANNA: 'SOS lék', OPIOID: 'opioid', PRAVIDELNA: 'paliativní terapie', PARENTERALNI: 'parenterálně' };

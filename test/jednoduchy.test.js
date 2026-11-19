@@ -208,3 +208,15 @@ test('léky pacienta ambulance (0.11.131): skupina Parenterálně v plánu, v ro
     { verze: 2, typ: 'ZMENA', podepsal: 'B', vytvoreno: '2026-11-19 15:18', data: { parenteralni: ['Dexamethason 8 mg i.v.'] } }], 'zprava', 'Dekurz');
   assert.deepEqual([p.parenteralni[0].zdroj, p.parenteralni[0].verze], ['rucne', 2]);
 });
+
+test('parenterální léky do Průkazu (0.11.132): ve snímku předání jen když nějaké jsou, změna spustí aktualizaci', async () => {
+  const { obsahPredani } = await import('../src/kp.js');
+  const b = (par) => ({ plan: { verze: 2, data: { sos: ['Novalgin'], opioidy: [], medikace: [], ...(par ? { parenteralni: par } : {}) } }, kontakty: [], tym: [], garant: {} });
+  assert.equal('parenteralni' in obsahPredani(b()).leky, false, 'bez parenterálních léků se snímek nemění (žádná falešná aktualizace)');
+  assert.equal('parenteralni' in obsahPredani(b([])).leky, false);
+  assert.deepEqual(obsahPredani(b(['Dexamethason 8 mg i.v.'])).leky.parenteralni, ['Dexamethason 8 mg i.v.']);
+  assert.notEqual(JSON.stringify(obsahPredani(b(['Dexamethason 8 mg i.v.']))), JSON.stringify(obsahPredani(b())), 'nový parenterální lék = změna k předání');
+  // pacient propojený s PéčeDoma: léky jdou z PéčeDoma, parenterální z plánu se nepřidávají
+  const pd = { ...b(['X']), pecedoma: { propojeno: true, aktualizovano: '2026-11-19 10:00', sos: [], opioidy: [], medikace: [] } };
+  assert.equal('parenteralni' in obsahPredani(pd).leky, false);
+});
