@@ -17,7 +17,7 @@
  *       (A_KP_Pacient.TelefonKarty – totéž co Detail pacienta → Údaje v centrále): stejná pravidla jako v centrále – telefon
  *       spárovaný s jiným číslem se zablokuje, zápis do deníku a logu. → { telefonKarty, zmeneno: true|false, zablokovano }
  *   vstupenka vrací v `pacient` i `telefonKarty` (0.11.73).
- *   GET /api/partner/zapujcene?tenant=<IDTENANT>   (0.11.75) → { pacienti: [{ kod, rc }] } aktivní průkazy se spárovaným zapůjčeným
+ *   GET /api/partner/zapujcene?tenant=<IDTENANT>   (0.11.75) → { pacienti: [{ kod, rc, telefon, sync, sparovano }] } aktivní průkazy se spárovaným zapůjčeným
  *       telefonem – PéčeDoma z toho počítá kritérium „Karta pacienta“ v číslech 720 (bez jmen)
  */
 import { Router } from 'express';
@@ -59,16 +59,20 @@ partner.get('/kod-dne', h(async (req) => {
   });
 }));
 
-/* 0.11.75: pacienti se zapůjčeným telefonem – pro čísla 720 v PéčeDoma (kritérium „Karta pacienta“): aktivní průkaz + spárovaný
-   telefon v režimu ZAPUJCENY; jen rodné číslo a kód průkazu, bez jmen */
+/* 0.11.75: pacienti se zapůjčeným telefonem – pro čísla 720 v PéčeDoma a Pacienty 720 (kritérium „Karta pacienta“): aktivní průkaz + spárovaný
+   telefon v režimu ZAPUJCENY; bez jmen (rodné číslo, kód průkazu, od 0.11.76 číslo telefonu s kartou a čas posledního spojení – sync, čas databáze bez zóny) */
 partner.get('/zapujcene', h(async (req) => {
   overKlic(req);
   omez('partner:' + ip(req), 300, 3600e3);
   const tenant = String(req.query.tenant || '').toUpperCase().trim();
   if (!tenantRe.test(tenant)) throw chyba('Chybí nebo je neplatný tenant');
   return vTenantu(tenant, async (q) => {
-    const rows = await q.all(`SELECT p.KodPrukazu AS kod, REPLACE(ISNULL(p.RodneCislo, ''), '/', '') AS rc FROM dbo.A_KP_Pacient p
-      WHERE p.Stav = 'AKTIVNI' AND EXISTS (SELECT 1 FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY') ORDER BY p.PacientID`);
+    /* 0.11.76: i číslo telefonu s kartou a poslední spojení telefonu – Pacienti 720 podle toho rozliší vlastní telefon / telefon
+       zařízení (stejné číslo u více pacientů) a telefon, který se dlouho neozval */
+    const rows = await q.all(`SELECT p.KodPrukazu AS kod, REPLACE(ISNULL(p.RodneCislo, ''), '/', '') AS rc, ISNULL(p.TelefonKarty, '') AS telefon,
+        CONVERT(varchar(19), MAX(z.PosledniSync), 126) AS sync, CONVERT(varchar(19), MAX(z.Sparovano), 126) AS sparovano
+      FROM dbo.A_KP_Pacient p JOIN dbo.A_KP_Zarizeni z ON z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY'
+      WHERE p.Stav = 'AKTIVNI' GROUP BY p.PacientID, p.KodPrukazu, p.RodneCislo, p.TelefonKarty ORDER BY p.PacientID`);
     return { pacienti: rows.filter((r) => /^\d{9,10}$/.test(r.rc)) };
   });
 }));
