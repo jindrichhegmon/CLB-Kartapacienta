@@ -17,6 +17,8 @@
  *       (A_KP_Pacient.TelefonKarty – totéž co Detail pacienta → Údaje v centrále): stejná pravidla jako v centrále – telefon
  *       spárovaný s jiným číslem se zablokuje, zápis do deníku a logu. → { telefonKarty, zmeneno: true|false, zablokovano }
  *   vstupenka vrací v `pacient` i `telefonKarty` (0.11.73).
+ *   GET /api/partner/zapujcene?tenant=<IDTENANT>   (0.11.75) → { pacienti: [{ kod, rc }] } aktivní průkazy se spárovaným zapůjčeným
+ *       telefonem – PéčeDoma z toho počítá kritérium „Karta pacienta“ v číslech 720 (bez jmen)
  */
 import { Router } from 'express';
 import { timingSafeEqual } from 'node:crypto';
@@ -54,6 +56,20 @@ partner.get('/kod-dne', h(async (req) => {
     if (!t) throw chyba('Tajemství telefonu nelze přečíst – telefon je potřeba spárovat znovu', 500);
     await audit(q, { kdo, pacientId: p.PacientID, zarizeniId: z.ZarizeniID, akce: 'kód lékaře zobrazen v PéčeDoma', ip: ip(req) });
     return { kod: kodDne(t), platiDo: konecDnePraha(), pacient: { kod: p.KodPrukazu, jmeno: p.Jmeno, prijmeni: p.Prijmeni } };
+  });
+}));
+
+/* 0.11.75: pacienti se zapůjčeným telefonem – pro čísla 720 v PéčeDoma (kritérium „Karta pacienta“): aktivní průkaz + spárovaný
+   telefon v režimu ZAPUJCENY; jen rodné číslo a kód průkazu, bez jmen */
+partner.get('/zapujcene', h(async (req) => {
+  overKlic(req);
+  omez('partner:' + ip(req), 300, 3600e3);
+  const tenant = String(req.query.tenant || '').toUpperCase().trim();
+  if (!tenantRe.test(tenant)) throw chyba('Chybí nebo je neplatný tenant');
+  return vTenantu(tenant, async (q) => {
+    const rows = await q.all(`SELECT p.KodPrukazu AS kod, REPLACE(ISNULL(p.RodneCislo, ''), '/', '') AS rc FROM dbo.A_KP_Pacient p
+      WHERE p.Stav = 'AKTIVNI' AND EXISTS (SELECT 1 FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY') ORDER BY p.PacientID`);
+    return { pacienti: rows.filter((r) => /^\d{9,10}$/.test(r.rc)) };
   });
 }));
 
