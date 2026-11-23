@@ -6,7 +6,7 @@
  */
 import { config } from './config.js';
 import { anonymizuj, obnov } from './anonym.js';
-import { identitaZeZpravy } from './identita.js';
+import { identitaZeZpravy, RE_STITEK_RC } from './identita.js';
 
 const LIMITY = ['KPR', 'Umělá plicní ventilace', 'Hospitalizace', 'Antibiotika i.v.', 'Infuze / i.v. výživa', 'Sonda / PEG', 'Dialýza', 'Transfuze'];
 
@@ -151,6 +151,10 @@ export async function rozborZpravy(text, znamo = {}, { priBlokuLokalne = false }
   const z = { ...znamo, jmeno: znamo.jmeno || identita.jmeno, prijmeni: znamo.prijmeni || identita.prijmeni, rc: znamo.rc || identita.rc,
     datumNarozeni: znamo.datumNarozeni || identita.datumNarozeni, adresa: znamo.adresa || identita.adresa, telefony: [...(znamo.telefony || []), ...(identita.telefon ? [identita.telefon] : [])] };
   const a = anonymizuj(text, z);
+  // 0.11.134: zpráva má hlavičku pacienta nebo rodné číslo, ale jméno z ní neznáme (ani z Karty) → nelze ověřit, že je skryté; do AI nic
+  if (!z.prijmeni && (new RegExp(`${RE_STITEK_RC}\\s*\\d{6}|(?<!\\d)\\d{6}\\s?\\/\\s?\\d{3,4}(?!\\d)`).test(text) || /Pacient(?:ka)?\s*:|Jméno a příjmení/i.test(text))) {
+    a.blokovano = true; a.zbytky = [...a.zbytky, 'jméno pacienta se z hlavičky zprávy nepodařilo přečíst'];
+  }
   if (a.blokovano && !priBlokuLokalne) {
     return { blokovano: true, duvod: 'Po anonymizaci v textu zůstalo něco, co vypadá jako identifikátor (' + a.zbytky.join(', ') + '). Dotaz na AI nebyl odeslán.', pocetNahrad: a.pocetNahrad, anonymniText: a.text, identita };
   }

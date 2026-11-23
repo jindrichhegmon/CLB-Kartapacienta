@@ -220,3 +220,32 @@ test('parenterální léky do Průkazu (0.11.132): ve snímku předání jen kdy
   const pd = { ...b(['X']), pecedoma: { propojeno: true, aktualizovano: '2026-11-19 10:00', sos: [], opioidy: [], medikace: [] } };
   assert.equal('parenteralni' in obsahPredani(pd).leky, false);
 });
+
+test('dekurz přes OCR (0.11.134): štítek „R.Čč.:“ apod. – identita se přečte, jméno se skryje i bez ní a bez jména nic do AI', async () => {
+  const { identitaZeZpravy } = await import('../src/identita.js');
+  const { anonymizuj } = await import('../src/anonym.js');
+  const { rozborZpravy } = await import('../src/ai.js');
+  // stejná podoba jako text z OCR obrázkového dekurzu (Medistar → Tisk dekurzu → Microsoft Print to PDF), smyšlené údaje
+  const t = 'Centrum pro léčbu bolesti a paliativní medicínu s.r.o. IČO: 02570459, Ambulance léčby bolesti\n'
+    + 'Jana Testovací R.Čč.: 455101/1234 ZP: 111\nTrvalá adresa: Polní 12, 760 01 Zlín TEL: 603111222\nPřechodná adresa:\n'
+    + '01.07.2026 15:01 M54.59 ALB\nDg.: M54.59 Bolesti dolní části zad; lokalizace NS\nRp. 1x MAGNOSOLV 365mg por gra sol scc 30 Dávkování: 1-0-0\nIng. Petr Lékařský';
+  for (const s of ['R.Čč.:', 'R.C.:', 'Rč:', 'R. č,:', 'R.č.', 'RČ:']) {
+    const o = identitaZeZpravy(t.replace('R.Čč.:', s));
+    assert.deepEqual([o.jmeno, o.prijmeni, o.rc, o.pojistovna, o.telefon, o.adresa], ['Jana', 'Testovací', '455101/1234', '111', '603111222', 'Polní 12, 760 01 Zlín'], s);
+  }
+  // záchranná síť: i bez identity je jméno z hlavičky pryč
+  const a = anonymizuj(t, {});
+  assert.doesNotMatch(a.text, /Testovac|Jana/);
+  assert.match(a.text, /^\[PACIENT\] R\.Čč\.:/m);
+  // hlavička je, jméno se přečíst nepodaří → do AI nic, rozbor jen lokálně
+  const r = await rozborZpravy(t.replace('Jana Testovací R.Čč.:', 'J4na T3st R?:'), {}, { priBlokuLokalne: true });
+  assert.equal(r.zdroj, 'lokalne');
+  assert.equal(r.aiBlokovano, true);
+  const b = await rozborZpravy(t.replace('Jana Testovací R.Čč.:', 'J4na T3st R?:'), {});
+  assert.equal(b.blokovano, true);
+  assert.match(b.duvod, /nepodařilo přečíst/);
+  // s přečtenou identitou jde rozbor dál a jméno se do výsledku doplní ze serveru
+  const ok = await rozborZpravy(t, {}, { priBlokuLokalne: true });
+  assert.equal(ok.vysledek.jmenoCele, 'Jana Testovací');
+  assert.doesNotMatch(ok.anonymniText, /Testovac|455101|603111222|Polní/);
+});

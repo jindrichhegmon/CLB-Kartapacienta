@@ -12,6 +12,7 @@
  * příbuzní + jméno, „Pacient: …“), 3) kontrola výsledku. Rok narození se převede na věkové rozmezí.
  */
 
+import { RE_STITEK_RC } from './identita.js';
 const VELKE = 'A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ';
 const MALE = 'a-záčďéěíňóřšťúůýž';
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -123,6 +124,9 @@ export function anonymizuj(text, znamo = {}) {
   }
 
   // 2) vzory
+  // 0.11.134: hlavička Medistaru „Jméno Příjmení  R.č.: 123456/7890“ – text před štítkem rodného čísla je vždy pacient,
+  // skryje se i tehdy, když se identitu z hlavičky nepodařilo přečíst (OCR)
+  nahradRe(new RegExp(`^([ \\t]*)([^\\n\\[\\]]*?[${VELKE}][^\\n\\[\\]]*?)(?=[ \\t]+${RE_STITEK_RC}[ \\t]*(?:\\d{6}|\\[RC))`, 'gm'), 'PACIENT', 2);
   nahradRe(RE_PACIENT, 'PACIENT', 2);
   t = t.replace(RE_NAR, (_, a, rok) => { nahrad++; return `${a} [${vekoveRozmezi(rok)}]`; });
   nahradRe(RE_TITUL, 'LEKAR', 2);

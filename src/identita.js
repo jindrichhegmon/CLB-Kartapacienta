@@ -6,7 +6,12 @@
  * Zpráva z Medistaru:  „ING. Silvia Charuzová   R.č.: 346231/434   ZP: 111“
  *                      „Trvalá adresa: Bartošová 41, 760 01 Zlín   TEL: 603447327“
  * Propouštěcí zpráva:  „Pacient: Jan NOVÁK, nar. 3. 5. 1944“
+ *
+ * 0.11.134: obrázkové PDF (Tisk dekurzu → Microsoft Print to PDF) se čte přes OCR a to štítek „R.č.:“ čte různě –
+ * „R.Čč.:“, „R.C.“, „Rč:“, „R. č,:“ – štítek proto toleruje zdvojené č, čárku i chybějící dvojtečku.
  */
+/** štítek rodného čísla v hlavičce Medistaru včetně podob z OCR (sdílí ho i anonymizace) */
+export const RE_STITEK_RC = 'R[ \\t]?\\.?[ \\t]?[čcČC]{1,2}[ \\t]?[.,]?[ \\t]*[:;]?';
 const VELKE = 'A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ';
 const TITUL = /^(?:ing|mudr|mddr|mvdr|judr|rndr|phdr|paeddr|thdr|pharmdr|thlic|mgr|mga|bc|bca|doc|prof|dr|dis|ph\.?d|csc|drsc|mba|llm|arch|pan|paní|pani|sl)\.?,?$/i;
 const hezky = (s) => (s === s.toUpperCase() && s.length > 1 ? s.charAt(0) + s.slice(1).toLowerCase() : s);
@@ -40,7 +45,7 @@ export function identitaZeZpravy(text) {
   const t = String(text || ''), radky = t.split('\n').map((l) => l.trim());
   const o = {};
   // 1) řádek s rodným číslem (hlavička Medistaru)
-  const reRc = new RegExp(`^(.{0,80}?)\\s*R\\.?\\s?[čcČC]\\.?\\s*:\\s*(\\d{6})\\s?\\/?\\s?(\\d{3,4})(?!\\d)(.*)$`);
+  const reRc = new RegExp(`^(.{0,80}?)\\s*${RE_STITEK_RC}\\s*(\\d{6})\\s?\\/?\\s?(\\d{3,4})(?!\\d)(.*)$`);
   const i = radky.findIndex((l) => reRc.test(l));
   if (i >= 0) {
     const m = radky[i].match(reRc);
