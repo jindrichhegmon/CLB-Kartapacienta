@@ -1021,7 +1021,7 @@ function navrhZRozboru(r, dok) {
   const kont = (v.kontakty || []).filter((k) => k.tel && !(d.kontakty || []).some((x) => String(x.tel || '').replace(/\D/g, '').slice(-9) === String(k.tel).replace(/\D/g, '').slice(-9)));
   modal(`<h2>Doplnit údaje ze zprávy</h2>
     <p class="muted" style="margin:0">„${esc(r.dokument ? r.dokument.nazev : dok.nazev)}“ · ${r.ocr ? `<b>text rozpoznán z obrázku${r.stran ? ` (${r.stran} str.)` : ''} – zkontrolujte čísla a dávky</b> · ` : ''}${r.zdroj === 'ai' ? 'rozbor AI' : 'lokální rozbor (AI na serveru není zapnutá)'} · ${r.pocetNahrad || 0} údajů anonymizováno. Zkontrolujte návrh – zaškrtnuté se uloží jako <b>nová verze plánu péče</b> (předchozí zůstává v historii)${pd ? ', léky do PéčeDoma' : ''}.</p>
-    ${(v.chybi || []).length ? `<details><summary class="muted" style="cursor:pointer;font-size:13px">Upozornění z rozboru (${v.chybi.length})</summary><ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+    ${(v.chybi || []).length ? `<details><summary class="muted" style="cursor:pointer;font-size:13px">Co zpráva neuvádí (${v.chybi.length})</summary><ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
     <div class="navrh-seznam">${pole.map(radek).join('')}${sekceNl}</div>
     ${kont.length ? `<div class="navrh-pole"><b>Nové kontakty ze zprávy</b>${kont.map((k, i) => `<label class="row" style="gap:8px"><input type="checkbox" data-np-kont="${i}" ${muze ? '' : 'disabled'}> ${esc(k.jmeno)} · ${esc(k.tel)}</label>`).join('')}</div>` : ''}
     <details><summary class="muted" style="cursor:pointer;font-size:13px">Co přesně odešlo k rozboru (anonymizovaný text)</summary><div class="anon" style="margin-top:6px">${esc(r.anonymniText || '')}</div></details>
@@ -1783,9 +1783,9 @@ function renderNovy() {
           <label class="row" style="gap:8px"><input type="checkbox" id="n_dok_pp" ${w.soubor.proPacienta ? 'checked' : ''}> <span><b>Předat pacientovi do Průkazu pacienta</b></span></label>
           ${nactenoZeZpravyHTML(w)}</div></div>` : !w.ai && !w.import ? `<div class="panel"><div class="panel-h"><h2>Máte dekurz nebo lékařskou zprávu?</h2></div><div class="form" style="padding:14px">
           ${zonaZpravyHTML('n_zprava', 'Načíst údaje z dekurzu nebo zprávy…', 'nejlépe dekurz z Medistaru v PDF (má jméno a rodné číslo) – formulář se předvyplní a zkontrolujete ho')}</div></div>` : ''}
-      ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>${w.ai.zdroj === 'ai' ? 'Rozbor AI' : 'Lokální rozbor'} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
-        ${(v.chybi || []).length ? `<div><b style="font-size:13.5px">Chybí nebo ověřit:</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-        ${v.citace && v.citace.cil ? `<div class="ex"><div class="item"><div class="k">Cíl a limitace podle zprávy</div><div class="q">„${esc(v.citace.cil)}“</div></div></div>` : ''}
+      ${w.ai ? `<div class="ai"><h3><span class="spark">AI</span>Přepis ze zprávy – ke kontrole${w.ai.zdroj === 'ai' ? ' (AI)' : ''} · ${w.ai.pocetNahrad} údajů anonymizováno</h3>
+        ${(v.chybi || []).length ? `<div><b style="font-size:13.5px">Zpráva neuvádí (doplňte):</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${v.chybi.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+        ${v.citace && v.citace.cil ? `<div class="ex"><div class="item"><div class="k">Cíl a limitace – doslovně ze zprávy</div><div class="q">„${esc(v.citace.cil)}“</div></div></div>` : ''}
         <details><summary class="muted" style="cursor:pointer;font-size:13px">Co přesně odešlo k AI (anonymizovaný text)</summary><div class="anon" style="margin-top:8px">${esc(w.ai.anonymniText)}</div></details></div>`
       : w.import ? `<div class="ai"><h3>Načteno z ${esc(w.import.zdroj)}${w.import.vytvoreno ? ' · ' + esc(fmtDT(w.import.vytvoreno.replace('T', ' ').slice(0, 16))) : ''}</h3>
         <div><b style="font-size:13.5px">Zkontrolovat a doplnit:</b><ul class="missing" style="margin:6px 0 0;padding-left:18px;font-size:13.5px">${['číslo telefonu s kartou (předvyplněný je telefon klienta z PéčeDoma)'].concat(w.import.cilVychozi ? ['cíl péče a limitace – předvyplněné výchozí hodnoty, potvrďte nebo upravte'] : [], w.import.doplnit.filter((x) => !(w.import.cilVychozi && /^(cíl péče|limitace)/i.test(x)))).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
@@ -1806,6 +1806,7 @@ function renderNovy() {
   // 0.11.36: Uložit = založit a otevřít průkaz; Uložit a další = založit a rovnou prázdný formulář pro dalšího pacienta (hromadný ruční zápis)
   const zaloz = async (dalsi) => {
     ulozVse();
+    if (!w.d.plan.cil) { toast('Zvolte cíl péče – zpráva ho výslovně neuvádí, rozhoduje lékař'); const c = $('f_cil'); if (c) c.focus(); return; }   // 0.11.139: bez výchozího cíle
     $('n_ok').disabled = true; $('n_dalsi').disabled = true;
     const garant = S.jednoduchy ? S.ja.poskytovatelId : Number($('n_g').value), tym = S.jednoduchy ? [] : [...$('n_t').selectedOptions].map((o) => Number(o.value));
     try {
