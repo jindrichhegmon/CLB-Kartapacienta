@@ -644,7 +644,8 @@ function tabLeky(d) {
     </div>
     <div style="display:grid;gap:12px;align-content:start">
       ${ro ? '' : `<div class="panel"><div class="panel-h"><h2>Upravit léky</h2><span class="chip acc">nová verze plánu</span></div><div class="form" style="padding:14px">
-        ${KP.SKUPINY_PLANU.map(([klic, nazev, barva, zkr]) => `<div class="field lkpole ${barva}"><label>${nazev} (řádek = lék)</label><textarea id="lk_${zkr}" style="font-family:var(--font);min-height:${klic === 'medikace' ? 90 : 60}px">${esc((p[klic] || []).join('\n'))}</textarea><input class="sukl-pridat" data-cil="lk_${zkr}" placeholder="+ přidat lék ze seznamu SÚKL – začněte psát název"></div>`).join('')}
+        ${KP.SKUPINY_PLANU.map(([klic, nazev, barva, zkr]) => `<div class="field lkpole ${barva}"><label>${nazev} (řádek = lék)</label><textarea id="lk_${zkr}" style="font-family:var(--font);min-height:${klic === 'medikace' ? 90 : 60}px" placeholder="začněte psát název léku – nabídne se ze seznamu SÚKL">${esc((p[klic] || []).join('\n'))}</textarea></div>`).join('')}
+        <span class="hint">Při psaní názvu se nabízejí léky ze seznamu SÚKL (šipky a Enter, nebo klepnout); dávkování napište za název.</span>
         <label class="row" style="gap:8px"><input type="checkbox" id="lk_ter" ${p.terapieNaKarte ? 'checked' : ''}> Na krizové kartě ukazovat i <b>paliativní terapii</b></label>
         <div class="quick"><button class="btn primary ulozit" id="lk_ok">Uložit</button><button class="btn" data-np type="button">📱 Živý náhled karty</button></div></div></div>`}
       <div class="note">${amb ? 'Pacient ambulance – není v PéčeDoma, je zapsaný kvůli Průkazu pacienta. Léky se vedou tady, ve stejných skupinách jako v PéčeDoma; uložení vytvoří novou verzi plánu péče. Do Průkazu pacienta jdou všechny čtyři skupiny včetně Parenterálně (potřebuje Průkaz pacienta 0.26.1 nebo novější); na krizové kartě jsou SOS léky a opioidy, paliativní terapie podle zaškrtnutí. Když pacient přejde do domácí péče, propojte ho s PéčeDoma (Detail pacienta → PéčeDoma) a léky budou společné.' : 'Pacient není propojený s PéčeDoma, léky jsou součástí plánu péče – uložení vytvoří novou verzi plánu s podpisem lékaře. Po propojení s PéčeDoma (Údaje → PéčeDoma) budou léky jedny pro portál i Kartu.'}</div>
@@ -1115,12 +1116,8 @@ function bindTab() {
   on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Plán péče zůstává.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
   on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
   on('dg_ok', async () => { const base = (d.plan && d.plan.data) || {}; await akce('/plan', { data: { ...base, dg: $('dg_dg').value, funkce: $('dg_fun').value, alergie: $('dg_al').value }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava diagnózy / funkčního stavu' }, 'Uloženo jako nová verze plánu'); });
-  // 0.11.124: řádek léku ze seznamu SÚKL do textového pole (dávkování se dopíše za název)
-  document.querySelectorAll('input.sukl-pridat').forEach((inp) => KP.suklNaseptavac(inp, hledatSukl, null, (p) => {
-    const ta = $(inp.dataset.cil); if (!ta) return;
-    ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' : '') + p.text + ' ';
-    inp.value = ''; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-  }));
+  // 0.11.136: našeptávač SÚKL přímo v polích léků (dřív samostatné pole „+ přidat lék ze seznamu SÚKL“ pod každým, 0.11.124)
+  KP.SKUPINY_PLANU.forEach(([, , , zkr]) => KP.suklRadky($('lk_' + zkr), hledatSukl));
   on('lk_ok', async () => { const base = (d.plan && d.plan.data) || {}; const r = (id) => $(id).value.split('\n').map((x) => x.trim()).filter(Boolean); await akce('/plan', { data: { ...base, sos: r('lk_sos'), opioidy: r('lk_opi'), medikace: r('lk_med'), ...($('lk_par') ? { parenteralni: r('lk_par') } : {}), terapieNaKarte: $('lk_ter').checked }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava léků' }, 'Léky uloženy jako nová verze plánu'); });
   on('lk_novy', () => lekOkno(d));
   if ($('lk_seznam')) nactiLeky(d);
@@ -1802,7 +1799,7 @@ function renderNovy() {
     if (w.soubor && $('n_dok_ul')) { w.soubor.ulozit = $('n_dok_ul').checked; w.soubor.proPacienta = $('n_dok_pp').checked; w.soubor.nazev = $('n_dok_n').value.trim() || w.soubor.soubor; } };
   bindZonaZpravy('n_zprava');
   document.querySelectorAll('[data-exist]').forEach((b) => (b.onclick = () => { S.wiz = null; otevri(Number(b.dataset.exist), 'dok'); }));
-  KP.bindPlanForm('f', { hledatDg: hledatDiagnozy });
+  KP.bindPlanForm('f', { hledatDg: hledatDiagnozy, hledatLek: hledatSukl });
   $('n_kplus').onclick = () => { ulozVse(); w.d.kontakty.push({ jmeno: '', tel: '', skupina: 'INFORMOVAT' }); renderNovy(); };
   document.querySelectorAll('[data-kx]').forEach((b) => (b.onclick = () => { ulozVse(); w.d.kontakty.splice(Number(b.dataset.kx), 1); renderNovy(); }));
   $('n_zpet').onclick = () => { ulozVse(); w.krok = 1; renderNovy(); };

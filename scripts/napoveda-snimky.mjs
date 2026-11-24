@@ -568,6 +568,14 @@ await p.evaluate(() => KP.closeModal());
 await p.setInputFiles('#w_json', { name: 'karta-pacienta-vzorova.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(pecedomaJson)) });
 await p.waitForSelector('#n_tk', { timeout: 8000 }).catch(async (e) => { console.error('toast:', await p.textContent('#toast').catch(() => '')); throw e; }); await p.waitForTimeout(3500); // toast zmizí
 await foto(p, 'c-novy-2', { vyska: 1100 });
+{ // 0.11.136: nový pacient – při psaní léku v poli se nabízí seznam SÚKL, šipka + Enter vybere
+  await p.click('#f_med'); await p.keyboard.press('Control+End'); await p.keyboard.type('\nMST');
+  const nab = await p.waitForSelector('#f_med ~ .sukl-nab button', { timeout: 4000 }).catch(() => null);
+  if (!nab) chyby.push('nový pacient: v poli Paliativní terapie se při psaní nenabízí seznam SÚKL');
+  else { await p.keyboard.press('ArrowDown'); await p.keyboard.press('Enter'); await p.waitForTimeout(150);
+    const radky = (await p.inputValue('#f_med')).split('\n');
+    if (radky[radky.length - 1] !== 'MST CONTINUS 30MG ') chyby.push('nový pacient: výběr ze seznamu SÚKL nenahradil rozepsaný řádek: ' + radky[radky.length - 1]);
+    if (await p.isVisible('#f_med ~ .sukl-nab')) chyby.push('nový pacient: nabídka SÚKL po výběru nezmizela'); } }
 await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on');
 const zalozka = async (t, jmeno, o) => { await klik(p, `.tabs [data-t="${t}"]`); await p.waitForTimeout(200); await foto(p, jmeno, o); };
 await zalozka('dg', 'c-dg', { vyska: 900 });
@@ -580,7 +588,17 @@ await zalozka('dg', 'c-dg', { vyska: 900 });
   const pole = await p.$$eval('#work textarea[id^="lk_"]', (e) => e.map((x) => x.id));
   if (pole.join('|') !== 'lk_par|lk_sos|lk_opi|lk_med') chyby.push('léky ambulance: pole formuláře nejsou ve stejném pořadí: ' + pole.join('|'));
   if (!(await p.textContent('#work')).includes('Ambulance')) chyby.push('léky ambulance: v hlavičce chybí štítek Ambulance');
+  // 0.11.136: našeptávač SÚKL přímo v poli léků (samostatné pole „+ přidat lék ze seznamu SÚKL“ zrušené)
+  if (await p.$('input.sukl-pridat')) chyby.push('léky ambulance: zůstalo staré pole „+ přidat lék ze seznamu SÚKL“');
+  await p.click('#lk_sos'); await p.keyboard.press('Control+End'); await p.keyboard.type('\nPara');
+  if (!(await p.waitForSelector('#lk_sos ~ .sukl-nab button', { timeout: 4000 }).catch(() => null))) chyby.push('léky ambulance: v poli SOS léky se při psaní nenabízí seznam SÚKL');
   await p.waitForTimeout(200); await foto(p, 'c-leky-ambulance', { vyska: 1000 });
+  if (await p.$('#lk_sos ~ .sukl-nab button')) {
+    await p.click('#lk_sos ~ .sukl-nab button'); await p.waitForTimeout(150);
+    const r = (await p.inputValue('#lk_sos')).split('\n');
+    if (r[r.length - 1] !== 'PARALEN 500MG ') chyby.push('léky ambulance: klepnutí na lék ze SÚKL nenahradilo rozepsaný řádek: ' + r[r.length - 1]);
+    await p.keyboard.type('1 tbl při bolesti'); await p.waitForTimeout(400);
+    if (await p.isVisible('#lk_sos ~ .sukl-nab')) chyby.push('léky ambulance: nabídka SÚKL se ukazuje i při psaní dávkování'); }
   await p.evaluate(() => fetch('/__mock/ambulance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: false }) }));
   await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on'); }
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });

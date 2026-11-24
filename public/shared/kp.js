@@ -158,7 +158,7 @@
       ${ro ? '' : `<div class="dg-hledat"><input id="${pref}_dgq" placeholder="Přidat diagnózu z číselníku – kód (C50) nebo název" autocomplete="off"><div id="${pref}_dgn" class="dg-nab" hidden></div></div><span class="hint">Ke kódům diagnóz se na kartě doplní popis z číselníku (např. C50 – Zhoubný novotvar prsu).</span>`}</div>
     <div class="field"><label>Obvyklý funkční stav</label><textarea id="${pref}_fun" style="font-family:var(--font);min-height:60px">${e(data.funkce || '')}</textarea></div>
     <div class="frow"><div class="field"><label>Alergie</label><input id="${pref}_al" value="${e(data.alergie || '')}"></div><div class="field"><label>Platnost plánu do</label><input type="date" id="${pref}_plat" value="${e(platnost || '')}"></div></div>
-    ${leky ? KP.SKUPINY_PLANU.map(([klic, nazev, barva, zkr]) => `<div class="field lkpole ${barva}"><label>${nazev} (řádek = lék)</label><textarea id="${pref}_${zkr}" style="font-family:var(--font);min-height:${klic === 'medikace' ? 90 : 60}px">${e((data[klic] || []).join('\n'))}</textarea></div>`).join('') : ''}
+    ${leky ? KP.SKUPINY_PLANU.map(([klic, nazev, barva, zkr]) => `<div class="field lkpole ${barva}"><label>${nazev} (řádek = lék)</label><textarea id="${pref}_${zkr}" style="font-family:var(--font);min-height:${klic === 'medikace' ? 90 : 60}px" placeholder="začněte psát název léku – nabídne se ze seznamu SÚKL">${e((data[klic] || []).join('\n'))}</textarea></div>`).join('') : ''}
     <label class="row" style="gap:8px"><input type="checkbox" id="${pref}_ter" ${data.terapieNaKarte ? 'checked' : ''}> Na krizové kartě ukazovat i <b>paliativní terapii</b> (jinak jen opioidy a SOS medikaci)</label>
   </div>`;
   };
@@ -175,11 +175,12 @@
       terapieNaKarte: $(`${pref}_ter`) ? $(`${pref}_ter`).checked : !!base.terapieNaKarte }, platnostDo: v('plat') };
   };
   /* 0.11.92: oživení formuláře plánu – přepínání DVP části a našeptávač diagnóz (hledat(q) → Promise<{diagnozy}>) */
-  KP.bindPlanForm = (pref = 'f', { hledatDg } = {}) => {
+  KP.bindPlanForm = (pref = 'f', { hledatDg, hledatLek } = {}) => {
     const $ = (id) => document.getElementById(id);
     const sek = $(`${pref}_dvpsek`);
     document.querySelectorAll(`input[name=${pref}_kpr]`).forEach((r) => r.addEventListener('change', () => { if (sek) sek.hidden = r.value !== 'dvp' || !r.checked; }));
     if (hledatDg) KP.dgNaseptavac($(`${pref}_dgq`), $(`${pref}_dgn`), $(`${pref}_dg`), hledatDg);
+    if (hledatLek) KP.SKUPINY_PLANU.forEach(([, , , zkr]) => KP.suklRadky($(`${pref}_${zkr}`), hledatLek));   // 0.11.136
   };
   KP.dgNaseptavac = (vstup, nabidka, cil, hledatDg) => {
     if (!vstup || !nabidka || !cil) return;
@@ -320,6 +321,57 @@
       onVyber(p);
     });
     input.addEventListener('blur', () => setTimeout(() => { box.hidden = true; }, 150));
+  };
+  /* 0.11.136: našeptávač SÚKL přímo v textovém poli léků (řádek = lék), jako v Průkazu pacienta: při psaní názvu na konci řádku nabídne
+     léky ze seznamu SÚKL, výběr nahradí rozepsaný řádek názvem a silou a dávkování se dopíše za něj. Šipky a Enter vyberou, Esc zavře.
+     Na řádku, který už lék ze seznamu má nebo nese dávkování (1-0-1), se nenabízí. hledat(q) → Promise<{leky:[{kod,text,forma}]}> */
+  KP.suklRadky = (ta, hledat) => {
+    if (!ta || !hledat || ta.dataset.sukl) return;
+    ta.dataset.sukl = '1';
+    const e = KP.esc, box = document.createElement('div'); box.className = 'dg-nab sukl-nab'; box.hidden = true;
+    const obal = document.createElement('div'); obal.className = 'dg-hledat'; obal.style.marginTop = '0';
+    ta.parentNode.insertBefore(obal, ta); obal.appendChild(ta); obal.appendChild(box);
+    let cas = null, v = [], vyb = -1, radek = null;
+    const vybrane = new Set();
+    const zavri = () => { box.hidden = true; v = []; vyb = -1; };
+    const aktualni = () => {
+      const pos = ta.selectionStart; if (pos == null || pos !== ta.selectionEnd) return null;
+      const od = ta.value.lastIndexOf('\n', pos - 1) + 1; let konec = ta.value.indexOf('\n', pos); if (konec < 0) konec = ta.value.length;
+      if (ta.value.slice(pos, konec).trim()) return null;   // kurzor uprostřed rozepsaného řádku
+      return { od, konec, q: ta.value.slice(od, pos).trim() };
+    };
+    const ukaz = () => {
+      box.innerHTML = v.map((p, i) => `<button type="button" data-i="${i}" class="${i === vyb ? 'on' : ''}"><b>${e(p.text)}</b><span class="lbl" style="display:block">${e(p.forma || '')}${p.kod ? ' · SÚKL ' + e(p.kod) : ''}</span></button>`).join('');
+      box.hidden = !v.length;
+      const b = box.querySelector('button.on'); if (b) b.scrollIntoView({ block: 'nearest' });
+    };
+    const vyber = (p) => {
+      if (!radek || !p) return;
+      const t = p.text + ' ';
+      ta.value = ta.value.slice(0, radek.od) + t + ta.value.slice(radek.konec);
+      const k = radek.od + t.length; vybrane.add(p.text); zavri();
+      ta.focus(); ta.setSelectionRange(k, k);
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    ta.addEventListener('input', () => {
+      clearTimeout(cas);
+      const r = aktualni();
+      if (!r || r.q.length < 3 || r.q.length > 40 || /\d\s*-\s*\d\s*-\s*\d/.test(r.q) || [...vybrane].some((t) => r.q.startsWith(t))) return zavri();
+      cas = setTimeout(async () => {
+        let w; try { w = (await hledat(r.q)).leky || []; } catch { w = []; }
+        const r2 = aktualni(); if (!r2 || r2.q !== r.q || document.activeElement !== ta) return;
+        radek = r2; v = w.slice(0, 8); vyb = -1; ukaz();
+      }, 200);
+    });
+    ta.addEventListener('keydown', (ev) => {
+      if (box.hidden || !v.length) return;
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); vyb = (vyb + (ev.key === 'ArrowDown' ? 1 : -1) + v.length) % v.length; ukaz(); }
+      else if (ev.key === 'Enter' && vyb >= 0) { ev.preventDefault(); vyber(v[vyb]); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); zavri(); }
+    });
+    box.addEventListener('mousedown', (ev) => ev.preventDefault());
+    box.addEventListener('click', (ev) => { const b = ev.target.closest('button[data-i]'); if (b) vyber(v[Number(b.dataset.i)]); });
+    ta.addEventListener('blur', () => setTimeout(zavri, 150));
   };
   KP.lekOkno = (l, ulozit, { hledatLek = null } = {}) => {
     const e = KP.esc, $ = (id) => document.getElementById(id);
