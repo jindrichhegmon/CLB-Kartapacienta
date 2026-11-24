@@ -19,16 +19,16 @@
 <body>
 <main>
   <h1>Karta pacienta on-line – ochrana osobních údajů</h1>
-  <div class="sub">Paliativní průkaz a krizová karta pacienta · centrální aplikace, telefon u pacienta a aplikace Karta pacienta pro domácnost (Můj průkaz) · platné od 29. 10. 2026</div>
+  <div class="sub">Paliativní průkaz a krizová karta pacienta · centrální aplikace a zapůjčený telefon u pacienta · platné od 24. 11. 2026</div>
 
   <section>
     <h2>K čemu Karta pacienta slouží</h2>
-    <p>Karta pacienta on-line vede paliativní průkaz pacienta v domácí péči: cíl péče a jeho limity, dříve vyslovené přání, záchranné léky, koho volat, plán péče od lékaře, deník péče a zprávy s pečujícím týmem. Používají ji zdravotníci poskytovatele domácí paliativní péče (centrální aplikace a zapůjčený telefon u pacienta) a pacient nebo jeho rodina ve vlastním telefonu (aplikace <b>Karta pacienta pro domácnost</b>, v aplikaci označená jako <b>Můj průkaz</b>).</p>
+    <p>Karta pacienta on-line vede paliativní průkaz pacienta v domácí péči: cíl péče a jeho limity, dříve vyslovené přání, záchranné léky, koho volat, plán péče od lékaře, deník péče a zprávy s pečujícím týmem. Používají ji zdravotníci poskytovatele domácí paliativní péče (centrální aplikace a zapůjčený telefon u pacienta) Pacient si může údaje od lékaře zkopírovat do vlastního telefonu v samostatné aplikaci <b>Průkaz pacienta</b>, která má vlastní zásady ochrany soukromí.</p>
   </section>
 
   <section>
     <h2>Kdo údaje spravuje</h2>
-    <p>Správcem osobních údajů pacientů je vždy <b>poskytovatel péče</b>, který průkaz založil (garant uvedený na kartě). Provozovatelem aplikace je Centrum pro léčbu bolesti a paliativní medicínu s.r.o., Zlín, které údaje zpracovává jménem poskytovatele a podle jeho pokynů. Dotazy a žádosti týkající se údajů vyřizuje poskytovatel; kontakt na provozovatele je níže.</p>
+    <p>Správcem osobních údajů pacientů je vždy <b>poskytovatel péče</b>, který průkaz založil (garant uvedený na kartě). Provozovatelem aplikace a serverů je <b>DATEC-Consulting a.s.</b>, IČO 25507281, Křivoklát 31, 270 23 Křivoklát, která údaje zpracovává jménem poskytovatele a podle jeho pokynů na základě smlouvy o zpracování osobních údajů. Dotazy a žádosti týkající se údajů vyřizuje poskytovatel; kontakt na provozovatele je níže.</p>
   </section>
 
   <section>
@@ -42,20 +42,19 @@
   </section>
 
   <section>
-    <h2>Aplikace Karta pacienta pro domácnost (Můj průkaz)</h2>
+    <h2>Zapůjčený telefon a aplikace Průkaz pacienta</h2>
     <ul>
-      <li>Aplikace je obal webové stránky Můj průkaz. Spáruje se kódem průkazu, který vydá poskytovatel; bez kódu neukazuje nic.</li>
-      <li>Průkaz je uložen <b>šifrovaně v telefonu</b>, aby byl k dispozici i bez signálu. Záznamy, které pacient nebo rodina zapíší (přání, poznámky, otázky, podání léků, zprávy), se předávají týmu poskytovatele na server Karty.</li>
-      <li>Do telefonu pacienta se nikdy nepřenáší deník týmu ani přístupové PINy zdravotníků.</li>
-      <li>Fotoaparát se používá jen k načtení kódu průkazu, fotoaparát a mikrofon k videohovoru s týmem; obojí jen po udělení oprávnění a jen v okamžiku použití. Videohovor vede vlastní server poskytovatele (Jitsi Meet), hovory se nenahrávají.</li>
-      <li>Údaje z telefonu smažete v aplikaci volbou <b>Odebrat průkaz</b> (nebo odinstalováním aplikace). Výmaz údajů na serveru zajišťuje poskytovatel uzavřením průkazu podle svých lhůt pro zdravotnickou dokumentaci.</li>
+      <li>Zapůjčený telefon u pacienta ukazuje bez PINu jen krizovou kartu; celý průkaz po zadání PINu. Údaje jsou v telefonu uložené šifrovaně, aby byly k dispozici i bez signálu. Po uzavření průkazu se telefon zablokuje a údaje se z něj při dalším připojení smažou.</li>
+      <li>Do telefonu u pacienta ani do aplikace Průkaz pacienta se nikdy nepřenáší deník týmu ani přístupové PINy zdravotníků.</li>
+      <li>Aplikace Průkaz pacienta si na pokyn pacienta údaje z Karty jednosměrně zkopíruje; do Karty nic neposílá. Záznamy, které dříve zapsal pacient nebo rodina v zrušené aplikaci Můj průkaz, zůstávají u průkazu v Kartě.</li>
+      <li>Výmaz údajů na serveru zajišťuje poskytovatel uzavřením průkazu podle svých lhůt pro zdravotnickou dokumentaci.</li>
     </ul>
   </section>
 
   <section>
     <h2>Kde jsou data uložena a jak jsou chráněna</h2>
     <ul>
-      <li>Server a databáze běží na serverech provozovatele v EU; údaje každého poskytovatele jsou v databázi oddělené.</li>
+      <li>Aplikace běží na serveru, který provozovatel pronajímá u společnosti Hetzner Online GmbH v Helsinkách (Finsko, EU). Databáze je u společnosti O2 Czech Republic a.s. v České republice. Data jsou šifrovaná a denně zálohovaná; údaje každého poskytovatele jsou v databázi oddělené.</li>
       <li>Komunikace probíhá šifrovaně (HTTPS). Přístup mají jen přihlášení uživatelé poskytovatele podle svých rolí, pacient a rodina jen k vlastnímu průkazu po spárování.</li>
       <li>Každý přístup k průkazu se zaznamenává; deník a záznamy jde jen doplňovat, ne mazat ani přepisovat.</li>
       <li>Pomocné funkce s umělou inteligencí (rozbor textu zprávy) dostávají text <b>bez identity pacienta</b> – jména, rodná čísla, adresy a telefony se před odesláním nahradí zástupnými údaji.</li>
@@ -64,7 +63,7 @@
 
   <section>
     <h2>Komu údaje předáváme</h2>
-    <p>Nikomu mimo poskytovatele péče a jeho tým. Údaje neprodáváme ani nepoužíváme k reklamě. Subdodavatelem je jen provozovatel serverů (hosting v EU), vázaný smlouvou o zpracování.</p>
+    <p>Nikomu mimo poskytovatele péče a jeho tým. Údaje neprodáváme ani nepoužíváme k reklamě. Provozovatel využívá tyto subdodavatele, vázané smluvními podmínkami o zpracování: Hetzner Online GmbH (server, Finsko, EU), O2 Czech Republic a.s. (databáze, ČR), Twilio Inc. (odeslání SMS s kódem pro spárování telefonu) a Anthropic PBC (rozbor textu zprávy, jen text bez identity pacienta). Netlify, Inc. hostuje webovou část aplikace Průkaz pacienta, která údaje pacienta neukládá.</p>
   </section>
 
   <section>
@@ -74,7 +73,7 @@
 
   <section>
     <h2>Kontakt</h2>
-    <p>Centrum pro léčbu bolesti a paliativní medicínu s.r.o., Zlín · <a href="https://www.centrumlb.cz">www.centrumlb.cz</a> · e-mail: <a href="mailto:jindrich.hegmon@centrumlb.cz">jindrich.hegmon@centrumlb.cz</a></p>
+    <p>Provozovatel: DATEC-Consulting a.s., IČO 25507281, Křivoklát 31, 270 23 Křivoklát · <a href="https://www.dateccz.cz">www.dateccz.cz</a> · e-mail: <a href="mailto:jindrich.hegmon@centrumlb.cz">jindrich.hegmon@centrumlb.cz</a></p>
   </section>
 </main>
 </body>

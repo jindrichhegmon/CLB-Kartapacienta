@@ -3,6 +3,10 @@
  * Identita pacienta zůstává na serveru (mapa značek), AI dostane jen text se značkami a výsledek
  * se k pacientovi přiřadí zpět až tady. Bez ANTHROPIC_API_KEY běží lokální heuristika (stejný výstup).
  * AI nic nerozhoduje: předvyplní formulář a upozorní na chybějící údaje, lékař potvrdí.
+ * 0.11.139 (právní posouzení MDR 24. 11. 2026): rozbor je jen „přepis ze zprávy“ – opisuje údaje, které zpráva
+ * VÝSLOVNĚ uvádí, s citací věty; nic neodvozuje, nehodnotí a nedoporučuje. Cíl péče a limity jen z výslovné věty,
+ * jinak prázdné (žádná výchozí hodnota) a volí je lékař. „chybi“ = jen seznam nevyplněných polí formuláře.
+ * Každá nová funkce, která by z údajů pacienta něco odvozovala nebo doporučovala, se před nasazením posoudí (MDR).
  */
 import { config } from './config.js';
 import { anonymizuj, obnov } from './anonym.js';
@@ -10,7 +14,9 @@ import { identitaZeZpravy, RE_STITEK_RC } from './identita.js';
 
 const LIMITY = ['KPR', 'Umělá plicní ventilace', 'Hospitalizace', 'Antibiotika i.v.', 'Infuze / i.v. výživa', 'Sonda / PEG', 'Dialýza', 'Transfuze'];
 
-const POKYNY = `Jsi asistent paliativního lékaře. Z propouštěcí zprávy vytěž údaje pro krizový plán péče.
+const POLE_FORMULARE = ['Diagnózy', 'Alergie', 'Medikace', 'SOS medikace', 'Funkční stav', 'Cíl péče', 'Dříve vyslovené přání', 'Osoba pro zástupné rozhodování', 'Kontakty'];
+
+const POKYNY = `Jsi přepisovatel lékařské zprávy. Údaje, které zpráva VÝSLOVNĚ uvádí, opiš do polí formuláře plánu péče. Nic neodvozuj, nehodnoť, nedoplňuj a nic nedoporučuj; o obsahu plánu péče rozhoduje lékař.
 Text je anonymizovaný: osoby, data a telefony jsou nahrazeny značkami v hranatých závorkách ([PACIENT], [OSOBA_1], [TELEFON_1], [DATUM_1]…). Značky ponech přesně tak, jak jsou – nedoplňuj ani nehádej skutečná jména.
 Vrať POUZE JSON bez komentáře v tomto tvaru:
 {"dg":"diagnózy jednou větou, oddělené středníkem",
@@ -21,15 +27,16 @@ Vrať POUZE JSON bez komentáře v tomto tvaru:
  "sos":["lék dávka cesta indikace", …],
  "funkce":"obvyklý funkční stav",
  "pobyt":"kam byl propuštěn",
- "cil":"symptom|limited|full",
+ "cil":"symptom|limited|full nebo '' (prázdné)",
  "limity":[podmnožina z ${JSON.stringify(LIMITY)}],
  "doklad":{"dvp":true|false,"datum":"[DATUM_n] nebo ''","zprava":"odkud plyne rozhodnutí"},
  "kontakty":[{"jmeno":"[OSOBA_n], vztah","tel":"[TELEFON_n]","skupina":"ROZHODUJE|INFORMOVAT|PECUJE"}],
- "chybi":["co ve zprávě chybí pro krizový plán (DVP, určená osoba, SOS léky, funkční stav, zápis o cílech péče…)"],
- "citace":{"cil":"věta ze zprávy, ze které plyne cíl a limitace"}}
+ "chybi":["název pole z ${JSON.stringify(POLE_FORMULARE)}, ke kterému zpráva nic neuvádí"],
+ "citace":{"cil":"doslovná věta ze zprávy, ve které je cíl péče nebo limitace výslovně uvedena, jinak ''"}}
 Léky hledej v celé zprávě: Ter. / Chronická terapie, Analgetická i Algeziologická terapie, SOS, a také řádky „Rp.“ (předepsané léky) – lék z Rp., který je v terapii pod jiným názvem (MATRIFEN = TTS fentanyl), neuváděj dvakrát. Do "opioidy" jen opioidy (fentanyl, morfin, oxykodon…), ostatní analgetika do "medikace".
-cil: symptom = jen úleva od obtíží; limited = léčba bez resuscitace a intenzivní péče; full = plná léčba.
-Limitaci uveď jen tehdy, když ji zpráva výslovně uvádí (nepřeje si resuscitaci → KPR, ventilátor → Umělá plicní ventilace, hospitalizace jen výjimečně → Hospitalizace).`;
+cil vyplň JEN tehdy, když zpráva cíl péče výslovně uvádí (např. „cíl péče: symptomatická léčba“ → symptom; „léčba bez resuscitace a intenzivní péče“ → limited; „plný rozsah léčby“ → full). Z diagnóz, prognózy, zmínky o paliativní péči ani z limitací cíl NEodvozuj – pak "cil":"".
+Limitaci uveď jen tehdy, když ji zpráva výslovně uvádí jako přání pacienta nebo rozhodnutí (nepřeje si resuscitaci / DNR → KPR, nepřeje si ventilátor → Umělá plicní ventilace, další hospitalizaci si nepřeje / jen výjimečně → Hospitalizace); samotná zmínka slova nestačí.
+Do "chybi" dávej jen názvy polí, ke kterým zpráva nic neuvádí – žádná doporučení, rady ani hodnocení.`;
 
 /* 0.11.138: při přetížení nebo dočasné chybě AI služby (429, 5xx, 529) jedno opakování po 3 s, než se přejde na rozbor podle pravidel */
 async function zavolejClaude(text) {
@@ -169,27 +176,35 @@ export function lokalniRozbor(t) {
     a.funkce = [pps ? `PPS ${pps} %` : '', ...[['Pohyblivost', 'pohyblivost'], ['Soběstačnost', 'soběstačnost'], ['Co pacient zvládne', 'zvládne']]
       .map(([n, k]) => { const v = pole(n); return v ? `${k}: ${male(v)}` : ''; })].filter(Boolean).join('; ');
   }
-  // citace cíle péče – ne z hlavičky zařízení („Centrum … paliativní medicínu s.r.o.“)
-  const cilS = (lines.filter((l) => !/IČO|s\.r\.o\.|o\.p\.s\.|příspěvková/i.test(l)).join('\n').match(/[^.\n]*(nepřeje|resuscit|ventilátor|cíl[eů]? péče|paliativ|symptomatick)[^.\n]*\./i) || [''])[0];
-  a.citace.cil = cilS.trim();
+  // 0.11.139: cíl a limitace jen z věty, která je výslovně uvádí (přání pacienta / rozhodnutí) – citace té věty; nic se neodvozuje
+  const vety = lines.filter((l) => !/IČO|s\.r\.o\.|o\.p\.s\.|příspěvková/i.test(l)).join('\n').match(/[^.\n]+[.\n]?/g) || [];
+  const RE_LIM = /((?:si\s+)?nepřeje(?:\s+si)?|nepřál[ao]?\s+by\s+si|odmít[áa]|\bDNR\b|\bDNAR\b|neresuscitovat|bez\s+(?:KPR|resuscitace))/i;
+  const limVeta = vety.find((v) => RE_LIM.test(v)) || '';
+  const RE_CIL = /(cíl(?:em)?\s+péče\s*(?:je|:)|pouze\s+symptomatick|jen\s+symptomatick|výhradně\s+symptomatick|plný\s+rozsah\s+léčby|plná\s+léčba)/i;
+  const cilVeta = vety.find((v) => RE_CIL.test(v)) || '';
   a.limity = [];
-  if (/resuscit|KPR|DNR/i.test(t)) a.limity.push('KPR');
-  if (/ventil/i.test(t)) a.limity.push('Umělá plicní ventilace');
-  if (/hospitalizaci jen|bez hospitalizac|další hospitalizac/i.test(t)) a.limity.push('Hospitalizace');
-  a.cil = /symptomatick|komfort|paliativní péč/i.test(t) ? 'symptom' : (a.limity.length ? 'limited' : 'full');
+  if (limVeta) {
+    const zaKlicem = limVeta.slice(limVeta.search(RE_LIM));
+    if (/resuscit|KPR|DNA?R/i.test(zaKlicem)) a.limity.push('KPR');
+    if (/ventil|UPV|intubac/i.test(zaKlicem)) a.limity.push('Umělá plicní ventilace');
+  }
+  const hospVeta = vety.find((v) => /(nepřeje|odmítá)[^.]*hospitaliz|hospitalizaci\s+jen|bez\s+(?:další\s+)?hospitalizac/i.test(v)) || '';
+  if (hospVeta) a.limity.push('Hospitalizace');
+  a.cil = !cilVeta ? '' : /symptomatick|komfort|úlev/i.test(cilVeta) ? 'symptom' : /bez\s+resusc|bez\s+intenzivní/i.test(cilVeta) ? 'limited' : /plný|plná/i.test(cilVeta) ? 'full' : '';
+  a.citace.cil = [...new Set([cilVeta, limVeta, hospVeta].map((x) => x.trim()).filter(Boolean))].join(' … ');
   const dvp = /dříve vyslovené přání/i.test(t) && !/nebylo sepsáno|není sepsáno/i.test(t);
   const typ = pole('Typ vyšetření');
   a.doklad = { dvp, datum: '', zprava: typ ? `Medistar – ${typ}` : (t.split('\n')[0] || '').trim() };
   a.kontakty = [...t.matchAll(/(syn|dcera|manžel(?:ka)?|opatrovník)\s+(\[OSOBA_\d+\]|[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][^,\n]+?),\s*tel\.?\s*(\[TELEFON_\d+\]|[\d ]{9,})/gi)]
     .map((m) => ({ jmeno: `${m[2].trim()}, ${m[1].toLowerCase()}`, tel: m[3].trim(), skupina: /opatrovník/i.test(m[1]) ? 'ROZHODUJE' : 'INFORMOVAT' }));
+  // 0.11.139: „chybi“ = jen pole formuláře, ke kterým zpráva nic neuvádí (bez doporučení)
   const pecujici = pole('Jméno a příjmení pečující osoby') || pole('Pečující osoba');
-  if (pecujici && !/\d{3}|TELEFON/.test(pecujici) && !a.kontakty.length) a.chybi.push(`Pečující osoba (${pecujici}) je ve zprávě bez jména a telefonu – doplňte ji v Kontaktech.`);
-  if (!dvp) a.chybi.push('Dříve vyslovené přání není sepsáno. Bez něj je limitace pro ZZS jen informací; doporučeno sepsat s úředně ověřeným podpisem.');
-  if (!/opatrovník|určená osoba|zástupn/i.test(t)) a.chybi.push('Ve zprávě není určena osoba pro zástupné rozhodování.');
-  if (!a.funkce) a.chybi.push('Chybí popis obvyklého funkčního stavu.');
-  if (!a.sos.length) a.chybi.push('Chybí SOS medikace.');
-  if (/kyslík/i.test(t)) a.chybi.push('Pacient je na domácím kyslíku – ověřit zajištění koncentrátoru.');
-  if (!cilS) a.chybi.push('Zpráva neobsahuje zápis o rozhovoru o cílech péče; cíl je nutné stanovit a zapsat.');
+  if (pecujici && !/\d{3}|TELEFON/.test(pecujici) && !a.kontakty.length) a.chybi.push(`Kontakty: pečující osoba (${pecujici}) je ve zprávě bez jména a telefonu.`);
+  if (!a.cil) a.chybi.push('Cíl péče: zpráva ho výslovně neuvádí – zvolí lékař.');
+  if (!dvp) a.chybi.push('Dříve vyslovené přání: zpráva neuvádí sepsané přání.');
+  if (!/opatrovník|určená osoba|zástupn/i.test(t)) a.chybi.push('Osoba pro zástupné rozhodování: zpráva ji neuvádí.');
+  if (!a.funkce) a.chybi.push('Funkční stav: zpráva ho neuvádí.');
+  if (!a.sos.length) a.chybi.push('SOS medikace: zpráva ji neuvádí.');
   return a;
 }
 
@@ -227,7 +242,7 @@ export async function rozborZpravy(text, znamo = {}, { priBlokuLokalne = false }
     surovy = lokalniRozbor(a.text);
   }
   surovy.limity = (surovy.limity || []).filter((l) => LIMITY.includes(l));
-  if (!['symptom', 'limited', 'full'].includes(surovy.cil)) surovy.cil = 'symptom';
+  if (!['symptom', 'limited', 'full'].includes(surovy.cil)) surovy.cil = '';   // 0.11.139: žádná výchozí hodnota – cíl volí lékař
   // identita pacienta: jméno se z textu nevytěžuje přes AI – z hlavičky si ho vezme server sám (src/identita.js)
   const zHlavicky = identita.jmenoCele ? { jmenoCele: identita.jmenoCele, ...(identita.rok ? { rok: identita.rok } : {}) } : {};
   return { blokovano: false, aiBlokovano: a.blokovano, vysledek: { ...obnov(surovy, a.mapa), ...zHlavicky }, identita, anonymniText: a.text, pocetNahrad: a.pocetNahrad, zdroj, model, chybaAi };
