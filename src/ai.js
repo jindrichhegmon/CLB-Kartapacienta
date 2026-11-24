@@ -47,7 +47,7 @@ async function zavolejClaude(text) {
     return zavolejClaudeJednou(text);
   }
 }
-/* 0.11.139: odpověď AI ve tvaru daném schématem (structured outputs) – dřív jen pokyn v textu a vytažení {…} z odpovědi.
+/* 0.11.140: odpověď AI ve tvaru daném schématem (structured outputs) – dřív jen pokyn v textu a vytažení {…} z odpovědi.
    Nové modely před odpovědí přemýšlejí a to se počítá do max_tokens: při 2000 tokenech AI u delší zprávy limit vyčerpala
    dřív, než výsledek napsala („AI nevrátila JSON“). Teď 16000 tokenů, střední úsilí a kontrola, proč odpověď skončila. */
 const S = { type: 'string' }, SEZNAM = { type: 'array', items: S };
@@ -55,7 +55,7 @@ const SCHEMA = {
   type: 'object', additionalProperties: false,
   properties: {
     dg: S, alergie: S, medikace: SEZNAM, opioidy: SEZNAM, parenteralni: SEZNAM, sos: SEZNAM, funkce: S, pobyt: S,
-    cil: { type: 'string', enum: ['symptom', 'limited', 'full'] },
+    cil: { type: 'string', enum: ['symptom', 'limited', 'full', ''] },   // '' = zpráva cíl výslovně neuvádí (0.11.139, MDR)
     limity: { type: 'array', items: { type: 'string', enum: LIMITY } },
     doklad: { type: 'object', additionalProperties: false, properties: { dvp: { type: 'boolean' }, datum: S, zprava: S }, required: ['dvp', 'datum', 'zprava'] },
     kontakty: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { jmeno: S, tel: S, skupina: { type: 'string', enum: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'] } }, required: ['jmeno', 'tel', 'skupina'] } },

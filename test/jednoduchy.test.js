@@ -273,7 +273,7 @@ test('Medistar dekurz – léky z celé zprávy (0.11.137): Algeziologická tera
   assert.deepEqual(b.medikace, ['MAGNOSOLV 365mg 1-0-0'], 'Rp. ukončí seznam terapie a vezme se jako lék');
 });
 
-test('AI rozbor (0.11.139): schéma odpovědi, 16000 tokenů, střední úsilí; max_tokens a odmítnutí → rozbor podle pravidel s důvodem', async () => {
+test('AI rozbor (0.11.140): schéma odpovědi, 16000 tokenů, střední úsilí; max_tokens a odmítnutí → rozbor podle pravidel s důvodem', async () => {
   const { config } = await import('../src/config.js');
   const { rozborZpravy } = await import('../src/ai.js');
   const puvodni = { fetch: globalThis.fetch, klic: config.ai.apiKey };
@@ -291,6 +291,8 @@ test('AI rozbor (0.11.139): schéma odpovědi, 16000 tokenů, střední úsilí;
     assert.equal(posledni.output_config.effort, 'medium');
     assert.equal(posledni.output_config.format.type, 'json_schema');
     assert.deepEqual(posledni.output_config.format.schema.required.length, 14);
+    assert.ok(posledni.output_config.format.schema.properties.cil.enum.includes(''), 'cíl péče smí zůstat prázdný (MDR)');
+    assert.match(posledni.system, /přepisovatel/, 'pokyny z 0.11.139 (přepis ze zprávy)');
 
     globalThis.fetch = odpoved({ stop_reason: 'max_tokens', content: [{ type: 'thinking', thinking: '' }] });
     const m = await rozborZpravy(t, { prijmeni: 'Zkušební' });

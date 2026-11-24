@@ -51,7 +51,7 @@ export const config = {
   prukazOriginy: env('KP_PRUKAZ_ORIGINY', 'https://dialogusprukaz.netlify.app').split(/\s+/).filter(Boolean),
   // 0.11.111: adresa aplikace Průkaz pacienta – odkaz v SMS a v QR kódu pro telefon pacienta (Můj průkaz /pacient/ je zrušený)
   prukazAdresa: env('KP_PRUKAZ_ADRESA', 'https://dialogusprukaz.netlify.app').replace(/\/+$/, ''),
-  verze: '0.11.139',
+  verze: '0.11.140',
 };
 
 export function zkontrolujKonfiguraci() {
