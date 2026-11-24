@@ -1267,8 +1267,14 @@ async function znamoPacienta(q, pacId, znamo) {
 }
 async function rozborALog(q, s, t, znamo, ucel = 'rozbor zprávy', volby = {}) {
   const r = await rozborZpravy(t, znamo, volby);
-  await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, @uc, @d, @n, @b, @m, @v)`,
-    { u: s.uzivatelId, uc: ucel, d: t.length, n: r.pocetNahrad || 0, b: !!(r.blokovano || r.aiBlokovano), m: r.model || null, v: r.blokovano || r.aiBlokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE') });
+  // 0.11.138: i důvod, proč rozbor neběžel přes AI (sloupec Chyba – sql/03g)
+  const zaznam = { u: s.uzivatelId, uc: ucel, d: t.length, n: r.pocetNahrad || 0, b: !!(r.blokovano || r.aiBlokovano), m: r.model || null, v: r.blokovano || r.aiBlokovano ? 'BLOK' : (r.zdroj === 'ai' ? 'OK' : 'LOKALNE'), ch: r.chybaAi || null };
+  try {
+    await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek, Chyba) VALUES (@u, @uc, @d, @n, @b, @m, @v, @ch)`, zaznam);
+  } catch (e) {   // databáze bez sloupce Chyba (migrace ještě neproběhla) – záznam bez důvodu, rozbor se kvůli tomu nezastaví
+    if (!/Chyba/.test(String(e.message))) throw e;
+    await q.exec(`INSERT INTO dbo.A_KP_AIDotaz (UzivatelID, Ucel, DelkaTextu, PocetNahrad, Blokovano, Model, Vysledek) VALUES (@u, @uc, @d, @n, @b, @m, @v)`, zaznam);
+  }
   return r;
 }
 /* 0.11.129: založení pacienta ze zprávy v souboru (PDF z Medistaru, sken, fotka) – soubor se jen přečte a rozebere, nic se neukládá.

@@ -38,7 +38,16 @@ cil vyplň JEN tehdy, když zpráva cíl péče výslovně uvádí (např. „c�
 Limitaci uveď jen tehdy, když ji zpráva výslovně uvádí jako přání pacienta nebo rozhodnutí (nepřeje si resuscitaci / DNR → KPR, nepřeje si ventilátor → Umělá plicní ventilace, další hospitalizaci si nepřeje / jen výjimečně → Hospitalizace); samotná zmínka slova nestačí.
 Do "chybi" dávej jen názvy polí, ke kterým zpráva nic neuvádí – žádná doporučení, rady ani hodnocení.`;
 
+/* 0.11.138: při přetížení nebo dočasné chybě AI služby (429, 5xx, 529) jedno opakování po 3 s, než se přejde na rozbor podle pravidel */
 async function zavolejClaude(text) {
+  try { return await zavolejClaudeJednou(text); }
+  catch (e) {
+    if (!/^AI (429|5\d\d)\b/.test(e.message)) throw e;
+    await new Promise((ok) => setTimeout(ok, 3000));
+    return zavolejClaudeJednou(text);
+  }
+}
+async function zavolejClaudeJednou(text) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': config.ai.apiKey, 'anthropic-version': '2023-06-01' },
@@ -217,19 +226,24 @@ export async function rozborZpravy(text, znamo = {}, { priBlokuLokalne = false }
   if (a.blokovano && !priBlokuLokalne) {
     return { blokovano: true, duvod: 'Po anonymizaci v textu zůstalo něco, co vypadá jako identifikátor (' + a.zbytky.join(', ') + '). Dotaz na AI nebyl odeslán.', pocetNahrad: a.pocetNahrad, anonymniText: a.text, identita };
   }
-  let surovy, zdroj = 'lokalne', model = null;
+  let surovy, zdroj = 'lokalne', model = null, chybaAi = null;
   if (a.blokovano) {   // priBlokuLokalne: do AI nic neodejde, zprávu rozebere server sám podle pravidel
     surovy = lokalniRozbor(a.text);
     surovy.chybi = [`AI rozbor se neodeslal – v textu zůstalo něco, co vypadá jako identifikátor (${a.zbytky.join(', ')}). Zprávu rozebral server sám podle pravidel.`, ...(surovy.chybi || [])];
   } else if (config.ai.apiKey) {
     try { surovy = await zavolejClaude(a.text); zdroj = 'ai'; model = config.ai.model; }
-    catch (e) { surovy = lokalniRozbor(a.text); zdroj = 'lokalne'; surovy.chybi = [...(surovy.chybi || []), `AI nedostupná (${String(e.message).slice(0, 80)}), použit lokální rozbor.`]; }
+    catch (e) {
+      chybaAi = String(e.message || e).replace(/\s+/g, ' ').slice(0, 300);
+      console.warn('AI rozbor selhal, použit rozbor podle pravidel:', chybaAi);
+      surovy = lokalniRozbor(a.text); zdroj = 'lokalne'; surovy.chybi = [...(surovy.chybi || []), `AI nedostupná (${chybaAi.slice(0, 80)}), použit lokální rozbor.`];
+    }
   } else {
+    chybaAi = 'na serveru chybí ANTHROPIC_API_KEY';
     surovy = lokalniRozbor(a.text);
   }
   surovy.limity = (surovy.limity || []).filter((l) => LIMITY.includes(l));
   if (!['symptom', 'limited', 'full'].includes(surovy.cil)) surovy.cil = '';   // 0.11.139: žádná výchozí hodnota – cíl volí lékař
   // identita pacienta: jméno se z textu nevytěžuje přes AI – z hlavičky si ho vezme server sám (src/identita.js)
   const zHlavicky = identita.jmenoCele ? { jmenoCele: identita.jmenoCele, ...(identita.rok ? { rok: identita.rok } : {}) } : {};
-  return { blokovano: false, aiBlokovano: a.blokovano, vysledek: { ...obnov(surovy, a.mapa), ...zHlavicky }, identita, anonymniText: a.text, pocetNahrad: a.pocetNahrad, zdroj, model };
+  return { blokovano: false, aiBlokovano: a.blokovano, vysledek: { ...obnov(surovy, a.mapa), ...zHlavicky }, identita, anonymniText: a.text, pocetNahrad: a.pocetNahrad, zdroj, model, chybaAi };
 }
