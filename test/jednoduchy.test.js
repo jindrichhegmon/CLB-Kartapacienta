@@ -249,3 +249,26 @@ test('dekurz přes OCR (0.11.134): štítek „R.Čč.:“ apod. – identita se
   assert.equal(ok.vysledek.jmenoCele, 'Jana Testovací');
   assert.doesNotMatch(ok.anonymniText, /Testovac|455101|603111222|Polní/);
 });
+
+test('Medistar dekurz – léky z celé zprávy (0.11.137): Algeziologická terapie, samotné SOS:, Rp. bez zdvojení, opioidy podle názvu', async () => {
+  const { lokalniRozbor } = await import('../src/ai.js');
+  // podoba dekurzu z ambulance bolesti (OCR), smyšlené údaje
+  const t = ['24.11.2026 10:16 M54.36 ALB', 'Dg.: M54.36 Ischias; bederní krajina', 'M Parkinson, Lumboischialgie', 'Sy neklidných nohou', 'Nynější onemocnění:',
+    'Pacientka přichází do ambulance bolesti v doprovodu dcery, analgeticky stav vyhovující.',
+    'Rp. Vysoce návyková látka - canabis sativa 6/6', 'Rozpis: 9390000 Extrakt z konopí pro léčebné použití, , (7.5g) ; D. S.: 1 tob na noc',
+    'Rp. Vysoce návyková látka - 6x MATRIFEN 25mcg/h tdr emp 5 iii Dávkování: 1x3 dny', 'Rp. 1:x BISACODYL KRKA 5mg tbl obd 105 Dávkování: 1-0-0',
+    'Rp. 3x HALOPERIDOL-RICHTER 2mg/ml por gtt sol 10ml Dávkování: 2x7 gtt',
+    'Ter.: Chronická terapie: Madopar 200 0-0-1, Toviaz 4 mg 1-0-0, Alfa calci, Sortis 10 mg, Stacyl,', 'Euthyrox 50,', 'Nakom 5xdenně, chlorprotixen 0-0-1',
+    'Algeziologická terapie: Gabagamma 300 mg 1-0- 1,', 'TTS fentanyl 25 - 1x 3 dny', 'konopí - 6/6- 2,5 g - tob', 'SOS: Metamizol gtt 35 při bolestí', 'Dop.: převedení do MSPP'].join('\n');
+  const a = lokalniRozbor(t);
+  assert.equal(a.dg, 'M54.36 Ischias; bederní krajina; M Parkinson, Lumboischialgie; Sy neklidných nohou');
+  assert.deepEqual(a.opioidy, ['TTS fentanyl 25 - 1x 3 dny']);   // MATRIFEN z Rp. je tentýž fentanyl – nezdvojit
+  assert.deepEqual(a.sos, ['Metamizol gtt 35 při bolestí']);
+  assert.deepEqual(a.medikace, ['Madopar 200 0-0-1', 'Toviaz 4 mg 1-0-0', 'Alfa calci', 'Sortis 10 mg', 'Stacyl', 'Euthyrox 50', 'Nakom 5xdenně', 'chlorprotixen 0-0-1',
+    'Gabagamma 300 mg 1-0- 1', 'konopí - 6/6- 2,5 g - tob', 'BISACODYL KRKA 5mg 1-0-0', 'HALOPERIDOL-RICHTER 2mg/ml 2x7 gtt']);
+  // volný text pod diagnózou (věta) se do diagnóz nebere; dávkování „při bolesti, nejvýš po 4 h“ se nerozdělí
+  const b = lokalniRozbor('Dg.: M54.59 Bolesti zad\nV rámci léčby bolesti proběhla telefonní konzultace pacienta s lékařem ohledně terapie\nTer.: Chronická terapie: Morphin 10 mg s.c. při bolesti, nejvýš po 4 h\nRp. 1x MAGNOSOLV 365mg por gra sol scc 30 Dávkování: 1-0-0');
+  assert.equal(b.dg, 'M54.59 Bolesti zad');
+  assert.deepEqual(b.opioidy, ['Morphin 10 mg s.c. při bolesti, nejvýš po 4 h']);
+  assert.deepEqual(b.medikace, ['MAGNOSOLV 365mg 1-0-0'], 'Rp. ukončí seznam terapie a vezme se jako lék');
+});

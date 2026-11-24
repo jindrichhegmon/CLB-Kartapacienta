@@ -27,6 +27,7 @@ Vrať POUZE JSON bez komentáře v tomto tvaru:
  "kontakty":[{"jmeno":"[OSOBA_n], vztah","tel":"[TELEFON_n]","skupina":"ROZHODUJE|INFORMOVAT|PECUJE"}],
  "chybi":["co ve zprávě chybí pro krizový plán (DVP, určená osoba, SOS léky, funkční stav, zápis o cílech péče…)"],
  "citace":{"cil":"věta ze zprávy, ze které plyne cíl a limitace"}}
+Léky hledej v celé zprávě: Ter. / Chronická terapie, Analgetická i Algeziologická terapie, SOS, a také řádky „Rp.“ (předepsané léky) – lék z Rp., který je v terapii pod jiným názvem (MATRIFEN = TTS fentanyl), neuváděj dvakrát. Do "opioidy" jen opioidy (fentanyl, morfin, oxykodon…), ostatní analgetika do "medikace".
 cil: symptom = jen úleva od obtíží; limited = léčba bez resuscitace a intenzivní péče; full = plná léčba.
 Limitaci uveď jen tehdy, když ji zpráva výslovně uvádí (nepřeje si resuscitaci → KPR, ventilátor → Umělá plicní ventilace, hospitalizace jen výjimečně → Hospitalizace).`;
 
@@ -55,10 +56,44 @@ const prvniSlovo = (x) => String(x).toLowerCase().replace(/^[-–•*\s]+/, '').
 const prazdne = (x) => /^(sine|ne|není|nejsou|žádn[áéý]|0|-+|—)\.?$/i.test(String(x).trim());
 /** bez opakování podle prvního slova (název léku); ponechá poslední výskyt (terapie na konci zprávy je novější) */
 const bezOpakovani = (a) => a.filter((x, i) => !a.slice(i + 1).some((y) => prvniSlovo(y) === prvniSlovo(x)));
+/* 0.11.137: léčivo podle obchodního názvu i účinné látky – opioidy se poznají podle názvu (fentanyl, MATRIFEN, MST…), a lék z „Rp.“,
+   který už je v terapii pod jiným jménem (MATRIFEN = TTS fentanyl, canabis = konopí), se nezdvojí */
+const bezDia = (x) => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const LATKY = [
+  ['fentanyl', /\b(fentanyl\w*|matrifen|durogesic|fentalis|effentora|instanyl|abstral|breakyl)\b/, true],
+  ['morfin', /\b(morfin\w*|morphin\w*|mst|sevredol|vendal|oramorph)\b/, true],
+  ['oxykodon', /\b(oxy[ck]odon\w*|oxycontin|oxynorm|targin|dolocodon|oxykodon)\b/, true],
+  ['hydromorfon', /\b(hydromorfon\w*|jurnista|palladone)\b/, true],
+  ['buprenorfin', /\b(buprenorfin\w*|transtec|bupretec|norspan)\b/, true],
+  ['tramadol', /\b(tramadol\w*|tramal|tralgit|zaldiar|doreta)\b/, true],
+  ['tapentadol', /\b(tapentadol\w*|palexia)\b/, true],
+  ['metadon', /\b(m[e]?thadon\w*|metadon\w*)\b/, true],
+  ['piritramid', /\b(piritramid\w*|dipidolor)\b/, true],
+  ['sufentanil', /\bsufentanil\w*\b/, true],
+  ['kodein', /\b(kodein\w*|codein\w*|dhc)\b/, true],
+  ['konopi', /\b(konop\w*|cannabis|canabis|cannabis\w*)\b/, false],
+  ['metamizol', /\b(metamizol\w*|novalgin|algifen)\b/, false],
+];
+const latka = (x) => { const n = bezDia(x); const l = LATKY.find(([, re]) => re.test(n)); return l ? l[0] : prvniSlovo(n); };
+const jeOpioid = (x) => { const n = bezDia(x); return LATKY.some(([, re, op]) => op && re.test(n)); };
+/** Medistar „Rp.“ = předepsaný lék: „Rp. Vysoce návyková látka - 6x MATRIFEN 25mcg/h tdr emp 5 iii Dávkování: 1x3 dny“ → „MATRIFEN 25mcg/h 1x3 dny“;
+    dávkování může být i na dalším řádku („Rozpis: … D. S.: 1 tob na noc“) */
+function lekyRp(radky) {
+  return radky.flatMap((l, i) => {
+    const m = l.match(/^Rp\.?\s*(.+)$/i); if (!m) return [];
+    let t = m[1].replace(/^(?:vysoce\s+)?návyková látka\s*[-–:]\s*/i, '').replace(/^\d+\s*:?\s*x\s*/i, '').trim();
+    let dav = ''; const d = t.match(/\s*Dávkování\s*:\s*(.*)$/i);
+    if (d) { dav = d[1].trim(); t = t.slice(0, d.index).trim(); }
+    else { const dal = radky[i + 1] || ''; const ds = /^Rozpis\s*:/i.test(dal) && dal.match(/D\.\s?S\.\s*:?\s*(.+)$/i); if (ds) dav = ds[1].trim(); }
+    const sila = t.match(/^(.+?\d+(?:[.,]\d+)?\s?(?:mg|mcg|µg|ug|g|ml|%|iu|m\.j\.)(?:\/(?:ml|h|dávku|dav|tbl|g))?)(?=\s|$)/i);
+    const nazev = (sila ? sila[1] : t).replace(/[\s,;.]+$/, '');
+    return nazev.length >= 3 ? [[nazev, dav].filter(Boolean).join(' ')] : [];
+  });
+}
 export function lokalniRozbor(t) {
   // 0.11.129: Medistar píše „Ter.: Chronická medikace: lék, lék…“ – zkratka před nadpisem se vynechá, samotné „Ter.:“ je Terapie
   const lines = t.split('\n').map((l) => l.trim()).map((l) => l.replace(new RegExp(`^Ter\\.\\s*:\\s*(?=[${VELKE}][^:]{2,40}:)`, 'i'), '').replace(/^Ter\.\s*:/i, 'Terapie:'));
-  const jeNadpis = (l) => new RegExp(`^[${VELKE}][^:]{2,40}:`).test(l) || /^(MUDr|MDDr|Mgr|Bc|PhDr|Ing|prim\.)\b/i.test(l) || /^-{2,}/.test(l);
+  const jeNadpis = (l) => new RegExp(`^[${VELKE}][^:]{2,40}:`).test(l) || /^(MUDr|MDDr|Mgr|Bc|PhDr|Ing|prim\.)\b/i.test(l) || /^-{2,}/.test(l) || /^Rp\.\s/.test(l);   // 0.11.137: „Rp.“ (předpis) ukončí seznam terapie
   // jenKody: za textem na řádku nadpisu („Dg.: R52.1“) pokračují jen další řádky s kódem MKN, ne volný text zprávy
   const sekceOd = (i, { jenKody = false } = {}) => {
     const out = [];
@@ -67,7 +102,8 @@ export function lokalniRozbor(t) {
     if (zaNadpisem) out.push(zaNadpisem);
     for (let j = i + 1; j < lines.length; j++) {
       if (!lines[j] || jeNadpis(lines[j])) break;
-      if (jenKody && zaNadpisem && !/^[A-TV-Z]\d{2}/.test(lines[j])) break;
+      // 0.11.137: pod „Dg.:“ i krátké diagnózy slovy („M Parkinson, Lumboischialgie“, „Sy neklidných nohou“) – ne věty volného textu
+      if (jenKody && zaNadpisem && !/^[A-TV-Z]\d{2}/.test(lines[j]) && !(lines[j].length <= 60 && lines[j].split(/\s+/).length <= 6 && !/[.:]$/.test(lines[j]) && !/\d{1,2}\.\d{1,2}\.\d{2,4}/.test(lines[j]))) break;
       out.push(lines[j]);
     }
     return out;
@@ -94,16 +130,24 @@ export function lokalniRozbor(t) {
   // 0.11.122: Medistar dekurz – přednost má „Chronická terapie“ (Ter.: na konci zprávy), seznamy s pomlčkami
   const CHRON = ['chronická terapie', 'chronická medikace'];
   const zdrojLeku = lines.some((l) => zacina(l, CHRON)) ? sekce(CHRON) : sekce(['medikace při propuštění', 'medikace', 'terapie']);
-  const leky = zdrojLeku.flatMap((l) => l.split(new RegExp(`,\\s*(?=[${VELKE}][A-Za-z${VELKE}áčďéěíňóřšťúůýž]+\\s)`))).map((l) => l.replace(/^[-–•*,\s]+/, '').replace(/[\s,;]+$/, '').trim()).filter((l) => l && !prazdne(l));
+  // 0.11.137: čárka odděluje lék i před názvem na konci řádku („Sortis 10 mg, Stacyl“) a před názvem malým písmenem („Nakom 5xdenně, chlorprotixen 0-0-1“)
+  const ROZDEL = new RegExp(`,\\s*(?=(?:[${VELKE}][A-Za-z${VELKE}áčďéěíňóřšťúůýž]+|(?!(?:při|nejvýš|maximálně|max|dle|podle|nebo|ráno|večer|denně|týdně|obden|jinak|pouze)(?=[\\s,;.]|$))[a-záčďéěíňóřšťúůýž]{5,})(?:[\\s,;]|$))`);
+  const rozdel = (radky) => radky.flatMap((l) => l.split(ROZDEL)).map((l) => l.replace(/^[-–•*,\s]+/, '').replace(/[\s,;]+$/, '').trim()).filter((l) => l && !prazdne(l));
+  const leky = rozdel(zdrojLeku);
   const jeSos = (l) => /^(při\s|v případě|dle potřeby|SOS\b)/i.test(l);
-  // opioidy: „Opioidy: …“ (Základní informace) a „Analgetická terapie: …“ (Ter.:)
-  a.opioidy = bezOpakovani([...t.matchAll(/^[ \t]*(?:Opioidy|Analgetická terapie|Analgetika)[ \t]*:[ \t]*([^\n]*)/gim)].map((m) => m[1].trim()).filter((x) => x && !prazdne(x)));
+  // opioidy a analgetika: „Opioidy: …“ (Základní informace), „Analgetická terapie: …“, „Algeziologická terapie: …“ (Ter.:, i přes víc řádků);
+  // 0.11.137: z těchto i z chronické terapie a z „Rp.“ jdou do Opioidů jen opioidy (podle názvu), ostatní do Paliativní terapie
+  const analg = rozdel(vsechnySekce(['opioidy', 'analgetická terapie', 'algeziologická terapie', 'analgetika']));
+  const terapie = [...leky, ...analg];
+  const rp = lekyRp(lines).filter((x) => !terapie.some((y) => latka(y) === latka(x)));   // předepsaný lék, který v terapii ještě není
+  const pravidelne = [...terapie, ...rp].filter((l) => !jeSos(l));
+  a.opioidy = bezOpakovani(pravidelne.filter(jeOpioid));
   // 0.11.131: parenterální léky (injekce, infuze) – „Parenterální medikace: …“ / „Parenterální terapie: …“
   a.parenteralni = bezOpakovani([...t.matchAll(/^[ \t]*Parenterální (?:medikace|terapie)[ \t]*:[ \t]*([^\n]*)/gim)].map((m) => m[1].trim().replace(/[.,;]$/, '')).filter((x) => x && !prazdne(x)));
-  a.medikace = bezOpakovani(leky.filter((l) => !jeSos(l))).filter((l) => !a.opioidy.some((o) => prvniSlovo(o) === prvniSlovo(l)));
+  a.medikace = bezOpakovani(pravidelne.filter((l) => !jeOpioid(l))).filter((l) => !a.opioidy.some((o) => prvniSlovo(o) === prvniSlovo(l)));
   // SOS medikace: na stejném řádku, nebo (Medistar „SOS Medikace:“ bez textu) na řádku pod ním
   const sosRadky = lines.flatMap((l, i) => {
-    const m = l.match(/^[S5][O0][S5]\s*medikace\s*:\s*(.*)$/i);   // OCR čte „SOS“ i jako „SO5“ / „505“
+    const m = l.match(/^[S5][O0][S5](?:\s*medikace)?\s*:\s*(.*)$/i);   // OCR čte „SOS“ i jako „SO5“ / „505“; 0.11.137: i samotné „SOS:“
     if (!m) return [];
     const v = m[1].trim() || (lines[i + 1] && !jeNadpis(lines[i + 1]) ? lines[i + 1] : '');
     return v && !prazdne(v) ? v.split(/,\s*(?=[a-záčďéěíňóřšťúůýž]+\s\d)/i).map((x) => x.trim()) : [];

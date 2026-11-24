@@ -163,7 +163,8 @@ test('zpráva v PDF (0.11.120): text z PDF a lokální rozbor formátu Medistaru
   const r = lokalniRozbor(t);
   assert.equal(r.dg, 'C50.9 Zhoubný novotvar prsu; I50.0 Městnavé srdeční selhání', 'diagnózy i s kódy MKN');
   assert.equal(r.alergie, 'penicilin');
-  assert.deepEqual(r.medikace, ['Furosemid 40 mg 1-0-0', 'MST Continus 30 mg 1-0-1']);
+  assert.deepEqual(r.medikace, ['Furosemid 40 mg 1-0-0']);
+  assert.deepEqual(r.opioidy, ['MST Continus 30 mg 1-0-1'], 'od 0.11.137 jde opioid podle názvu do Opioidů');
   assert.deepEqual(r.sos, ['Při bolesti Morphin 10 mg s.c.']);
   assert.ok(!r.medikace.some((x) => /MUDr/.test(x)), 'podpis lékaře není lék');
 });
