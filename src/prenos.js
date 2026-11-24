@@ -106,7 +106,7 @@ export function potvrdCekani(kod, telefon, prenos, nyni = Date.now()) {
 export function zrusCekani(id) { return cekaniTel.delete(String(id || '')); }
 
 /* ---- 6místné číslo z centrály (0.11.110) ----
-   Centrála k párovacímu kódu (Spárovat telefon, Můj průkaz) i ke kódu přenosu (Nahrát do telefonu, Výměna telefonu) vydá
+   Centrála k párovacímu kódu (Spárovat telefon, Můj průkaz) i ke kódu přenosu (Nahrát více karet do telefonu, Výměna telefonu) vydá
    krátké 6místné číslo, které se do telefonu jen opíše místo dlouhých kódů. Číslo samo nic nepáruje: telefon s ním a se svým
    číslem dostane původní kód (POST /api/d/cislo) a pokračuje obvyklou cestou, kde server znovu ověří číslo telefonu.
    Číslo platí jen pro telefon, pro který bylo vydané, nejdéle 24 hodin a jen v paměti serveru (po restartu se vydá znovu). */

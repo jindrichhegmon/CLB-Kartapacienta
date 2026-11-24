@@ -532,7 +532,7 @@ Když je v telefonu víc průkazů (např. jeden telefon pro celé oddělení do
 **Nahrát více pacientů do jednoho telefonu najednou** (od 0.11.99) – typicky telefon na oddělení domova seniorů:
 
 1. V centrále **Pacienti → Agenda pacientů** zapněte filtr **Kde je** (např. DS C), případně hledání.
-2. Klikněte na **📱 Nahrát do telefonu**. Okno ukáže pacienty z agendy. Pole **Hledat pacienta nebo umístění** hledá v jménu, kódu průkazu, umístění (např. *DS B*), adrese i telefonu – bez ohledu na diakritiku; tlačítka **Umístění** zúží seznam jedním klepnutím. Zatrhněte pacienty (klepnutím na řádek nebo **Vybrat zobrazené**; na začátku není vybraný nikdo) a zadejte **číslo telefonu**.
+2. Klikněte na **📱 Nahrát více karet do telefonu**. Okno ukáže pacienty z agendy. Pole **Hledat pacienta nebo umístění** hledá v jménu, kódu průkazu, umístění (např. *DS B*), adrese i telefonu – bez ohledu na diakritiku; tlačítka **Umístění** zúží seznam jedním klepnutím. Zatrhněte pacienty (klepnutím na řádek nebo **Vybrat zobrazené**; na začátku není vybraný nikdo) a zadejte **číslo telefonu**.
 3. **Vytvořit QR kód** – centrála vybraným pacientům nastaví *Telefon s kartou* na toto číslo a ukáže jeden QR kód (platí 30 minut, jde použít jen jednou).
 4. Na telefonu, na kterém svítí stránka **Spárovat telefon**, stiskněte **Načíst QR kód fotoaparátem**, namiřte na obrazovku centrály, zkontrolujte číslo a stiskněte **Převzít průkazy**. Telefon nahraje všechny vybrané pacienty najednou a centrála ukáže **Hotovo**.
 
@@ -540,9 +540,9 @@ Kdo už měl průkaz v jiném telefonu, tomu ho nový telefon nahradí (dřívě
 
 ![Nahrát pacienty do telefonu](/napoveda/img/c-nahrat-telefon.png)
 
-**Telefon nenačte QR kód – 6místné číslo** (od 0.11.110): okna **Spárovat telefon**, **📱 Nahrát do telefonu** i **Výměna telefonu** ukazují vedle QR kódu velké 6místné číslo. Na telefonu na stránce Spárovat telefon ho zadejte do pole **6místné číslo z centrální aplikace**, doplňte číslo telefonu a stiskněte **Spárovat** – telefon převezme průkazy stejně jako po QR kódu. Číslo platí jen pro telefon s číslem uvedeným v okně.
+**Telefon nenačte QR kód – 6místné číslo** (od 0.11.110): okna **Spárovat telefon**, **📱 Nahrát více karet do telefonu** i **Výměna telefonu** ukazují vedle QR kódu velké 6místné číslo. Na telefonu na stránce Spárovat telefon ho zadejte do pole **6místné číslo z centrální aplikace**, doplňte číslo telefonu a stiskněte **Spárovat** – telefon převezme průkazy stejně jako po QR kódu. Číslo platí jen pro telefon s číslem uvedeným v okně.
 
-**Opačně – kód z obrazovky telefonu** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**Spárovat telefon** u pacienta, **📱 Nahrát do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. (U jednoho pacienta jde na telefonu také opsat kód organizace a párovací kód z okna Spárovat telefon.) Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
+**Opačně – kód z obrazovky telefonu** (od 0.11.104): na stránce **Spárovat telefon** stiskněte **📟 Bez kamery – kód na obrazovce**, zadejte číslo tohoto telefonu a **Zobrazit kód** – telefon ukáže 6místný kód. V centrální aplikaci v okně s QR kódem (**Spárovat telefon** u pacienta, **📱 Nahrát více karet do telefonu** i **Výměna telefonu**) ho opište do pole **Telefon nenačte QR kód?** a stiskněte **Potvrdit telefon**. (U jednoho pacienta jde na telefonu také opsat kód organizace a párovací kód z okna Spárovat telefon.) Telefon si průkazy převezme sám; kód platí 15 minut a funguje jen pro číslo telefonu zadané v centrále.
 
 ![Telefon bez kamery – kód na obrazovce](/napoveda/img/k-bez-kamery.png)
 

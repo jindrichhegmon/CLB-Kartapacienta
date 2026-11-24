@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.110';
+const APP_VERZE = 'karta-0.11.141';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -613,7 +613,7 @@ function kresliParovani(predvyplnit = {}, chyba = '') {
     <button class="btn" id="p_kodtel">📟 Bez kamery – kód na obrazovce</button>
     <button class="btn" id="p_prenos">Výměna telefonu – převzít průkazy ze starého telefonu</button>
     <button class="btn" id="p_inst" style="display:${instalace ? '' : 'none'}">Přidat kartu na plochu telefonu</button>
-    <div class="field"><label>6místné číslo z centrální aplikace</label><input id="p_cislo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="123 456" style="font-size:28px;letter-spacing:.2em;text-align:center"><span class="hint">Centrála ho ukazuje vedle QR kódu (Spárovat telefon, Nahrát do telefonu, Výměna telefonu).</span></div>
+    <div class="field"><label>6místné číslo z centrální aplikace</label><input id="p_cislo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="123 456" style="font-size:28px;letter-spacing:.2em;text-align:center"><span class="hint">Centrála ho ukazuje vedle QR kódu (Spárovat telefon, Nahrát více karet do telefonu, Výměna telefonu).</span></div>
     <div class="muted" style="font-size:13px;text-align:center">nebo opište dlouhé kódy z obrazovky centrální aplikace:</div>
     <div class="field"><label>Kód organizace (16 znaků)</label><input id="p_t" autocapitalize="characters" value="${esc(predvyplnit.tenant || '')}"></div>
     <div class="field"><label>Párovací kód (8 znaků)</label><input id="p_k" autocapitalize="characters" value="${esc(predvyplnit.kod || '')}" style="font-size:22px;letter-spacing:.2em"></div>`}
@@ -735,14 +735,14 @@ async function zahajitPrenos() {
   }
 }
 /* ---- telefon bez kamery (0.11.104): kód z obrazovky ----
-   Telefon zadá své číslo a ukáže 6místný kód; obsluha ho v centrální aplikaci opíše do okna s QR kódem (Nahrát do telefonu nebo
+   Telefon zadá své číslo a ukáže 6místný kód; obsluha ho v centrální aplikaci opíše do okna s QR kódem (Nahrát více karet do telefonu nebo
    Výměna telefonu). Po potvrzení si telefon průkazy převezme sám – stejně jako po načtení QR kódu. */
 let CEKANI = null;
 function kresliCekani(chyba = '') {
   hlavicka();
   $('work').innerHTML = `<div class="panel"><div class="panel-h"><h2>Bez kamery – kód na obrazovce</h2></div><div class="form" style="padding:14px">
     ${chyba ? `<div class="banner crit">${esc(chyba)}</div>` : ''}
-    <div class="note">Když fotoaparát QR kód nenačte: zadejte číslo tohoto telefonu a stiskněte <b>Zobrazit kód</b>. Telefon ukáže 6místný kód – opište ho v centrální aplikaci do okna s QR kódem (<b>Spárovat telefon</b> u pacienta, <b>📱 Nahrát do telefonu</b> nebo <b>Výměna telefonu</b>) a potvrďte. Průkazy se pak nahrají samy.</div>
+    <div class="note">Když fotoaparát QR kód nenačte: zadejte číslo tohoto telefonu a stiskněte <b>Zobrazit kód</b>. Telefon ukáže 6místný kód – opište ho v centrální aplikaci do okna s QR kódem (<b>Spárovat telefon</b> u pacienta, <b>📱 Nahrát více karet do telefonu</b> nebo <b>Výměna telefonu</b>) a potvrďte. Průkazy se pak nahrají samy.</div>
     <div class="field"><label>Číslo tohoto telefonu</label><input id="ck_tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="+420 777 123 456" style="font-size:20px"></div>
     <button class="btn primary" id="ck_ok" style="font-size:18px;padding:14px">Zobrazit kód</button><button class="btn" id="ck_zpet">Zpět</button></div></div>
     <div class="footer">${APP_VERZE}</div>`;
