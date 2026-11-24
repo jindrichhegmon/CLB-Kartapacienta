@@ -104,6 +104,8 @@ Menu **+ Nový pacient** (jen lékař). Průvodce má dva kroky.
 3. **Propouštěcí zpráva** (text): vložte text, nahrajte textový soubor nebo vyfoťte zprávu (fotka se převede na text přímo v prohlížeči) a klikněte na **Anonymní rozbor zprávy**. Text projde anonymizační bránou – jména, rodná čísla, data, adresy a telefony se nahradí značkami – a teprve pak ho rozebere AI. Když by v textu zůstal identifikátor, dotaz se neodešle.
 4. **Zapsat pacienta ručně** (vlastní panel, tlačítko **Zapsat ručně**) – rovnou krok 2 s prázdným formulářem bez PéčeDoma a bez zprávy. Tlačítko **Pokračovat bez rozboru** pod propouštěcí zprávou udělá totéž, jen si text zprávy ponechá k ručnímu opsání.
 
+**Přepis ze zprávy – ke kontrole** (od 0.11.139): rozbor zprávy (AI i lokální) jen **opisuje údaje, které zpráva výslovně uvádí** – nic neodvozuje, nehodnotí a nedoporučuje. **Cíl péče** a **limitace** se předvyplní jen tehdy, když je zpráva výslovně uvádí (např. „pacient si nepřeje resuscitaci“); věta ze zprávy je vidět jako citace. Jinak zůstane cíl péče prázdný (**— zvolte cíl péče —**) a pacienta nejde uložit, dokud cíl nezvolíte – o cíli rozhoduje lékař. Seznam **Zpráva neuvádí (doplňte)** jen vyjmenuje pole, ke kterým zpráva nic neříká.
+
 ### Více pacientů najednou (CSV / JSON) a export
 
 Panel **Více pacientů ze souboru · export** v kroku 1:

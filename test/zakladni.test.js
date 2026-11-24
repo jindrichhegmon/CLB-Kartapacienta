@@ -63,8 +63,12 @@ test('anonymizace propouštěcí zprávy: žádné jméno, RČ, telefon ani datu
 test('lokální rozbor najde limitace, SOS léky a chybějící DVP', () => {
   const t = fs.readFileSync(new URL('./zprava-demo.txt', import.meta.url), 'utf8');
   const r = lokalniRozbor(anonymizuj(t, {}).text);
-  assert.deepEqual(r.limity.slice(0, 2), ['KPR', 'Umělá plicní ventilace']);
-  assert.equal(r.cil, 'limited');
+  assert.deepEqual(r.limity, ['KPR', 'Umělá plicní ventilace', 'Hospitalizace']);
+  // 0.11.139: přepis ze zprávy – cíl péče zpráva výslovně neuvádí, takže zůstane prázdný a volí ho lékař
+  assert.equal(r.cil, '');
+  assert.match(r.citace.cil, /si nepřeje resuscitaci/);
+  assert.ok(r.chybi.some((x) => /^Cíl péče:/.test(x)));
+  assert.ok(!r.chybi.some((x) => /doporuč|ověřit/i.test(x)), 'žádná doporučení');
   assert.equal(r.sos.length, 2);
   assert.ok(r.chybi.some((x) => /vyslovené přání/.test(x)));
 });
@@ -185,8 +189,9 @@ test('Medistar dekurz (0.11.122): diagnózy, opioidy, chronická terapie, SOS a 
   assert.deepEqual(r.medikace, ['Furosemid 40 mg 1-0-0', 'Berodual inh. 2-2-2'], 'chronická terapie, bez opioidu a bez opakování');
   assert.deepEqual(r.sos, ['Novalgin tbl. při bolesti 3-4 x denně']);
   assert.equal(r.funkce, 'PPS 40 %; pohyblivost: převážně na lůžku; soběstačnost: nutná pomoc s většinou činností');
-  assert.equal(r.citace.cil, 'Probíhá zajištění komplexní paliativní péče MDT.');
-  assert.ok(r.chybi.some((x) => /Pečující osoba \(Dcera\)/.test(x)));
+  assert.equal(r.citace.cil, '', 'zmínka o paliativní péči není výslovný cíl ani limitace');
+  assert.equal(r.cil, '');
+  assert.ok(r.chybi.some((x) => /pečující osoba \(Dcera\)/.test(x)));
 });
 
 test('PDF bez textové vrstvy (Microsoft Print to PDF, sken): text se rozpozná OCR přímo na serveru', { timeout: 120000 }, async () => {
@@ -201,4 +206,13 @@ test('PDF bez textové vrstvy (Microsoft Print to PDF, sken): text se rozpozná 
   assert.deepEqual(r.opioidy, ['Oxycontin 20 mg 1-0-1']);
   assert.ok(r.medikace.some((x) => /^Furosemid 40 mg/.test(x)));
   assert.ok(r.sos.some((x) => /^Novalgin/.test(x)));
+});
+
+test('přepis ze zprávy: cíl a limitace jen z výslovné věty, samotné slovo nestačí', () => {
+  assert.deepEqual(lokalniRozbor('Dg.: C34.9\nPacient byl v minulosti resuscitován, nyní stabilní.').limity, []);
+  assert.equal(lokalniRozbor('Dg.: C34.9\nPacient byl v minulosti resuscitován, nyní stabilní.').cil, '');
+  const r = lokalniRozbor('Dg.: C34.9\nCíl péče: symptomatická léčba, pacientka si nepřeje KPR.');
+  assert.equal(r.cil, 'symptom');
+  assert.deepEqual(r.limity, ['KPR']);
+  assert.match(r.citace.cil, /Cíl péče: symptomatická léčba/);
 });

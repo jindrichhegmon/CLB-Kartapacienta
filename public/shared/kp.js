@@ -141,7 +141,7 @@
     // 0.11.92: limitace péče = jedna ze dvou možností podle toho, zda má pacient podepsané dříve vyslovené přání (DVP)
     const kpr = data.kpr || (dk.dvp ? 'dvp' : 'neuvedeno');
     return `<div class="form ${ro ? 'locked' : ''}">
-    <div class="field"><label>Cíl péče</label><select id="${pref}_cil">${Object.entries(KP.CILE).map(([k, v]) => `<option value="${k}" ${data.cil === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="field"><label>Cíl péče</label><select id="${pref}_cil">${data.cil ? '' : '<option value="" selected>— zvolte cíl péče —</option>'}${Object.entries(KP.CILE).map(([k, v]) => `<option value="${k}" ${data.cil === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
     <div class="field"><label>Limitace péče</label><div class="kpr-volba">
       <label class="kpr-moz"><input type="radio" name="${pref}_kpr" value="neuvedeno" ${kpr === 'neuvedeno' ? 'checked' : ''}><span><b>KPR neuvedeno</b><span class="lbl">pacient nemá podepsané dříve vyslovené přání</span></span></label>
       <label class="kpr-moz"><input type="radio" name="${pref}_kpr" value="dvp" ${kpr === 'dvp' ? 'checked' : ''}><span><b>Dříve vyslovené přání</b> (living will)<span class="lbl">pacient má podepsané DVP – vyberte, co si nepřeje</span></span></label></div>
