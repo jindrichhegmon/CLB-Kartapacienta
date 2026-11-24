@@ -40,22 +40,48 @@ async function zavolejClaude(text) {
     return zavolejClaudeJednou(text);
   }
 }
-async function zavolejClaudeJednou(text) {
+/* 0.11.139: odpověď AI ve tvaru daném schématem (structured outputs) – dřív jen pokyn v textu a vytažení {…} z odpovědi.
+   Nové modely před odpovědí přemýšlejí a to se počítá do max_tokens: při 2000 tokenech AI u delší zprávy limit vyčerpala
+   dřív, než výsledek napsala („AI nevrátila JSON“). Teď 16000 tokenů, střední úsilí a kontrola, proč odpověď skončila. */
+const S = { type: 'string' }, SEZNAM = { type: 'array', items: S };
+const SCHEMA = {
+  type: 'object', additionalProperties: false,
+  properties: {
+    dg: S, alergie: S, medikace: SEZNAM, opioidy: SEZNAM, parenteralni: SEZNAM, sos: SEZNAM, funkce: S, pobyt: S,
+    cil: { type: 'string', enum: ['symptom', 'limited', 'full'] },
+    limity: { type: 'array', items: { type: 'string', enum: LIMITY } },
+    doklad: { type: 'object', additionalProperties: false, properties: { dvp: { type: 'boolean' }, datum: S, zprava: S }, required: ['dvp', 'datum', 'zprava'] },
+    kontakty: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { jmeno: S, tel: S, skupina: { type: 'string', enum: ['ROZHODUJE', 'INFORMOVAT', 'PECUJE'] } }, required: ['jmeno', 'tel', 'skupina'] } },
+    chybi: SEZNAM,
+    citace: { type: 'object', additionalProperties: false, properties: { cil: S }, required: ['cil'] },
+  },
+  required: ['dg', 'alergie', 'medikace', 'opioidy', 'parenteralni', 'sos', 'funkce', 'pobyt', 'cil', 'limity', 'doklad', 'kontakty', 'chybi', 'citace'],
+};
+async function zavolejClaudeJednou(text, { schema = true } = {}) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': config.ai.apiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: config.ai.model, max_tokens: 2000,
+      model: config.ai.model, max_tokens: 16000,
       system: POKYNY,
       messages: [{ role: 'user', content: `Propouštěcí zpráva (anonymizovaná):\n\n${text}` }],
+      output_config: { effort: 'medium', ...(schema ? { format: { type: 'json_schema', schema: SCHEMA } } : {}) },
     }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(90000),
   });
-  if (!r.ok) throw new Error(`AI ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (!r.ok) {
+    const chyba = (await r.text()).slice(0, 200);
+    // kdyby model nebo účet schéma odpovědi nepřijal, zkusit to jednou postaru (pokyn v textu)
+    if (schema && r.status === 400 && /output_config|format|schema/i.test(chyba)) return zavolejClaudeJednou(text, { schema: false });
+    throw new Error(`AI ${r.status}: ${chyba}`);
+  }
   const d = await r.json();
-  const out = (d.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+  if (d.stop_reason === 'refusal') throw new Error('AI rozbor odmítla (refusal)');
+  if (d.stop_reason === 'max_tokens') throw new Error('AI odpověď nedokončila (max_tokens)');
+  const out = (d.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('').trim();
+  try { return JSON.parse(out); } catch { /* starý způsob: JSON uprostřed textu */ }
   const m = out.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('AI nevrátila JSON');
+  if (!m) throw new Error(`AI nevrátila JSON (konec: ${d.stop_reason || '?'}, ${out.length} znaků)`);
   return JSON.parse(m[0]);
 }
 

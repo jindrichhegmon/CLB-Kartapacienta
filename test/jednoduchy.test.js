@@ -272,3 +272,33 @@ test('Medistar dekurz – léky z celé zprávy (0.11.137): Algeziologická tera
   assert.deepEqual(b.opioidy, ['Morphin 10 mg s.c. při bolesti, nejvýš po 4 h']);
   assert.deepEqual(b.medikace, ['MAGNOSOLV 365mg 1-0-0'], 'Rp. ukončí seznam terapie a vezme se jako lék');
 });
+
+test('AI rozbor (0.11.139): schéma odpovědi, 16000 tokenů, střední úsilí; max_tokens a odmítnutí → rozbor podle pravidel s důvodem', async () => {
+  const { config } = await import('../src/config.js');
+  const { rozborZpravy } = await import('../src/ai.js');
+  const puvodni = { fetch: globalThis.fetch, klic: config.ai.apiKey };
+  const t = 'Dg.: C50.9 Zhoubný novotvar prsu\nTer.: Chronická terapie: Furosemid 40 mg 1-0-0\nSOS: Morphin 10 mg s.c. při bolesti';
+  const vysledek = { dg: 'C50.9', alergie: '', medikace: ['Furosemid 40 mg 1-0-0'], opioidy: [], parenteralni: [], sos: ['Morphin 10 mg s.c. při bolesti'], funkce: '', pobyt: '', cil: 'symptom', limity: [], doklad: { dvp: false, datum: '', zprava: '' }, kontakty: [], chybi: [], citace: { cil: '' } };
+  let posledni = null;
+  const odpoved = (telo) => async (url, o) => { posledni = JSON.parse(o.body); return new Response(JSON.stringify(telo), { status: 200 }); };
+  try {
+    config.ai.apiKey = 'test';
+    globalThis.fetch = odpoved({ stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify(vysledek) }] });
+    const r = await rozborZpravy(t, { prijmeni: 'Zkušební' });
+    assert.equal(r.zdroj, 'ai');
+    assert.deepEqual(r.vysledek.sos, ['Morphin 10 mg s.c. při bolesti']);
+    assert.equal(posledni.max_tokens, 16000);
+    assert.equal(posledni.output_config.effort, 'medium');
+    assert.equal(posledni.output_config.format.type, 'json_schema');
+    assert.deepEqual(posledni.output_config.format.schema.required.length, 14);
+
+    globalThis.fetch = odpoved({ stop_reason: 'max_tokens', content: [{ type: 'thinking', thinking: '' }] });
+    const m = await rozborZpravy(t, { prijmeni: 'Zkušební' });
+    assert.equal(m.zdroj, 'lokalne');
+    assert.match(m.chybaAi, /max_tokens/);
+    assert.deepEqual(m.vysledek.sos, ['Morphin 10 mg s.c. při bolesti'], 'rozbor podle pravidel i tak');
+
+    globalThis.fetch = odpoved({ stop_reason: 'refusal', content: [] });
+    assert.match((await rozborZpravy(t, { prijmeni: 'Zkušební' })).chybaAi, /odmítla/);
+  } finally { globalThis.fetch = puvodni.fetch; config.ai.apiKey = puvodni.klic; }
+});
