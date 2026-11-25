@@ -116,7 +116,7 @@ const LATKY = [
   ['konopi', /\b(konop\w*|cannabis|canabis|cannabis\w*)\b/, false],
   ['metamizol', /\b(metamizol\w*|novalgin|algifen)\b/, false],
 ];
-const latka = (x) => { const n = bezDia(x); const l = LATKY.find(([, re]) => re.test(n)); return l ? l[0] : prvniSlovo(n); };
+export const latka = (x) => { const n = bezDia(x); const l = LATKY.find(([, re]) => re.test(n)); return l ? l[0] : prvniSlovo(n); };
 const jeOpioid = (x) => { const n = bezDia(x); return LATKY.some(([, re, op]) => op && re.test(n)); };
 /** Medistar „Rp.“ = předepsaný lék: „Rp. Vysoce návyková látka - 6x MATRIFEN 25mcg/h tdr emp 5 iii Dávkování: 1x3 dny“ → „MATRIFEN 25mcg/h 1x3 dny“;
     dávkování může být i na dalším řádku („Rozpis: … D. S.: 1 tob na noc“) */

@@ -11,7 +11,7 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, puvodPlanu, roleSeznam, roleNahledu, stavPredani, MIME_PRO_PACIENTA, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
-import { rozborZpravy } from '../ai.js';
+import { rozborZpravy, latka } from '../ai.js';
 import { seznamSukl, lekText } from '../sukl.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
@@ -296,7 +296,8 @@ export async function zalozPacienta(q, s, b) {
   const pdId = String((b.pecedoma || {}).klientId || '').toLowerCase();
   if (UUID_RE.test(pdId)) {
     await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = @pk WHERE PacientID = @p`, { k: pdId, pk: cislo((b.pecedoma || {}).portalKlientId) || null, p: id });
-    try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, id, pdId); } catch { /* bez synchronizace – doplní se automaticky nebo tlačítkem */ }
+    // 0.11.142: léky zapsané při založení se do PéčeDoma doplní (jinak by je propojení skrylo)
+    try { const nast = await nastaveniPd(q); if (nast.nastaveno) { try { await prenesLekyKartyDoPd(q, s, id, nast, pdId, 'při založení'); } catch { /* zůstanou v plánu, přenos v záložce Léky */ } await synchronizujPacienta(q, nast, id, pdId); } } catch { /* bez synchronizace – doplní se automaticky nebo tlačítkem */ }
   }
   return { id, kod };
 }
@@ -1044,20 +1045,25 @@ central.post('/pacient/:id/pecedoma', sUzivatelem(async (q, s, req) => {
   if (!op.lekar && !op.garant) throw chyba('Propojení s PéčeDoma mění lékař nebo garant', 403);
   const kid = String(req.body.klientId || '').toLowerCase();
   if (req.body.odpojit) {
+    // 0.11.142: odpojením se nic nemaže – léky z PéčeDoma se uloží do plánu Karty (nová verze), aby je pacient ambulance měl dál
+    const zPd = await lekyPdDoPlanu(q, s, id).catch(() => null);
     await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = NULL, PdPortalKlientID = NULL WHERE PacientID = @p`, { p: id });
     await q.exec(`DELETE FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: id });
-    await zapisDenik(q, { pacientId: id, typ: 'Systém', text: 'Propojení s klientem PéčeDoma zrušeno.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
+    await zapisDenik(q, { pacientId: id, typ: 'Systém', text: `Propojení s klientem PéčeDoma zrušeno.${zPd ? ` Léky z PéčeDoma zůstávají v Kartě (plán péče v${zPd.verze}, ${zPd.pocet} léků).` : ''}`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
     await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: odpojení', ip: s.ip });
     return {};
   }
   if (!UUID_RE.test(kid)) throw chyba('Vyberte klienta PéčeDoma');
-  await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = NULL WHERE PacientID = @p`, { k: kid, p: id });
-  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: 'Pacient propojen s klientem PéčeDoma – léky a plánované návštěvy se přebírají z PéčeDoma.', autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: propojení', detail: kid, ip: s.ip });
   const nast = await nastaveniPd(q);
+  await q.exec(`UPDATE dbo.A_KP_Pacient SET PdKlientID = @k, PdPortalKlientID = NULL WHERE PacientID = @p`, { k: kid, p: id });
+  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: propojení', detail: kid, ip: s.ip });
+  // 0.11.142: propojením se nic nemaže – léky zapsané v Kartě, které v PéčeDoma chybí, se do PéčeDoma doplní; léky z PéčeDoma zůstávají
+  let prenos = { prenesene: [] }, chybaPrenosu = null;
+  try { prenos = await prenesLekyKartyDoPd(q, s, id, nast, kid, 'při propojení'); } catch (e) { chybaPrenosu = e.message; }
+  await zapisDenik(q, { pacientId: id, typ: 'Systém', text: `Pacient propojen s klientem PéčeDoma – léky a plánované návštěvy se přebírají z PéčeDoma.${prenos.prenesene.length ? ` Léky z Karty doplněné do PéčeDoma (${prenos.prenesene.length}): ${prenos.prenesene.join('; ')}.` : ''}${chybaPrenosu ? ` Léky z Karty se do PéčeDoma nepodařilo přenést (${chybaPrenosu}) – v Kartě zůstávají, přenos jde zopakovat v záložce Léky.` : ''}`, autor: s.jmeno, role: 'system', uzivatelId: s.uzivatelId });
   let sync = null, chybaSync = null;
   try { await synchronizujPacienta(q, nast, id, kid); sync = await stavSync(q, id); } catch (e) { chybaSync = e.message; }
-  return { sync, chyba: chybaSync };
+  return { sync, chyba: chybaSync, prenesene: prenos.prenesene, chybaPrenosu };
 }));
 
 /* chat PéčeDoma s klientem (od 0.8.0): zprávy A_MSPPP_Zprava portálu – tým kolem pacienta čte a píše jako „Tým“ se značkou [Karta · jméno] */
@@ -1089,7 +1095,92 @@ central.get('/pacient/:id/leky', sUzivatelem(async (q, s, req) => {
   const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
   if (!p || !p.pd) return { zdroj: 'plan' };
   const r = await lekyPd(await nastaveniPd(q), p.pd);
-  return { zdroj: 'pecedoma', leky: await puvodLekuPd(q, id, r.leky) };
+  // 0.11.142: léky zapsané v Kartě (plán péče), které v PéčeDoma chybí – např. u pacienta propojeného před touto verzí
+  return { zdroj: 'pecedoma', leky: await puvodLekuPd(q, id, r.leky), zKarty: (await lekyKartyBezPd(q, id, r.leky)).map((x) => ({ typ: x.typ, text: x.text })) };
+}));
+/* 0.11.142: propojení Karty s PéčeDoma nic nemaže – léky z plánu péče Karty (pacient ambulance) a léky v PéčeDoma se sloučí.
+   Lék z Karty se do PéčeDoma doplní, jen když tam stejné léčivo ještě není (podle názvu i účinné látky – MATRIFEN = TTS fentanyl). */
+const SKUPINY_KARTA_PD = [['parenteralni', 'PARENTERALNI'], ['sos', 'ZACHRANNA'], ['opioidy', 'OPIOID'], ['medikace', 'PRAVIDELNA']];
+export function rozdelLekText(t) {
+  let x = String(t || '').trim().replace(/^[-–•*]\s*/, ''), instr = '';
+  const i = x.search(/\s(při\s|v případě|dle potřeby|max\.|nejvýš)/i);
+  if (i > 0) { instr = x.slice(i).trim(); x = x.slice(0, i).trim(); }
+  const m = x.match(/^(.*?[^\s\d])\s+(\d.*)$/);
+  return m ? { nazev: m[1].trim(), davka: m[2].trim(), instr } : { nazev: x, davka: '', instr };
+}
+export function lekyPlanuBezPd(data, lekyVPd, puvod = {}, vyrazene = []) {
+  // vid = léčiva, která v PéčeDoma jsou, nebo je tam někdo z Karty vyřadil (ta se znovu nenabízejí)
+  const vid = new Set([...(lekyVPd || []).map((l) => latka(l.nazev || '')), ...vyrazene.map((t) => latka(t))].filter(Boolean)), out = [];
+  for (const [pole, typ] of SKUPINY_KARTA_PD) {
+    for (const t of (Array.isArray((data || {})[pole]) ? data[pole] : [])) {
+      const z = rozdelLekText(t), k = latka(z.nazev || t);
+      if (!z.nazev || !k || vid.has(k)) continue;
+      vid.add(k);
+      const pv = ((puvod || {})[pole] || []).find((x) => x.text === t);
+      out.push({ typ, text: String(t).trim(), ...z, dokument: pv && /zprava/.test(pv.zdroj || '') ? pv.dokument || 'zpráva' : null });
+    }
+  }
+  return out;
+}
+async function lekyKartyBezPd(q, id, lekyVPd) {
+  const verze = await q.all(`SELECT Verze AS verze, Typ AS typ, PodepsalJmeno AS podepsal, CONVERT(char(16), Vytvoreno, 120) AS vytvoreno, Poznamka AS poznamka, Data AS data
+    FROM dbo.A_KP_PlanVerze WHERE PacientID = @p ORDER BY Verze`, { p: id });
+  if (!verze.length) return [];
+  const v = verze.map((x) => { let d = {}; try { d = JSON.parse(x.data || '{}'); } catch { /* */ } return { ...x, data: d }; });
+  const zal = await q.one(`SELECT TOP (1) Text AS text FROM dbo.A_KP_Denik WHERE PacientID = @p AND Typ = N'Založení' ORDER BY DenikID`, { p: id });
+  const zalozeni = /(propouštěcí|lékařské) zprávy/i.test((zal && zal.text) || '') ? 'zprava' : /PéčeDoma/i.test((zal && zal.text) || '') ? 'pecedoma' : 'rucne';
+  const zalDok = (String((zal && zal.text) || '').match(/lékařské zprávy „(.+?)“/) || [])[1] || null;
+  let puvod = {}; try { puvod = puvodPlanu(v, zalozeni, zalDok); } catch { /* bez původu */ }
+  const vyr = await q.all(`SELECT Detail AS d FROM dbo.A_KP_AuditLog WHERE PacientID = @p AND Akce = N'PéčeDoma: úprava léků' AND Detail LIKE N'vyřazen lék %'`, { p: id });
+  return lekyPlanuBezPd(v[v.length - 1].data, lekyVPd, puvod, vyr.map((x) => String(x.d || '').replace(/^vyřazen lék\s+/, '')));
+}
+async function prenesLekyKartyDoPd(q, s, id, nast, pd, kdy) {
+  if (!nast.nastaveno) return { prenesene: [] };
+  const chybi = await lekyKartyBezPd(q, id, (await lekyPd(nast, pd)).leky);
+  const prenesene = [];
+  for (const x of chybi) {
+    await ulozLekPd(nast, pd, { typ: x.typ, nazev: text(x.nazev, 200), davka: text(x.davka, 200), instr: text(x.instr, 500), popis: '' }, s.jmeno);
+    const co = `přidán ${x.typ === 'ZACHRANNA' ? 'SOS lék' : 'lék'} ${x.nazev}${x.davka ? ' ' + x.davka : ''}`;
+    await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: úprava léků', detail: `${co}${x.dokument ? ` · ze zprávy „${x.dokument}“` : ''}`, ip: s.ip });
+    prenesene.push(x.text);
+  }
+  if (prenesene.length) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'PéčeDoma: léky z Karty přeneseny', detail: `${kdy}: ${prenesene.length} – ${prenesene.join('; ')}`.slice(0, 1000), ip: s.ip });
+  return { prenesene };
+}
+/* odpojení: léky z PéčeDoma → nová verze plánu Karty ve stejných skupinách (co v plánu už je, se nezdvojí) */
+async function lekyPdDoPlanu(q, s, id) {
+  const p = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (!p || !p.pd) return null;
+  const nast = await nastaveniPd(q);
+  if (!nast.nastaveno) return null;
+  const leky = (await lekyPd(nast, p.pd)).leky;
+  if (!leky.length) return null;
+  const plan = await planAktualni(q, id), data = { ...((plan && plan.data) || {}) };
+  const pole = { PARENTERALNI: 'parenteralni', ZACHRANNA: 'sos', OPIOID: 'opioidy', PRAVIDELNA: 'medikace' };
+  const vid = new Set(SKUPINY_KARTA_PD.flatMap(([k]) => (data[k] || []).map((t) => latka(rozdelLekText(t).nazev || t))));
+  let pocet = 0;
+  for (const l of leky) {
+    const k = latka(l.nazev || ''); if (!k || vid.has(k)) continue; vid.add(k);
+    const cil = pole[l.typ] || 'medikace';
+    data[cil] = [...(data[cil] || []), [l.nazev, l.davka, l.instr].map((x) => String(x || '').trim()).filter(Boolean).join(' ')];
+    pocet++;
+  }
+  if (!pocet) return null;
+  const verze = await ulozPlan(q, { pacientId: id, data, platnostDo: plan ? plan.platnostDo : null, s, typ: 'ZMENA', poznamka: 'léky z PéčeDoma při odpojení' });
+  return { verze, pocet };
+}
+/* 0.11.142: dodatečný přenos léků z Karty do PéčeDoma (pacient propojený dřív, než se při propojení léky slučovaly) */
+central.post('/pacient/:id/leky/z-karty', sUzivatelem(async (q, s, req) => {
+  const id = pid(req); const op = await opravneni(q, s, id);
+  if (!op.zapis || !op.aktivni) throw chyba('Léky upravuje tým kolem pacienta u aktivního průkazu', 403);
+  const pd = await pdKlientPacienta(q, id);
+  const nast = await nastaveniPd(q);
+  const { prenesene } = await prenesLekyKartyDoPd(q, s, id, nast, pd, 'dodatečně z Karty');
+  if (prenesene.length) await zapisDenik(q, { pacientId: id, typ: 'Úprava léků', text: `Léky z Karty doplněné do PéčeDoma (${prenesene.length}): ${prenesene.join('; ')}.`, autor: s.jmeno, role: 'tym', uzivatelId: s.uzivatelId });
+  let sync = null;
+  try { await synchronizujPacienta(q, nast, id, pd); sync = await stavSync(q, id); } catch { /* doběhne automaticky */ }
+  const r = await lekyPd(nast, pd);
+  return { leky: await puvodLekuPd(q, id, r.leky), zKarty: (await lekyKartyBezPd(q, id, r.leky)).map((x) => ({ typ: x.typ, text: x.text })), prenesene, sync };
 }));
 /* 0.11.123: původ léku vedeného v PéčeDoma – poslední zápis z Karty (audit „PéčeDoma: úprava léků“), jinak zapsáno v portálu PéčeDoma.
    0.11.124: zápis z rozboru zprávy má v auditu „· ze zprávy „dokument““ → štítek ze zprávy (i potvrzení léku, který už v PéčeDoma byl) */

@@ -656,7 +656,7 @@ const maPeceDoma = () => !!(S.pecedoma && S.pecedoma.nastaveno);
 const jeAmbulance = (d) => maPeceDoma() && !(d.pecedoma && d.pecedoma.klientId);
 async function nactiLeky(d) {
   const el = $('lk_seznam'); if (!el) return;
-  try { const r = await C('/pacient/' + d.pacient.id + '/leky'); S.leky = r.leky || []; ukazLeky(d); }
+  try { const r = await C('/pacient/' + d.pacient.id + '/leky'); S.leky = r.leky || []; S.lekyZKarty = r.zKarty || []; ukazLeky(d); }
   catch (e) { if ($('lk_seznam')) $('lk_seznam').innerHTML = `<div class="banner crit" style="margin:10px 14px">${esc(e.message)}</div>`; }
 }
 /* 0.11.125: ověřit léky podle zprávy – rozbor uloženého dokumentu (PDF, sken, fotka); shodné léky dostanou štítek „ověřeno zprávou“ */
@@ -670,11 +670,26 @@ function overitLekyHTML(d) {
 function ukazLeky(d) {
   const el = $('lk_seznam'); if (!el) return;
   const muze = d.op.zapis && d.op.aktivni;
-  el.innerHTML = KP.lekyRadky(S.leky || [], muze);
+  el.innerHTML = zKartyHTML(muze) + KP.lekyRadky(S.leky || [], muze);   // panel léků z Karty nahoře, ať se nepřehlédne
+  // 0.11.142: léky zapsané v Kartě před propojením s PéčeDoma – doplnit do PéčeDoma (nic se nemaže)
+  if ($('lk_zkarty_ok')) $('lk_zkarty_ok').onclick = async () => {
+    $('lk_zkarty_ok').disabled = true;
+    try { const r = await C('/pacient/' + d.pacient.id + '/leky/z-karty', { method: 'POST', body: {} }); S.leky = r.leky || []; S.lekyZKarty = r.zKarty || []; ukazLeky(d);
+      toast(r.prenesene.length ? `Do PéčeDoma doplněno ${r.prenesene.length} ${r.prenesene.length === 1 ? 'lék' : r.prenesene.length < 5 ? 'léky' : 'léků'} z Karty` : 'Všechny léky z Karty už v PéčeDoma jsou'); await nactiDetail(); }
+    catch (e) { toast(e.message); if ($('lk_zkarty_ok')) $('lk_zkarty_ok').disabled = false; }
+  };
   el.querySelectorAll('[data-lk-edit]').forEach((b) => (b.onclick = () => lekOkno(d, (S.leky || []).find((l) => l.id === b.dataset.lkEdit))));
   el.querySelectorAll('[data-lk-del]').forEach((b) => (b.onclick = async () => { const l = (S.leky || []).find((x) => x.id === b.dataset.lkDel); if (!l) return;
     if (await KP.confirm('Vyřadit lék', `${l.nazev}${l.davka ? ' – ' + l.davka : ''} se v PéčeDoma zneaktivní a zmizí z karty i telefonu.`, 'Vyřadit', true)) {
       try { const r = await C('/pacient/' + d.pacient.id + '/leky/smaz', { method: 'POST', body: { id: l.id, nazev: l.nazev } }); S.leky = r.leky || []; ukazLeky(d); toast('Lék vyřazen'); await nactiDetail(); } catch (e) { toast(e.message); } } }));
+}
+function zKartyHTML(muze) {
+  const z = S.lekyZKarty || [];
+  if (!z.length) return '';
+  const typ = Object.fromEntries(KP.SKUPINY_LEKU.map(([k, n]) => [k, n]));
+  return `<div class="banner warn" id="lk_zkarty" style="margin:10px 14px;display:block"><b>V Kartě jsou zapsané léky, které v PéčeDoma chybí</b> (zapsané před propojením s PéčeDoma). Propojením se nic nemaže – doplňte je do PéčeDoma, ať jsou léky na obou stranách stejné.
+    <ul style="margin:6px 0 8px 18px;padding:0">${z.map((x) => `<li>${esc(x.text)} <span class="lbl">· ${esc(typ[x.typ] || '')}</span></li>`).join('')}</ul>
+    ${muze ? `<button class="btn sm primary" id="lk_zkarty_ok" type="button">Doplnit do PéčeDoma (${z.length})</button>` : ''}</div>`;
 }
 function lekOkno(d, l = null) {
   KP.lekOkno(l, async (b) => { const r = await C('/pacient/' + d.pacient.id + '/leky', { method: 'POST', body: b }); S.leky = r.leky || []; ukazLeky(d); toast(l ? 'Lék upraven' : 'Lék přidán'); await nactiDetail(); }, { hledatLek: hledatSukl });
@@ -1113,8 +1128,8 @@ function bindTab() {
   on('pd_chat', () => chatPd(d));
   if ($('pd_chat')) nactiNahledChatu(d);
   on('pd_sync', async () => { try { toast('Synchronizuji s PéčeDoma…'); await akce('/pecedoma/sync', {}, 'Synchronizováno s PéčeDoma'); } catch (e) { /* hláška v akce() */ } });
-  on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Plán péče zůstává.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
-  on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
+  on('pd_odpojit', async () => { if (await KP.confirm('Odpojit od PéčeDoma', 'Léky a návštěvy z PéčeDoma se přestanou přebírat. Nic se nemaže: léky z PéčeDoma se uloží do plánu péče v Kartě (nová verze) a v PéčeDoma zůstávají.', 'Odpojit', true)) akce('/pecedoma', { odpojit: true }, 'Odpojeno'); });
+  on('pd_propojit', () => vyberKlientaPd(async (k) => { try { const r = await akce('/pecedoma', { klientId: k.id }, 'Propojeno s PéčeDoma'); if (r && r.chybaPrenosu) toast('Propojeno, ale léky z Karty se do PéčeDoma nepodařilo přenést: ' + r.chybaPrenosu + ' – zůstávají v Kartě, přenos zopakujte v záložce Léky.', 10000); else if (r && r.prenesene && r.prenesene.length) toast(`Propojeno s PéčeDoma – ${r.prenesene.length} ${r.prenesene.length === 1 ? 'lék' : r.prenesene.length < 5 ? 'léky' : 'léků'} z Karty doplněno do PéčeDoma`, 6000); else if (r && r.chyba) toast('Propojeno, ale synchronizace selhala: ' + r.chyba, 8000); } catch (e) { /* hláška v akce() */ } }));
   on('dg_ok', async () => { const base = (d.plan && d.plan.data) || {}; await akce('/plan', { data: { ...base, dg: $('dg_dg').value, funkce: $('dg_fun').value, alergie: $('dg_al').value }, platnostDo: d.plan ? d.plan.platnostDo : null, typ: 'ZMENA', poznamka: 'úprava diagnózy / funkčního stavu' }, 'Uloženo jako nová verze plánu'); });
   // 0.11.136: našeptávač SÚKL přímo v polích léků (dřív samostatné pole „+ přidat lék ze seznamu SÚKL“ pod každým, 0.11.124)
   KP.SKUPINY_PLANU.forEach(([, , , zkr]) => KP.suklRadky($('lk_' + zkr), hledatSukl));

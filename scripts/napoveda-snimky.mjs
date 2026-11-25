@@ -262,7 +262,8 @@ let pdLeky = [
   { id: '4', typ: 'PRAVIDELNA', nazev: 'Furosemid', davka: '40 mg 1-0-0', instr: '', popis: '', puvod: { zdroj: 'karta', kdo: 'Lucie Příkladná', kdy: cas(-20, '10:17'), akce: 'přidán', overeno: { dokument: 'Dekurz z Medistaru.pdf', kdo: 'MUDr. Petra Ukázková', kdy: cas(-7, '10:40') } } },
   { id: '5', typ: 'PRAVIDELNA', nazev: 'Lactulosa', davka: '15 ml 1-0-1', instr: '', popis: '' },
 ];
-app.get('/api/c/pacient/:id/leky', j({ zdroj: 'pecedoma', leky: pdLeky }));
+app.get('/api/c/pacient/:id/leky', j({ zdroj: 'pecedoma', leky: pdLeky, zKarty: [{ typ: 'PARENTERALNI', text: 'Dexamethason 8 mg i.v. 1× týdně' }] }));   // 0.11.142: lék z Karty, který v PéčeDoma chybí
+app.post('/api/c/pacient/:id/leky/z-karty', j({ leky: pdLeky, zKarty: [], prenesene: ['Dexamethason 8 mg i.v. 1× týdně'], sync: null }));
 app.post('/api/c/pacient/:id/leky', j((req) => { const b = req.body || {}; if (b.id) pdLeky = pdLeky.map((l) => (l.id === String(b.id) ? { ...l, ...b, id: l.id } : l)); else pdLeky.push({ id: String(pdLeky.length + 1), typ: b.typ, nazev: b.nazev, davka: b.davka || '', instr: b.instr || '', popis: b.popis || '' }); return { leky: pdLeky, sync: pdSync }; }));
 app.post('/api/c/pacient/:id/leky/smaz', j((req) => { pdLeky = pdLeky.filter((l) => l.id !== String((req.body || {}).id)); return { leky: pdLeky, sync: pdSync }; }));
 // videohovor (0.11.45): napodobený server – stav hovoru v paměti, odkaz vede na stránku bez obsahu
@@ -602,6 +603,9 @@ await zalozka('dg', 'c-dg', { vyska: 900 });
   await p.evaluate(() => fetch('/__mock/ambulance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ zap: false }) }));
   await klik(p, '.nav button[data-v="pacienti"]'); await klik(p, '#d_agenda'); await klik(p, 'tr[data-id="1"]'); await p.waitForSelector('.tabs [data-t="karta"].on'); }
 await klik(p, '.tabs [data-t="leky"]'); await p.waitForSelector('#lk_seznam table'); await foto(p, 'c-leky', { vyska: 1000 });
+{ // 0.11.142: propojený pacient – léky z Karty, které v PéčeDoma chybí, jdou doplnit (propojení nic nemaže)
+  if (!(await p.isVisible('#lk_zkarty')) || !(await p.textContent('#lk_zkarty')).includes('Dexamethason')) chyby.push('léky PéčeDoma: chybí panel léků z Karty, které v PéčeDoma nejsou');
+  else { await klik(p, '#lk_zkarty_ok'); await p.waitForTimeout(400); if (await p.isVisible('#lk_zkarty')) chyby.push('léky PéčeDoma: panel léků z Karty po doplnění nezmizel'); } }
 { const t = await p.textContent('#work');   // 0.11.125: ověřeno zprávou a rozbor zprávy přímo ze záložky Léky
   if (!t.includes('ověřeno zprávou')) chyby.push('léky: chybí štítek „ověřeno zprávou“');
   if (!t.includes('Ověřit podle zprávy') || !(await p.$('#work [data-dokai]'))) chyby.push('léky: chybí Ověřit podle zprávy s rozborem dokumentu'); }

@@ -304,3 +304,16 @@ test('AI rozbor (0.11.140): schéma odpovědi, 16000 tokenů, střední úsilí;
     assert.match((await rozborZpravy(t, { prijmeni: 'Zkušební' })).chybaAi, /odmítla/);
   } finally { globalThis.fetch = puvodni.fetch; config.ai.apiKey = puvodni.klic; }
 });
+
+test('propojení s PéčeDoma nic nemaže (0.11.142): léky z Karty, které v PéčeDoma chybí, podle léčiva; vyřazené se nenabízejí', async () => {
+  const { lekyPlanuBezPd, rozdelLekText } = await import('../src/routes/central.js');
+  assert.deepEqual(rozdelLekText('Morphin 10 mg s.c. při bolesti, nejvýš po 4 h'), { nazev: 'Morphin', davka: '10 mg s.c.', instr: 'při bolesti, nejvýš po 4 h' });
+  const plan = { parenteralni: ['Dexamethason 8 mg i.v. 1× týdně'], sos: ['Metamizol gtt 35 při bolesti'], opioidy: ['TTS fentanyl 25 - 1x 3 dny'], medikace: ['Furosemid 40 mg 1-0-0', 'Euthyrox 50', 'Furosemid 20 mg 0-1-0'] };
+  const vPd = [{ nazev: 'MATRIFEN', davka: '25mcg/h' }, { nazev: 'Euthyrox', davka: '50 mcg' }];
+  const puvod = { sos: [{ text: 'Metamizol gtt 35 při bolesti', zdroj: 'zalozeni-zprava', dokument: 'Dekurz' }] };
+  const r = lekyPlanuBezPd(plan, vPd, puvod, ['Furosemid 40 mg 1-0-0']);
+  // fentanyl už v PéčeDoma je (MATRIFEN), Euthyrox taky, Furosemid tam někdo vyřadil → nenabízí se
+  assert.deepEqual(r.map((x) => [x.typ, x.text]), [['PARENTERALNI', 'Dexamethason 8 mg i.v. 1× týdně'], ['ZACHRANNA', 'Metamizol gtt 35 při bolesti']]);
+  assert.equal(r[1].dokument, 'Dekurz', 'původ ze zprávy se přenese do auditu léku v PéčeDoma');
+  assert.deepEqual(lekyPlanuBezPd(plan, [...vPd, { nazev: 'Dexamethason' }, { nazev: 'Metamizol' }, { nazev: 'Furosemid' }]), [], 'po přenosu už nic nechybí');
+});
