@@ -317,3 +317,26 @@ test('propojení s PéčeDoma nic nemaže (0.11.142): léky z Karty, které v P�
   assert.equal(r[1].dokument, 'Dekurz', 'původ ze zprávy se přenese do auditu léku v PéčeDoma');
   assert.deepEqual(lekyPlanuBezPd(plan, [...vPd, { nazev: 'Dexamethason' }, { nazev: 'Metamizol' }, { nazev: 'Furosemid' }]), [], 'po přenosu už nic nechybí');
 });
+
+test('diagnózy obousměrně s PéčeDoma (0.11.143): první synchronizace sjednotí, pak přibylé i ubylé řádky z obou stran, kód MKN = stejná diagnóza', async () => {
+  const { slucDiagnozy } = await import('../src/pecedoma.js');
+  // první synchronizace (bez společného stavu): sjednocení, nic se nemaže; stejný kód MKN se nezdvojí
+  let m = slucDiagnozy(null, 'C61 Zhoubný novotvar předstojné žlázy\nHypertenze', 'C61 Ca prostaty\nI50.9 Selhání srdce NS');
+  assert.equal(m.text, 'C61 Zhoubný novotvar předstojné žlázy\nHypertenze\nI50.9 Selhání srdce NS');
+  assert.deepEqual([m.zmenaKarta, m.zmenaPd], [true, true]);
+  const spolecne = m.text;
+  // nic se nezměnilo → nic se nezapisuje
+  m = slucDiagnozy(spolecne, spolecne, spolecne);
+  assert.deepEqual([m.zmenaKarta, m.zmenaPd], [false, false]);
+  // v PéčeDoma přibyla diagnóza a v Kartě jedna ubyla → obojí se promítne
+  m = slucDiagnozy(spolecne, 'C61 Zhoubný novotvar předstojné žlázy\nI50.9 Selhání srdce NS', spolecne + '\nG62.9 Polyneuropatie NS');
+  assert.equal(m.text, 'C61 Zhoubný novotvar předstojné žlázy\nI50.9 Selhání srdce NS\nG62.9 Polyneuropatie NS');
+  // změněný text řádku (stejný kód) – vyhraje změněná strana
+  m = slucDiagnozy(spolecne, spolecne, spolecne.replace('I50.9 Selhání srdce NS', 'I50.0 Městnavé srdeční selhání'));
+  assert.match(m.text, /I50\.0 Městnavé srdeční selhání/);
+  assert.equal(m.zmenaPd, false); assert.equal(m.zmenaKarta, true);
+  // úplně vyprázdněná strana se nebere jako smazání všeho
+  m = slucDiagnozy(spolecne, spolecne, '');
+  assert.equal(m.text, spolecne);
+  assert.equal(m.zmenaKarta, false);
+});

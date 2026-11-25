@@ -257,7 +257,7 @@ export function normalizujPlan(d = {}) {
  * polozka = { text, verze, kdy, kdo, zdroj: 'zprava'|'zalozeni-zprava'|'zalozeni-pecedoma'|'zalozeni'|'pecedoma'|'rucne', dokument }.
  */
 export const DG_RADKY = (dg) => String(dg || '').split(/\n|;\s*/).map((x) => x.trim()).filter(Boolean);
-const klicDg = (x) => { const k = String(x).toUpperCase().match(/^[A-TV-Z]\d{2}(?:\.?\d{1,2})?/); return k ? 'K:' + k[0].replace('.', '') : 'T:' + String(x).toLowerCase().replace(/\s+/g, ' ').replace(/[.,;]$/, ''); };
+export const klicDg = (x) => { const k = String(x).toUpperCase().match(/^[A-TV-Z]\d{2}(?:\.?\d{1,2})?/); return k ? 'K:' + k[0].replace('.', '') : 'T:' + String(x).toLowerCase().replace(/\s+/g, ' ').replace(/[.,;]$/, ''); };
 const klicText = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
 export function zdrojVerze(v, zalozeni = 'rucne', zalozeniDokument = null) {
   const poz = String(v.poznamka || '');

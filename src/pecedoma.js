@@ -8,11 +8,13 @@
  * aplikace pecedomaplus-karta a s každým voláním se posílá tenant organizace, který je v PéčeDoma Plus stejný; jinak pecedoma-karta).
  * Server se PéčeDoma prokazuje i partnerským klíčem KP_PARTNER_KLIC.
  * Synchronizace plán péče nemění (plán = nová verze podepsaná lékařem); léky z PéčeDoma se ukazují vedle plánu a lékař je převezme.
+ * Výjimka od 0.11.143: diagnózy se slučují obousměrně s Daty klienta → Diagnóza a Info (synchronizujDiagnozy) – změna z PéčeDoma
+ * je nová verze plánu podepsaná „PéčeDoma: …“.
  */
 import { config } from './config.js';
 import { vTenantu } from './db.js';
 import { chyba } from './http.js';
-import { zapisDenik } from './kp.js';   // 0.11.82: zápis převzatého místa pobytu do deníku
+import { zapisDenik, planAktualni, ulozPlan, klicDg } from './kp.js';   // 0.11.82: zápis převzatého místa pobytu do deníku; 0.11.143: diagnózy
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 export const PD_API_VYCHOZI = 'https://95-216-201-2.sslip.io';
@@ -77,6 +79,9 @@ export async function synchronizujPacienta(q, nast, pacientId, pdKlientId) {
   }
   const v = normalizujSync(d);
   await uloz(v, v.kalendarChyba);
+  // 0.11.143: diagnózy obousměrně – chyba (např. starší PéčeDoma bez akce diagnoza) synchronizaci léků a návštěv neshodí
+  try { v.diagnozy = await synchronizujDiagnozy(q, nast, pacientId, pdKlientId); }
+  catch (e) { v.diagnozy = { chyba: String(e.message || e).slice(0, 200) }; console.warn(`pecedoma diagnózy pacient ${pacientId}: ${v.diagnozy.chyba}`); }
   if (v.portalKlientId) await q.exec(`UPDATE dbo.A_KP_Pacient SET PdPortalKlientID = @k WHERE PacientID = @p AND PdPortalKlientID IS NULL`, { k: v.portalKlientId, p: pacientId });
   // 0.11.82: import z PéčeDoma psal do Pobytu pevně „doma“ – takový (nebo prázdný) pobyt nahradí skutečné místo z PéčeDoma; ručně zapsaný pobyt zůstává
   if (v.kde) {
@@ -84,6 +89,51 @@ export async function synchronizujPacienta(q, nast, pacientId, pdKlientId) {
     if (n > 0) await zapisDenik(q, { pacientId, typ: 'Systém', text: `Místo pobytu převzato z PéčeDoma: ${v.kde}.`, autor: 'PéčeDoma', role: 'system' });
   }
   return v;
+}
+
+/* 0.11.143: diagnózy obousměrně s PéčeDoma (Data klienta → Diagnóza a Info). Slučuje se po řádcích (řádek = diagnóza, stejný kód MKN = stejná
+   diagnóza) proti stavu po poslední synchronizaci (A_KP_PdSync.DgSpolecne): co od té doby přibylo na jedné straně, přibude i na druhé;
+   co na jedné straně ubylo, ubude i na druhé; změněný text řádku vyhraje změněná strana (při změně na obou Karta). První synchronizace
+   (žádný předchozí stav) jen sjednotí, nic nemaže. Úplně vyprázdněný text jedné strany se nebere jako smazání všeho (ochrana před omylem). */
+const radkyDg = (t) => String(t || '').replace(/\r/g, '').split('\n').map((x) => x.trim()).filter(Boolean);
+const mapaDg = (t) => { const m = new Map(); for (const r of radkyDg(t)) { const k = klicDg(r); if (!m.has(k)) m.set(k, r); } return m; };
+export function slucDiagnozy(zaklad, karta, pd) {
+  const prvni = zaklad == null;
+  const B = mapaDg(zaklad);
+  const K = mapaDg(!prvni && !radkyDg(karta).length && B.size ? zaklad : karta);
+  const P = mapaDg(!prvni && !radkyDg(pd).length && B.size ? zaklad : pd);
+  const out = [];
+  for (const k of [...K.keys(), ...[...P.keys()].filter((x) => !K.has(x))]) {
+    const vK = K.has(k), vP = P.has(k), vB = B.has(k);
+    if (prvni) { out.push(vK ? K.get(k) : P.get(k)); continue; }
+    if (vK && vP) out.push(K.get(k) !== B.get(k) ? K.get(k) : P.get(k));
+    else if (!vB) out.push(vK ? K.get(k) : P.get(k));   // přibylo na jedné straně
+    // jinak: bylo v posledním společném stavu a jedna strana ho smazala → smazat i na druhé
+  }
+  const text = out.join('\n'), norm = (t) => radkyDg(t).join('\n');
+  return { text, zmenaKarta: text !== norm(karta), zmenaPd: text !== norm(pd) };
+}
+export async function synchronizujDiagnozy(q, nast, pacientId, pdKlientId) {
+  const klientId = String(pdKlientId).toLowerCase();
+  const pd = (await pdVolej(nast, 'diagnoza', { klientId })).diagnoza || {};
+  const row = await q.one(`SELECT DgSpolecne AS dg FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: pacientId });
+  const zaklad = row && row.dg != null ? row.dg : null;
+  const plan = await planAktualni(q, pacientId);
+  const kartaDg = (plan && plan.data && plan.data.dg) || '';
+  const m = slucDiagnozy(zaklad, kartaDg, pd.text || '');
+  const vysledek = { doKarty: false, doPd: false };
+  if (m.zmenaKarta && plan) {
+    const kdo = String(pd.kdo || '').replace(/^Karta pacienta:\s*/, '') || 'Diagnóza a Info';
+    const verze = await ulozPlan(q, { pacientId, data: { ...plan.data, dg: m.text }, platnostDo: plan.platnostDo, s: { uzivatelId: null, jmeno: 'PéčeDoma: ' + kdo }, typ: 'ZMENA', poznamka: 'diagnózy z PéčeDoma (Data klienta → Diagnóza a Info)' });
+    await zapisDenik(q, { pacientId, typ: 'Systém', text: `Diagnózy sloučeny s PéčeDoma (plán péče v${verze}): ${radkyDg(m.text).join('; ')}.`, autor: 'PéčeDoma', role: 'system' });
+    vysledek.doKarty = true;
+  }
+  if (m.zmenaPd && radkyDg(m.text).length) {
+    await pdVolej(nast, 'diagnoza-uloz', { klientId, text: m.text, kdo: String((plan && plan.podepsal) || 'Karta pacienta').replace(/^PéčeDoma:\s*/, '').slice(0, 80) });
+    vysledek.doPd = true;
+  }
+  await q.exec(`UPDATE dbo.A_KP_PdSync SET DgSpolecne = @dg WHERE PacientID = @p`, { dg: m.text, p: pacientId });
+  return vysledek;
 }
 
 /** Chat PéčeDoma s klientem (od 0.8.0): zprávy A_MSPPP_Zprava přes pecedoma-karta. Zprávy z Karty nesou značku „[Karta · kdo]“. */

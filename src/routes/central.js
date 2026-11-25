@@ -79,8 +79,10 @@ central.post('/login', h(async (req) => {
    (prohlížeč je před uložením zmenší), nejvýš 300 kB; SVG se nepřijímá. Měnit smí kdokoli kromě role jen čtenář. */
 const LOGO_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 central.get('/stitek-vzhled', sUzivatelem(async (q) => {
-  const n = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('STITEK_TEXT', 'STITEK_LOGO', 'STITEK_LOGO_FIRMA')`)).map((x) => [x.Klic, x.Hodnota || '']));
-  return { text: n.STITEK_TEXT || '', logo: n.STITEK_LOGO || '', logoFirma: n.STITEK_LOGO_FIRMA || '' };
+  const n = Object.fromEntries((await q.all(`SELECT Klic, Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic IN ('STITEK_TEXT', 'STITEK_LOGO', 'STITEK_LOGO_FIRMA', 'STITEK_ZAHLAVI')`)).map((x) => [x.Klic, x.Hodnota || '']));
+  // 0.11.143: výška záhlaví archu v mm (odsazení prvního řádku štítků od horního okraje); prázdné = výchozí 8,5 mm
+  const zahlavi = n.STITEK_ZAHLAVI !== undefined && n.STITEK_ZAHLAVI !== '' && Number.isFinite(Number(n.STITEK_ZAHLAVI)) ? Number(n.STITEK_ZAHLAVI) : null;
+  return { text: n.STITEK_TEXT || '', logo: n.STITEK_LOGO || '', logoFirma: n.STITEK_LOGO_FIRMA || '', zahlavi };
 }));
 central.post('/stitek-vzhled', sUzivatelem(async (q, s, req) => {
   if (s.role.every((r) => r === 'ctenar')) throw chyba('Vzhled štítku mění člen týmu (ne role jen čtenář)', 403);
@@ -90,6 +92,11 @@ central.post('/stitek-vzhled', sUzivatelem(async (q, s, req) => {
   if (b.text != null) zmeny.push(['STITEK_TEXT', text(b.text, 120)]);
   if (b.logo != null) zmeny.push(['STITEK_LOGO', logo(b.logo, 'Logo hospice')]);
   if (b.logoFirma != null) zmeny.push(['STITEK_LOGO_FIRMA', logo(b.logoFirma, 'Logo firmy')]);
+  if (b.zahlavi != null) {   // 0.11.143: 4 řádky po 70 mm na A4 (297 mm) → záhlaví 0–17 mm
+    const z = Number(String(b.zahlavi).replace(',', '.'));
+    if (!Number.isFinite(z) || z < 0 || z > 17) throw chyba('Výška záhlaví: zadejte 0 až 17 mm (4 řádky štítků po 70 mm se musí vejít na A4)');
+    zmeny.push(['STITEK_ZAHLAVI', String(Math.round(z * 10) / 10)]);
+  }
   for (const [k, v] of zmeny) {
     await q.exec(`MERGE dbo.A_KP_Nastaveni AS t USING (VALUES (@k, @v)) AS s(Klic, Hodnota) ON t.Klic = s.Klic
       WHEN MATCHED THEN UPDATE SET Hodnota = s.Hodnota, Zmeneno = SYSDATETIME() WHEN NOT MATCHED THEN INSERT (Klic, Hodnota) VALUES (s.Klic, s.Hodnota);`, { k, v });
@@ -477,6 +484,9 @@ central.post('/pacient/:id/plan', sUzivatelem(async (q, s, req) => {
   const v = await ulozPlan(q, { pacientId: id, data, platnostDo: platnost, s, typ, poznamka: text(b.poznamka, 500) || null });
   await zapisDenik(q, { pacientId: id, typ: 'Revize', text: typ === 'REVIZE' ? `Plán péče revidován beze změny, platnost do ${platnost || '—'}.${b.poznamka ? ' ' + text(b.poznamka, 300) : ''}` : `Plán péče upraven (verze ${v}).${b.poznamka ? ' ' + text(b.poznamka, 300) : ''}`, autor: s.jmeno, role: 'lekar', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: typ === 'REVIZE' ? 'revize plánu' : 'změna plánu', detail: `verze ${v}`, ip: s.ip });
+  // 0.11.143: propojený pacient – diagnózy z nové verze hned do PéčeDoma (synchronizace; chyba uložení plánu nezastaví)
+  const pdk = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: id });
+  if (pdk && pdk.pd) { try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, id, pdk.pd); } catch { /* doběhne automaticky */ } }
   return { verze: v };
 }));
 

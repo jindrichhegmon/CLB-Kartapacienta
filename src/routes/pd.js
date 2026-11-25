@@ -12,7 +12,7 @@ import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, text } from '../http.js';
 import { overSession } from '../crypto.js';
 import { audit, zapisDenik, balikProZarizeni, planAktualni, ulozPlan } from '../kp.js';
-import { hledejDiagnozy } from '../pecedoma.js';
+import { hledejDiagnozy, nastaveniPd, synchronizujPacienta } from '../pecedoma.js';
 
 export const pd = Router();
 const tenantRe = /^[A-Z0-9]{16}$/;
@@ -74,6 +74,9 @@ pd.post('/plan', h(async (req) => {
     await zapisDenik(q, { pacientId: p.PacientID, typ: 'Revize', role: 'lekar', autor: s.jmeno,
       text: typ === 'REVIZE' ? `Plán péče revidován beze změny z PéčeDoma, platnost do ${platnost || '—'}.${b.poznamka ? ' ' + text(b.poznamka, 300) : ''}` : `Plán péče upraven z PéčeDoma (verze ${verze}).${b.poznamka ? ' ' + text(b.poznamka, 300) : ''}` });
     await audit(q, { kdo: s.jmeno, pacientId: p.PacientID, akce: typ === 'REVIZE' ? 'revize plánu z PéčeDoma' : 'změna plánu z PéčeDoma', detail: `verze ${verze}`, ip: ip(req) });
+    // 0.11.143: diagnózy z nové verze hned i do Dat klienta → Diagnóza a Info
+    const pdk = await q.one(`SELECT LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE PacientID = @p`, { p: p.PacientID });
+    if (pdk && pdk.pd) { try { const nast = await nastaveniPd(q); if (nast.nastaveno) await synchronizujPacienta(q, nast, p.PacientID, pdk.pd); } catch { /* doběhne automaticky */ } }
     return { verze };
   });
 }));
