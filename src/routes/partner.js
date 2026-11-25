@@ -17,11 +17,13 @@
  *       (A_KP_Pacient.TelefonKarty – totéž co Detail pacienta → Údaje v centrále): stejná pravidla jako v centrále – telefon
  *       spárovaný s jiným číslem se zablokuje, zápis do deníku a logu. → { telefonKarty, zmeneno: true|false, zablokovano }
  *   vstupenka vrací v `pacient` i `telefonKarty` (0.11.73).
+ *   POST /api/partner/prihlaseni  { tenant, login, jmeno }   (0.11.144) → { odkaz, uzivatel } jednorázová vstupenka (2 min) do centrály
+ *       pro aktivní účet se stejným loginem (jinak jménem bez titulů, je-li jediný) | { nemaUcet: true, duvod }
  *   GET /api/partner/zapujcene?tenant=<IDTENANT>   (0.11.75) → { pacienti: [{ kod, rc, telefon, sync, sparovano }] } aktivní průkazy se spárovaným zapůjčeným
  *       telefonem – PéčeDoma z toho počítá kritérium „Karta pacienta“ v číslech 720 (bez jmen)
  */
 import { Router } from 'express';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, randomBytes } from 'node:crypto';
 import { config } from '../config.js';
 import { vTenantu } from '../db.js';
 import { h, chyba, omez, ip, text } from '../http.js';
@@ -75,6 +77,35 @@ partner.get('/zapujcene', h(async (req) => {
       FROM dbo.A_KP_Pacient p JOIN dbo.A_KP_Zarizeni z ON z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY'
       WHERE p.Stav = 'AKTIVNI' GROUP BY p.PacientID, p.KodPrukazu, p.RodneCislo, p.TelefonKarty ORDER BY p.PacientID`);
     return { pacienti: rows.filter((r) => /^\d{9,10}$/.test(r.rc)) };
+  });
+}));
+
+/* 0.11.144: přihlášení do centrály rovnou z PéčeDoma (tlačítko 🪪 Karta pacienta v záhlaví portálu). Server PéčeDoma uživatele ověřil
+   svou session a za něj ručí partnerským klíčem; Karta najde aktivní účet se stejným loginem (jinak se stejným jménem bez titulů,
+   jen když je jediný) a vydá jednorázovou vstupenku (2 min) – centrála ji vymění za běžné přihlášení (POST /api/c/sso).
+   Karta dál běží i bez PéčeDoma: přihlášení jménem a heslem se nemění; uživatel bez účtu v Kartě dostane { nemaUcet: true }. */
+export const bezTitulu = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[\s,]+/).map((w) => w.slice(w.lastIndexOf('.') + 1)).filter(Boolean).sort().join(' ');
+partner.post('/prihlaseni', h(async (req) => {
+  overKlic(req);
+  omez('partner-sso:' + ip(req), 120, 3600e3);
+  const b = req.body || {};
+  const tenant = String(b.tenant || '').toUpperCase().trim();
+  const login = text(b.login, 100).toLowerCase();
+  const jmeno = text(b.jmeno, 150);
+  if (!tenantRe.test(tenant)) throw chyba('Chybí nebo je neplatný tenant');
+  if (!login && !jmeno) throw chyba('Chybí login nebo jméno uživatele');
+  return vTenantu(tenant, async (q) => {
+    const kp = await q.one(`SELECT Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic = 'KP_AKTIVNI'`);
+    if (!kp || kp.Hodnota !== '1') return { nemaUcet: true, duvod: 'Karta pacienta není pro tuto organizaci zapnutá' };
+    let u = login ? await q.one(`SELECT UzivatelID, Jmeno, Login FROM dbo.A_KP_Uzivatel WHERE Login = @l AND Aktivni = 1`, { l: login }) : null;
+    if (!u && jmeno) {
+      const k = bezTitulu(jmeno);
+      const shoda = (await q.all(`SELECT UzivatelID, Jmeno, Login FROM dbo.A_KP_Uzivatel WHERE Aktivni = 1`)).filter((x) => k && bezTitulu(x.Jmeno) === k);
+      if (shoda.length === 1) u = shoda[0];
+    }
+    if (!u) return { nemaUcet: true, duvod: `V Kartě pacienta nemáte účet (login ${login || '–'}) – přihlaste se účtem Karty, nebo požádejte správce Karty o založení účtu se stejným loginem jako v PéčeDoma` };
+    const v = podepis({ typ: 'kp-sso', tenant, uzivatelId: u.UzivatelID, jti: randomBytes(9).toString('base64url'), kdo: 'PéčeDoma: ' + (jmeno || login) }, 120);
+    return { odkaz: `${config.verejnaAdresa.replace(/\/+$/, '')}/centrala/#sso=${v}`, uzivatel: { jmeno: u.Jmeno, login: u.Login } };
   });
 }));
 

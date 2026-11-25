@@ -104,6 +104,9 @@ const { esc, api, toast, modal, closeModal, fmtD, fmtDT, CILE, LIMITY } = KP;
 const $ = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
 if (qs.get('t')) { localStorage.setItem('kp_tenant', qs.get('t').toUpperCase()); history.replaceState(null, '', location.pathname); }
+/* 0.11.144: přihlášení rovnou z PéčeDoma – #sso=<vstupenka> (jednorázová, 2 min); bez ní se centrála přihlašuje jako dosud */
+const SSO = (location.hash.match(/[#&]sso=([^&]+)/) || [])[1] || '';
+if (SSO) history.replaceState(null, '', location.pathname + location.search);
 const S = { tenant: localStorage.getItem('kp_tenant') || '', session: sessionStorage.getItem('kp_session') || '', ja: null, view: 'pacienti', pac: null, tab: 'karta', stav: 'AKTIVNI', posk: [], wiz: null };
 /* fulltextové hledání v agendách (0.11.15): políčko filtruje řádky tabulek na stránce – všechna slova, bez ohledu na diakritiku a velikost písmen; text se pamatuje pro každou agendu */
 S.hledat = {};
@@ -2566,7 +2569,15 @@ async function spravaNast() {
   };
 }
 
-render();
+(async () => {
+  if (SSO) {
+    try {
+      const d = await api('/api/c/sso', { method: 'POST', body: { token: decodeURIComponent(SSO) } });
+      S.tenant = d.tenant; localStorage.setItem('kp_tenant', d.tenant); S.session = d.session; sessionStorage.setItem('kp_session', d.session); S.view = 'pacienti';
+    } catch (e) { setTimeout(() => toast('Přihlášení z PéčeDoma se nepodařilo: ' + e.message), 300); }
+  }
+  render();
+})();
 </script>
 </body>
 </html>

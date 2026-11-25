@@ -74,6 +74,28 @@ central.post('/login', h(async (req) => {
   return { session: podepis({ typ: 'kp', tenant, uzivatelId: r.UzivatelID }, TTL), musiZmenitHeslo: !!r.MusiZmenitHeslo };
 }));
 
+/* 0.11.144: přihlášení z PéčeDoma – vstupenka z partnerského API (POST /api/partner/prihlaseni, 2 min, jen jednou) → běžná session centrály */
+const pouziteSso = new Map();
+central.post('/sso', h(async (req) => {
+  omez('sso:' + ip(req), 30);
+  const v = overSession(String((req.body || {}).token || ''));
+  if (!v || v.typ !== 'kp-sso' || !tenantRe.test(v.tenant || '') || !v.jti) throw chyba('Přihlášení z PéčeDoma vypršelo – klikněte v PéčeDoma znovu na Karta pacienta, nebo se přihlaste jménem a heslem', 401);
+  const ted = Date.now();
+  for (const [k, exp] of pouziteSso) if (exp < ted) pouziteSso.delete(k);
+  if (pouziteSso.has(v.jti)) throw chyba('Tento odkaz už byl použit – klikněte v PéčeDoma znovu na Karta pacienta', 401);
+  pouziteSso.set(v.jti, v.exp * 1000);
+  const u = await vTenantu(v.tenant, async (q) => {
+    const kp = await q.one(`SELECT Hodnota FROM dbo.A_KP_Nastaveni WHERE Klic = 'KP_AKTIVNI'`);
+    if (!kp || kp.Hodnota !== '1') throw chyba('Karta pacienta není pro tuto organizaci zapnutá', 403);
+    const x = await q.one(`SELECT UzivatelID, Jmeno, Aktivni, MusiZmenitHeslo FROM dbo.A_KP_Uzivatel WHERE UzivatelID = @u`, { u: v.uzivatelId });
+    if (!x || !x.Aktivni) throw chyba('Účet v Kartě pacienta není aktivní', 401);
+    await q.exec(`UPDATE dbo.A_KP_Uzivatel SET PosledniPrihlaseni = SYSDATETIME() WHERE UzivatelID = @u`, { u: x.UzivatelID });
+    await audit(q, { uzivatelId: x.UzivatelID, kdo: x.Jmeno, akce: 'přihlášení z PéčeDoma', detail: text(v.kdo, 150), ip: ip(req) });
+    return x;
+  });
+  return { session: podepis({ typ: 'kp', tenant: v.tenant, uzivatelId: u.UzivatelID }, TTL), tenant: v.tenant, musiZmenitHeslo: false };
+}));
+
 /* vzhled štítku na telefon (0.11.102): logo hospice, text dole (např. „Tento telefon i jeho provoz hradí firma XY“) a logo firmy –
    pro celou organizaci v A_KP_Nastaveni (STITEK_TEXT, STITEK_LOGO, STITEK_LOGO_FIRMA). Loga jako obrázek PNG/JPEG/WebP v data URL
    (prohlížeč je před uložením zmenší), nejvýš 300 kB; SVG se nepřijímá. Měnit smí kdokoli kromě role jen čtenář. */

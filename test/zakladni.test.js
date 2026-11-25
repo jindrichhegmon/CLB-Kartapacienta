@@ -216,3 +216,12 @@ test('přepis ze zprávy: cíl a limitace jen z výslovné věty, samotné slovo
   assert.deepEqual(r.limity, ['KPR']);
   assert.match(r.citace.cil, /Cíl péče: symptomatická léčba/);
 });
+
+test('přihlášení z PéčeDoma (0.11.144): jméno bez titulů a pořadí slov, vstupenka typu kp-sso není session centrály', async () => {
+  const { bezTitulu } = await import('../src/routes/partner.js');
+  assert.equal(bezTitulu('MUDr.Eva Hegmonová'), bezTitulu('Eva Hegmonová'));
+  assert.equal(bezTitulu('Hegmonová Eva, Ph.D.'), bezTitulu('Eva Hegmonová'));
+  assert.notEqual(bezTitulu('Jana Vrubelová'), bezTitulu('Jana Molnárová'));
+  const v = podepis({ typ: 'kp-sso', tenant: 'TEST000000000001', uzivatelId: 1, jti: 'x' }, 120);
+  assert.equal(overSession(v).typ, 'kp-sso');   // centrála v sUzivatelem pouští jen typ 'kp' – vstupenka se musí vyměnit přes /api/c/sso
+});
