@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Nová verze aplikace Karta pacienta (kiosk) – sestavení, podpis, nasazení a nahrání do telefonu jedním příkazem z Macu:
+#   cd ~/Downloads/CLB-Kartapacienta && ./android/sestavit-aplikaci.sh
+#
+# Co udělá:
+#   1. stáhne poslední verzi z gitu (větev claude/dazzling-davinci-s5yi2x),
+#   2. sestaví release (gradlew, Java z Android Studia), podepíše ho vaším klíčem (kiosk.jks – heslo se zadává skrytě, nikam se neukládá),
+#   3. ověří, že podpis je STEJNÝ jako u aplikace, která je teď na serveru (jinak by nešla nahrát přes starou ani zavést QR kódem),
+#   4. zkopíruje ji do public/android/kartapacienta.apk a na dotaz nasadí na server (./deploy/vps-deploy.sh),
+#   5. na dotaz nahraje do telefonu na kabelu (./android/nahrat-telefon.sh) – stačí opakovat pro další telefony.
+#
+# Potřebuje: Android Studio (SDK, Java), android/local.properties s kp.servisPin, podpisový klíč kiosk.jks.
+# Cesta ke klíči: proměnná KP_KEYSTORE, nebo kp.keystore v android/local.properties, jinak ho skript hledá a případně se zeptá.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+KOREN=$(pwd)
+VETEV=claude/dazzling-davinci-s5yi2x
+SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+LP="$KOREN/android/local.properties"
+VYSTUP="$KOREN/android/app/release/app-release.apk"
+SERVER_APK="$KOREN/public/android/kartapacienta.apk"
+ano() { local o; read -r -p "$1 [a/N] " o; [[ "$o" =~ ^[aAyY] ]]; }
+vlastnost() { [ -f "$LP" ] && grep -E "^$1=" "$LP" | tail -1 | cut -d= -f2- || true; }
+
+echo "== 1/5 Poslední verze z gitu"
+[ "$(git rev-parse --abbrev-ref HEAD)" = "$VETEV" ] || { echo "Jste na větvi $(git rev-parse --abbrev-ref HEAD), čekám $VETEV:  git switch $VETEV"; exit 1; }
+git pull --ff-only origin "$VETEV"
+echo "Aplikace: $(grep -m1 'versionName' android/app/build.gradle.kts | tr -d ' ')"
+
+echo "== 2/5 Sestavení (první běh stahuje Gradle a trvá i několik minut)"
+[ -d "$SDK" ] || { echo "Chybí Android SDK ($SDK) – nainstalujte Android Studio a jednou v něm otevřete složku android."; exit 1; }
+[ -n "$(vlastnost kp.servisPin)" ] || { echo "Chybí kp.servisPin v android/local.properties (servisní PIN pro odchod z kiosku)."; exit 1; }
+if [ -z "${JAVA_HOME:-}" ]; then
+  for j in "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "/Applications/Android Studio.app/Contents/jre/Contents/Home"; do [ -d "$j" ] && export JAVA_HOME="$j" && break; done
+fi
+[ -n "${JAVA_HOME:-}" ] || { echo "Nenašel jsem Javu z Android Studia – nastavte JAVA_HOME."; exit 1; }
+grep -q '^sdk.dir=' "$LP" 2>/dev/null || echo "sdk.dir=$SDK" >> "$LP"
+( cd android && ./gradlew --quiet :app:assembleRelease )
+NEPODEPSANE="$KOREN/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+[ -f "$NEPODEPSANE" ] || NEPODEPSANE=$(ls -t "$KOREN"/android/app/build/outputs/apk/release/*.apk 2>/dev/null | head -1 || true)
+[ -f "$NEPODEPSANE" ] || { echo "Sestavení nevytvořilo APK (android/app/build/outputs/apk/release)."; exit 1; }
+
+echo "== 3/5 Podpis"
+KS="${KP_KEYSTORE:-$(vlastnost kp.keystore)}"
+if [ -z "$KS" ] || [ ! -f "$KS" ]; then
+  KS=$(ls "$KOREN"/android/*.jks "$HOME"/kiosk.jks "$HOME"/Downloads/kiosk.jks "$HOME"/Documents/kiosk.jks "$HOME"/Desktop/kiosk.jks 2>/dev/null | head -1 || true)
+fi
+if [ -z "$KS" ] || [ ! -f "$KS" ]; then
+  read -r -p "Kde je podpisový klíč kiosk.jks? (přetáhněte soubor sem do Terminálu a Enter): " KS
+  KS=$(echo "$KS" | sed "s/^'//; s/'$//; s/\\\\ / /g")
+  [ -f "$KS" ] || { echo "Soubor $KS neexistuje."; exit 1; }
+  ano "Zapamatovat cestu ke klíči v android/local.properties (jen cesta, heslo ne)?" && echo "kp.keystore=$KS" >> "$LP"
+fi
+echo "Klíč: $KS"
+BT=$(ls -d "$SDK"/build-tools/*/ 2>/dev/null | sort -V | tail -1)
+[ -x "${BT}apksigner" ] || { echo "Chybí apksigner (Android Studio → SDK Manager → SDK Tools → Android SDK Build-Tools)."; exit 1; }
+mkdir -p "$(dirname "$VYSTUP")"
+ZAROVNANE="$KOREN/android/app/build/zarovnane.apk"
+"${BT}zipalign" -f -p 4 "$NEPODEPSANE" "$ZAROVNANE"
+echo "Zadejte heslo klíče (skrytě; když se zeptá dvakrát, je to heslo úložiště a heslo klíče):"
+"${BT}apksigner" sign --ks "$KS" --out "$VYSTUP" "$ZAROVNANE"
+"${BT}apksigner" verify "$VYSTUP" >/dev/null && echo "Podpis v pořádku: $VYSTUP"
+
+# Stejný klíč jako aplikace na serveru? (otisk certifikátu – stejný výpočet jako QR kód zavedení, nastroje/novy-telefon/apk-podpis.js)
+otisk() { node -e "import('$KOREN/nastroje/novy-telefon/apk-podpis.js').then(async()=>{const o=await KPAPK.otiskPodpisu(new Uint8Array(require('fs').readFileSync(process.argv[1])));console.log(o.otiskHex)}).catch((e)=>{console.log('?');})" "$1"; }
+NOVY=$(otisk "$VYSTUP")
+if [ ! -f "$SERVER_APK" ]; then
+  echo "Aplikace ze serveru tu není – stahuji ji pro kontrolu podpisu…"
+  curl -fsS -o "$SERVER_APK" https://kartapacienta.95-216-201-2.sslip.io/android/kartapacienta.apk || rm -f "$SERVER_APK"
+fi
+if [ -f "$SERVER_APK" ]; then
+  STARY=$(otisk "$SERVER_APK")
+  if [ "$NOVY" != "$STARY" ]; then
+    echo "POZOR: nová aplikace je podepsaná JINÝM klíčem než aplikace na serveru."
+    echo "  na serveru: $STARY"
+    echo "  nová:       $NOVY"
+    echo "Telefony by ji nepřijaly jako aktualizaci a vytištěný QR kód by pro ni neplatil. Použijte původní kiosk.jks. Končím."
+    exit 1
+  fi
+  echo "Podpisový klíč je stejný jako u aplikace na serveru (QR kód i aktualizace v telefonech platí dál)."
+fi
+
+echo "== 4/5 Server"
+cp "$VYSTUP" "$SERVER_APK"
+if ano "Nasadit novou aplikaci na server teď (./deploy/vps-deploy.sh)?"; then ./deploy/vps-deploy.sh; else echo "Bez nasazení – později: ./deploy/vps-deploy.sh"; fi
+
+echo "== 5/5 Telefony"
+while ano "Nahrát aplikaci do telefonu na kabelu (ladění USB zapnuté)?"; do
+  ./android/nahrat-telefon.sh "$VYSTUP" || echo "Nahrání se nepovedlo – výpis výše."
+  echo
+done
+echo "Hotovo. Telefony u pacientů bez kabelu dostanou novou verzi až při příštím nahrání; nové telefony zaváděné QR kódem si ji stáhnou ze serveru samy."

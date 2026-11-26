@@ -90,7 +90,13 @@ nepoužívají). Podrobně v `android/windows/CTI-ME-Windows.txt`.
 
 ## Aktualizace aplikace na telefonu, který už je kiosk
 
-Správce zařízení zůstává, stačí nahrát nové APK (telefon na kabelu, ladění USB zapnuté a potvrzené). Jeden příkaz:
+**Nová verze aplikace celá jedním příkazem** (od 0.1.19): sestaví release, podepíše ho klíčem `kiosk.jks` (heslo se zadá skrytě), ověří, že podpis je stejný jako u aplikace na serveru, nasadí ji na server a nahraje do telefonů na kabelu – na každý krok se zeptá:
+
+```
+cd ~/Downloads/CLB-Kartapacienta && ./android/sestavit-aplikaci.sh
+```
+
+Jen nahrání hotového APK do telefonu: Správce zařízení zůstává, stačí nahrát nové APK (telefon na kabelu, ladění USB zapnuté a potvrzené). Jeden příkaz:
 
 ```
 cd ~/Documents/Claude/Projects/CLB-Kartapacienta && ./android/nahrat-telefon.sh
