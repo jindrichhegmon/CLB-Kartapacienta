@@ -29,7 +29,28 @@ echo "Aplikace: $(grep -m1 'versionName' android/app/build.gradle.kts | tr -d ' 
 
 echo "== 2/5 Sestavení (první běh stahuje Gradle a trvá i několik minut)"
 [ -d "$SDK" ] || { echo "Chybí Android SDK ($SDK) – nainstalujte Android Studio a jednou v něm otevřete složku android."; exit 1; }
-[ -n "$(vlastnost kp.servisPin)" ] || { echo "Chybí kp.servisPin v android/local.properties (servisní PIN pro odchod z kiosku)."; exit 1; }
+if [ -z "$(vlastnost kp.servisPin)" ]; then
+  # servisní PIN je jen v android/local.properties (do gitu nepatří) – zkusit dřívější složku projektu, jinak se zeptat (skrytě)
+  for d in "$HOME/Documents/Claude/Projects/CLB-Kartapacienta" "$HOME/Documents/CLB-Kartapacienta" "$HOME/CLB-Kartapacienta"; do
+    if [ "$d" != "$KOREN" ] && grep -q '^kp.servisPin=.' "$d/android/local.properties" 2>/dev/null; then
+      if ano "V $d/android/local.properties je servisní PIN z dřívějšího sestavení. Převzít ho (i ostatní nastavení odtud)?"; then
+        grep -E '^kp\.' "$d/android/local.properties" >> "$LP"; echo "Převzato (PIN se nevypisuje)."; break
+      fi
+    fi
+  done
+fi
+if [ -z "$(vlastnost kp.servisPin)" ]; then
+  echo "Servisní PIN (5× klepnout do rohu → PIN) – zadejte STEJNÝ, jaký mají telefony teď; jinak bude po aktualizaci platit nový."
+  read -r -s -p "Servisní PIN (skrytě): " PIN1; echo; read -r -s -p "Znovu pro kontrolu: " PIN2; echo
+  [ -n "$PIN1" ] && [ "$PIN1" = "$PIN2" ] || { echo "PINy se neshodují nebo je prázdný."; exit 1; }
+  echo "kp.servisPin=$PIN1" >> "$LP"; unset PIN1 PIN2
+  echo "Uloženo do android/local.properties (soubor je mimo git)."
+fi
+# podpisový klíč z dřívější složky projektu, když tady žádný není
+if [ -z "$(vlastnost kp.keystore)" ] && [ -z "${KP_KEYSTORE:-}" ]; then
+  STARY_KS=$(ls "$HOME/Documents/Claude/Projects/CLB-Kartapacienta"/android/*.jks 2>/dev/null | head -1 || true)
+  if [ -n "$STARY_KS" ]; then export KP_KEYSTORE="$STARY_KS"; fi
+fi
 if [ -z "${JAVA_HOME:-}" ]; then
   for j in "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "/Applications/Android Studio.app/Contents/jre/Contents/Home"; do [ -d "$j" ] && export JAVA_HOME="$j" && break; done
 fi
