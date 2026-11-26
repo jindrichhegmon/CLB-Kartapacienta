@@ -16,7 +16,8 @@
 # android/app/release/app-release.apk) – skript ji jen zkontroluje (podpis jako na serveru), nasadí a nahraje do telefonů:
 #   ./android/sestavit-aplikaci.sh --hotove
 set -euo pipefail
-HOTOVE=0; [ "${1:-}" = "--hotove" ] && HOTOVE=1
+HOTOVE=0; ZDROJ=""
+if [ "${1:-}" = "--hotove" ]; then HOTOVE=1; ZDROJ="${2:-}"; fi   # --hotove [cesta k APK z Android Studia]
 cd "$(dirname "$0")/.."
 KOREN=$(pwd)
 VETEV=claude/dazzling-davinci-s5yi2x
@@ -33,9 +34,25 @@ git pull --ff-only origin "$VETEV"
 echo "Aplikace: $(grep -m1 'versionName' android/app/build.gradle.kts | tr -d ' ')"
 
 if [ "$HOTOVE" = 1 ]; then
+  if [ -n "$ZDROJ" ]; then
+    ZDROJ=$(echo "$ZDROJ" | sed "s/^'//; s/'$//")
+    [ -f "$ZDROJ" ] || { echo "Soubor $ZDROJ neexistuje."; exit 1; }
+    mkdir -p "$(dirname "$VYSTUP")"; [ "$ZDROJ" -ef "$VYSTUP" ] || cp "$ZDROJ" "$VYSTUP"
+  fi
   echo "== 2–3/5 Hotová aplikace z Android Studia: $VYSTUP"
-  [ -f "$VYSTUP" ] || { echo "Chybí $VYSTUP – v Android Studiu: Build → Generate Signed App Bundle / APK → APK → release (složka android/app/release)."; exit 1; }
-  echo "Sestaveno: $(date -r "$VYSTUP" '+%-d. %-m. %Y %H:%M') – musí to být sestavení z této verze (po git pull)."
+  [ -f "$VYSTUP" ] || { echo "Chybí $VYSTUP – v Android Studiu: Build → Generate Signed App Bundle / APK → APK → release; nebo zadejte cestu: ./android/sestavit-aplikaci.sh --hotove /cesta/k/app-release.apk"; exit 1; }
+  echo "Sestaveno: $(date -r "$VYSTUP" '+%-d. %-m. %Y %H:%M')"
+  # verze v APK musí být ta z gitu – jinak jde o starší sestavení (např. ze staré složky projektu)
+  CHCI=$(grep -m1 'versionName' android/app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
+  AAPT=$(ls -d "$SDK"/build-tools/*/ 2>/dev/null | sort -V | tail -1)aapt2
+  if [ -x "$AAPT" ]; then
+    MAM=$("$AAPT" dump badging "$VYSTUP" 2>/dev/null | sed -nE "s/.*versionName='([^']+)'.*/\1/p" | head -1 || true)
+    if [ "$MAM" != "$CHCI" ]; then
+      echo "POZOR: v APK je verze ${MAM:-?}, v gitu $CHCI – sestavili jste starší projekt (jiná složka?). V Android Studiu otevřete ~/Downloads/CLB-Kartapacienta/android a sestavte znovu."
+      exit 1
+    fi
+    echo "Verze v APK: $MAM (odpovídá gitu)"
+  fi
 else
 echo "== 2/5 Sestavení (první běh stahuje Gradle a trvá i několik minut)"
 [ -d "$SDK" ] || { echo "Chybí Android SDK ($SDK) – nainstalujte Android Studio a jednou v něm otevřete složku android."; exit 1; }
