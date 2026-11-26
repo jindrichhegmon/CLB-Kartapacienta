@@ -11,7 +11,12 @@
 #
 # Potřebuje: Android Studio (SDK, Java), android/local.properties s kp.servisPin, podpisový klíč kiosk.jks.
 # Cesta ke klíči: proměnná KP_KEYSTORE, nebo kp.keystore v android/local.properties, jinak ho skript hledá a případně se zeptá.
+#
+# Varianta --hotove: aplikaci jste podepsal sám v Android Studiu (Build → Generate Signed App Bundle / APK → APK → release, soubor
+# android/app/release/app-release.apk) – skript ji jen zkontroluje (podpis jako na serveru), nasadí a nahraje do telefonů:
+#   ./android/sestavit-aplikaci.sh --hotove
 set -euo pipefail
+HOTOVE=0; [ "${1:-}" = "--hotove" ] && HOTOVE=1
 cd "$(dirname "$0")/.."
 KOREN=$(pwd)
 VETEV=claude/dazzling-davinci-s5yi2x
@@ -27,6 +32,11 @@ echo "== 1/5 Poslední verze z gitu"
 git pull --ff-only origin "$VETEV"
 echo "Aplikace: $(grep -m1 'versionName' android/app/build.gradle.kts | tr -d ' ')"
 
+if [ "$HOTOVE" = 1 ]; then
+  echo "== 2–3/5 Hotová aplikace z Android Studia: $VYSTUP"
+  [ -f "$VYSTUP" ] || { echo "Chybí $VYSTUP – v Android Studiu: Build → Generate Signed App Bundle / APK → APK → release (složka android/app/release)."; exit 1; }
+  echo "Sestaveno: $(date -r "$VYSTUP" '+%-d. %-m. %Y %H:%M') – musí to být sestavení z této verze (po git pull)."
+else
 echo "== 2/5 Sestavení (první běh stahuje Gradle a trvá i několik minut)"
 [ -d "$SDK" ] || { echo "Chybí Android SDK ($SDK) – nainstalujte Android Studio a jednou v něm otevřete složku android."; exit 1; }
 if [ -z "$(vlastnost kp.servisPin)" ]; then
@@ -91,9 +101,15 @@ mkdir -p "$(dirname "$VYSTUP")"
 ZAROVNANE="$KOREN/android/app/build/zarovnane.apk"
 "${BT}zipalign" -f -p 4 "$NEPODEPSANE" "$ZAROVNANE"
 echo "Zadejte heslo klíče (skrytě; když se zeptá dvakrát, je to heslo úložiště a heslo klíče):"
-"${BT}apksigner" sign --ks "$KS" --out "$VYSTUP" "$ZAROVNANE"
+if ! "${BT}apksigner" sign --ks "$KS" --out "$VYSTUP" "$ZAROVNANE" 2>"$KOREN/android/app/build/podpis-chyba.txt"; then
+  if grep -q "password was incorrect" "$KOREN/android/app/build/podpis-chyba.txt"; then echo "Špatné heslo klíče. Spusťte skript znovu (sestavení podruhé trvá pár sekund),"
+  else cat "$KOREN/android/app/build/podpis-chyba.txt"; echo "Podpis se nepovedl."; fi
+  echo "nebo aplikaci podepište v Android Studiu (pamatuje si heslo) a pak:  ./android/sestavit-aplikaci.sh --hotove"
+  exit 1
+fi
 "${BT}apksigner" verify "$VYSTUP" >/dev/null && echo "Podpis v pořádku: $VYSTUP"
 
+fi
 # Stejný klíč jako aplikace na serveru? (otisk certifikátu – stejný výpočet jako QR kód zavedení, nastroje/novy-telefon/apk-podpis.js)
 otisk() { node -e "import('$KOREN/nastroje/novy-telefon/apk-podpis.js').then(async()=>{const o=await KPAPK.otiskPodpisu(new Uint8Array(require('fs').readFileSync(process.argv[1])));console.log(o.otiskHex)}).catch((e)=>{console.log('?');})" "$1"; }
 NOVY=$(otisk "$VYSTUP")
