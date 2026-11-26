@@ -48,6 +48,7 @@ Od 0.2.0 je to ostrá verze: lokální prototyp `/demo/` je zrušený (adresa p�
 
 ## Týmy lidí (0.10.0)
 
+- Android obálka 0.1.19: **příchozí hovor jde v kiosku přijmout** – při zvonění ukáže karta nahoře zelený pruh *Příchozí hovor* s tlačítky **Přijmout** (`TelecomManager.acceptRingingCall`, záloha `showInCallScreen`) a **Odmítnout**; dřív pruh ukazoval jen Zavěsit (Android hlásí zvonění jako hovor) a systémová obrazovka příchozího hovoru se v kiosku neukázala (je to oznámení). Servis → **Mobilní síť a volání přes Wi-Fi** otevře nastavení mobilní sítě, kde jde vypnout volání přes Wi-Fi (aplikace ho sama přepnout nesmí).
 - Android obálka 0.1.2: oprava pádu při startu na některých telefonech (vzhled lišt se nastavoval před vytvořením okna – NullPointerException v `insetsController`).
 - Android obálka 0.1.1 (`android/`): sloučeno z `main`; fotoaparát pro čtečku QR v kartě (v kiosku přidělí správce zařízení sám, jinak dotaz), nastavení telefonů QR kódem při prvním zapnutí (`node android/provisioning-qr.mjs`, APK v `public/android/` se nahrává na VPS při nasazení).
 - Android obálka 0.1.7: reproduktor se vynutí znovu při každém přepnutí Androidu do režimu hovoru (`OnModeChangedListener`) – WebView po spuštění mikrofonu trasu zvuku přepínal zpět do sluchátka.

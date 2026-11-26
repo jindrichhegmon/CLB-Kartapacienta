@@ -325,36 +325,64 @@ class MainActivity : Activity() {
         otevrit(Intent(Intent.ACTION_DIAL, u))
     }
 
-    /** 0.1.12: probíhá-li hovor, karta nahoře ukáže červený pruh Zavěsit – obrazovka hovoru se v kiosku nemusí zobrazit (jiná aplikace). */
+    /** 0.1.12: probíhá-li hovor, karta nahoře ukáže červený pruh Zavěsit – obrazovka hovoru se v kiosku nemusí zobrazit (jiná aplikace).
+     *  0.1.19: při zvonění (příchozí hovor) Android hlásí telefon také jako „v hovoru“ a systémová obrazovka příchozího hovoru se v kiosku
+     *  neukáže (je to oznámení, a oznámení kiosk skrývá) – pruh proto při zvonění nabízí zelené Přijmout a Odmítnout. */
     private var hovorPruh: View? = null
+    private var hovorStav = ""   // "" = nic, "zvoni" = příchozí hovor zvoní, "hovor" = probíhá hovor
     private val hovorKontrola = object : Runnable {
         override fun run() {
             val tm = getSystemService(android.telecom.TelecomManager::class.java)
-            val vHovoru = runCatching { checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED && tm.isInCall }.getOrDefault(false)
-            ukazHovorPruh(vHovoru)
-            web.postDelayed(this, 1500)
+            val smi = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+            val stav = runCatching { if (!smi) "" else if (tm.isRinging) "zvoni" else if (tm.isInCall) "hovor" else "" }.getOrDefault("")
+            ukazHovorPruh(stav)
+            web.postDelayed(this, if (stav.isEmpty()) 1000 else 700)
         }
     }
-    private fun ukazHovorPruh(zap: Boolean) {
+    private fun ukazHovorPruh(stav: String) {
         val koren = web.parent as? FrameLayout ?: return
-        if (zap && hovorPruh == null) {
-            val pruh = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setBackgroundColor(Color.parseColor("#C62828")); setPadding(28, 18, 28, 18)
-                addView(TextView(this@MainActivity).apply { text = "Probíhá telefonní hovor"; setTextColor(Color.WHITE); textSize = 16f; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
+        if (stav == hovorStav && (stav.isEmpty() == (hovorPruh == null))) return
+        hovorPruh?.let { koren.removeView(it) }; hovorPruh = null
+        hovorStav = stav
+        if (stav.isEmpty()) return
+        val zvoni = stav == "zvoni"
+        val d = resources.displayMetrics.density
+        val pruh = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(Color.parseColor(if (zvoni) "#1B5E20" else "#C62828")); setPadding(28, 18, 28, 18)
+            addView(TextView(this@MainActivity).apply { text = if (zvoni) "Příchozí hovor" else "Probíhá telefonní hovor"; setTextColor(Color.WHITE); textSize = if (zvoni) 19f else 16f; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
+            if (zvoni) {
+                addView(Button(this@MainActivity).apply {
+                    text = "Přijmout"; textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(Color.parseColor("#2E7D32"))
+                    minHeight = (56 * d).toInt(); minWidth = (110 * d).toInt()
+                    setOnClickListener { prijmout() }
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = (10 * d).toInt() })
+                addView(Button(this@MainActivity).apply { text = "Odmítnout"; setOnClickListener { zavesit() } })
+            } else {
                 addView(Button(this@MainActivity).apply { text = "Zavěsit"; setOnClickListener { zavesit() } })
             }
-            koren.addView(pruh, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-            hovorPruh = pruh
-        } else if (!zap && hovorPruh != null) {
-            koren.removeView(hovorPruh); hovorPruh = null
         }
+        koren.addView(pruh, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        hovorPruh = pruh
+    }
+    /** 0.1.19: přijetí příchozího hovoru z karty (oprávnění ANSWER_PHONE_CALLS přiděluje správce zařízení, Kiosk.opravneni) */
+    private fun prijmout() {
+        val tm = getSystemService(android.telecom.TelecomManager::class.java)
+        @Suppress("DEPRECATION")
+        val ok = runCatching { tm.acceptRingingCall(); true }.getOrDefault(false)
+        if (!ok) {
+            // záloha: ukázat systémovou obrazovku hovoru (telefonní aplikace je v kiosku povolená)
+            val zobrazeno = runCatching { tm.showInCallScreen(false); true }.getOrDefault(false)
+            if (!zobrazeno) zprava("Hovor nejde přijmout odtud – zkuste ho přijmout na obrazovce hovoru")
+        }
+        web.removeCallbacks(hovorKontrola); web.postDelayed(hovorKontrola, 400)
     }
     private fun zavesit() {
         val tm = getSystemService(android.telecom.TelecomManager::class.java)
         @Suppress("DEPRECATION")
         val ok = runCatching { tm.endCall() }.getOrDefault(false)
         if (!ok) zprava("Hovor nejde zavěsit odtud – použijte obrazovku hovoru")
+        web.removeCallbacks(hovorKontrola); web.postDelayed(hovorKontrola, 400)
     }
 
     private fun otevrit(i: Intent) {
@@ -415,6 +443,12 @@ class MainActivity : Activity() {
                 "Nastavení Wi-Fi" to {
                     Kiosk.pustitNaChvili(this)
                     otevrit(Intent(Settings.Panel.ACTION_WIFI))
+                },
+                // 0.1.19: volání přes Wi-Fi (VoWiFi) vypíná jen uživatel v nastavení mobilní sítě – aplikace (ani správce zařízení) ho přepnout nesmí
+                "Mobilní síť a volání přes Wi-Fi" to {
+                    Kiosk.pustitNaChvili(this)
+                    val i = Intent(Settings.ACTION_DATA_ROAMING_SETTINGS)
+                    if (i.resolveActivity(packageManager) != null) otevrit(i) else otevrit(Intent(Settings.ACTION_WIRELESS_SETTINGS))
                 },
                 "Obnovit kartu" to { nacistZnovu() },
                 "Zhasínání displeje" to { zhasinaniDispleje() },

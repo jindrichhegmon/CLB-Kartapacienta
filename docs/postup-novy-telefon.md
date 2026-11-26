@@ -108,6 +108,9 @@ Servis (5× klepnout do rohu, PIN) → **Vrátit telefon**. Nebo z Macu: `adb sh
 
 ## Když se něco nedaří
 
+- **Příchozí hovor nejde přijmout** (karta ukazovala jen Zavěsit): od aplikace 0.1.19 je při zvonění nahoře zelený pruh **Přijmout / Odmítnout**. Starší telefony aktualizovat (`./android/nahrat-telefon.sh` výše).
+- **Hovory jdou přes Wi-Fi** (volání přes Wi-Fi / VoWiFi, např. na číslo linky): servis (5× klepnout do rohu, PIN) → **Mobilní síť a volání přes Wi-Fi** → vypnout **Volání přes Wi-Fi**; po zavření nastavení se kiosk sám zamkne. Aplikace to přepnout nesmí – Android to dovolí jen uživateli. Volání přes Wi-Fi je vhodné vypnout už při přípravě telefonu.
+
 - **„Karta pacienta pravidelně přestává fungovat“** (pád aplikace): `adb logcat -d | grep -A 25 "FATAL EXCEPTION" | tail -60` a výpis poslat k opravě. Dočasně lze kiosk vypnout příkazem `remove-active-admin` výše.
 - **Build hlásí „R$color is defined multiple times“** nebo soubory `… 2.jar`: duplikáty od iCloudu v sestavovací složce. `rm -rf android/app/build android/build android/.gradle` a sestavit znovu. Lépe projekt držet mimo synchronizovanou složku Documents.
 - **Telefon po zhasnutí chce znovu párovat:** to dělá jen cizí kiosk prohlížeč (SureFox apod.), který maže data. V této aplikaci se neděje.
