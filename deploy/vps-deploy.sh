@@ -20,7 +20,7 @@ cd "$(dirname "$0")/.."
 CM="$HOME/.ssh/cm-jhnapps-%r@%h-%p"
 SSH="ssh -i $KEY -o BatchMode=yes -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=$CM -o ControlPersist=180"
 trap 'ssh -o ControlPath="$CM" -O exit "$VPS" >/dev/null 2>&1 || true' EXIT
-echo "1/3 Připojuji se k serveru $VPS…"
+echo "1/3 Připojuji se k serveru ${VPS}…"
 for i in 1 2 3 4 5 6; do
   if $SSH "$VPS" true 2>/dev/null; then break; fi
   if [ "$i" = 6 ]; then echo "Server $VPS nepřijímá SSH spojení ani po 2 minutách – zkuste skript spustit znovu za pár minut." >&2; exit 1; fi

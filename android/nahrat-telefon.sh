@@ -26,7 +26,7 @@ for i in $(seq 1 60); do
 done
 [ "$stav" = "device" ] || { echo "Telefon se nepřipojil."; exit 1; }
 
-echo "Telefon připojen. Nahrávám $APK…"
+echo "Telefon připojen. Nahrávám ${APK}…"
 vysledek=$(adb install -r "$APK" 2>&1)
 if ! echo "$vysledek" | grep -q "Success"; then
   echo "$vysledek"
