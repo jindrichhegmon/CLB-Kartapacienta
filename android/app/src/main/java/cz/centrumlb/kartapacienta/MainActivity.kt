@@ -334,7 +334,11 @@ class MainActivity : Activity() {
         override fun run() {
             val tm = getSystemService(android.telecom.TelecomManager::class.java)
             val smi = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
-            val stav = runCatching { if (!smi) "" else if (tm.isRinging) "zvoni" else if (tm.isInCall) "hovor" else "" }.getOrDefault("")
+            // zvonění: stav telefonu z TelephonyManager (TelecomManager ho nemá); READ_PHONE_STATE přiděluje správce zařízení
+            val tel = getSystemService(android.telephony.TelephonyManager::class.java)
+            @Suppress("DEPRECATION")
+            val zvoni = runCatching { smi && tel.callState == android.telephony.TelephonyManager.CALL_STATE_RINGING }.getOrDefault(false)
+            val stav = runCatching { if (!smi) "" else if (zvoni) "zvoni" else if (tm.isInCall) "hovor" else "" }.getOrDefault("")
             ukazHovorPruh(stav)
             web.postDelayed(this, if (stav.isEmpty()) 1000 else 700)
         }
