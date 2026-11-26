@@ -51,10 +51,22 @@ if [ -z "$(vlastnost kp.keystore)" ] && [ -z "${KP_KEYSTORE:-}" ]; then
   STARY_KS=$(ls "$HOME/Documents/Claude/Projects/CLB-Kartapacienta"/android/*.jks 2>/dev/null | head -1 || true)
   if [ -n "$STARY_KS" ]; then export KP_KEYSTORE="$STARY_KS"; fi
 fi
-if [ -z "${JAVA_HOME:-}" ]; then
-  for j in "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "/Applications/Android Studio.app/Contents/jre/Contents/Home"; do [ -d "$j" ] && export JAVA_HOME="$j" && break; done
+# Gradle 8.14 běží na Javě 17–21 (s Javou 25 skončí chybou „25.0.x“) – vybrat vhodnou: Java z Android Studia, jinak jiná nainstalovaná
+javaVerze() { "$1/bin/java" -version 2>&1 | grep -m1 'version "' | sed -E 's/.*version "([0-9]+)(\.[0-9]+)?.*/\1/; s/^1$/8/' || true; }
+vhodna() { [ -x "$1/bin/java" ] && v=$(javaVerze "$1") && [ "${v:-0}" -ge 17 ] 2>/dev/null && [ "$v" -le 21 ]; }
+VYBRANA=""
+for j in "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "$HOME/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+         "/Applications/Android Studio.app/Contents/jre/Contents/Home" "${JAVA_HOME:-}" \
+         "$(/usr/libexec/java_home -v 21 2>/dev/null || true)" "$(/usr/libexec/java_home -v 17 2>/dev/null || true)"; do
+  if [ -n "$j" ] && vhodna "$j"; then VYBRANA="$j"; break; fi
+done
+if [ -z "$VYBRANA" ]; then
+  echo "Nenašel jsem Javu 17–21 (Gradle 8.14 s Javou 25 nefunguje). Nainstalujte Javu 21:  brew install --cask temurin@21"
+  echo "nebo aktualizujte Android Studio (obsahuje vlastní Javu) a spusťte skript znovu."
+  exit 1
 fi
-[ -n "${JAVA_HOME:-}" ] || { echo "Nenašel jsem Javu z Android Studia – nastavte JAVA_HOME."; exit 1; }
+export JAVA_HOME="$VYBRANA"
+echo "Java: $(javaVerze "$JAVA_HOME") ($JAVA_HOME)"
 grep -q '^sdk.dir=' "$LP" 2>/dev/null || echo "sdk.dir=$SDK" >> "$LP"
 ( cd android && ./gradlew --quiet :app:assembleRelease )
 NEPODEPSANE="$KOREN/android/app/build/outputs/apk/release/app-release-unsigned.apk"
