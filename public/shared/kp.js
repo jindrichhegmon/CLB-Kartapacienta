@@ -442,7 +442,7 @@
     </div>`;
   };
 
-  KP.ROLE = { lekar: 'lékař / spec. sestra', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', system: 'systém', pacient: 'pacient' };
+  KP.ROLE = { lekar: 'lékař / spec. sestra', sestra: 'sestra', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS', predani: 'bez přihlášení', system: 'systém', pacient: 'pacient' };
   KP.SYSTEM_TYPY = ['Systém', 'Úprava údajů'];   // zápisy o nastavování, ne o pacientovi
   /* deník: primárně jen zápisy o pacientovi; systémové (párování, propojení, změna čísla…) jsou sbalené na konci */
   KP.denikHTML = (denik, { role = true, system = true } = {}) => {
@@ -452,9 +452,9 @@
   };
   /* 0.11.144: návrat z nemocnice – samostatný typ zápisu s poli odkud, kam, jak a kdy (centrála i telefon u pacienta) */
   KP.NAVRAT = 'Návrat z nemocnice';
-  KP.navratPoleHTML = () => {
+  KP.navratPoleHTML = ({ skryto = true } = {}) => {
     const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    return `<div id="nv_pole" hidden style="display:grid;gap:4px;margin:4px 0 8px">
+    return `<div id="nv_pole" ${skryto ? 'hidden' : ''} style="display:grid;gap:4px;margin:4px 0 8px">
       <div class="field"><label>Z které nemocnice / oddělení</label><input id="nv_odkud" placeholder="např. KNTB Zlín, interna" autocomplete="off"></div>
       <div class="field"><label>Kdy se vrátil(a)</label><input type="datetime-local" id="nv_kdy" value="${d}"></div>
       <div class="field"><label>Kam</label><select id="nv_kam"><option>domů</option><option>do domova pro seniory</option><option>do hospice</option><option>jinam</option></select></div>

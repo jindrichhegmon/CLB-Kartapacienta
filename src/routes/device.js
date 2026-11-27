@@ -36,6 +36,7 @@ const tenantRe = /^[A-Z0-9]{16}$/;
 // co smí telefon zapsat (podle toho, kdo je na telefonu odemčený)
 export const POVOLENE = {
   zzs: ['Výjezd ZZS'],
+  predani: ['Návrat z nemocnice'],   // 0.11.145: bez přihlášení (zamčený telefon) – kdo pacienta přivezl nebo převzal; neověřený zápis
   // 0.11.144: + Návrat z nemocnice (kdokoli z týmu i rodina)
   rodina: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát', 'Zhoršení stavu', 'Stav stabilizován', 'Návrat z nemocnice'],
   sestra: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován', 'Návrat z nemocnice'],
@@ -159,7 +160,7 @@ device.post('/sync', h(async (req) => {
       const casOk = cas && !isNaN(cas) && cas.getTime() < Date.now() + 10 * 60e3 && cas.getTime() > Date.now() - 60 * 864e5 ? cas : null;
       const zapsano = await zapisDenik(q, {
         pacientId: z.PacientID, typ, text: text(e.text, 4000) || '(bez textu)', autor: text(e.autor, 150) || (role === 'zzs' ? 'posádka ZZS' : 'neuvedeno'),
-        role, zarizeniId: zid, cas: casOk, uuid, overeno: role !== 'zzs' && !!e.overeno,
+        role, zarizeniId: zid, cas: casOk, uuid, overeno: role !== 'zzs' && role !== 'predani' && !!e.overeno,
       });
       if (zapsano.novy && TYPY_ZHORSENI.includes(typ)) zhorseni.push({ typ, text: text(e.text, 4000) || '(bez textu)', autor: text(e.autor, 150) || 'neuvedeno', role: ROLE_CHAT[role] || role, cas: casOk ? casOk.toISOString().slice(0, 16).replace('T', ' ') : null });
       potvrzeno.push(uuid);
@@ -183,7 +184,7 @@ device.post('/sync', h(async (req) => {
 const DRUHY_SDILENI = { PRANI: 'Moje hodnoty a přání', LEKY: 'Léky, které užívám', PODANI: 'Podání léků', POZNAMKA: 'Poznámka pacienta', OTAZKY: 'Otázky pro lékaře' };
 /* chat PéčeDoma z telefonu (od 0.8.0): zapůjčený telefon (rodina, tým u pacienta) i Můj průkaz píší „za stranu pacienta“ (OD_PACIENTA)
    se značkou [Karta · kdo]; čtení i psaní jde přes server Karty s partnerským klíčem, telefon token PéčeDoma nikdy nedostane. */
-const ROLE_CHAT = { lekar: 'lékař / spec. sestra', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař' };
+const ROLE_CHAT = { lekar: 'lékař / spec. sestra', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', predani: 'bez přihlášení, zamčený telefon' };
 function overAktivni(z) {
   if (z.Stav === 'SPAROVANO') return;
   throw chyba(z.Rezim === 'PACIENT' ? 'Lékař ukončil přístup k průkazu v tomto telefonu – zprávy nelze číst ani posílat. Pokud jde o omyl, požádejte o nový kód.'

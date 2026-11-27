@@ -153,7 +153,7 @@ export async function posliZpravuPd(nast, pdKlientId, { text, smer, kdo }) {
 /** Záznamy pacienta z Mého průkazu (přání, poznámky, otázky; od 0.11.28) → PéčeDoma, Data klienta → Z Karty pacienta (A_MSPPP_KartaZaznam).
  *  Vrací počet nově uložených (PéčeDoma stejný text znovu neukládá). Identita pacienta jde jen jako ID klienta PéčeDoma, které portál už zná. */
 export const DRUHY_PRO_PD = ['PRANI', 'POZNAMKA', 'OTAZKY', 'ZHORSENI'];
-export const TYPY_ZHORSENI = ['Zhoršení stavu', 'Stav stabilizován'];
+export const TYPY_ZHORSENI = ['Zhoršení stavu', 'Stav stabilizován', 'Návrat z nemocnice'];   // 0.11.145: i návrat z nemocnice (uzavírá epizodu zhoršení)
 /** Zápisy o zhoršení (a stabilizaci) z deníku → PéčeDoma jako druh ZHORSENI (historie zhoršení v Data klienta → Z Karty pacienta). Nikdy neshodí zápis do deníku. */
 export async function predejZhorseniPd(q, pacientId, zapisy, { audit = null, ip = null } = {}) {
   const z = (Array.isArray(zapisy) ? zapisy : []).filter((x) => TYPY_ZHORSENI.includes(x.typ) && x.text);
@@ -163,7 +163,7 @@ export async function predejZhorseniPd(q, pacientId, zapisy, { audit = null, ip 
     if (!p || !p.pd) return false;
     const nast = await nastaveniPd(q);
     if (!nast.nastaveno) return false;
-    const polozky = z.map((x) => ({ druh: 'ZHORSENI', nazev: x.typ, obsah: `${x.typ}: ${x.text}`, puvod: `${x.autor || 'tým'} (Karta pacienta${x.role ? ', ' + x.role : ''})`, aktualizovano: x.cas || null }));
+    const polozky = z.map((x) => ({ druh: 'ZHORSENI', nazev: x.typ, obsah: String(x.text).startsWith(x.typ) ? String(x.text) : `${x.typ}: ${x.text}`, puvod: `${x.autor || 'tým'} (Karta pacienta${x.role ? ', ' + x.role : ''})`, aktualizovano: x.cas || null }));
     const r = await zaznamyPd(nast, p.pd, polozky);
     if (audit && r.ulozeno) await audit(q, { pacientId, kdo: z[0].autor || 'Karta', akce: 'PéčeDoma: zhoršení předáno', detail: z.map((x) => x.typ).join(', '), ip });
     return true;

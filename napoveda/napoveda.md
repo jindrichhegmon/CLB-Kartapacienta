@@ -623,6 +623,10 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Interní poznámk
 
 ![Telefon – zápis návratu z nemocnice](/napoveda/img/k-navrat.png)
 
+**Návrat z nemocnice na zamčeném telefonu** (od 0.11.145): pod zápisem výjezdu ZZS je panel **Návrat z nemocnice – zápis** – pro toho, kdo pacienta přivezl nebo převzal a PIN nemá (rodina, řidič sanitky, sestra). Vyplní stejná pole a navíc své jméno a kdo je. V deníku je zápis označený jako *neověřený* (role „bez přihlášení“), stejně jako výjezd ZZS. U pacienta propojeného s PéčeDoma se návrat z nemocnice (zapsaný kdekoli) přenese i do PéčeDoma – Data klienta → 🪪 Z Karty pacienta, historie zhoršení a návratů (PéčeDoma 3.43).
+
+![Zamčený telefon – zápis návratu z nemocnice bez PINu](/napoveda/img/k-navrat-zamceno.png)
+
 - **Poznámky pacienta** – přání a hodnoty, poznámky a otázky, které pacient dříve poslal z aplikace Můj průkaz (zrušená v 0.11.111); jen ke čtení.
 
 ![Telefon – Poznámky pacienta ze sdílení](/napoveda/img/k-od-pacienta.png)

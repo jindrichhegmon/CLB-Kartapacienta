@@ -101,6 +101,11 @@ test('role na kartě: typy zápisů v telefonu povoluje i server', async () => {
   const ROLE_KARTA = new Function(`return ${blok}`)();
   for (const [role, r] of Object.entries(ROLE_KARTA)) for (const t of r.typy) assert.ok(POVOLENE[role] && POVOLENE[role].includes(t), `${role}: server nepovoluje „${t}“`);
   assert.deepEqual(Object.keys(ROLE_KARTA).sort(), ['hospic', 'lekar', 'pl', 'rodina', 'sestra']);
+  // 0.11.145: bez přihlášení (zamčený telefon) jde zapsat jen výjezd ZZS a návrat z nemocnice – každý jinou „rolí“, nic dalšího
+  assert.deepEqual(POVOLENE.zzs, ['Výjezd ZZS']);
+  assert.deepEqual(POVOLENE.predani, ['Návrat z nemocnice']);
+  assert.match(html, /pridejZapis\(KP\.NAVRAT, KP\.navratText\(.*\), 'predani', /, 'zamčený telefon zapisuje návrat rolí predani');
+  assert.match(html, /overeno: role !== 'zzs' && role !== 'predani'/, 'zápis bez přihlášení je neověřený');
 });
 
 test('role lidí z CSV a PéčeDoma podle typu pracoviště', async () => {

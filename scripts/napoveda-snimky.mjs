@@ -835,6 +835,18 @@ await p.evaluate(() => { KARTY.splice(1); kresli(); });   // dál s jedním prů
 await p.waitForSelector('#unCarer');
 await p.fill('#zzs_p', 'Jan Rychlý, RZP Zlín 12'); await p.evaluate(() => document.querySelector('#zzs_p').scrollIntoView({ block: 'center' }));
 await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'k-zzs.png') }); console.log('  ✓ k-zzs');
+{ // 0.11.145: návrat z nemocnice i na zamčeném telefonu (bez PINu) – pole viditelná hned, jméno povinné, zápis neověřený rolí predani
+  if (!(await p.isVisible('#btnNavrat')) || !(await p.isVisible('#nv_odkud'))) chyby.push('zamčená karta: chybí zápis Návrat z nemocnice');
+  else {
+    await p.fill('#nv_odkud', 'KNTB Zlín, interna'); await p.fill('#nv_autor', 'Jana Zkušební, dcera');
+    await p.evaluate(() => document.querySelector('#btnNavrat').scrollIntoView({ block: 'center' })); await p.waitForTimeout(200);
+    await p.screenshot({ path: path.join(VYSTUP, 'k-navrat-zamceno.png') }); console.log('  ✓ k-navrat-zamceno');
+    await p.evaluate(() => { window.__zapisy = []; const o = window.pridejZapis; window.pridejZapis = function (...x) { window.__zapisy.push(x); return o.apply(this, x); }; });
+    await p.click('#btnNavrat'); await p.waitForTimeout(400);
+    const z = await p.evaluate(() => (window.__zapisy || []).pop() || null);
+    if (!z || z[0] !== 'Návrat z nemocnice' || z[2] !== 'predani' || !/^Návrat z nemocnice \(KNTB Zlín, interna\)/.test(z[1]) || z[3] !== 'Jana Zkušební, dcera') chyby.push('zamčená karta: zápis návratu z nemocnice: ' + JSON.stringify(z));
+  }
+}
 // lékař bez PINu: kód dne (dnešní i včerejší projde, jiný ne), pak zamknout a odemknout PINem týmu
 await klik(p, '#unDoc'); await p.fill('#kod', '000000'); await p.fill('#kodJ', 'MUDr. Test'); await klik(p, '#kodOk'); await p.waitForTimeout(600);
 if (await p.$('.tile[data-tab]')) chyby.push('špatný kód lékaře odemkl kartu');
