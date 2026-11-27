@@ -237,6 +237,15 @@ $('usbPripoj').onclick = async () => {
   } catch (e) { stav(esc(e.message || e), 'crit'); log('Chyba: ' + (e.message || e)); }
   finally { $('usbPripoj').disabled = false; }
 };
+/* Je Karta pacienta správcem zařízení (Device Owner)? Dřív se hledal jen název balíčku kdekoli ve výpisu dumpsys device_policy –
+   na Androidu 14 (Aligator S6600) tam balíček je i bez správce, stránka pak napsala „už je nastavený“ a kiosk nezapnula. */
+async function jeSpravce() {
+  const vlastnici = await KPADB.shell('dpm list-owners 2>/dev/null');
+  if (new RegExp(BALIK.replace(/\./g, '\\.') + '/[^\\s,]*,\\s*DeviceOwner', 'i').test(vlastnici)) return true;
+  if (/\d+\s+owners?:/i.test(vlastnici) || /no owners/i.test(vlastnici)) return false;   // dpm list-owners funguje – správce to není
+  const politika = await KPADB.shell('dumpsys device_policy');
+  return new RegExp('Device Owner:[^\\n]*\\n\\s*admin=ComponentInfo\\{' + BALIK.replace(/\./g, '\\.') + '/', 'i').test(politika);
+}
 $('usbPriprav').onclick = async () => {
   $('usbPriprav').disabled = true;
   try {
@@ -246,8 +255,7 @@ $('usbPriprav').onclick = async () => {
     await KPADB.instaluj(APK);
     const verze = ((await KPADB.shell(`dumpsys package ${BALIK}`)).match(/versionName=(\S+)/) || [])[1] || '?';
     log('Nainstalováno, verze ' + verze);
-    const politika = await KPADB.shell('dumpsys device_policy');
-    if (politika.includes(BALIK)) log('Správce zařízení (kiosk) už je nastavený.');
+    if (await jeSpravce()) log('Správce zařízení (kiosk) už je nastavený.');
     else {
       log('Nastavuji správce zařízení (kiosk)…');
       const r = await KPADB.shell(`dpm set-device-owner ${ADMIN}`);
@@ -259,8 +267,12 @@ $('usbPriprav').onclick = async () => {
       }
     }
     await KPADB.shell(`am force-stop ${BALIK}`);
-    await KPADB.shell(`am start --user 0 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n ${BALIK}/.MainActivity`);
-    log('Karta spuštěna.');
+    // ověření: správce zařízení musí být opravdu nastavený (dřív stačila zmínka balíčku kdekoli ve výpisu – chybné „už je nastavený“)
+    if (!(await jeSpravce())) throw new Error('Aplikace je nainstalovaná, ale kiosk (správce zařízení) se nenastavil. Pošlete prosím snímek tohoto záznamu.');
+    log('Kiosk ověřen: Karta pacienta je správcem zařízení.');
+    const start = await KPADB.shell(`am start --user 0 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n ${BALIK}/.MainActivity`);
+    if (/Error|Exception/i.test(start)) { log(start.trim()); log('Kartu se nepodařilo spustit – na telefonu ji otevřete ikonou Karta pacienta.'); }
+    else log('Karta spuštěna.');
     stav(`✅ Hotovo – aplikace (verze ${esc(verze)}) je nainstalovaná a telefon je kiosk. Na telefonu zkontrolujte, že nejde odejít tlačítkem Domů, a <b>vypněte Ladění USB</b>. Pak spárujte pacienty z centrální aplikace.`, 'ok');
   } catch (e) { stav(esc(e.message || e), 'crit'); log('Chyba: ' + (e.message || e)); }
   finally { $('usbPriprav').disabled = false; }
