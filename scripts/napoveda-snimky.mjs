@@ -836,6 +836,9 @@ await p.waitForSelector('#unCarer');
 await p.fill('#zzs_p', 'Jan Rychlý, RZP Zlín 12'); await p.evaluate(() => document.querySelector('#zzs_p').scrollIntoView({ block: 'center' }));
 await p.waitForTimeout(300); await p.screenshot({ path: path.join(VYSTUP, 'k-zzs.png') }); console.log('  ✓ k-zzs');
 { // 0.11.145: návrat z nemocnice i na zamčeném telefonu (bez PINu) – pole viditelná hned, jméno povinné, zápis neověřený rolí predani
+  // 0.11.146: panel je sbalený, rozbalí se klepnutím
+  if (!(await p.$('#nv_panel')) || await p.isVisible('#nv_odkud')) chyby.push('zamčená karta: Návrat z nemocnice má být sbalený');
+  await p.click('#nv_panel summary'); await p.waitForTimeout(150);
   if (!(await p.isVisible('#btnNavrat')) || !(await p.isVisible('#nv_odkud'))) chyby.push('zamčená karta: chybí zápis Návrat z nemocnice');
   else {
     await p.fill('#nv_odkud', 'KNTB Zlín, interna'); await p.fill('#nv_autor', 'Jana Zkušební, dcera');

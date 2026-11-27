@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.145';
+const APP_VERZE = 'karta-0.11.146';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -242,12 +242,12 @@ function kresli() {
         <div class="field"><label>Poznámka (volitelně)</label><input id="zzs_n" placeholder="co bylo provedeno, podané léky…"></div>
         <button class="btn primary" id="btnZZS">Zapsat výjezd do deníku</button>
         <div class="note">Záchranná služba nepotřebuje PIN – krizovou kartu vidí bez přihlášení. Jméno se zapisuje jen k výjezdu. Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený).</div></div></div>
-      <div class="panel"><div class="panel-h"><h2>Návrat z nemocnice – zápis</h2></div><div class="form" style="padding:14px">
+      <details class="panel" id="nv_panel"><summary class="panel-h" style="cursor:pointer;list-style:none"><h2>Návrat z nemocnice – zápis</h2><span class="chip">rozbalit</span></summary><div class="form" style="padding:14px">
         ${KP.navratPoleHTML({ skryto: false })}
         <div class="field"><label>Vaše jméno a kdo jste *</label><input id="nv_autor" placeholder="např. Jana Nováková, dcera / řidič sanitky" autocomplete="name"></div>
         <div class="field"><label>Poznámka (volitelně)</label><input id="nv_pozn" placeholder="stav po návratu, co předala nemocnice…"></div>
         <button class="btn primary" id="btnNavrat">Zapsat návrat z nemocnice</button>
-        <div class="note">Bez PINu – pro toho, kdo pacienta přivezl nebo převzal (rodina, sanitka, sestra). Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený); u pacienta propojeného s PéčeDoma i tam.</div></div></div>
+        <div class="note">Bez PINu – pro toho, kdo pacienta přivezl nebo převzal (rodina, sanitka, sestra). Hospic a lékař plánu zápis uvidí v deníku (označený jako neověřený); u pacienta propojeného s PéčeDoma i tam.</div></div></details>
       <div class="panel"><div class="panel-h"><h2>Průkazy v tomto telefonu</h2><span class="chip">${KARTY.length}</span></div><div class="form" style="padding:14px"><div class="quick"><button class="btn primary" id="t_pridat">Přidat dalšího pacienta do telefonu</button>${KARTY.length > 1 ? '<button class="btn" id="t_jiny">Jiný pacient v tomto telefonu</button>' : ''}</div><div class="note">Jeden telefon může mít průkazy více pacientů (např. manželé, domov seniorů). Nový pacient se spáruje QR kódem nebo odkazem z centrální aplikace (u pacienta Telefon a PINy); stávající průkazy zůstanou. Odebrat průkaz z telefonu může tým po odemknutí v dlaždici Tým.</div></div></div>
       ${zzsHistorieHTML(denik)}`;
   } else {
@@ -591,6 +591,8 @@ function bind() {
     $('kodOk').onclick = async () => { const k = $('kod').value.replace(/\s/g, ''); if (!$('kodJ').value.trim()) return toast('Vyplňte jméno'); if (!(await overKodLekare(k))) return toast('Neplatný nebo prošlý kód'); U = { role: 'lekar', jmeno: $('kodJ').value.trim(), posledni: Date.now() }; tab = 'karta'; closeModal(); kresli(); videoPoll(); };
   }));
   // 0.11.145: návrat z nemocnice bez přihlášení (role „predani“, neověřený zápis)
+  // 0.11.146: panel je sbalený (používá se výjimečně) – štítek ukazuje rozbalit / sbalit
+  if ($('nv_panel')) $('nv_panel').addEventListener('toggle', () => { const c = $('nv_panel').querySelector('summary .chip'); if (c) c.textContent = $('nv_panel').open ? 'sbalit' : 'rozbalit'; });
   on('btnNavrat', () => { const a = ($('nv_autor').value || '').trim(); if (a.length < 3) { $('nv_autor').focus(); return toast('Vyplňte své jméno a kdo jste'); }
     pridejZapis(KP.NAVRAT, KP.navratText(($('nv_pozn').value || '').trim()), 'predani', a); toast(navigator.onLine ? 'Návrat z nemocnice zapsán' : 'Zapsáno – odešle se po připojení'); });
   on('btnZZS', () => { const v = $('zzs_v').value, p = $('zzs_p').value.trim(), n = $('zzs_n').value.trim(); if (p.length < 3) { $('zzs_p').focus(); return toast('Vyplňte své jméno a posádku'); } pridejZapis('Výjezd ZZS', `Výjezd ZZS: ${v}.${n ? ' ' + n : ''}`, 'zzs', p); toast('Výjezd zapsán'); });
