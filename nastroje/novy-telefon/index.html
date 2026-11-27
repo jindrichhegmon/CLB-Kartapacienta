@@ -26,6 +26,8 @@
   .btn:disabled{opacity:.5;cursor:default}
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
   .field{margin:8px 0}
+  /* 27. 11. 2026: zobrazit / skrýt heslo Wi-Fi (oko), jako v centrále Karty */
+  .oko-obal{position:relative;max-width:420px}.oko-obal input{padding-right:46px;box-sizing:border-box}.oko{position:absolute;right:5px;top:50%;transform:translateY(-50%);height:34px;width:38px;border:0;background:transparent;color:var(--accent);cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px}.oko:hover{background:var(--bg)}
   .field label{display:block;font-size:13px;color:var(--muted);font-weight:600;margin-bottom:3px}
   .field input,.field select{width:100%;max-width:420px;font-size:17px;padding:9px 11px;border:1px solid var(--line);border-radius:9px}
   .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
@@ -66,7 +68,7 @@
       <div class="row noprint">
         <div style="flex:1;min-width:260px">
           <div class="field"><label>Wi-Fi, ke které se telefon připojí</label><input id="wifi" value="SSD" autocomplete="off"></div>
-          <div class="field"><label>Heslo Wi-Fi</label><input id="heslo" type="password" autocomplete="new-password"></div>
+          <div class="field"><label>Heslo Wi-Fi</label><div class="oko-obal"><input id="heslo" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" class="oko" id="hesloOko" title="Zobrazit heslo" aria-label="Zobrazit heslo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
           <div class="field"><label>Zabezpečení</label><select id="zab"><option value="WPA">WPA / WPA2 (běžné)</option><option value="NONE">bez hesla</option></select></div>
           <div class="field"><label>Platnost QR kódu</label><select id="platnost"><option value="podpis">pro všechny verze aplikace (doporučeno)</option><option value="soubor">jen pro tento soubor (původní způsob)</option></select>
             <p class="muted" style="margin:6px 0 0">„Pro všechny verze“ ověřuje podpis aplikace, ne konkrétní soubor – vytištěný kód platí i po nahrání nové verze aplikace na server. „Jen pro tento soubor“ přestane platit, jakmile se soubor na serveru změní. <span id="platnostInfo"></span></p></div>
@@ -191,6 +193,9 @@ $('apkFile').onchange = async (e) => {
 };
 nactiApk();
 
+/* 27. 11. 2026: oko u hesla Wi-Fi – zobrazit / skrýt, ať jde zkontrolovat, že je heslo napsané správně (velká a malá písmena) */
+const OKO = $('hesloOko').innerHTML, OKO_SKRYT = OKO.replace('</svg>', '<path d="M3 3l18 18"/></svg>');
+$('hesloOko').onclick = () => { const i = $('heslo'), ukaz = i.type === 'password'; i.type = ukaz ? 'text' : 'password'; const b = $('hesloOko'); b.innerHTML = ukaz ? OKO_SKRYT : OKO; b.title = ukaz ? 'Skrýt heslo' : 'Zobrazit heslo'; b.setAttribute('aria-label', b.title); i.focus(); };
 /* ---- QR kód pro zavedení (stejná data jako android/provisioning-qr.mjs) ---- */
 $('vytvorQr').onclick = () => {
   const wifi = $('wifi').value.trim(), heslo = $('heslo').value, zab = $('zab').value;
