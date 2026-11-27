@@ -340,3 +340,31 @@ test('diagnózy obousměrně s PéčeDoma (0.11.143): první synchronizace sjedn
   assert.equal(m.text, spolecne);
   assert.equal(m.zmenaKarta, false);
 });
+
+test('synchronizace s PéčeDoma (0.11.147): všechna volání PéčeDoma před prvním zápisem do Karty (zámky jen na zlomek sekundy)', async () => {
+  const { config } = await import('../src/config.js');
+  const { synchronizujPacienta } = await import('../src/pecedoma.js');
+  const puvodni = { fetch: globalThis.fetch, klic: config.partnerKlic };
+  const udalosti = [];
+  try {
+    config.partnerKlic = 'x'.repeat(30);
+    globalThis.fetch = async (url, o) => {
+      const b = JSON.parse(o.body); udalosti.push('PD:' + b.akce);
+      const odp = b.akce === 'sync' ? { ok: true, leky: { sos: [], opioidy: [], medikace: ['Furosemid 40 mg'] }, klient: { portalKlientId: 7 }, kde: 'Doma' }
+        : b.akce === 'diagnoza' ? { ok: true, diagnoza: { text: 'C61 Ca prostaty', kdo: 'Portál' } } : { ok: true, diagnoza: { text: b.text } };
+      return new Response(JSON.stringify(odp), { status: 200 });
+    };
+    const q = {
+      one: async (sql) => (/DgSpolecne/.test(sql) ? { dg: null } : /A_KP_PlanVerze/.test(sql) ? { Verze: 1, Data: JSON.stringify({ dg: 'I50.9 Selhání srdce NS' }), PlatnostDo: null, PodepsalJmeno: 'MUDr. Test' } : /MAX\(Verze\)/.test(sql) ? { v: 2 } : null),
+      all: async () => [],
+      exec: async (sql) => { udalosti.push('DB:' + sql.trim().split(/\s+/).slice(0, 2).join(' ')); return 1; },
+    };
+    const nast = { api: 'https://pd.test', token: 't', portal: 'pecedoma', nastaveno: true };
+    const v = await synchronizujPacienta(q, nast, 1, '6f1c2d3e-4b5a-4c7d-8e9f-0a1b2c3d4e5f');
+    const prvniZapis = udalosti.findIndex((x) => x.startsWith('DB:'));
+    const posledniPd = udalosti.map((x) => x.startsWith('PD:')).lastIndexOf(true);
+    assert.ok(prvniZapis > posledniPd, 'zápis do Karty až po všech voláních PéčeDoma: ' + udalosti.join(' → '));
+    assert.deepEqual(udalosti.filter((x) => x.startsWith('PD:')), ['PD:sync', 'PD:diagnoza', 'PD:diagnoza-uloz']);
+    assert.equal(v.diagnozy.doPd, true); assert.equal(v.diagnozy.doKarty, true);
+  } finally { globalThis.fetch = puvodni.fetch; config.partnerKlic = puvodni.klic; }
+});

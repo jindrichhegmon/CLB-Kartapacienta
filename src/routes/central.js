@@ -1268,7 +1268,8 @@ central.post('/pecedoma/sync-vse', sUzivatelem(async (q, s) => {
   if (!nast.nastaveno) throw chyba('Propojení s PéčeDoma není nastavené (Správa organizace → Nastavení)');
   const pac = await q.all(`SELECT PacientID AS id, LOWER(CONVERT(char(36), PdKlientID)) AS pd FROM dbo.A_KP_Pacient WHERE Stav = 'AKTIVNI' AND PdKlientID IS NOT NULL`);
   let ok = 0; const chyby = [];
-  for (const p of pac) { try { await synchronizujPacienta(q, nast, p.id, p.pd); ok++; } catch (e) { chyby.push(String(e.message || e).slice(0, 120)); } }
+  // 0.11.147: každý pacient ve vlastní krátké transakci – jinak by zámky celé synchronizace (~1 min) blokovaly přehled pacientů ostatním
+  for (const p of pac) { try { await vTenantu(s.tenant, (q2) => synchronizujPacienta(q2, nast, p.id, p.pd)); ok++; } catch (e) { chyby.push(String(e.message || e).slice(0, 120)); } }
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'PéčeDoma: synchronizace všech pacientů', detail: `${ok} z ${pac.length}${chyby.length ? ', chyb ' + chyby.length : ''}`, ip: s.ip });
   return { celkem: pac.length, ok, chyby: chyby.slice(0, 5) };
 }, { lekar: true }));

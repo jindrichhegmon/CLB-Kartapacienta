@@ -78,10 +78,16 @@ export async function synchronizujPacienta(q, nast, pacientId, pdKlientId) {
     throw e;
   }
   const v = normalizujSync(d);
-  await uloz(v, v.kalendarChyba);
-  // 0.11.143: diagnózy obousměrně – chyba (např. starší PéčeDoma bez akce diagnoza) synchronizaci léků a návštěv neshodí
-  try { v.diagnozy = await synchronizujDiagnozy(q, nast, pacientId, pdKlientId); }
+  // 0.11.147: všechna volání PéčeDoma (i diagnózy) PŘED zápisy do Karty – zápis drží zámky až do konce transakce a čtení (přehled pacientů)
+  // by na ně čekalo; databáze nemá READ_COMMITTED_SNAPSHOT. Diagnózy: chyba (např. starší PéčeDoma) synchronizaci léků a návštěv neshodí.
+  let dg = null;
+  try { dg = await pripravDiagnozy(q, nast, pacientId, pdKlientId); }
   catch (e) { v.diagnozy = { chyba: String(e.message || e).slice(0, 200) }; console.warn(`pecedoma diagnózy pacient ${pacientId}: ${v.diagnozy.chyba}`); }
+  await uloz(v, v.kalendarChyba);
+  if (dg) {
+    try { v.diagnozy = await zapisDiagnozy(q, pacientId, dg); }
+    catch (e) { v.diagnozy = { chyba: String(e.message || e).slice(0, 200) }; console.warn(`pecedoma diagnózy pacient ${pacientId}: ${v.diagnozy.chyba}`); }
+  }
   if (v.portalKlientId) await q.exec(`UPDATE dbo.A_KP_Pacient SET PdPortalKlientID = @k WHERE PacientID = @p AND PdPortalKlientID IS NULL`, { k: v.portalKlientId, p: pacientId });
   // 0.11.82: import z PéčeDoma psal do Pobytu pevně „doma“ – takový (nebo prázdný) pobyt nahradí skutečné místo z PéčeDoma; ručně zapsaný pobyt zůstává
   if (v.kde) {
@@ -114,6 +120,10 @@ export function slucDiagnozy(zaklad, karta, pd) {
   return { text, zmenaKarta: text !== norm(karta), zmenaPd: text !== norm(pd) };
 }
 export async function synchronizujDiagnozy(q, nast, pacientId, pdKlientId) {
+  return zapisDiagnozy(q, pacientId, await pripravDiagnozy(q, nast, pacientId, pdKlientId));
+}
+/** 0.11.147: část bez zápisu do Karty – čtení z PéčeDoma, sloučení a případný zápis do PéčeDoma (HTTP mimo zámky Karty) */
+export async function pripravDiagnozy(q, nast, pacientId, pdKlientId) {
   const klientId = String(pdKlientId).toLowerCase();
   const pd = (await pdVolej(nast, 'diagnoza', { klientId })).diagnoza || {};
   const row = await q.one(`SELECT DgSpolecne AS dg FROM dbo.A_KP_PdSync WHERE PacientID = @p`, { p: pacientId });
@@ -121,16 +131,21 @@ export async function synchronizujDiagnozy(q, nast, pacientId, pdKlientId) {
   const plan = await planAktualni(q, pacientId);
   const kartaDg = (plan && plan.data && plan.data.dg) || '';
   const m = slucDiagnozy(zaklad, kartaDg, pd.text || '');
-  const vysledek = { doKarty: false, doPd: false };
+  let doPd = false;
+  if (m.zmenaPd && radkyDg(m.text).length) {
+    await pdVolej(nast, 'diagnoza-uloz', { klientId, text: m.text, kdo: String((plan && plan.podepsal) || 'Karta pacienta').replace(/^PéčeDoma:\s*/, '').slice(0, 80) });
+    doPd = true;
+  }
+  return { m, plan, pd, doPd };
+}
+/** 0.11.147: zápisy do Karty po sloučení diagnóz (nová verze plánu, deník, společný stav) – rychle, bez volání PéčeDoma */
+export async function zapisDiagnozy(q, pacientId, { m, plan, pd, doPd }) {
+  const vysledek = { doKarty: false, doPd };
   if (m.zmenaKarta && plan) {
     const kdo = String(pd.kdo || '').replace(/^Karta pacienta:\s*/, '') || 'Diagnóza a Info';
     const verze = await ulozPlan(q, { pacientId, data: { ...plan.data, dg: m.text }, platnostDo: plan.platnostDo, s: { uzivatelId: null, jmeno: 'PéčeDoma: ' + kdo }, typ: 'ZMENA', poznamka: 'diagnózy z PéčeDoma (Data klienta → Diagnóza a Info)' });
     await zapisDenik(q, { pacientId, typ: 'Systém', text: `Diagnózy sloučeny s PéčeDoma (plán péče v${verze}): ${radkyDg(m.text).join('; ')}.`, autor: 'PéčeDoma', role: 'system' });
     vysledek.doKarty = true;
-  }
-  if (m.zmenaPd && radkyDg(m.text).length) {
-    await pdVolej(nast, 'diagnoza-uloz', { klientId, text: m.text, kdo: String((plan && plan.podepsal) || 'Karta pacienta').replace(/^PéčeDoma:\s*/, '').slice(0, 80) });
-    vysledek.doPd = true;
   }
   await q.exec(`UPDATE dbo.A_KP_PdSync SET DgSpolecne = @dg WHERE PacientID = @p`, { dg: m.text, p: pacientId });
   return vysledek;
@@ -221,15 +236,15 @@ export async function synchronizujVse(log = console.log) {
   for (const t of tenanti) {
     const tenant = String(t.IDTENANT).trim();
     try {
-      await vTenantu(tenant, async (q) => {
-        const nast = await nastaveniPd(q);
-        if (!nast.nastaveno) return;
-        const pac = await q.all(`SELECT PacientID, CONVERT(char(36), PdKlientID) AS pd FROM dbo.A_KP_Pacient WHERE Stav = 'AKTIVNI' AND PdKlientID IS NOT NULL`);
-        for (const p of pac) {
-          try { await synchronizujPacienta(q, nast, p.PacientID, p.pd); pacientu++; }
-          catch (e) { chyb++; log(`pecedoma sync ${tenant} pacient ${p.PacientID}: ${String(e.message || e).slice(0, 120)}`); }
-        }
+      // 0.11.147: dřív všichni pacienti v jedné transakci (~1,3 s na pacienta → zámky na minutu, přehled pacientů čekal); teď každý zvlášť
+      const { nast, pac } = await vTenantu(tenant, async (q) => {
+        const n = await nastaveniPd(q);
+        return { nast: n, pac: n.nastaveno ? await q.all(`SELECT PacientID, CONVERT(char(36), PdKlientID) AS pd FROM dbo.A_KP_Pacient WHERE Stav = 'AKTIVNI' AND PdKlientID IS NOT NULL`) : [] };
       });
+      for (const p of pac) {
+        try { await vTenantu(tenant, (q) => synchronizujPacienta(q, nast, p.PacientID, p.pd)); pacientu++; }
+        catch (e) { chyb++; log(`pecedoma sync ${tenant} pacient ${p.PacientID}: ${String(e.message || e).slice(0, 120)}`); }
+      }
     } catch (e) { chyb++; log(`pecedoma sync ${tenant}: ${String(e.message || e).slice(0, 120)}`); }
   }
   return { tenantu: tenanti.length, pacientu, chyb };
