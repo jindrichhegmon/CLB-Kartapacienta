@@ -208,6 +208,7 @@ Deník je primárně o pacientovi: zápisy týmu, rodiny a záchranky. Systémov
 ![Deník pacienta](/napoveda/img/c-denik.png)
 
 - Do deníku zapisuje tým kolem pacienta (role péče, lékař, garant). Zápisy **Zhoršení stavu** (a Výjezd ZZS) jsou v seznamu červeně, **Stav stabilizován** zeleně, aby byly epizody zhoršení vidět na první pohled. U pacienta propojeného s PéčeDoma jde každé zhoršení i stabilizace automaticky také do portálu (Data klienta → 🪪 Z Karty pacienta, historie zhoršení). Vyberete **typ** (změna stavu, podán SOS lék, návštěva lékaře, návštěva hospice, telefonát, pozorování rodiny, zhoršení stavu, stav stabilizován) a napíšete text.
+- **Návrat z nemocnice** (od 0.11.144, v centrále i na telefonu u pacienta – lékař, sestra, hospic, praktický lékař i rodina): po výběru typu se ukážou pole **Z které nemocnice / oddělení**, **Kdy se vrátil(a)**, **Kam** (domů, do domova pro seniory, do hospice, jinam), **Převoz** (dopravní zdravotní služba – sanitka, záchranná služba, rodina, jinak) a zatržítko **přivezl(a) propouštěcí zprávu**; text je pak jen poznámka. Zápis je v deníku zeleně a **uzavírá probíhající zhoršení** (stejně jako Stav stabilizován) – červený pruh na kartě i upozornění v přehledu zmizí. Odjezd do nemocnice zapisuje posádka ZZS jako **Výjezd ZZS → transport do nemocnice**. Propouštěcí zprávu pak nahrajte do Dokumentů a rozeberte (kapitola 22) – léky a diagnózy se doplní samy.
 - Zápisy **nelze mazat ani měnit**, jen doplňovat.
 - Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později. Zápis posádky ZZS je označený jako neověřený.
 
@@ -617,6 +618,10 @@ Po odemknutí jsou dlaždice **Karta, Diagnóza, Plán, Léky, Interní poznámk
 - **Interní poznámky** (deník týmu) – jen pro tým (lékař, hospic, sestra, praktický lékař); rodina tuto dlaždici nemá (od 0.11.33). Vyberete typ zápisu (nabízí se jen to, co vaše role smí) a napíšete text; zápis se uloží pod vaším jménem. Funguje i bez signálu, odešle se při nejbližším připojení (číslo na dlaždici = kolik zápisů čeká na odeslání).
 
 ![Telefon – zápis do deníku](/napoveda/img/k-denik.png)
+
+**Návrat z nemocnice** (od 0.11.144): v deníku vyberte typ **Návrat z nemocnice**, vyplňte nemocnici a oddělení, kdy a kam se pacient vrátil, čím byl převezen a zda přivezl propouštěcí zprávu; poznámka je volitelná. Zápis uzavře probíhající zhoršení.
+
+![Telefon – zápis návratu z nemocnice](/napoveda/img/k-navrat.png)
 
 - **Poznámky pacienta** – přání a hodnoty, poznámky a otázky, které pacient dříve poslal z aplikace Můj průkaz (zrušená v 0.11.111); jen ke čtení.
 

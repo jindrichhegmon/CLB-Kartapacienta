@@ -719,11 +719,12 @@ function revize() {
 }
 /* ---- deník ---- */
 function tabDenik(d) {
-  const typy = ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován'];
+  const typy = ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Návštěva hospice', 'Telefonát', 'Pozorování rodiny', 'Zhoršení stavu', 'Stav stabilizován', KP.NAVRAT];   // 0.11.144
   return `<div class="grid2 l"><div>${KP.denikHTML(d.denikAsc)}</div>
     <div class="panel" style="align-self:start"><div class="panel-h"><h2>Nový zápis</h2></div><div class="form ${d.op.zapis ? '' : 'locked'}" style="padding:14px">
       <div class="field"><label>Typ</label><select id="d_typ">${typy.map((t) => `<option>${t}</option>`).join('')}</select></div>
-      <div class="field"><label>Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
+      ${KP.navratPoleHTML()}
+      <div class="field"><label id="d_txt_l">Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
       <button class="btn primary ulozit" id="d_ok">Zapsat jako ${esc(S.ja.jmeno)}</button>
       <div class="note">Zápisy nelze mazat ani měnit, jen doplňovat. Zápisy z telefonu mají čas, kdy byly pořízeny, i když se odeslaly později.</div></div></div></div>`;
 }
@@ -1151,7 +1152,9 @@ function bindTab() {
   document.querySelectorAll('tr[data-v]').forEach((r) => (r.onclick = async () => {
     try { const v = await C(`/pacient/${S.pacId}/plan/${r.dataset.v}`); modal(`<h2>Plán – verze ${v.verze}</h2><div class="muted">${esc(v.podepsal)} · ${esc(fmtDT(v.vytvoreno))} · platnost do ${fmtD(v.platnostDo)}</div>${planForm(v.data, v.platnostDo, true, 'h')}<div class="quick"><button class="btn" data-close>Zavřít</button></div>`); } catch (e) { toast(e.message); }
   }));
-  on('d_ok', () => akce('/denik', { typ: $('d_typ').value, text: $('d_txt').value }, 'Zapsáno'));
+  // 0.11.144: Návrat z nemocnice – pole odkud, kam, převoz a kdy; text je pak jen poznámka
+  if ($('d_typ')) $('d_typ').onchange = () => { const nv = $('d_typ').value === KP.NAVRAT; $('nv_pole').hidden = !nv; $('d_txt_l').textContent = nv ? 'Poznámka (volitelně)' : 'Text'; $('d_txt').placeholder = nv ? 'např. stav po návratu, změny v léčbě, co zařídit' : 'Co se děje, co bylo provedeno…'; };
+  on('d_ok', () => { const nv = $('d_typ').value === KP.NAVRAT; akce('/denik', { typ: $('d_typ').value, text: nv ? KP.navratText($('d_txt').value.trim()) : $('d_txt').value }, nv ? 'Návrat z nemocnice zapsán' : 'Zapsáno'); });
   on('k_ok', async () => {
     const e = S.kontEdit ? d.kontakty.find((x) => x.id === S.kontEdit) : null;
     const body = { jmeno: $('k_j').value, tel: $('k_t').value, skupina: $('k_s').value, pozn: $('k_p').value };

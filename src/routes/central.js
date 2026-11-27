@@ -189,7 +189,7 @@ central.get('/prehled', sUzivatelem(async (q, s, req) => {
       (SELECT COUNT(*) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY') AS telefonu,
       (SELECT COUNT(*) FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'PACIENT') AS prukazu,
       (SELECT TOP 1 z.Telefon FROM dbo.A_KP_Zarizeni z WHERE z.PacientID = p.PacientID AND z.Stav = 'SPAROVANO' AND z.Rezim = 'ZAPUJCENY' ORDER BY z.PosledniSync DESC) AS telefonKarty,
-      (SELECT TOP 1 d.Typ FROM dbo.A_KP_Denik d WHERE d.PacientID = p.PacientID AND d.Typ IN ('Zhoršení stavu','Stav stabilizován','Výjezd ZZS') ORDER BY d.CasZapisu DESC, d.DenikID DESC) AS posledniKrize,
+      (SELECT TOP 1 d.Typ FROM dbo.A_KP_Denik d WHERE d.PacientID = p.PacientID AND d.Typ IN ('Zhoršení stavu','Stav stabilizován','Výjezd ZZS','Návrat z nemocnice') ORDER BY d.CasZapisu DESC, d.DenikID DESC) AS posledniKrize,
       (SELECT TOP 1 CONVERT(char(16), d.CasZapisu, 120) FROM dbo.A_KP_Denik d WHERE d.PacientID = p.PacientID ORDER BY d.CasZapisu DESC, d.DenikID DESC) AS posledniZapis,
       (SELECT TOP 1 CONVERT(char(16), g3.Navrzeno, 120) FROM dbo.A_KP_Garance g3 WHERE g3.PacientID = p.PacientID AND g3.Stav = 'NAVRZENO') AS predavaSe,
       (SELECT TOP 1 g4.PoskytovatelID FROM dbo.A_KP_Garance g4 WHERE g4.PacientID = p.PacientID AND g4.Stav = 'NAVRZENO') AS predavaSeKomu,

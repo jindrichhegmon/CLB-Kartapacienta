@@ -661,6 +661,11 @@ await klik(p, '[data-np]'); await p.waitForSelector('#np_frame');
   await klik(p, '[data-npr="sestra"]'); await fr.locator('.tile').first().waitFor({ timeout: 5000 }).catch(() => chyby.push('živý náhled: role sestra kartu neodemkla'));
   await klik(p, '#np_zav'); }
 await zalozka('denik', 'c-denik');
+{ // 0.11.144: centrála – typ Návrat z nemocnice ukáže pole odkud, kam, převoz, kdy
+  await p.selectOption('#d_typ', 'Návrat z nemocnice');
+  if (!(await p.isVisible('#nv_odkud')) || (await p.textContent('#d_txt_l')) !== 'Poznámka (volitelně)') chyby.push('centrála: Návrat z nemocnice neukazuje pole nebo poznámku');
+  await p.selectOption('#d_typ', 'Změna stavu');
+  if (await p.isVisible('#nv_odkud')) chyby.push('centrála: pole návratu z nemocnice zůstala vidět u jiného typu'); }
 await zalozka('kontakty', 'c-kontakty');
 // kontrola chování záložky Důležité kontakty: úprava ve formuláři, přeřazení šipkami, přidání na konec
 {
@@ -861,6 +866,20 @@ if (!(await p.textContent('#work')).includes('Co je pro mě důležité')) chyby
 await foto(p, 'k-od-pacienta', { vyska: 1300 });
 await klik(p, '.tile[data-tab="denik"]'); await p.waitForSelector('#d_txt'); await p.fill('#d_txt', 'Odpoledne klidná, napila se, bolest 2/10.');
 await foto(p, 'k-denik');
+{ // 0.11.144: Návrat z nemocnice – pole odkud, kam, převoz, kdy; zápis uzavře zhoršení
+  if (!(await p.$('#qtypes [data-t="Návrat z nemocnice"]'))) chyby.push('karta: v deníku chybí typ Návrat z nemocnice');
+  else {
+    await p.click('#qtypes [data-t="Návrat z nemocnice"]');
+    if (!(await p.isVisible('#nv_odkud')) || !(await p.isVisible('#nv_jak'))) chyby.push('karta: Návrat z nemocnice neukazuje pole odkud / převoz');
+    await p.fill('#nv_odkud', 'KNTB Zlín, interna'); await p.selectOption('#nv_jak', { index: 0 }); await p.check('#nv_zprava'); await p.fill('#d_txt', 'Unavená, jinak klidná.');
+    await foto(p, 'k-navrat', { vyska: 1150 });
+    const t = await p.evaluate(() => KP.navratText('x'));
+    if (!/^Návrat z nemocnice \(KNTB Zlín, interna\) domů, .+; převoz: dopravní zdravotní služba \(sanitka\)\. Propouštěcí zpráva/.test(t)) chyby.push('karta: text návratu z nemocnice: ' + t);
+    await p.click('#qtypes button'); if (await p.isVisible('#nv_odkud')) chyby.push('karta: pole návratu z nemocnice zůstala vidět u jiného typu');
+  }
+  const uz = await p.evaluate(() => [!!KP.aktivniZhorseni([{ typ: 'Zhoršení stavu' }]), !!KP.aktivniZhorseni([{ typ: 'Zhoršení stavu' }, { typ: 'Návrat z nemocnice' }])]);
+  if (!uz[0] || uz[1]) chyby.push('karta: Návrat z nemocnice neuzavírá zhoršení');
+}
 await klik(p, '.tile[data-tab="zhorseni"]'); await p.waitForSelector('#btnZ');
 await p.click('#z_sym input[value="dušnost"]'); await p.click('#z_akce input[value="podán SOS lék"]');
 await foto(p, 'k-zhorseni', { vyska: 1150 });

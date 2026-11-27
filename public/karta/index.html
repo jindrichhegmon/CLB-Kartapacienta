@@ -34,7 +34,7 @@ try { var _v = localStorage.getItem('kp_vzhled'); if (_v === 'tmava') document.d
  *  - krizová karta bez přihlášení (ZZS), pečující PINem, lékař kódem z centrální aplikace (obojí ověřeno offline)
  *  - zápisy bez signálu čekají ve frontě, odešlou se při nejbližším připojení; plán jen ze serveru
  */
-const APP_VERZE = 'karta-0.11.141';
+const APP_VERZE = 'karta-0.11.144';
 const { esc, toast, modal, closeModal, fmtD, fmtDT, CILE } = KP;
 const $ = (id) => document.getElementById(id);
 let KARTY = [];               // průkazy v tomto telefonu (od 0.11.0 jich může být víc – např. jeden telefon v domově seniorů pro více pacientů)
@@ -174,11 +174,11 @@ function zamkni() { if (VID.okno) zavriHovor(true); U = { role: null }; tab = 'k
 const ROLE_NAZ = { lekar: 'lékař / spec. sestra', sestra: 'sestra DPS', rodina: 'rodina', hospic: 'hospic', pl: 'praktický lékař', zzs: 'ZZS' };
 /* co která role na kartě smí (jako v demu); typy zápisů odpovídají serveru (src/routes/device.js POVOLENE), zhoršení zapisuje průvodce */
 const ROLE_KARTA = {
-  lekar: { nazev: 'Lékař a spec. sestra', c: 'var(--accent)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Léky upravujete přímo tady na telefonu, cíl péče a limitace mění lékař v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Návštěva hospice', 'Telefonát'] },
-  pl: { nazev: 'Praktický lékař', c: 'var(--accent-ink)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče měníte v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Telefonát'] },
-  hospic: { nazev: 'Hospic', c: 'var(--violet)', popis: 'Vidíte celý záznam, zapisujete do deníku a jste prvním kontaktem při zhoršení. Plán péče mění lékař.', typy: ['Návštěva hospice', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát'] },
-  sestra: { nazev: 'Sestra DPS', c: 'var(--ok)', popis: 'Vidíte celý záznam, zapisujete stav a podané SOS léky, při zhoršení vyplníte průvodce. Plán péče měnit nemůžete.', typy: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát', 'Pozorování rodiny'] },
-  rodina: { nazev: 'Rodina', c: 'var(--warn)', popis: 'Vidíte kartu, plán, léky, kontakty a poznámky pacienta. Interní poznámky týmu nevidíte. Při zhoršení vám pomůže průvodce v dlaždici Zhoršení.', typy: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát'] },
+  lekar: { nazev: 'Lékař a spec. sestra', c: 'var(--accent)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Léky upravujete přímo tady na telefonu, cíl péče a limitace mění lékař v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Návštěva hospice', 'Telefonát', 'Návrat z nemocnice'] },
+  pl: { nazev: 'Praktický lékař', c: 'var(--accent-ink)', popis: 'Vidíte celý záznam a zapisujete do deníku včetně návštěv lékaře. Plán péče měníte v centrální aplikaci.', typy: ['Návštěva lékaře', 'Změna stavu', 'Podán SOS lék', 'Telefonát', 'Návrat z nemocnice'] },
+  hospic: { nazev: 'Hospic', c: 'var(--violet)', popis: 'Vidíte celý záznam, zapisujete do deníku a jste prvním kontaktem při zhoršení. Plán péče mění lékař.', typy: ['Návštěva hospice', 'Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát', 'Návrat z nemocnice'] },
+  sestra: { nazev: 'Sestra DPS', c: 'var(--ok)', popis: 'Vidíte celý záznam, zapisujete stav a podané SOS léky, při zhoršení vyplníte průvodce. Plán péče měnit nemůžete.', typy: ['Změna stavu', 'Podán SOS lék', 'Návštěva lékaře', 'Telefonát', 'Pozorování rodiny', 'Návrat z nemocnice'] },
+  rodina: { nazev: 'Rodina', c: 'var(--warn)', popis: 'Vidíte kartu, plán, léky, kontakty a poznámky pacienta. Interní poznámky týmu nevidíte. Při zhoršení vám pomůže průvodce v dlaždici Zhoršení.', typy: ['Pozorování rodiny', 'Podán SOS lék', 'Změna stavu', 'Telefonát', 'Návrat z nemocnice'] },
 };
 function stariSync() { if (!D || !D.posledniSync) return Infinity; return Date.now() - new Date(D.posledniSync).getTime(); }
 function textStari() {
@@ -375,7 +375,8 @@ function denikHTML(denik) {
   const typy = (ROLE_KARTA[U.role] || ROLE_KARTA.rodina).typy;
   return `<div class="panel"><div class="panel-h"><h2>Nový zápis</h2></div><div class="form" style="padding:14px">
       <div class="field"><label>Typ</label><div class="quick" id="qtypes">${typy.map((t, i) => `<button class="btn sm" data-t="${t}" style="${i === 0 ? 'background:var(--accent-soft);border-color:var(--accent)' : ''}">${t}</button>`).join('')}</div></div>
-      <div class="field"><label>Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
+      ${KP.navratPoleHTML()}
+      <div class="field"><label id="d_txt_l">Text</label><textarea id="d_txt" style="font-family:var(--font)" placeholder="Co se děje, co bylo provedeno…"></textarea></div>
       <button class="btn primary" id="btnAddD">Zapsat jako ${esc(U.jmeno)}</button>
       <div class="note">Funguje i bez signálu – zápis se odešle při nejbližším připojení. Zápisy nelze mazat ani měnit.</div></div></div>
     ${KP.denikHTML(denik)}`;
@@ -586,8 +587,10 @@ function bind() {
   on('btnZZS', () => { const v = $('zzs_v').value, p = $('zzs_p').value.trim(), n = $('zzs_n').value.trim(); if (p.length < 3) { $('zzs_p').focus(); return toast('Vyplňte své jméno a posádku'); } pridejZapis('Výjezd ZZS', `Výjezd ZZS: ${v}.${n ? ' ' + n : ''}`, 'zzs', p); toast('Výjezd zapsán'); });
   if ($('qtypes')) {
     let typ = $('qtypes').querySelector('button').dataset.t;
-    $('qtypes').querySelectorAll('button').forEach((b) => (b.onclick = () => { typ = b.dataset.t; $('qtypes').querySelectorAll('button').forEach((x) => (x.style = '')); b.style = 'background:var(--accent-soft);border-color:var(--accent)'; }));
-    on('btnAddD', () => { const t = $('d_txt').value.trim(); if (!t) return toast('Napište text zápisu'); pridejZapis(typ, t, U.role, U.jmeno); toast(navigator.onLine ? 'Zapsáno' : 'Zapsáno – odešle se po připojení'); });
+    $('qtypes').querySelectorAll('button').forEach((b) => (b.onclick = () => { typ = b.dataset.t; $('qtypes').querySelectorAll('button').forEach((x) => (x.style = '')); b.style = 'background:var(--accent-soft);border-color:var(--accent)';
+      // 0.11.144: Návrat z nemocnice – pole odkud, kam, převoz a kdy; text je pak jen poznámka
+      const nv = typ === KP.NAVRAT; $('nv_pole').hidden = !nv; $('d_txt_l').textContent = nv ? 'Poznámka (volitelně)' : 'Text'; }));
+    on('btnAddD', () => { const nv = typ === KP.NAVRAT; const t = nv ? KP.navratText($('d_txt').value.trim()) : $('d_txt').value.trim(); if (!t) return toast('Napište text zápisu'); pridejZapis(typ, t, U.role, U.jmeno); toast(navigator.onLine ? (nv ? 'Návrat z nemocnice zapsán' : 'Zapsáno') : 'Zapsáno – odešle se po připojení'); });
   }
   on('btnZ', () => {
     const pick = (id) => [...document.querySelectorAll(`#${id} input:checked`)].map((i) => i.value);

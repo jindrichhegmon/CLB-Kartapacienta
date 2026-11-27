@@ -126,9 +126,9 @@
     addEventListener('popstate', () => { try { fn(); } catch { /* */ } try { history.pushState({ kp: 'zpet' }, ''); } catch { /* */ } });
   };
 
-  /** Aktivní zhoršení = poslední krizový zápis je „Zhoršení stavu“. */
+  /** Aktivní zhoršení = poslední krizový zápis je „Zhoršení stavu“ (0.11.144: návrat z nemocnice epizodu také uzavírá). */
   KP.aktivniZhorseni = (denik) => {
-    const krize = (denik || []).filter((e) => ['Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Ukončení'].includes(e.typ));
+    const krize = (denik || []).filter((e) => ['Zhoršení stavu', 'Stav stabilizován', 'Výjezd ZZS', 'Návrat z nemocnice', 'Ukončení'].includes(e.typ));
     const l = krize[krize.length - 1];
     return l && l.typ === 'Zhoršení stavu' ? l : null;
   };
@@ -450,7 +450,24 @@
     const vse = denik || [], sys = vse.filter((e) => KP.SYSTEM_TYPY.includes(e.typ)), pac = vse.filter((e) => !KP.SYSTEM_TYPY.includes(e.typ));
     return KP.denikSeznam(pac, { role }) + (sys.length ? `<details class="vysv"><summary>Systémové záznamy <span class="chip">${sys.length}</span></summary><div class="vysv-b">${KP.denikSeznam(sys, { role })}</div></details>` : '');
   };
-  KP.denikSeznam = (denik, { role = true } = {}) => `<ul class="diary">${[...(denik || [])].reverse().map((e) => `<li class="${/Zhoršení|ZZS/.test(e.typ) ? 'crit' : /stabilizován/.test(e.typ) ? 'ok' : ''}"><div class="when">${KP.esc(KP.fmtDT(e.cas))} · <span class="who">${KP.esc(e.autor)}${role && e.role ? ' · ' + KP.esc(KP.ROLE[e.role] || e.role) : ''}${e.overeno === false || e.overeno === 0 ? ' · <span class="chip warn">neověřeno</span>' : ''}${e.cekaNaOdeslani ? ' · <span class="chip">čeká na odeslání</span>' : ''}</span></div><div><span class="chip ${/SOS/.test(e.typ) ? 'warn' : /Zhoršení|ZZS/.test(e.typ) ? 'crit' : /Založení|Revize|Ukončení|Předání/.test(e.typ) ? 'acc' : /Úprava|Systém/.test(e.typ) ? 'vio' : ''}">${KP.esc(e.typ)}</span><div style="margin-top:4px;white-space:pre-wrap">${KP.esc(e.text)}</div></div></li>`).join('') || '<li class="muted">Zatím žádné zápisy.</li>'}</ul>`;
+  /* 0.11.144: návrat z nemocnice – samostatný typ zápisu s poli odkud, kam, jak a kdy (centrála i telefon u pacienta) */
+  KP.NAVRAT = 'Návrat z nemocnice';
+  KP.navratPoleHTML = () => {
+    const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    return `<div id="nv_pole" hidden style="display:grid;gap:4px;margin:4px 0 8px">
+      <div class="field"><label>Z které nemocnice / oddělení</label><input id="nv_odkud" placeholder="např. KNTB Zlín, interna" autocomplete="off"></div>
+      <div class="field"><label>Kdy se vrátil(a)</label><input type="datetime-local" id="nv_kdy" value="${d}"></div>
+      <div class="field"><label>Kam</label><select id="nv_kam"><option>domů</option><option>do domova pro seniory</option><option>do hospice</option><option>jinam</option></select></div>
+      <div class="field"><label>Převoz</label><select id="nv_jak"><option>dopravní zdravotní služba (sanitka)</option><option>záchranná služba (ZZS)</option><option>rodina</option><option>jinak</option></select></div>
+      <label class="row" style="gap:8px"><input type="checkbox" id="nv_zprava"> přivezl(a) propouštěcí zprávu</label></div>`;
+  };
+  KP.navratText = (poznamka = '') => {
+    const v = (id) => ((document.getElementById(id) || {}).value || '').trim();
+    const kdy = v('nv_kdy') ? KP.fmtDT(v('nv_kdy').replace('T', ' ')) : '';
+    const zprava = (document.getElementById('nv_zprava') || {}).checked;
+    return `Návrat z nemocnice${v('nv_odkud') ? ' (' + v('nv_odkud') + ')' : ''} ${v('nv_kam') || 'domů'}${kdy ? ', ' + kdy : ''}; převoz: ${v('nv_jak') || 'neuvedeno'}.${zprava ? ' Propouštěcí zpráva je k dispozici – nahrát do Dokumentů v centrále a rozebrat (léky, diagnózy).' : ''}${poznamka ? ' ' + poznamka : ''}`;
+  };
+  KP.denikSeznam = (denik, { role = true } = {}) => `<ul class="diary">${[...(denik || [])].reverse().map((e) => `<li class="${/Zhoršení|ZZS/.test(e.typ) ? 'crit' : /stabilizován|Návrat z nemocnice/.test(e.typ) ? 'ok' : ''}"><div class="when">${KP.esc(KP.fmtDT(e.cas))} · <span class="who">${KP.esc(e.autor)}${role && e.role ? ' · ' + KP.esc(KP.ROLE[e.role] || e.role) : ''}${e.overeno === false || e.overeno === 0 ? ' · <span class="chip warn">neověřeno</span>' : ''}${e.cekaNaOdeslani ? ' · <span class="chip">čeká na odeslání</span>' : ''}</span></div><div><span class="chip ${/SOS/.test(e.typ) ? 'warn' : /Zhoršení|ZZS/.test(e.typ) ? 'crit' : /Založení|Revize|Ukončení|Předání/.test(e.typ) ? 'acc' : /Úprava|Systém/.test(e.typ) ? 'vio' : ''}">${KP.esc(e.typ)}</span><div style="margin-top:4px;white-space:pre-wrap">${KP.esc(e.text)}</div></div></li>`).join('') || '<li class="muted">Zatím žádné zápisy.</li>'}</ul>`;
 
   window.KP = KP;
 })();
