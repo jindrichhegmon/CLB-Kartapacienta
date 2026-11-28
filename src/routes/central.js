@@ -12,7 +12,6 @@ import { h, chyba, omez, omezReset, ip, bearer, text, cislo } from '../http.js';
 import { podepis, overSession, hashHeslo, overHeslo, generujHeslo, zasifruj, desifruj, parovaciKod, novyPin, novyPinAsync, hashPin, kodDne, konecDnePraha } from '../crypto.js';
 import { audit, zapisDenik, dalsiKod, planAktualni, garant, opravneni, ulozPlan, normalizujPlan, puvodPlanu, roleSeznam, roleNahledu, stavPredani, MIME_PRO_PACIENTA, VYZVA_OBNOVIT, roleOsoby, ROLE_OSOBY, TYPY_POSKYTOVATELE, TYPY_DENIKU, LIMITY, CILE } from '../kp.js';
 import { rozborZpravy, latka } from '../ai.js';
-import { zalozZasilku, zrusZasilku, cekaZasilka, ZASILKA_ID_RE } from '../zasilka.js';
 import { seznamSukl, lekText } from '../sukl.js';
 import { normTel, hezkyTel, smsDostupne, smsDuvod, posliSms } from '../telefon.js';
 import { zalozPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, nahledPrenosu, potvrdCekani, vydejCislo } from '../prenos.js';
@@ -1347,28 +1346,6 @@ central.post('/pacient/:id/uzavrit', sUzivatelem(async (q, s, req) => {
   await q.exec(`UPDATE dbo.A_KP_Pin SET Aktivni = 0 WHERE PacientID = @p`, { p: id });
   await zapisDenik(q, { pacientId: id, typ: 'Ukončení', text: `Průkaz uzavřen: ${duvod}. Telefon se při příštím připojení vymaže.`, autor: s.jmeno, role: 'lekar', uzivatelId: s.uzivatelId });
   await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, pacientId: id, akce: 'uzavření průkazu', detail: duvod, ip: s.ip });
-}));
-
-/* ---------------- Zpráva do Průkazu (0.11.148) ----------------
-   Aplikace „Zpráva do Průkazu“ (nastroje/zprava-do-prukazu): lékař nahraje zprávu (rozbor přes /ai/rozbor-souboru – AI jen anonymizovaně),
-   údaje zkontroluje a prohlížeč je zašifruje; sem přijde jen šifra (klíč je jen v QR kódu pro pacienta). Server ji drží v paměti
-   nejvýš 30 minut a Průkaz pacienta si ji jednou vyzvedne (POST /api/d/zasilka). Do databáze jen záznam v auditu, bez obsahu. */
-central.post('/zasilka', sUzivatelem(async (q, s, req) => {
-  omez('zasilka:' + s.tenant + ':' + s.uzivatelId, 60, 3600e3);
-  const z = zalozZasilku({ tenant: s.tenant, uzivatelId: s.uzivatelId, sifra: (req.body || {}).sifra });
-  await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zpráva připravena pro Průkaz pacienta', detail: `zašifrovaná zásilka ${Math.max(1, Math.round(z.velikost / 1024))} kB, platí 30 minut, jen jednou`, ip: s.ip });
-  return z;
-}, { lekar: true }));
-central.post('/zasilka/stav', sUzivatelem(async (q, s, req) => {
-  const id = String((req.body || {}).id || '');
-  if (!ZASILKA_ID_RE.test(id)) throw chyba('Neplatná zásilka');
-  return { ceka: cekaZasilka(s.tenant, id) };
-}));
-central.post('/zasilka/zrusit', sUzivatelem(async (q, s, req) => {
-  const id = String((req.body || {}).id || '');
-  if (!ZASILKA_ID_RE.test(id)) throw chyba('Neplatná zásilka');
-  if (zrusZasilku(s.tenant, id, s.uzivatelId)) await audit(q, { uzivatelId: s.uzivatelId, kdo: s.jmeno, akce: 'zpráva pro Průkaz pacienta zrušena', ip: s.ip });
-  return {};
 }));
 
 /* ---------------- AI rozbor (anonymně) ---------------- */

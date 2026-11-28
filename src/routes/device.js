@@ -11,8 +11,6 @@
  *                                                  nový ho naskenuje a převezme všechny průkazy najednou (viz src/prenos.js)
  *   POST /sdilet   Authorization: Device <token>   { polozky:[{druh, nazev, obsah, puvod, aktualizovano}] } – jen vlastní telefon pacienta;
  *                                                  pacient vybral, viděl náhled a potvrdil → A_KP_Sdileni + zápis do deníku
- *   POST /zasilka  { tenant, id } → { sifra }       Zpráva do Průkazu (0.11.148): jednorázová zašifrovaná zásilka od lékaře pro Průkaz
- *                                                  pacienta (src/zasilka.js) – klíč je jen v QR kódu, server obsah nezná
  * Token zařízení = "<IDTENANT>.<ZarizeniID>.<náhodných 32 B>", v DB je jen jeho SHA-256.
  * Synchronizace je idempotentní: zápis se pozná podle UUID z telefonu, opakované odeslání se ignoruje.
  * Plán péče posílá jen server – telefon ho nikdy nemění.
@@ -29,7 +27,6 @@ import { najdiCislo } from '../prenos.js';
 import { videoServer, aktivniHovor, zahajHovor, prijmiHovor, ukonciHovor, odkazDoHovoru } from '../video.js';
 import { podepis, overSession } from '../crypto.js';
 import { config } from '../config.js';
-import { vyzvedniZasilku, ZASILKA_ID_RE } from '../zasilka.js';
 import { zalozPrenos, nahledPrenosu, vezmiPrenos, dokonciPrenos, stavPrenosu, zrusPrenos, normalizujKod, formatujKod, PRENOS_KOD_RE, zalozCekani, stavCekani, zrusCekani } from '../prenos.js';
 import { nastaveniPd, zaznamyPd, DRUHY_PRO_PD, predejZhorseniPd, TYPY_ZHORSENI, zpravyPd, posliZpravuPd, lekyPd, ulozLekPd, smazLekPd, synchronizujPacienta } from '../pecedoma.js';
 
@@ -53,20 +50,6 @@ const REZIM_NAZ = { ZAPUJCENY: 'Karta pacienta (zapůjčený telefon)', PACIENT:
 
 /* Hlášení kroků zavedení telefonu QR kódem (0.11.69 / Android 0.1.16): aplikace při zavádění posílá krok, model a verzi – jen do logu
    serveru (pm2 logs), bez tenanta a bez identity pacienta; limit na IP proti zahlcení. */
-/* Zpráva do Průkazu (0.11.148): Průkaz pacienta načetl QR kód od lékaře { tenant, id } a jednou si vyzvedne zašifrovanou zásilku
-   (src/zasilka.js) – rozšifruje ji klíčem z QR kódu až v telefonu. Server obsah nezná; po vydání ji smaže. Do Karty se nic neposílá. */
-device.post('/zasilka', h(async (req) => {
-  omez('zasilka:' + ip(req), 30, 3600e3);
-  const b = req.body || {};
-  const tenant = String(b.tenant || '').toUpperCase().trim(), id = String(b.id || '');
-  if (!tenantRe.test(tenant) || !ZASILKA_ID_RE.test(id)) throw chyba('To není QR kód zprávy od lékaře');
-  const z = vyzvedniZasilku(tenant, id);
-  if (!z) throw chyba('Zpráva už není k dispozici – QR kód platí 30 minut a jen jednou. Požádejte lékaře o nový.', 404);
-  try { await vTenantu(tenant, (q) => audit(q, { uzivatelId: z.uzivatelId, kdo: 'Průkaz pacienta', akce: 'zpráva převzata do Průkazu pacienta', detail: 'zašifrovaná zásilka vydána jednou a ze serveru smazána', ip: ip(req) })); }
-  catch (e) { console.error('zasilka audit', e.message); }
-  return { sifra: z.sifra };
-}));
-
 device.post('/zavedeni', h(async (req) => {
   omez('zavedeni:' + ip(req), 120, 3600e3);
   const b = req.body || {};

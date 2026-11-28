@@ -6,7 +6,7 @@
  *   /pacient/   zrušený Můj průkaz (0.11.111) – jen stránka s odkazem na Průkaz pacienta (DialogusPrukaz); vlastní telefon pacienta = Průkaz pacienta
  *   /prukaz/    Průkaz pro plán péče (prototyp, zadání MUDr. Kabelky): pacientem řízená karta bez serveru – jen statické soubory, žádné API
  *   (/demo/ – původní lokální prototyp – od 0.2.0 zrušen, adresa přesměruje na úvod)
- * API: /api/admin/*, /api/c/*, /api/d/*, /api/napoveda (návod + chat), /api/partner/* (PéčeDoma: kód lékaře dne), /api/health
+ * API: /api/admin/*, /api/c/*, /api/d/*, /api/z/* (Zpráva do Průkazu), /api/napoveda (návod + chat), /api/partner/* (PéčeDoma: kód lékaře dne), /api/health
  */
 import express from 'express';
 import path from 'node:path';
@@ -21,6 +21,7 @@ import { device } from './routes/device.js';
 import { napoveda } from './routes/napoveda.js';
 import { partner } from './routes/partner.js';
 import { pd } from './routes/pd.js';
+import { zprava } from './routes/zprava.js';
 import { spustSynchronizaci } from './pecedoma.js';
 import { videoServer } from './video.js';
 
@@ -76,6 +77,7 @@ app.use('/api/d', device);
 app.use('/api/napoveda', napoveda);
 app.use('/api/partner', partner);
 app.use('/api/pd', pd);
+app.use('/api/z', zprava);   // 0.11.148: Zpráva do Průkazu – bez přihlášení, bez databáze
 app.use('/api', (req, res) => res.status(404).json({ ok: false, chyba: 'Neznámý endpoint' }));
 
 // ostrá verze: lokální prototyp už není

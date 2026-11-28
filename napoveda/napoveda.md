@@ -744,14 +744,14 @@ Rodina se ke kartě pacienta dostane buď **PINem na telefonu u lůžka** (kapit
 
 ### Zpráva do Průkazu – zpráva rovnou do telefonu pacienta (od 0.11.148)
 
-Když pacient v Kartě pacienta není (nebo ho tam zakládat nechcete) a jen mu chcete předat zprávu, použijte malou aplikaci **Zpráva do Průkazu** – https://zprava-do-prukazu.netlify.app (funguje na počítači i tabletu, nic se neinstaluje).
+Samostatná malá aplikace **Zpráva do Průkazu** – https://zprava-do-prukazu.netlify.app – **bez přihlášení a bez vazby na Kartu pacienta**. Hodí se pro kohokoli (nemocnice, praktický lékař, ambulance, rodina), kdo chce pacientovi dostat údaje ze zprávy do jeho Průkazu pacienta. Pacient se do Karty nezakládá a nic se neukládá.
 
-1. Přihlaste se **stejným účtem jako do Karty pacienta** (kód organizace je v odkazu …/centrala/?t=KÓD – můžete vložit i celý odkaz). Smí lékař; v jednoduchém režimu i sestra.
-2. Nahrajte **dekurz nebo zprávu** (PDF i naskenované, nebo fotku). Server zprávu přečte a rozebere – **AI dostane jen text bez jména, rodného čísla, adresy a telefonů**.
-3. Zkontrolujte, že jde o správného pacienta (jméno ze zprávy), opravte diagnózy, léky a alergie a nechte zaškrtnuté **Přiložit i samotnou zprávu**.
-4. Klepněte na **Vytvořit QR kód pro pacienta**. Pacient v Průkazu pacienta dá **Zdraví a dokumenty → Rychle doplnit → Zpráva od lékaře (QR kód)** a QR kód načte. Aplikace ukáže, až si zprávu převzal.
+1. Nahrajte **dekurz nebo zprávu** (PDF i naskenované, nebo fotku). Server zprávu přečte a rozebere – **do AI jde jen text bez jména, rodného čísla, adresy a telefonů** a jméno se ze serveru nevrací.
+2. Zkontrolujte a opravte diagnózy, léky a alergie; nechte zaškrtnuté **Přiložit i samotnou zprávu**.
+3. Klepněte na **Vytvořit kód pro Průkaz**. Aplikace ukáže **kód** (12 znaků, např. 7K3M-Q9TX-2HDR) a QR kód.
+4. Pacient v Průkazu pacienta dá **Zdraví a dokumenty → Rychle doplnit → Zpráva s kódem**, kód opíše nebo načte QR kód, údaje zkontroluje a uloží. Aplikace ukáže, až je zpráva převzatá.
 
-Údaje se v prohlížeči **zašifrují** – klíč je jen v QR kódu, server zprávu přečíst neumí. Zašifrovaná zpráva čeká na serveru **nejvýš 30 minut a vydá se jen jednou**, pak se smaže; do databáze Karty se nic neukládá (jen záznam v logu přístupů, bez obsahu). Pacient údaje v Průkazu zkontroluje a uloží jako ověřené lékařem; zpráva se mu uloží do Dokumentů.
+Údaje se v prohlížeči **zašifrují klíčem z kódu** – server dostane jen číslo zásilky a šifru, zprávu přečíst neumí. Šifra čeká nejvýš **30 minut a vydá se jen jednou**, pak se smaže; do databáze se nic neukládá. Jméno pacienta se nepřenáší – je jen v jeho Průkazu. V Průkazu se údaje uloží jako *opsáno ze zprávy* (neověřené), zpráva do Dokumentů.
 
 ## 20. Průkaz pro plán péče – prototyp pacientem řízené karty
 
