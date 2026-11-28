@@ -16,6 +16,10 @@
   `/api/d/sdilet` platilo jen pro něj; endpoint zůstává kvůli kompatibilitě a dřívější záznamy se dál ukazují (Od pacienta). Do telefonu pacienta
   nikdy deník, PINy týmu ani tajemství kódu lékaře. Nikdy přímo do jiných tabulek. Dokumenty pacientovi (od 0.11.118) jen ty s
   `A_KP_Dokument.ProPacienta = 1`: v balíku jen metadata a otisk, obsah jen přes `GET /api/d/dokument/:id` (vlastnictví ověřit v jednom dotazu, jinak 404).
+  Od 0.11.148 aplikace **Zpráva do Průkazu** (`nastroje/zprava-do-prukazu`, Netlify site zprava-do-prukazu): lékař (účet Karty) nahraje
+  zprávu → `/api/c/ai/rozbor-souboru` → zkontroluje → prohlížeč zašifruje (AES-GCM, klíč jen v QR kódu) → `POST /api/c/zasilka`;
+  Průkaz si šifru jednou vyzvedne `POST /api/d/zasilka`. Šifra jen v paměti serveru (`src/zasilka.js`, 30 min, jednou), do DB jen audit
+  bez obsahu. CORS pro ni `KP_ZPRAVA_ORIGINY` (`src/cors.js`).
 - Jednoduchý režim organizace (`A_KP_Nastaveni.REZIM_JEDNODUCHY = '1'`, Správa → Nastavení): jen skrývá obrazovky (centrála: třída `jednoduchy`
   na `<html>`, prvky `jen-plny`), data ani audit se nemění. V něm smí sestra totéž co lékař (`opravneni()`, `sUzivatelem`) a garantem nového
   pacienta je vždy pracoviště přihlášeného uživatele.

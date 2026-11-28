@@ -12,6 +12,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config, zkontrolujKonfiguraci } from './config.js';
+import { corsPovolen } from './cors.js';
 import { pool } from './db.js';
 import { smsDuvod } from './telefon.js';
 import { admin } from './routes/admin.js';
@@ -48,12 +49,11 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
   next();
 });
-/* 0.11.109: CORS pro Průkaz pacienta (DialogusPrukaz, web na Netlify / aplikace pro Android a iPhone) – jen vyjmenované cesty
-   a jen z adres v KP_PRUKAZ_ORIGINY; přihlášení je hlavičkou Authorization (token zařízení), cookies se nepoužívají */
-const PRUKAZ_CESTY = new Set(['/api/d/parovat', '/api/d/parovaci-info', '/api/d/cislo', '/api/d/stav', '/api/d/sync', '/api/d/sdilet', '/api/napoveda', '/api/napoveda/dotaz']);
+/* 0.11.109: CORS pro Průkaz pacienta, 0.11.148 i pro aplikaci Zpráva do Průkazu – jen vyjmenované cesty a jen z adres
+   v KP_PRUKAZ_ORIGINY / KP_ZPRAVA_ORIGINY (src/cors.js); přihlášení je hlavičkou Authorization, cookies se nepoužívají */
 app.use((req, res, next) => {
   const o = req.headers.origin;
-  if (!o || !(PRUKAZ_CESTY.has(req.path.replace(/\/$/, '')) || /^\/api\/d\/dokument\/\d+$/.test(req.path)) || !config.prukazOriginy.includes(o)) return next();
+  if (!corsPovolen(o, req.path)) return next();
   res.setHeader('Access-Control-Allow-Origin', o);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');

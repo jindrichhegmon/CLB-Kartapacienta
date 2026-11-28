@@ -742,6 +742,17 @@ Rodina se ke kartě pacienta dostane buď **PINem na telefonu u lůžka** (kapit
 
 > Dřívější aplikace **Můj průkaz** (`/pacient/`, karta pro pacienta a rodinu) je od verze 0.11.111 zrušená. Starý odkaz z SMS otevře stránku s odkazem na Průkaz pacienta; záznamy, které z ní pacient dříve poslal, zůstávají v centrále v panelu Od pacienta.
 
+### Zpráva do Průkazu – zpráva rovnou do telefonu pacienta (od 0.11.148)
+
+Když pacient v Kartě pacienta není (nebo ho tam zakládat nechcete) a jen mu chcete předat zprávu, použijte malou aplikaci **Zpráva do Průkazu** – https://zprava-do-prukazu.netlify.app (funguje na počítači i tabletu, nic se neinstaluje).
+
+1. Přihlaste se **stejným účtem jako do Karty pacienta** (kód organizace je v odkazu …/centrala/?t=KÓD – můžete vložit i celý odkaz). Smí lékař; v jednoduchém režimu i sestra.
+2. Nahrajte **dekurz nebo zprávu** (PDF i naskenované, nebo fotku). Server zprávu přečte a rozebere – **AI dostane jen text bez jména, rodného čísla, adresy a telefonů**.
+3. Zkontrolujte, že jde o správného pacienta (jméno ze zprávy), opravte diagnózy, léky a alergie a nechte zaškrtnuté **Přiložit i samotnou zprávu**.
+4. Klepněte na **Vytvořit QR kód pro pacienta**. Pacient v Průkazu pacienta dá **Zdraví a dokumenty → Rychle doplnit → Zpráva od lékaře (QR kód)** a QR kód načte. Aplikace ukáže, až si zprávu převzal.
+
+Údaje se v prohlížeči **zašifrují** – klíč je jen v QR kódu, server zprávu přečíst neumí. Zašifrovaná zpráva čeká na serveru **nejvýš 30 minut a vydá se jen jednou**, pak se smaže; do databáze Karty se nic neukládá (jen záznam v logu přístupů, bez obsahu). Pacient údaje v Průkazu zkontroluje a uloží jako ověřené lékařem; zpráva se mu uloží do Dokumentů.
+
 ## 20. Průkaz pro plán péče – prototyp pacientem řízené karty
 
 Samostatná aplikace na adrese `/prukaz/` podle zadání MUDr. Kabelky (Dialogus, verze 0.1, říjen 2026). Na rozdíl od zapůjčené karty **nemá žádný server ani garanta**: kartu si pacient založí sám, všechno zůstává jen v jeho telefonu, šifrované PINem, a o každém sdílení rozhoduje pacient. Je to prototyp k diskusi, ne součást ostré sítě Karty pacienta.
